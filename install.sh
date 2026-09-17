@@ -15,7 +15,13 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
-REPO_URL="https://github.com/mohd-1992/MAX-RADIUS.git"
+TOKEN="${1:-$GITHUB_TOKEN}"
+if [ -n "$TOKEN" ]; then
+  REPO_URL="https://${TOKEN}@github.com/mohd-1992/MAX-RADIUS.git"
+else
+  REPO_URL="https://github.com/mohd-1992/MAX-RADIUS.git"
+fi
+
 INSTALL_DIR="/opt/max-radius"
 BRANCH="main"
 
@@ -87,6 +93,9 @@ echo -e "${BLUE}[5/6] Deploying MAX RADIUS codebase into ${INSTALL_DIR}...${NC}"
 if [ -d "$INSTALL_DIR/.git" ]; then
   echo -e "${YELLOW}[INFO] Existing installation found. Pulling latest updates...${NC}"
   cd "$INSTALL_DIR"
+  if [ -n "$TOKEN" ]; then
+    git remote set-url origin "$REPO_URL"
+  fi
   git fetch --all
   git reset --hard "origin/$BRANCH" 2>/dev/null || git pull origin "$BRANCH"
 else
@@ -97,6 +106,9 @@ else
   git clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
   cd "$INSTALL_DIR"
 fi
+
+# Clean origin url from any token
+git remote set-url origin https://github.com/mohd-1992/MAX-RADIUS.git 2>/dev/null || true
 
 # Ensure storage directories exist with proper permissions
 mkdir -p "$INSTALL_DIR/storage/backups" "$INSTALL_DIR/storage/keys" "$INSTALL_DIR/storage/uploads" "$INSTALL_DIR/storage/logs" "$INSTALL_DIR/storage/archive" "$INSTALL_DIR/data"
