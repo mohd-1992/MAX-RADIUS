@@ -1685,12 +1685,12 @@ def sales_reports():
     # Package Breakdown
     pkgs = query_all('''
         SELECT p.name, p.service_type, p.price,
-               (SELECT COUNT(*) FROM wisp_voucher_sales WHERE package_name = p.name) +
-               (SELECT COUNT(*) FROM wisp_invoices WHERE package_name = p.name AND status = 'paid') as sold_count
+               (SELECT COUNT(*) FROM wisp_voucher_sales WHERE package_name COLLATE utf8mb4_unicode_ci = p.name COLLATE utf8mb4_unicode_ci) +
+               (SELECT COUNT(*) FROM wisp_invoices WHERE package_name COLLATE utf8mb4_unicode_ci = p.name COLLATE utf8mb4_unicode_ci AND status = 'paid') as sold_count
         FROM wisp_packages p
     ''')
-    for p in pkgs:
-        p['total_revenue'] = round(p['sold_count'] * float(p['price']), 2)
+    for p in (pkgs or []):
+        p['total_revenue'] = round((p.get('sold_count') or 0) * float(p.get('price') or 0), 2)
 
     # Recent 20 Voucher Sales Log
     recent_sales = query_all('''
