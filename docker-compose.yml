@@ -3,7 +3,7 @@ name: max-radius
 services:
 
   # ============================================================
-  # 1. MariaDB — مع استيراد كامل لبيانات السيرفر
+  # 1. MariaDB Database
   # ============================================================
   mariadb:
     image: mariadb:10.11
@@ -19,15 +19,13 @@ services:
       - "3307:3306"
     volumes:
       - mariadb_data:/var/lib/mysql
-      # init.sh يستورد full_db.sql عند أول تشغيل فقط
-      - ./database/init.sh:/docker-entrypoint-initdb.d/00_init.sh
-      - ./database/full_db.sql:/docker-entrypoint-initdb.d/full_db.sql
+      - ./database/schema_mysql.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u root -prootpass || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -prootpass || exit 1"]
+      interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 40s
+      retries: 6
+      start_period: 20s
     labels:
       - "autoheal=true"
     networks:
@@ -61,10 +59,10 @@ services:
       - ./docker/freeradius/queries.conf:/etc/freeradius-custom/queries.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "radtest healthcheck healthpass 127.0.0.1 0 max123 || exit 1"]
-      interval: 30s
+      interval: 15s
       timeout: 5s
-      retries: 3
-      start_period: 20s
+      retries: 5
+      start_period: 15s
     labels:
       - "autoheal=true"
     networks:
@@ -72,7 +70,7 @@ services:
         ipv4_address: 172.18.0.3
 
   # ============================================================
-  # 3. WISP Web Dashboard — كود المصدر مُحمَّل من الجهاز المحلي
+  # 3. WISP Web Dashboard
   # ============================================================
   wisp-web:
     image: mohd777/max-radius-web:latest
@@ -107,9 +105,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5090/"]
-      interval: 30s
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
       start_period: 15s
     labels:
       - "autoheal=true"
@@ -135,29 +133,9 @@ services:
       max-radius-net:
         ipv4_address: 172.18.0.6
 
-  # ============================================================
-  # 5. L2TP (Linux فقط — علّق على Windows)
-  # ============================================================
-  # l2tp-server:
-  #   build: ./docker/l2tp
-  #   container_name: max_radius_l2tp
-  #   restart: unless-stopped
-  #   cap_add: [NET_ADMIN]
-  #   devices:
-  #     - /dev/net/tun:/dev/net/tun
-  #   ports:
-  #     - "1701:1701/udp"
-  #   volumes:
-  #     - l2tp_vpn_data:/etc/ppp
-  #   networks:
-  #     max-radius-net:
-  #       ipv4_address: 172.18.0.5
-
 volumes:
   mariadb_data:
     driver: local
-  # l2tp_vpn_data:
-  #   driver: local
 
 networks:
   max-radius-net:

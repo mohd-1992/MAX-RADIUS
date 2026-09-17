@@ -15,13 +15,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
-TOKEN="${1:-$GITHUB_TOKEN}"
-if [ -n "$TOKEN" ]; then
-  REPO_URL="https://${TOKEN}@github.com/mohd-1992/MAX-RADIUS.git"
-else
-  REPO_URL="https://github.com/mohd-1992/MAX-RADIUS.git"
-fi
-
+REPO_URL="https://github.com/mohd-1992/MAX-RADIUS.git"
 INSTALL_DIR="/opt/max-radius"
 BRANCH="main"
 
@@ -91,24 +85,18 @@ sysctl --system -q 2>/dev/null || true
 # Prepare Installation Directory & Clone Repository
 echo -e "${BLUE}[5/6] Deploying MAX RADIUS codebase into ${INSTALL_DIR}...${NC}"
 if [ -d "$INSTALL_DIR/.git" ]; then
-  echo -e "${YELLOW}[INFO] Existing installation found. Pulling latest updates...${NC}"
+  echo -e "${YELLOW}[INFO] Updating existing installation...${NC}"
   cd "$INSTALL_DIR"
-  if [ -n "$TOKEN" ]; then
-    git remote set-url origin "$REPO_URL"
-  fi
   git fetch --all
-  git reset --hard "origin/$BRANCH" 2>/dev/null || git pull origin "$BRANCH"
+  git reset --hard "origin/$BRANCH"
 else
   if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}[INFO] Backing up existing non-git directory...${NC}"
+    echo -e "${YELLOW}[INFO] Backing up existing directory...${NC}"
     mv "$INSTALL_DIR" "${INSTALL_DIR}_backup_$(date +%s)"
   fi
   git clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
   cd "$INSTALL_DIR"
 fi
-
-# Clean origin url from any token
-git remote set-url origin https://github.com/mohd-1992/MAX-RADIUS.git 2>/dev/null || true
 
 # Ensure storage directories exist with proper permissions
 mkdir -p "$INSTALL_DIR/storage/backups" "$INSTALL_DIR/storage/keys" "$INSTALL_DIR/storage/uploads" "$INSTALL_DIR/storage/logs" "$INSTALL_DIR/storage/archive" "$INSTALL_DIR/data"
@@ -136,8 +124,9 @@ fi
 
 # Launch Docker Containers
 echo -e "${BLUE}[6/6] Pulling images and starting MAX RADIUS services...${NC}"
+docker compose down 2>/dev/null || true
 docker compose pull
-docker compose up -d
+docker compose up -d --wait || docker compose up -d
 
 # Get Public Server IP
 SERVER_IP=$(curl -s -m 2 https://api.ipify.org || curl -s -m 2 https://ifconfig.me || hostname -I | awk '{print $1}')
