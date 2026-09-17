@@ -55,15 +55,22 @@ fi
 
 echo -e "${BLUE}[1/6] Detected OS: ${BOLD}${OS} ${OS_VER}${NC}"
 
-# Wait for any background apt/dpkg processes (like unattended-upgrades) to finish
-echo -e "${BLUE}[2/6] Checking system package locks...${NC}"
-while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
-  echo -e "${YELLOW}[WAIT] Waiting for background system updates (unattended-upgrades) to release package lock...${NC}"
-  sleep 3
-done
+# Safely handle Ubuntu unattended background upgrades and lock conflicts
+echo -e "${BLUE}[2/6] Preparing package manager & unlocking apt...${NC}"
+systemctl stop unattended-upgrades.service 2>/dev/null || true
+systemctl stop apt-daily.service 2>/dev/null || true
+systemctl stop apt-daily-upgrade.service 2>/dev/null || true
+
+# Kill any lingering background apt/dpkg lock holders if active
+killall -q -9 unattended-upgr apt apt-get dpkg 2>/dev/null || true
+sleep 1
+
+# Remove any stale lock files safely
+rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null || true
+dpkg --configure -a 2>/dev/null || true
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y -q || true
+apt-get update -y -q
 apt-get install -y -q curl wget git ufw jq unzip openssl ca-certificates gnupg lsb-release
 
 # Install Docker & Docker Compose Plugin if not installed
