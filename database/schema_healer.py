@@ -266,6 +266,11 @@ def heal_database_schema():
         conn = get_connection()
         is_mysql = is_mysql_conn(conn)
         cur = conn.cursor()
+        if is_mysql:
+            try:
+                cur.execute("SET SESSION innodb_lock_wait_timeout = 2;")
+            except Exception:
+                pass
 
         # 1. Create any missing tables
         for tbl_name, create_sql in REQUIRED_TABLES.items():
