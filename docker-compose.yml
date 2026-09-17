@@ -59,10 +59,10 @@ services:
       - ./docker/freeradius/queries.conf:/etc/freeradius-custom/queries.conf:ro
     healthcheck:
       test: ["CMD-SHELL", "radtest healthcheck healthpass 127.0.0.1 0 max123 || exit 1"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 6
+      start_period: 30s
     labels:
       - "autoheal=true"
     networks:
@@ -105,10 +105,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5090/"]
-      interval: 15s
+      interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 15s
+      retries: 6
+      start_period: 20s
     labels:
       - "autoheal=true"
     networks:
