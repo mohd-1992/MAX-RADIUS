@@ -15,7 +15,13 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 BOLD='\033[1m'
 
-REPO_URL="https://github.com/mohd-1992/MAX-RADIUS.git"
+TOKEN="${1:-$GITHUB_TOKEN}"
+if [ -n "$TOKEN" ]; then
+  REPO_URL="https://${TOKEN}@github.com/mohd-1992/MAX-RADIUS.git"
+else
+  REPO_URL="https://github.com/mohd-1992/MAX-RADIUS.git"
+fi
+
 INSTALL_DIR="/opt/max-radius"
 BRANCH="main"
 
@@ -49,9 +55,15 @@ fi
 
 echo -e "${BLUE}[1/6] Detected OS: ${BOLD}${OS} ${OS_VER}${NC}"
 
-# Update & Install System Dependencies
-echo -e "${BLUE}[2/6] Updating package cache and installing prerequisites...${NC}"
-apt-get update -y -q
+# Wait for any background apt/dpkg processes (like unattended-upgrades) to finish
+echo -e "${BLUE}[2/6] Checking system package locks...${NC}"
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
+  echo -e "${YELLOW}[WAIT] Waiting for background system updates (unattended-upgrades) to release package lock...${NC}"
+  sleep 3
+done
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y -q || true
 apt-get install -y -q curl wget git ufw jq unzip openssl ca-certificates gnupg lsb-release
 
 # Install Docker & Docker Compose Plugin if not installed
@@ -124,9 +136,8 @@ fi
 
 # Launch Docker Containers
 echo -e "${BLUE}[6/6] Pulling images and starting MAX RADIUS services...${NC}"
-docker compose down 2>/dev/null || true
 docker compose pull
-docker compose up -d --wait || docker compose up -d
+docker compose up -d
 
 # Get Public Server IP
 SERVER_IP=$(curl -s -m 2 https://api.ipify.org || curl -s -m 2 https://ifconfig.me || hostname -I | awk '{print $1}')
