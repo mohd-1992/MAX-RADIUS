@@ -647,8 +647,6 @@ def execute_database_migration(file_input, options=None):
         try:
             cur.execute("SET unique_checks = 0;")
             cur.execute("SET foreign_key_checks = 0;")
-        except Exception:
-            pass
             cur.execute("DROP TRIGGER IF EXISTS trg_radacct_subscriber_activate;")
             cur.execute("DROP TRIGGER IF EXISTS trg_radacct_activate_voucher;")
             cur.execute("TRUNCATE TABLE wisp_vouchers;")
@@ -659,8 +657,8 @@ def execute_database_migration(file_input, options=None):
             cur.execute("DELETE FROM radusergroup WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
             cur.execute("DELETE FROM radreply WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
             db.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] Error during pre-migration cleanup: {e}")
 
     try:
         if _CANCEL_EVENT.is_set():
@@ -788,7 +786,10 @@ def execute_database_migration(file_input, options=None):
         # Fast pre-pass: Scan user_qutas and users first so card expiration & quotas are 100% accurate
         user_quotas = {}
         card_user_exp_map = {}
+        card_user_state_map = {}
         user_id_to_card_user = {}
+        user_id_to_exp = {}
+        user_id_to_state = {}
 
         try:
             pre_stream = _open_backup_stream(file_input)
@@ -823,8 +824,6 @@ def execute_database_migration(file_input, options=None):
                                     'download': int(down_bytes) if str(down_bytes).isdigit() else 0,
                                     'uptime': int(uptime_sec) if str(uptime_sec).isdigit() else 0
                                 }
-                                if u_id in user_id_to_card_user and exp_d:
-                                    card_user_exp_map[user_id_to_card_user[u_id]] = exp_d
 
                     elif tname == 'users':
                         for rc in rows_chunks:
@@ -832,16 +831,28 @@ def execute_database_migration(file_input, options=None):
                             if len(vals) >= 40:
                                 u_id = str(vals[0])
                                 u_name = vals[5] or ''
+                                u_state = str(vals[39]) if len(vals) > 39 else '1'
                                 u_is_card = vals[40] if len(vals) > 40 else '0'
                                 u_exp = vals[51] if len(vals) > 51 else None
                                 if u_name and u_name != '_invalid':
                                     if str(u_is_card) == '1':
                                         user_id_to_card_user[u_id] = u_name
+                                        user_id_to_state[u_id] = u_state
                                         if u_exp:
-                                            card_user_exp_map[u_name] = u_exp
+                                            user_id_to_exp[u_id] = u_exp
             pre_stream.close()
-        except Exception:
-            pass
+
+            # Cross-link all card users with accurate expiration dates and states
+            for u_id, u_name in user_id_to_card_user.items():
+                if u_id in user_quotas and user_quotas[u_id].get('expire_date'):
+                    card_user_exp_map[u_name] = user_quotas[u_id]['expire_date']
+                elif u_id in user_id_to_exp:
+                    card_user_exp_map[u_name] = user_id_to_exp[u_id]
+                if u_id in user_id_to_state:
+                    card_user_state_map[u_name] = user_id_to_state[u_id]
+
+        except Exception as e:
+            print(f"[WARN] Pre-stream scan error: {e}")
 
         stream = _open_backup_stream(file_input)
         created_batches_cache = {}
@@ -973,11 +984,27 @@ def execute_database_migration(file_input, options=None):
                         full_name = f"{u_first} {u_last}".strip() or u_name
                         service_type = 'broadband' if str(u_link).lower() in ('lan', 'wireless', 'pppoe') else 'hotspot'
 
+                        # Calculate start of current billing cycle (last_renewed_at)
+                        val_days = int(matched_pkg.get('validity_days') or matched_pkg.get('validity_value') or 30)
+                        u_last_renewed = None
+                        if u_exp:
+                            try:
+                                exp_dt_obj = datetime.datetime.strptime(str(u_exp)[:19], '%Y-%m-%d %H:%M:%S')
+                                cycle_start = exp_dt_obj - datetime.timedelta(days=val_days)
+                                if cycle_start > now_dt:
+                                    u_last_renewed = (now_dt - datetime.timedelta(days=min(val_days, 30))).strftime('%Y-%m-%d %H:%M:%S')
+                                else:
+                                    u_last_renewed = cycle_start.strftime('%Y-%m-%d %H:%M:%S')
+                            except Exception:
+                                u_last_renewed = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+                        elif status == 'active':
+                            u_last_renewed = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+
                         tracking_data['imported_subscriber_usernames'].add(u_name)
                         tracking_data['all_imported_usernames'].add(u_name)
 
                         subscribers_bulk.append((
-                            u_name, u_pass, full_name, u_phone, service_type, pkg_id, status, u_exp,
+                            u_name, u_pass, full_name, u_phone, service_type, pkg_id, status, u_exp, u_last_renewed,
                             f"مستورد من {analysis['system_type']}"
                         ))
                         if status == 'active':
@@ -992,7 +1019,7 @@ def execute_database_migration(file_input, options=None):
                         sub_sql = adapt_query("""
                             INSERT INTO wisp_subscribers (
                                 username, password, full_name, phone, service_type, package_id, status, expires_at, last_renewed_at, notes, created_at
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NULL, %s, NOW())
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                             ON DUPLICATE KEY UPDATE
                                 password = VALUES(password),
                                 full_name = VALUES(full_name),
@@ -1001,7 +1028,7 @@ def execute_database_migration(file_input, options=None):
                                 package_id = VALUES(package_id),
                                 status = VALUES(status),
                                 expires_at = VALUES(expires_at),
-                                last_renewed_at = NULL
+                                last_renewed_at = VALUES(last_renewed_at)
                         """, db)
                         cur.executemany(sub_sql, subscribers_bulk)
                         stats['subscribers_imported'] += len(subscribers_bulk)
@@ -1036,42 +1063,45 @@ def execute_database_migration(file_input, options=None):
                         c_status = 'unused'
                         c_exp_dt = None
                         c_first_used = None
+                        c_reason = ''
 
                         if str(c_charged) == '1' or c_charged_at:
                             c_first_used = c_charged_at or c_created
+                            u_state = card_user_state_map.get(c_user, '1')
+
                             if c_user in card_user_exp_map and card_user_exp_map[c_user]:
                                 try:
                                     c_exp_dt = datetime.datetime.strptime(str(card_user_exp_map[c_user])[:19], '%Y-%m-%d %H:%M:%S')
                                 except Exception:
                                     c_exp_dt = None
-                            
-                            if not c_exp_dt and c_charged_at:
-                                try:
-                                    chg_dt = datetime.datetime.strptime(str(c_charged_at)[:19], '%Y-%m-%d %H:%M:%S')
-                                    if val_unit == 'hours':
-                                        c_exp_dt = chg_dt + datetime.timedelta(hours=int(val_amount))
-                                    elif val_unit == 'months':
-                                        c_exp_dt = chg_dt + datetime.timedelta(days=int(val_amount) * 30)
-                                    elif val_unit == 'minutes':
-                                        c_exp_dt = chg_dt + datetime.timedelta(minutes=int(val_amount))
-                                    else:
-                                        c_exp_dt = chg_dt + datetime.timedelta(days=int(val_amount))
-                                except Exception:
-                                    c_exp_dt = None
 
-                            if c_exp_dt:
+                            if u_state == '2':
+                                c_status = 'expired'
+                                c_reason = 'انتهاء الكوتا / نفاد الرصيد'
+                            elif c_exp_dt:
                                 if c_exp_dt < now_dt:
                                     c_status = 'expired'
+                                    c_reason = 'انتهاء الصلاحية والوقت'
                                 else:
                                     c_status = 'active'
                             else:
-                                c_status = 'active'
+                                c_status = 'expired'
                         else:
                             c_status = 'unused'
                             c_exp_dt = None
                             c_first_used = None
 
                         c_exp_str = c_exp_dt.strftime('%Y-%m-%d %H:%M:%S') if c_exp_dt else None
+
+                        # Calculate start of current billing cycle (last_renewed_at)
+                        c_last_renewed = None
+                        if c_status == 'active':
+                            if c_first_used:
+                                c_last_renewed = str(c_first_used)[:19]
+                            elif c_exp_dt:
+                                c_last_renewed = (c_exp_dt - datetime.timedelta(days=int(val_amount))).strftime('%Y-%m-%d %H:%M:%S')
+                            else:
+                                c_last_renewed = now_dt.strftime('%Y-%m-%d %H:%M:%S')
 
                         batch_id = created_batches_cache.get(c_series)
                         if not batch_id:
@@ -1100,7 +1130,7 @@ def execute_database_migration(file_input, options=None):
 
                         vouchers_bulk.append((
                             batch_id, matched_pkg['id'], target_reseller_id, c_serial, c_user, c_pass, c_pass,
-                            c_status, c_first_used, c_exp_str, c_created,
+                            c_status, c_reason, c_first_used, c_exp_str, c_last_renewed, c_created,
                             matched_pkg.get('price', 0), matched_pkg.get('cost', 0), matched_pkg.get('volume_quota_mb', 0), matched_pkg.get('uptime_limit_mins', 0),
                             matched_pkg.get('validity_value', 30), matched_pkg.get('validity_unit', 'days'), matched_pkg.get('validity_days', 30),
                             matched_pkg.get('rate_download', '0'), matched_pkg.get('rate_upload', '0'), f"{matched_pkg.get('rate_upload', '0')}/{matched_pkg.get('rate_download', '0')}",
@@ -1122,17 +1152,19 @@ def execute_database_migration(file_input, options=None):
                             v_sql = adapt_query("""
                                 INSERT INTO wisp_vouchers (
                                     batch_id, package_id, reseller_id, serial_number, username, password, pin_code,
-                                    status, first_used_at, expires_at, created_at,
+                                    status, expire_reason, first_used_at, expires_at, last_renewed_at, created_at,
                                     snap_price, snap_cost, snap_volume_quota_mb, snap_uptime_limit_mins,
                                     snap_validity_value, snap_validity_unit, snap_validity_days,
                                     snap_rate_download, snap_rate_upload, snap_rate_limit_str,
                                     snap_simultaneous_sessions, snap_mikrotik_group
-                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                 ON DUPLICATE KEY UPDATE
                                     package_id = VALUES(package_id),
                                     status = VALUES(status),
+                                    expire_reason = VALUES(expire_reason),
                                     first_used_at = VALUES(first_used_at),
                                     expires_at = VALUES(expires_at),
+                                    last_renewed_at = VALUES(last_renewed_at),
                                     snap_volume_quota_mb = VALUES(snap_volume_quota_mb),
                                     snap_validity_value = VALUES(snap_validity_value),
                                     snap_validity_unit = VALUES(snap_validity_unit),
@@ -1260,8 +1292,8 @@ def execute_database_migration(file_input, options=None):
             if subscribers_bulk:
                 sub_sql = adapt_query("""
                     INSERT INTO wisp_subscribers (
-                        username, password, full_name, phone, service_type, package_id, status, expires_at, notes, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                        username, password, full_name, phone, service_type, package_id, status, expires_at, last_renewed_at, notes, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                     ON DUPLICATE KEY UPDATE
                         password = VALUES(password),
                         full_name = VALUES(full_name),
@@ -1269,7 +1301,8 @@ def execute_database_migration(file_input, options=None):
                         service_type = VALUES(service_type),
                         package_id = VALUES(package_id),
                         status = VALUES(status),
-                        expires_at = VALUES(expires_at)
+                        expires_at = VALUES(expires_at),
+                        last_renewed_at = VALUES(last_renewed_at)
                 """, db)
                 cur.executemany(sub_sql, subscribers_bulk)
                 stats['subscribers_imported'] += len(subscribers_bulk)
@@ -1279,17 +1312,19 @@ def execute_database_migration(file_input, options=None):
                 v_sql = adapt_query("""
                     INSERT INTO wisp_vouchers (
                         batch_id, package_id, reseller_id, serial_number, username, password, pin_code,
-                        status, first_used_at, expires_at, created_at,
+                        status, expire_reason, first_used_at, expires_at, last_renewed_at, created_at,
                         snap_price, snap_cost, snap_volume_quota_mb, snap_uptime_limit_mins,
                         snap_validity_value, snap_validity_unit, snap_validity_days,
                         snap_rate_download, snap_rate_upload, snap_rate_limit_str,
                         snap_simultaneous_sessions, snap_mikrotik_group
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE
                         package_id = VALUES(package_id),
                         status = VALUES(status),
+                        expire_reason = VALUES(expire_reason),
                         first_used_at = VALUES(first_used_at),
                         expires_at = VALUES(expires_at),
+                        last_renewed_at = VALUES(last_renewed_at),
                         snap_volume_quota_mb = VALUES(snap_volume_quota_mb),
                         snap_validity_value = VALUES(snap_validity_value),
                         snap_validity_unit = VALUES(snap_validity_unit),
