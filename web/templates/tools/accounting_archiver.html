@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}أرشفة وضغط سجلات المحاسبة - MAX RADIUS{% endblock %}
+{% block page_title %}أرشفة سجلات المحاسبة التاريخية وضغط قاعدة البيانات{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Banner -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-box-archive"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    أرشفة وضغط سجلات المحاسبة (Accounting Archiver & DB Compactor)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">نقل الجلسات التاريخية القديمة إلى جداول الأرشيف لتسريع استعلامات الـ RADIUS وتخفيف حجم قاعدة البيانات</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="location.reload()" class="px-4 py-2.5 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-arrows-rotate text-emerald-400"></i>
+                <span>تحديث الحالة</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Live Sessions Count -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">الجلسات الحية (radacct)</span>
+                <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-base border border-blue-500/20">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-white font-mono">{{ data.live_sessions_count }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حجم الجدول:</span>
+                    <span class="font-bold text-blue-400 font-mono">{{ data.radacct_size_mb }} MB</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Archived Sessions Count -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">الجلسات المؤرشفة (Archive)</span>
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/20">
+                    <i class="fa-solid fa-file-zipper"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-emerald-400 font-mono">{{ data.archived_sessions_count }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حجم الأرشيف:</span>
+                    <span class="font-bold text-emerald-400 font-mono">{{ data.archive_size_mb }} MB</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Oldest Session Date -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">أقدم جلسة مسجلة</span>
+                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-xs font-bold text-purple-400 font-mono truncate">{{ data.oldest_session or 'لا توجد جلسات' }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>أحدث جلسة:</span>
+                    <span class="font-mono text-slate-300">{{ data.newest_session or '-' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Candidates for Archiving -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">سجلات مؤهلة للأرشفة (>90d)</span>
+                <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-base border border-amber-500/20">
+                    <i class="fa-solid fa-broom-ball"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-amber-400 font-mono">{{ data.older_90d_count }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>توفير متوقع:</span>
+                    <span class="font-bold text-emerald-400">تسريع الاستعلام 2x</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Archiver Controls Card -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div>
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-gears text-amber-400"></i>
+                    تشغيل عملية الأرشفة وضغط الجداول
+                </h3>
+                <p class="text-xs text-slate-400 mt-1">اختر الفترة الزمنية المراد نقل سجلاتها إلى جدول الأرشيف الآمن ثم اضغط على زر البدء</p>
+            </div>
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <select id="archiveDays" class="bg-[#070b14] border border-[#1c2840] text-slate-200 text-xs rounded-xl px-4 py-2.5 focus:border-amber-500">
+                    <option value="30">أقدم من 30 يوماً</option>
+                    <option value="90" selected>أقدم من 90 يوماً (موصى به)</option>
+                    <option value="180">أقدم من 180 يوماً (6 أشهر)</option>
+                    <option value="365">أقدم من سنة كاملة (365 يوماً)</option>
+                </select>
+                <button onclick="triggerArchiving()" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-amber-600/20 whitespace-nowrap">
+                    <i class="fa-solid fa-play"></i>
+                    <span>بدء الأرشفة والضغط</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function triggerArchiving() {
+        const days = document.getElementById('archiveDays').value;
+        Swal.fire({
+            title: `تأكيد أرشفة السجلات الأقدم من ${days} يوماً`,
+            text: 'سيتم نقل هذه السجلات من جدول radacct النشط إلى radacct_archive وضغط قاعدة البيانات.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، ابدأ الأرشفة',
+            cancelButtonText: 'إلغاء'
+        }).then(result => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ نقل وأرشفة السجلات...',
+                    text: 'يرجى الانتظار لحين اكتمال الأرشفة وضغط الجداول...',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+                const fd = new FormData();
+                fd.append('days', days);
+                fetch('/api/tools/accounting-archiver/run', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            Swal.fire('تمت الأرشفة بنجاح', res.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('خطأ', res.message || 'فشلت عملية الأرشفة', 'error');
+                        }
+                    })
+                    .catch(err => Swal.fire('خطأ غير متوقع', err.message, 'error'));
+            }
+        });
+    }
+</script>
+{% endblock %}

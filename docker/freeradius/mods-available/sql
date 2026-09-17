@@ -1,0 +1,41 @@
+# FreeRADIUS 3.x configuration snippet for rlm_sql with MySQL/MariaDB
+sql {
+    driver = "rlm_sql_mysql"
+    dialect = "mysql"
+
+    server = "mariadb"
+    port = 3306
+    login = "radius"
+    password = "radpass"
+
+    radius_db = "radius_wisp"
+
+    pool {
+        start = 5
+        min = 4
+        max = 30
+        spare = 3
+        uses = 0
+        retry_delay = 30
+        lifetime = 0
+        idle_timeout = 60
+    }
+
+    client_table = "nas"
+    nas_table = "nas"
+    acct_table1 = "radacct"
+    acct_table2 = "radacct"
+    postauth_table = "radpostauth"
+    authcheck_table = "radcheck"
+    authreply_table = "radreply"
+    groupcheck_table = "radgroupcheck"
+    groupreply_table = "radgroupreply"
+    usergroup_table = "radusergroup"
+
+    read_groups = yes
+    read_profiles = yes
+    read_clients = yes
+
+    $INCLUDE ${modconfdir}/${.:name}/main/mysql/queries.conf
+}
+

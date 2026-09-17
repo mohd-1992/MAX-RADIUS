@@ -1,0 +1,168 @@
+name: max-radius
+
+services:
+
+  # ============================================================
+  # 1. MariaDB — مع استيراد كامل لبيانات السيرفر
+  # ============================================================
+  mariadb:
+    image: mariadb:10.11
+    container_name: max_radius_db
+    restart: unless-stopped
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=512M --innodb-flush-log-at-trx-commit=2 --innodb-log-file-size=64M
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: radius_wisp
+      MYSQL_USER: radius
+      MYSQL_PASSWORD: radpass
+    ports:
+      - "3307:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      # init.sh يستورد full_db.sql عند أول تشغيل فقط
+      - ./database/init.sh:/docker-entrypoint-initdb.d/00_init.sh
+      - ./database/full_db.sql:/docker-entrypoint-initdb.d/full_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u root -prootpass || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    labels:
+      - "autoheal=true"
+    networks:
+      max-radius-net:
+        ipv4_address: 172.18.0.2
+
+  # ============================================================
+  # 2. FreeRADIUS Core
+  # ============================================================
+  freeradius:
+    image: mohd777/max-radius-core:latest
+    container_name: max_radius_core
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_USER: radius
+      DB_PASSWORD: radpass
+      DB_NAME: radius_wisp
+      RADIUS_SECRET_DEFAULT: "max123"
+    ports:
+      - "1812:1812/udp"
+      - "1813:1813/udp"
+    volumes:
+      - ./docker/freeradius/entrypoint.sh:/entrypoint.sh
+      - ./docker/freeradius/queries.conf:/etc/freeradius-custom/queries.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "radtest healthcheck healthpass 127.0.0.1 0 max123 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "autoheal=true"
+    networks:
+      max-radius-net:
+        ipv4_address: 172.18.0.3
+
+  # ============================================================
+  # 3. WISP Web Dashboard — كود المصدر مُحمَّل من الجهاز المحلي
+  # ============================================================
+  wisp-web:
+    image: mohd777/max-radius-web:latest
+    container_name: max_radius_web
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      freeradius:
+        condition: service_healthy
+    environment:
+      - APP_NAME=MAX_RADIUS
+      - DB_TYPE=mysql
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_USER=radius
+      - DB_PASSWORD=radpass
+      - DB_NAME=radius_wisp
+      - PORT=5090
+      - RADIUS_COA_PORT=37990
+      - L2TP_CONTAINER=max_radius_l2tp
+    ports:
+      - "80:5090/tcp"
+      - "5090:5090/tcp"
+    volumes:
+      - ./core:/app/core
+      - ./database:/app/database
+      - ./services:/app/services
+      - ./web:/app/web
+      - ./storage:/app/storage
+      - ./storage/uploads:/app/web/static/uploads
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5090/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    labels:
+      - "autoheal=true"
+    networks:
+      max-radius-net:
+        ipv4_address: 172.18.0.4
+
+  # ============================================================
+  # 4. Autoheal
+  # ============================================================
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: max_radius_autoheal
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=10
+      - AUTOHEAL_START_PERIOD=30
+      - AUTOHEAL_DEFAULT_STOP_TIMEOUT=10
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      max-radius-net:
+        ipv4_address: 172.18.0.6
+
+  # ============================================================
+  # 5. L2TP (Linux فقط — علّق على Windows)
+  # ============================================================
+  # l2tp-server:
+  #   build: ./docker/l2tp
+  #   container_name: max_radius_l2tp
+  #   restart: unless-stopped
+  #   cap_add: [NET_ADMIN]
+  #   devices:
+  #     - /dev/net/tun:/dev/net/tun
+  #   ports:
+  #     - "1701:1701/udp"
+  #   volumes:
+  #     - l2tp_vpn_data:/etc/ppp
+  #   networks:
+  #     max-radius-net:
+  #       ipv4_address: 172.18.0.5
+
+volumes:
+  mariadb_data:
+    driver: local
+  # l2tp_vpn_data:
+  #   driver: local
+
+networks:
+  max-radius-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1

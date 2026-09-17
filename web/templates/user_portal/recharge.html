@@ -1,0 +1,111 @@
+{% extends "user_portal/user_base.html" %}
+
+{% block title %}شحن الرصيد بالكروت والقسائم - بوابة المشتركين{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+    <!-- Header Card -->
+    <div class="portal-card border rounded-2xl p-6 shadow-sm flex items-center gap-4">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-emerald-500/25 flex-shrink-0">
+            <i class="fa-solid fa-money-bill-transfer"></i>
+        </div>
+        <div>
+            <h2 class="text-xl font-bold text-white">شحن الرصيد بكروت وقسائم الإنترنت</h2>
+            <p class="text-xs text-slate-400 mt-1">أدخل رقم كرت الشحن أو القسيمة لإيداع قيمته المالية في محفظتك فورياً</p>
+        </div>
+    </div>
+
+    <!-- Current Balance Overview -->
+    <div class="bg-[#070b14] border border-[#162136] rounded-xl p-5 flex items-center justify-between">
+        <div>
+            <span class="text-xs text-slate-400 block mb-1">الرصيد المالي الحالي في حسابك:</span>
+            <span class="text-2xl font-black text-emerald-400 font-mono">{{ "%.2f"|format(user.balance) }}</span>
+            <span class="text-xs font-bold text-slate-400 mr-1">{{ currency_symbol }}</span>
+        </div>
+        <div class="text-left text-xs text-slate-400">
+            <span>المشترك: <strong class="text-white bg-[#0b0f19] px-2 py-1 rounded-lg border border-[#1c2840]">@{{ user.username }}</strong></span>
+        </div>
+    </div>
+
+    <!-- Recharge Form -->
+    <div class="portal-card border rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+        <form method="POST" action="{{ url_for('user_recharge_action') }}" class="space-y-6">
+            
+            <!-- Recharge Method Selection -->
+            <div>
+                <label class="block text-xs font-bold text-slate-200 mb-3 flex items-center gap-1.5">
+                    <i class="fa-solid fa-sliders text-emerald-400"></i>
+                    <span>اختر طريقة الاستفادة من الكرت:</span>
+                </label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    
+                    <!-- Option 1: Package Top-up (Default / Recommended) -->
+                    <label class="relative bg-[#070b14] border-2 border-slate-700 rounded-xl p-4 cursor-pointer hover:border-emerald-500/50 transition flex items-start gap-3.5 group has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10">
+                        <input type="radio" name="recharge_type" value="package" checked class="mt-1 accent-emerald-500 w-4 h-4 text-emerald-600">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-sm font-bold text-white group-hover:text-emerald-400 transition">شحن كباقة وتمديد</span>
+                                <span class="px-1.5 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-400 font-bold rounded">مباشر</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                إضافة حجم البيانات وأيام الصلاحية فوراً فوق حسابك الحالي.
+                            </p>
+                        </div>
+                    </label>
+
+                    <!-- Option 2: Balance / Wallet Deposit -->
+                    <label class="relative bg-[#070b14] border-2 border-slate-700 rounded-xl p-4 cursor-pointer hover:border-teal-500/50 transition flex items-start gap-3.5 group has-[:checked]:border-teal-500 has-[:checked]:bg-teal-500/10">
+                        <input type="radio" name="recharge_type" value="balance" class="mt-1 accent-teal-500 w-4 h-4 text-teal-600">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-sm font-bold text-white group-hover:text-teal-400 transition">شحن كرصيد مالي</span>
+                                <span class="px-1.5 py-0.5 text-[9px] bg-teal-500/20 text-teal-400 font-bold rounded">محفظة</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                إيداع قيمة الكرت المالية في محفظتك لاستخدامها متى شئت.
+                            </p>
+                        </div>
+                    </label>
+
+                </div>
+            </div>
+
+            <!-- Card Code Input -->
+            <div>
+                <label class="block text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-barcode text-blue-400"></i>
+                    <span>رقم كرت الشحن أو كود القسيمة (Voucher PIN / Code)</span>
+                </label>
+                <div class="relative">
+                    <input type="text" name="card_code" required autofocus placeholder="أدخل رقم الكرت هنا (مثال: 4544453746)" 
+                           class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-4 py-3.5 text-base text-white font-mono tracking-widest text-center focus:border-emerald-500 focus:outline-none transition">
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2 text-center">
+                    بمجرد الشحن، سيتم استهلاك الكرت فوراً وتعطيله وإيداع ميزاته في حسابك
+                </p>
+            </div>
+
+            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/30 transition flex items-center justify-center gap-2 text-sm cursor-pointer">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>تأكيد واستخدام الكرت الآن</span>
+            </button>
+        </form>
+
+        <!-- Instructions & How to buy -->
+        <div class="bg-[#070b14] p-4 rounded-xl border border-[#162136] text-xs text-slate-400 space-y-2">
+            <h4 class="font-bold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-info text-sky-400"></i>
+                <span>ملاحظات مهمة حول شحن الكروت:</span>
+            </h4>
+            <ul class="list-disc list-inside space-y-1.5 text-[11px] leading-relaxed text-slate-400 pr-1">
+                <li><strong class="text-slate-300">شحن كباقة:</strong> يقوم تلقائياً بزيادة سعة التحميل وتمديد تاريخ انتهاء اشتراكك دون الحاجة لأي خطوات إضافية.</li>
+                <li><strong class="text-slate-300">شحن كرصيد:</strong> يتيح لك تجميع مبالغ مالية في حسابك لتغيير الباقة أو الترقية لباقة أخرى لاحقاً.</li>
+                <li>في كلا الخيارين، يتم تعطيل الكرت المشحون مباشرة ونقله لقائمة الكروت المستهلكة لضمان الأمان.</li>
+            </ul>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}

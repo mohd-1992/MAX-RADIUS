@@ -1,0 +1,14 @@
+
+.git
+__pycache__
+*.pyc
+*.tar.gz
+*.db
+*.sqlite3
+storage/backups
+storage/uploads
+data/migration_cache
+backup_pre_sstp_cleanup_vps.tar.gz
+app_backup
+export
+

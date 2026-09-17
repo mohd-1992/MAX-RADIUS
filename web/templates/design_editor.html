@@ -1,0 +1,1220 @@
+{% extends "base.html" %}
+
+{% block title %}محرر ومصمم كروت الإنترنت{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* Interactive Card Canvas & Drag-and-Drop Styling */
+    .card-workspace-canvas {
+        background-image: radial-gradient(rgba(148, 163, 184, 0.15) 1px, transparent 1px);
+        background-size: 16px 16px;
+    }
+    .drag-element {
+        position: absolute;
+        cursor: grab;
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: none;
+        transition: box-shadow 0.15s ease, border-color 0.15s ease;
+        border: 1.5px dashed transparent;
+        border-radius: 4px;
+        padding: 2px 4px;
+    }
+    .drag-element:hover {
+        border-color: rgba(59, 130, 246, 0.6);
+        background-color: rgba(59, 130, 246, 0.08);
+    }
+    .drag-element.active-drag,
+    .drag-element.is-dragging {
+        cursor: grabbing !important;
+        border-color: #2563eb !important;
+        background-color: rgba(37, 99, 235, 0.15) !important;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3) !important;
+        z-index: 50 !important;
+    }
+    .element-handle {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        background: #2563eb;
+        border: 1px solid #ffffff;
+        border-radius: 50%;
+        display: none;
+    }
+    .drag-element.active-drag .element-handle {
+        display: block;
+    }
+    .handle-tl { top: -4px; right: -4px; }
+    .handle-br { bottom: -4px; left: -4px; }
+
+    /* A4 Simulation Sheet */
+    .a4-simulation-sheet {
+        width: 100%;
+        aspect-ratio: 210 / 297;
+        background: #ffffff;
+        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.3);
+        border: 1px solid #cbd5e1;
+        position: relative;
+        overflow: hidden;
+    }
+    .a4-grid-cell {
+        border: 1px dashed #cbd5e1;
+        position: relative;
+        overflow: hidden;
+        background-size: 100% 100%;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    /* Accordions & Tabs in Settings Panel */
+    .settings-accordion-header {
+        cursor: pointer;
+        user-select: none;
+    }
+    .settings-accordion-content {
+        transition: max-height 0.25s ease-out, opacity 0.2s ease-out;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+    <!-- Top Action Toolbar & Breadcrumb -->
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('voucher_designs_list') }}" class="w-10 h-10 rounded-xl bg-[#070b14] hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 flex items-center justify-center text-sm transition shadow-xs cursor-pointer" title="رجوع لقائمة التصاميم">
+                <i class="fa-solid fa-arrow-right"></i>
+            </a>
+            <div>
+                <div class="flex items-center gap-2.5 flex-wrap">
+                    <h2 id="topDesignTitle" class="text-base sm:text-lg font-black text-white tracking-tight">
+                        {{ design.name if design else 'إنشاء تصميم كرت جديد' }}
+                    </h2>
+                    <span id="saveStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>جاهز للحفظ
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    تحكم بأبعاد الكرت، احتواء الخلفية، العناصر التفاعلية، ومعاينة حية ومحاكاة دقيقة لصفحة A4
+                </p>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
+            <button type="button" onclick="saveDesign()" id="btnSaveDesign" class="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer active:scale-95">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>حفظ التصميم</span>
+            </button>
+            <button type="button" onclick="resetToDefaults()" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-arrow-rotate-left text-slate-400"></i>
+                <span class="hidden sm:inline">استعادة الافتراضي</span>
+            </button>
+            <a href="{{ url_for('voucher_designs_list') }}" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer">
+                إلغاء
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Workspace: Split-Screen View -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- ========================================================== -->
+        <!-- Right Column (5 Cols on LG): Settings Panel                -->
+        <!-- ========================================================== -->
+        <div class="lg:col-span-5 space-y-4">
+
+            <!-- Tab 1: الإعدادات العامة وخلفية الكرت (General Settings) -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+                <div class="settings-accordion-header p-4 bg-[#070b14] border-b border-[#1c2840] flex items-center justify-between" onclick="toggleAccordion('secGeneral')">
+                    <h3 class="font-bold text-white text-xs sm:text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-blue-400"></i>
+                        <span>1. الإعدادات العامة والخلفية (General)</span>
+                    </h3>
+                    <i id="icon_secGeneral" class="fa-solid fa-chevron-up text-slate-400 text-xs transition-transform duration-200"></i>
+                </div>
+
+                <div id="secGeneral" class="p-4 sm:p-5 space-y-4 text-xs">
+                    <!-- اسم التصميم -->
+                    <div>
+                        <label class="block text-slate-300 font-bold mb-1.5">اسم التصميم</label>
+                        <input type="text" id="inpDesignName" value="{{ design.name if design else 'تصميم الكروت الجديد' }}" placeholder="مثال: كروت شبكة النور - خلفية زرقاء" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:border-blue-500 focus:outline-none font-bold" oninput="onGeneralSettingsChange()">
+                    </div>
+
+                    <!-- نوع التصميم -->
+                    <div>
+                        <label class="block text-slate-300 font-bold mb-1.5">نوع التصميم والمظهر</label>
+                        <select id="selDesignType" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500 font-bold" onchange="onDesignTypeChange()">
+                            <option value="image" {% if not design or design.design_type == 'image' %}selected{% endif %}>🖼️ كرت مخصص بصورة خلفية (Image Card)</option>
+                            <option value="qr" {% if design and design.design_type == 'qr' %}selected{% endif %}>📱 كرت رمز الاستجابة السريعة (QR Focused)</option>
+                            <option value="clean" {% if design and design.design_type == 'clean' %}selected{% endif %}>📄 كرت نصوص نقي بدون صورة (Clean Text Card)</option>
+                        </select>
+                    </div>
+
+                    <!-- رفع صورة الخلفية ومعالجتها والتكيف التلقائي للأبعاد -->
+                    <div id="bgImageUploadContainer" class="p-3.5 rounded-xl bg-[#070b14] border border-[#1c2840] space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="text-slate-300 font-bold flex items-center gap-1.5">
+                                <i class="fa-solid fa-image text-blue-400"></i>
+                                <span>صورة خلفية الكرت</span>
+                            </label>
+                            <span id="imgAspectHint" class="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/30 font-bold">نسبة {{ design.width_mm if design else 85 }}:{{ design.height_mm if design else 52 }} مم</span>
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <input type="file" id="inpBgImageFile" accept="image/png,image/jpeg,image/webp,image/jpg" class="hidden" onchange="handleImageUpload(this)">
+                            <button type="button" onclick="document.getElementById('inpBgImageFile').click()" class="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-xs">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                                <span>رفع صورة (Choose File)</span>
+                            </button>
+                            <button type="button" id="btnRemoveBgImage" onclick="removeBgImage()" class="px-3 py-2 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer {% if not design or not design.bg_image %}hidden{% endif %}">
+                                <i class="fa-solid fa-trash-can"></i>
+                                <span>إزالة الصورة</span>
+                            </button>
+                        </div>
+
+                        <div class="p-2.5 rounded-lg bg-blue-950/30 border border-blue-800/40 text-[11px] text-blue-300 leading-relaxed space-y-1">
+                            <div class="font-bold flex items-center gap-1 text-blue-200">
+                                <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                                <span>الملاءمة الذكية للأبعاد (Auto Fit & Containment):</span>
+                            </div>
+                            <p class="text-slate-300">
+                                عند رفع أي صورة، يتعرف النظام فورياً على أبعادها ونسبتها الطبيعية ($W : H$) ويقوم بضبط أبعاد الكرت تلقائياً بدون أي قص لأطراف الصورة أو تشويه للنصوص.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ألوان وخيارات الكرت -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">لون الخلفية</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="inpBgColor" value="#ffffff" class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0" oninput="onCardStyleChange()">
+                                <input type="text" id="txtBgColor" value="#ffffff" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono" onchange="syncColorInput('txtBgColor', 'inpBgColor')">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">لون الإطار</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="inpBorderColor" value="#cbd5e1" class="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0" oninput="onCardStyleChange()">
+                                <input type="text" id="txtBorderColor" value="#cbd5e1" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono" onchange="syncColorInput('txtBorderColor', 'inpBorderColor')">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">الزوايا (مم)</label>
+                            <input type="number" id="inpBorderRadius" value="8" min="0" max="25" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono" oninput="onCardStyleChange()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: تخطيط الصفحة والأبعاد الفيزيائية (Page Layout & Dimensions) -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+                <div class="settings-accordion-header p-4 bg-[#070b14] border-b border-[#1c2840] flex items-center justify-between" onclick="toggleAccordion('secLayout')">
+                    <h3 class="font-bold text-white text-xs sm:text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-border-all text-indigo-400"></i>
+                        <span>2. أبعاد الكرت وتخطيط صفحة A4 (Layout & Size)</span>
+                    </h3>
+                    <i id="icon_secLayout" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform duration-200"></i>
+                </div>
+
+                <div id="secLayout" class="p-4 sm:p-5 space-y-4 text-xs hidden">
+                    <!-- أبعاد الكرت الفيزيائية (العرض والارتفاع) -->
+                    <div class="p-3 rounded-xl bg-[#070b14] border border-[#1c2840] space-y-2">
+                        <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                            <i class="fa-solid fa-ruler-combined text-cyan-400"></i>
+                            <span>الأبعاد الفيزيائية للكرت بالمليمتر (Physical Dimensions)</span>
+                        </span>
+                        <div class="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label class="block text-slate-300 mb-1 font-bold">عرض الكرت (Width - مم)</label>
+                                <input type="number" id="inpCardWidth" value="{{ design.width_mm if design else 85 }}" min="25" max="210" step="0.5" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" oninput="onCardDimensionsChange()">
+                            </div>
+                            <div>
+                                <label class="block text-slate-300 mb-1 font-bold">ارتفاع الكرت (Height - مم)</label>
+                                <input type="number" id="inpCardHeight" value="{{ design.height_mm if design else 52 }}" min="20" max="297" step="0.5" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono font-bold focus:border-cyan-400 focus:outline-none" oninput="onCardDimensionsChange()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- عدد الكروت بالصف والعمود (حتى 15 كرت بالعمود) -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-slate-300 font-bold mb-1">عدد الكروت في كل صف (أعمدة)</label>
+                            <input type="number" id="inpCardsPerRow" value="{{ design.cards_per_row if design else 2 }}" min="1" max="6" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono font-bold focus:border-blue-500" oninput="onLayoutChange()">
+                        </div>
+                        <div>
+                            <label class="block text-slate-300 font-bold mb-1">عدد الكروت في كل عمود (صفوف - حتى 15)</label>
+                            <input type="number" id="inpCardsPerCol" value="{{ design.cards_per_col if design else 5 }}" min="1" max="15" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono font-bold focus:border-blue-500" oninput="onLayoutChange()">
+                        </div>
+                    </div>
+
+                    <!-- هوامش الصفحة والمسافات -->
+                    <div class="grid grid-cols-3 gap-2.5">
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">هامش أعلى (مم)</label>
+                            <input type="number" id="inpMarginTop" value="{{ design.margin_top_mm if design else 10 }}" min="0" max="50" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono" oninput="onLayoutChange()">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">هامش الصفحة (مم)</label>
+                            <input type="number" id="inpMarginPage" value="{{ design.margin_page_mm if design else 10 }}" min="0" max="50" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono" oninput="onLayoutChange()">
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">المسافة بين الكروت (مم)</label>
+                            <input type="number" id="inpSpacing" value="{{ design.card_spacing_mm if design else 3 }}" min="0" max="20" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono" oninput="onLayoutChange()">
+                        </div>
+                    </div>
+
+                    <!-- خطوط القص (Cut Lines Toggle) -->
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-[#070b14] border border-[#1c2840]">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-scissors text-slate-400"></i>
+                            <div>
+                                <span class="text-white font-bold block">إظهار خطوط القص (Cut Lines)</span>
+                                <span class="text-[10px] text-slate-500">طباعة خطوط منقطة لتسهيل قص الكروت بدقة</span>
+                            </div>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="chkCutLines" checked class="sr-only peer" onchange="onLayoutChange()">
+                            <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: عناصر ومحتويات الكرت وتنسيق الخطوط (Card Content & Typography) -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+                <div class="settings-accordion-header p-4 bg-[#070b14] border-b border-[#1c2840] flex items-center justify-between" onclick="toggleAccordion('secContent')">
+                    <h3 class="font-bold text-white text-xs sm:text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-font text-emerald-400"></i>
+                        <span>3. محتويات الكرت والخطوط (Content & Typography)</span>
+                    </h3>
+                    <i id="icon_secContent" class="fa-solid fa-chevron-up text-slate-400 text-xs transition-transform duration-200"></i>
+                </div>
+
+                <div id="secContent" class="p-4 sm:p-5 space-y-3 text-xs">
+                    <p class="text-[11px] text-slate-400 mb-2">
+                        يمكنك تفعيل/إلغاء العناصر، وتخصيص النصوص والخطوط والألوان ومواضعها بدقة:
+                    </p>
+
+                    <!-- Element Accordions Container -->
+                    <div id="elementsAccordionContainer" class="space-y-2.5">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ========================================================== -->
+        <!-- Left Column (7 Cols on LG): Live Interactive Preview Engine -->
+        <!-- ========================================================== -->
+        <div class="lg:col-span-7 space-y-4">
+
+            <!-- Preview Mode Switcher Tabs -->
+            <div class="flex items-center justify-between bg-[#0b0f19] p-2 rounded-2xl border border-[#1c2840]">
+                <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="switchPreviewTab('single')" id="tabBtnSingle" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-blue-600 text-white shadow-md shadow-blue-600/30 cursor-pointer">
+                        <i class="fa-solid fa-id-card"></i>
+                        <span>معاينة الكرت التفاعلي (Interactive Canvas)</span>
+                    </button>
+                    <button type="button" onclick="switchPreviewTab('a4')" id="tabBtnA4" class="px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+                        <i class="fa-solid fa-print"></i>
+                        <span>محاكاة صفحة A4 (Print Simulation)</span>
+                    </button>
+                </div>
+                <div class="hidden sm:flex items-center gap-2 text-[11px] text-slate-400 pr-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>معاينة مباشرة بالوقت الفعلي</span>
+                </div>
+            </div>
+
+            <!-- Single Card Canvas (Interactive Drag & Drop) -->
+            <div id="viewSingleCard" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 sm:p-8 flex flex-col items-center justify-center min-h-[460px] shadow-inner relative overflow-hidden">
+                <div class="w-full flex items-center justify-between text-xs text-slate-400 mb-4 pb-2 border-b border-slate-800">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-hand-pointer text-blue-400"></i>اسحب أي عنصر بالفأرة لتحريكه في مكانه المطلوب</span>
+                    <span id="canvasDimLabel" class="font-mono text-cyan-400 font-bold bg-[#070b14] px-2.5 py-1 rounded border border-cyan-500/30">{{ design.width_mm if design else 85 }} × {{ design.height_mm if design else 52 }} مم</span>
+                </div>
+
+                <!-- Card Canvas Wrapper with Grid Background -->
+                <div class="card-workspace-canvas p-4 sm:p-8 rounded-2xl border border-slate-800/80 flex items-center justify-center w-full overflow-auto max-w-full min-h-[380px]">
+                    
+                    <!-- Physical Card Box Container (Fully contained, dynamic sizing) -->
+                    <div id="previewCardBox" class="relative transition-all shadow-2xl overflow-hidden select-none border" style="width: 408px; height: 250px; background-color: #ffffff; border-radius: 8px;">
+                        
+                        <!-- Background Layer with 100% Perfect Edge-to-Edge Containment -->
+                        <div id="previewCardBgLayer" class="absolute inset-0 w-full h-full pointer-events-none transition-all" style="background-image: none; background-size: 100% 100%; background-repeat: no-repeat; background-position: center;"></div>
+
+                        <!-- Draggable Elements Rendering Container -->
+                        <div id="previewElementsContainer" class="absolute inset-0 w-full h-full">
+                            <!-- Injected by JavaScript -->
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- Canvas Bottom Controls -->
+                <div class="mt-5 flex items-center gap-3 text-xs flex-wrap justify-center">
+                    <button type="button" onclick="centerActiveElement()" class="px-3 py-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-800 transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-align-center text-blue-400"></i>توسيط العنصر المختار
+                    </button>
+                    <button type="button" onclick="resetElementsPositions()" class="px-3 py-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-800 transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-arrow-rotate-left text-amber-400"></i>إعادة توزيع تلقائي
+                    </button>
+                </div>
+            </div>
+
+            <!-- Full A4 Simulation Sheet Container -->
+            <div id="viewA4Sheet" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 sm:p-8 flex flex-col items-center justify-center min-h-[460px] hidden shadow-inner">
+                <div class="w-full flex items-center justify-between text-xs text-slate-400 mb-4 pb-2 border-b border-slate-800">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-print text-emerald-400"></i>محاكاة ورقة A4 (210 × 297 مم) مع الهوامش وفواصل القص</span>
+                    <span id="a4SummaryCount" class="font-mono text-emerald-400 font-bold bg-[#070b14] px-2.5 py-1 rounded border border-emerald-500/30">10 كروت / صفحة A4</span>
+                </div>
+
+                <!-- Proportional A4 Sheet Simulation -->
+                <div class="w-full max-w-[480px]">
+                    <div id="a4SheetContainer" class="a4-simulation-sheet rounded-lg p-3 grid">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // -------------------------------------------------------------
+    // Initial State & Configuration Engine
+    // -------------------------------------------------------------
+    const BASE_DEFAULT_CONFIG = {
+        version: 2,
+        general: {
+            name: "تصميم كرت إنترنت",
+            design_type: "image",
+            width_mm: 85,
+            height_mm: 52,
+            bg_color: "#ffffff",
+            border_color: "#cbd5e1",
+            border_radius: 8,
+            border_width: 1,
+            bg_image: "",
+            bg_fit: "100% 100%",
+            bg_opacity: 1.0
+        },
+        layout: {
+            cards_per_row: 2,
+            cards_per_col: 5,
+            margin_top_mm: 10,
+            margin_page_mm: 10,
+            spacing_mm: 3,
+            cut_lines: true,
+            cut_line_style: "dashed",
+            cut_line_color: "#94a3b8"
+        },
+        elements: {
+            network_name: { enabled: true, text: "شبكة MAX RADIUS", x: 50, y: 8, font_family: "Tajawal", font_size: 13, color: "#0f172a", bold: true, italic: false, underline: false, align: "center" },
+            package_name: { enabled: true, text: "باقة 5 جيجا - أسبوعية", x: 50, y: 18, font_family: "Tajawal", font_size: 10, color: "#2563eb", bold: true, italic: false, underline: false, align: "center" },
+            price: { enabled: true, text: "السعر: 5 ر.ي", x: 82, y: 10, font_family: "Tajawal", font_size: 10, color: "#059669", bold: true, italic: false, underline: false, align: "left" },
+            username: { enabled: true, prefix: "المستخدم: ", text: "88492015", sample_value: "88492015", x: 30, y: 45, font_family: "Tajawal", font_size: 13, color: "#0f172a", bold: true, italic: false, underline: false, align: "center" },
+            password: { enabled: true, prefix: "الرمز: ", text: "88492015", sample_value: "88492015", x: 70, y: 45, font_family: "Tajawal", font_size: 13, color: "#0f172a", bold: true, italic: false, underline: false, align: "center" },
+            pin_code: { enabled: false, prefix: "رمز الكرت: ", text: "4920-8815", sample_value: "4920-8815", x: 50, y: 55, font_family: "Tajawal", font_size: 14, color: "#1d4ed8", bold: true, italic: false, underline: false, align: "center" },
+            serial: { enabled: true, prefix: "S/N: ", text: "V26-10492", sample_value: "V26-10492", x: 18, y: 90, font_family: "Tajawal", font_size: 8, color: "#64748b", bold: false, italic: false, underline: false, align: "left" },
+            expiry: { enabled: true, prefix: "", text: "الصلاحية: 30 يوم", sample_value: "الصلاحية: 30 يوم", x: 50, y: 90, font_family: "Tajawal", font_size: 8, color: "#64748b", bold: false, italic: false, underline: false, align: "center" },
+            qr_code: { enabled: true, x: 84, y: 65, size: 55 },
+            custom_text: { enabled: true, text: "امسح رمز الـ QR لتسجيل الدخول السريع", x: 50, y: 76, font_family: "Tajawal", font_size: 8, color: "#475569", bold: false, italic: false, underline: false, align: "center" }
+        }
+    };
+
+    const INITIAL_DESIGN = {{ design|tojson|safe if design else 'null' }};
+    const BACKEND_DEFAULT = {{ default_config|tojson|safe if default_config else 'null' }};
+
+    let currentConfig = (INITIAL_DESIGN && INITIAL_DESIGN.config) 
+        ? JSON.parse(JSON.stringify(INITIAL_DESIGN.config)) 
+        : (BACKEND_DEFAULT ? JSON.parse(JSON.stringify(BACKEND_DEFAULT)) : JSON.parse(JSON.stringify(BASE_DEFAULT_CONFIG)));
+
+    let activeElementKey = 'username';
+    let currentTab = 'single';
+    let uploadedBgImageUrl = INITIAL_DESIGN && INITIAL_DESIGN.bg_image ? `/static/uploads/card_backgrounds/${INITIAL_DESIGN.bg_image}` : '';
+
+    // Unified Toast / Notification Helper
+    function notify(title, message, type = 'info', isLoading = false) {
+        if (window.showToastNotification) {
+            return window.showToastNotification({
+                title: title,
+                message: message,
+                type: type,
+                isLoading: isLoading,
+                duration: isLoading ? 0 : 3800
+            });
+        }
+        return { close: () => {} };
+    }
+
+    // Element Definitions Metadata
+    const ELEMENT_DEFS = {
+        network_name: { label: 'اسم الشبكة / الشعار', icon: 'fa-wifi', defaultText: 'شبكة MAX RADIUS' },
+        package_name: { label: 'اسم الباقة والسرعة', icon: 'fa-bolt', defaultText: 'باقة 5 جيجا - أسبوعية' },
+        price: { label: 'سعر الكرت', icon: 'fa-money-bill', defaultText: 'السعر: 5 ر.ي' },
+        username: { label: 'اسم المستخدم (Username)', icon: 'fa-user', defaultText: '88492015' },
+        password: { label: 'كلمة المرور / الرمز', icon: 'fa-key', defaultText: '88492015' },
+        pin_code: { label: 'رمز الكرت الموحد (PIN)', icon: 'fa-lock', defaultText: '4920-8815' },
+        serial: { label: 'الرقم التسلسلي (S/N)', icon: 'fa-barcode', defaultText: 'S/N: V26-10492' },
+        expiry: { label: 'الصلاحية / الانتهاء', icon: 'fa-clock', defaultText: 'الصلاحية: 30 يوم' },
+        qr_code: { label: 'رمز الاستجابة السريعة (QR)', icon: 'fa-qrcode', defaultText: '' },
+        custom_text: { label: 'نص إضافي / تعليمات', icon: 'fa-message', defaultText: 'امسح رمز الـ QR لتسجيل الدخول السريع' }
+    };
+
+    const FONT_OPTIONS = ['Tajawal', 'Cairo', 'Almarai', 'Amiri', 'Tahoma', 'Roboto', 'Arial', 'Courier New'];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Sync input fields with currentConfig
+        if (currentConfig.general) {
+            if (currentConfig.general.width_mm) {
+                const inpW = document.getElementById('inpCardWidth');
+                if (inpW) inpW.value = currentConfig.general.width_mm;
+            }
+            if (currentConfig.general.height_mm) {
+                const inpH = document.getElementById('inpCardHeight');
+                if (inpH) inpH.value = currentConfig.general.height_mm;
+            }
+        }
+        if (currentConfig.layout && currentConfig.layout.cards_per_col) {
+            const inpCols = document.getElementById('inpCardsPerCol');
+            if (inpCols) inpCols.value = currentConfig.layout.cards_per_col;
+        }
+
+        initAccordionForm();
+        renderPreview();
+    });
+
+    // -------------------------------------------------------------
+    // Accordion Form Builder
+    // -------------------------------------------------------------
+    function initAccordionForm() {
+        const container = document.getElementById('elementsAccordionContainer');
+        if (!container) return;
+
+        let html = '';
+        for (const [key, def] of Object.entries(ELEMENT_DEFS)) {
+            const elCfg = (currentConfig.elements && currentConfig.elements[key]) || { enabled: false, x: 50, y: 50, font_family: 'Tajawal', font_size: 12, color: '#0f172a', bold: false, italic: false, underline: false, align: 'center' };
+            const isEnabled = elCfg.enabled !== false;
+
+            html += `
+            <div class="bg-[#070b14] border border-[#1c2840] rounded-xl overflow-hidden transition" id="card_el_item_${key}">
+                <!-- Header with Toggle -->
+                <div class="p-3 flex items-center justify-between cursor-pointer select-none" onclick="toggleElementCollapse('${key}')">
+                    <div class="flex items-center gap-2.5">
+                        <label class="relative inline-flex items-center cursor-pointer" onclick="event.stopPropagation()">
+                            <input type="checkbox" id="chk_enable_${key}" ${isEnabled ? 'checked' : ''} class="sr-only peer" onchange="toggleElementEnabled('${key}', this.checked)">
+                            <div class="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                        <span class="font-bold text-white flex items-center gap-1.5 text-xs">
+                            <i class="fa-solid ${def.icon} text-slate-400 text-xs"></i>
+                            ${def.label}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="pos_badge_${key}" class="text-[10px] font-mono text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">X:${Math.round(elCfg.x || 0)}% Y:${Math.round(elCfg.y || 0)}%</span>
+                        <i id="chevron_${key}" class="fa-solid fa-chevron-down text-slate-500 text-[11px] transition-transform"></i>
+                    </div>
+                </div>
+
+                <!-- Expanded Content Settings -->
+                <div id="content_${key}" class="p-3.5 border-t border-[#1c2840] space-y-3 hidden bg-[#0b0f19]/60">
+                    ${key !== 'qr_code' ? `
+                    <!-- Text / Prefix input -->
+                    <div>
+                        <label class="block text-slate-400 mb-1 font-semibold">النص المعروض / البادئة</label>
+                        <input type="text" id="inp_text_${key}" value="${escapeHtml(elCfg.text || elCfg.prefix || '')}" placeholder="مثال: ${escapeHtml(def.defaultText)}" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white" oninput="updateElementProp('${key}', 'text', this.value)">
+                    </div>
+
+                    <!-- Typography Row -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">نوع الخط</label>
+                            <select id="sel_font_${key}" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white" onchange="updateElementProp('${key}', 'font_family', this.value)">
+                                ${FONT_OPTIONS.map(f => `<option value="${f}" ${elCfg.font_family === f ? 'selected' : ''}>${f}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">حجم الخط (pt)</label>
+                            <input type="number" id="inp_size_${key}" value="${elCfg.font_size || 12}" min="6" max="36" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono" oninput="updateElementProp('${key}', 'font_size', parseFloat(this.value))">
+                        </div>
+                    </div>
+
+                    <!-- Color & Format Options -->
+                    <div class="flex items-center justify-between pt-1">
+                        <div class="flex items-center gap-2">
+                            <input type="color" id="clr_${key}" value="${elCfg.color || '#0f172a'}" class="w-7 h-7 rounded cursor-pointer bg-transparent border-0" oninput="updateElementProp('${key}', 'color', this.value)">
+                            <span class="text-slate-400 text-[11px] font-mono">${elCfg.color || '#0f172a'}</span>
+                        </div>
+                        
+                        <!-- Bold / Italic / Align Buttons -->
+                        <div class="flex items-center gap-1">
+                            <button type="button" onclick="toggleStyleFlag('${key}', 'bold')" id="btn_bold_${key}" class="w-7 h-7 rounded border ${elCfg.bold ? 'bg-blue-600 border-blue-500 text-white' : 'bg-[#070b14] border-slate-700 text-slate-400'} flex items-center justify-center font-bold text-xs" title="عريض">B</button>
+                            <button type="button" onclick="toggleStyleFlag('${key}', 'italic')" id="btn_italic_${key}" class="w-7 h-7 rounded border ${elCfg.italic ? 'bg-blue-600 border-blue-500 text-white' : 'bg-[#070b14] border-slate-700 text-slate-400'} flex items-center justify-center italic text-xs" title="مائل">I</button>
+                            <button type="button" onclick="toggleStyleFlag('${key}', 'underline')" id="btn_underline_${key}" class="w-7 h-7 rounded border ${elCfg.underline ? 'bg-blue-600 border-blue-500 text-white' : 'bg-[#070b14] border-slate-700 text-slate-400'} flex items-center justify-center underline text-xs" title="مسطر">U</button>
+                        </div>
+                    </div>
+                    ` : `
+                    <!-- QR Code Settings -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-slate-400 mb-1 font-semibold">حجم رمز الـ QR (بكسل)</label>
+                            <input type="number" id="inp_size_${key}" value="${elCfg.size || 60}" min="30" max="150" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono" oninput="updateElementProp('${key}', 'size', parseInt(this.value))">
+                        </div>
+                    </div>
+                    `}
+
+                    <!-- Coordinate Inputs (X, Y) -->
+                    <div class="grid grid-cols-2 gap-2 pt-1 border-t border-[#1c2840]/60">
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-400 text-[10px] font-mono">X (%):</span>
+                            <input type="number" id="pos_x_${key}" value="${Math.round(elCfg.x || 0)}" min="0" max="100" class="w-full bg-[#070b14] border border-slate-700 rounded px-2 py-1 text-xs text-cyan-400 font-mono" oninput="updateElementProp('${key}', 'x', parseFloat(this.value))">
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-slate-400 text-[10px] font-mono">Y (%):</span>
+                            <input type="number" id="pos_y_${key}" value="${Math.round(elCfg.y || 0)}" min="0" max="100" class="w-full bg-[#070b14] border border-slate-700 rounded px-2 py-1 text-xs text-cyan-400 font-mono" oninput="updateElementProp('${key}', 'y', parseFloat(this.value))">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
+        container.innerHTML = html;
+    }
+
+    function toggleAccordion(id) {
+        const el = document.getElementById(id);
+        const icon = document.getElementById(`icon_${id}`);
+        if (!el) return;
+        el.classList.toggle('hidden');
+        if (icon) icon.style.transform = el.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+    }
+
+    function toggleElementCollapse(key) {
+        const content = document.getElementById(`content_${key}`);
+        const icon = document.getElementById(`chevron_${key}`);
+        if (!content) return;
+        content.classList.toggle('hidden');
+        if (icon) icon.style.transform = content.classList.contains('hidden') ? 'rotate(0deg)' : 'rotate(180deg)';
+        activeElementKey = key;
+        highlightActiveElementOnCanvas(key);
+    }
+
+    function toggleElementEnabled(key, enabled) {
+        if (!currentConfig.elements[key]) currentConfig.elements[key] = {};
+        currentConfig.elements[key].enabled = enabled;
+        renderPreview();
+    }
+
+    function updateElementProp(key, prop, val) {
+        if (!currentConfig.elements[key]) currentConfig.elements[key] = {};
+        currentConfig.elements[key][prop] = val;
+        
+        if (prop === 'x' || prop === 'y') {
+            const badge = document.getElementById(`pos_badge_${key}`);
+            if (badge) badge.textContent = `X:${Math.round(currentConfig.elements[key].x || 0)}% Y:${Math.round(currentConfig.elements[key].y || 0)}%`;
+        }
+
+        renderPreview();
+    }
+
+    function toggleStyleFlag(key, flag) {
+        if (!currentConfig.elements[key]) currentConfig.elements[key] = {};
+        currentConfig.elements[key][flag] = !currentConfig.elements[key][flag];
+        const btn = document.getElementById(`btn_${flag}_${key}`);
+        if (btn) {
+            btn.className = `w-7 h-7 rounded border ${currentConfig.elements[key][flag] ? 'bg-blue-600 border-blue-500 text-white' : 'bg-[#070b14] border-slate-700 text-slate-400'} flex items-center justify-center text-xs ${flag === 'bold' ? 'font-bold' : flag === 'italic' ? 'italic' : 'underline'}`;
+        }
+        renderPreview();
+    }
+
+    // -------------------------------------------------------------
+    // General Settings & Layout Listeners
+    // -------------------------------------------------------------
+    function onGeneralSettingsChange() {
+        const nameVal = document.getElementById('inpDesignName').value;
+        const topTitle = document.getElementById('topDesignTitle');
+        if (topTitle) topTitle.textContent = nameVal || 'تصميم الكروت الجديد';
+        if (currentConfig.general) currentConfig.general.name = nameVal;
+    }
+
+    function onDesignTypeChange() {
+        const type = document.getElementById('selDesignType').value;
+        if (currentConfig.general) currentConfig.general.design_type = type;
+        const uploadBox = document.getElementById('bgImageUploadContainer');
+        if (uploadBox) {
+            if (type === 'clean') uploadBox.classList.add('hidden');
+            else uploadBox.classList.remove('hidden');
+        }
+        renderPreview();
+    }
+
+    function onCardStyleChange() {
+        if (!currentConfig.general) currentConfig.general = {};
+        currentConfig.general.bg_color = document.getElementById('inpBgColor').value;
+        currentConfig.general.border_color = document.getElementById('inpBorderColor').value;
+        currentConfig.general.border_radius = parseInt(document.getElementById('inpBorderRadius').value) || 0;
+        document.getElementById('txtBgColor').value = currentConfig.general.bg_color;
+        document.getElementById('txtBorderColor').value = currentConfig.general.border_color;
+        renderPreview();
+    }
+
+    function syncColorInput(txtId, clrId) {
+        const txt = document.getElementById(txtId);
+        const clr = document.getElementById(clrId);
+        if (txt && clr) {
+            clr.value = txt.value;
+            onCardStyleChange();
+        }
+    }
+
+    function onLayoutChange() {
+        if (!currentConfig.layout) currentConfig.layout = {};
+        const r = parseInt(document.getElementById('inpCardsPerRow').value) || 2;
+        let c = parseInt(document.getElementById('inpCardsPerCol').value) || 5;
+        if (c > 15) c = 15;
+        if (c < 1) c = 1;
+        document.getElementById('inpCardsPerCol').value = c;
+
+        currentConfig.layout.cards_per_row = r;
+        currentConfig.layout.cards_per_col = c;
+        currentConfig.layout.margin_top_mm = parseInt(document.getElementById('inpMarginTop').value) || 10;
+        currentConfig.layout.margin_page_mm = parseInt(document.getElementById('inpMarginPage').value) || 10;
+        currentConfig.layout.spacing_mm = parseInt(document.getElementById('inpSpacing').value) || 3;
+        currentConfig.layout.cut_lines = document.getElementById('chkCutLines').checked;
+        
+        const count = currentConfig.layout.cards_per_row * currentConfig.layout.cards_per_col;
+        const a4Badge = document.getElementById('a4SummaryCount');
+        if (a4Badge) a4Badge.textContent = `${count} كروت / صفحة A4`;
+
+        if (currentTab === 'a4') renderA4Sheet();
+    }
+
+    // -------------------------------------------------------------
+    // Dynamic Dimension Update (Width & Height Synchronization)
+    // -------------------------------------------------------------
+    function onCardDimensionsChange() {
+        const w = parseFloat(document.getElementById('inpCardWidth').value) || 85;
+        const h = parseFloat(document.getElementById('inpCardHeight').value) || 52;
+        
+        if (!currentConfig.general) currentConfig.general = {};
+        currentConfig.general.width_mm = w;
+        currentConfig.general.height_mm = h;
+        
+        const hint = document.getElementById('imgAspectHint');
+        const dimLabel = document.getElementById('canvasDimLabel');
+        if (hint) hint.textContent = `نسبة ${w}:${h} مم`;
+        if (dimLabel) dimLabel.textContent = `${w} × ${h} مم`;
+
+        renderPreview();
+        if (currentTab === 'a4') renderA4Sheet();
+    }
+
+    // -------------------------------------------------------------
+    // Automated Image Processing Upload & Auto-Adapt Dimensions
+    // -------------------------------------------------------------
+    function handleImageUpload(input) {
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+
+        if (!file.type.match('image.*') && !file.name.match(/\.(png|jpe?g|webp|gif|bmp)$/i)) {
+            notify('نوع الملف غير صالح', 'يرجى اختيار ملف صورة صالح بصيغة PNG أو JPG أو WEBP.', 'error');
+            return;
+        }
+
+        // Instant Local Preview with Auto-Dimension Detection from natural image size
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const dataUrl = e.target.result;
+            const img = new Image();
+            img.onload = function() {
+                const natW = img.naturalWidth || img.width;
+                const natH = img.naturalHeight || img.height;
+                if (natW && natH) {
+                    const naturalRatio = natW / natH;
+                    
+                    // Keep current width (default 85mm) and dynamically compute proportional height
+                    let currentW = parseFloat(document.getElementById('inpCardWidth').value) || 85;
+                    let adaptedH = Math.round((currentW / naturalRatio) * 10) / 10;
+                    
+                    document.getElementById('inpCardHeight').value = adaptedH;
+                    document.getElementById('inpCardWidth').value = currentW;
+
+                    if (!currentConfig.general) currentConfig.general = {};
+                    currentConfig.general.width_mm = currentW;
+                    currentConfig.general.height_mm = adaptedH;
+
+                    const hint = document.getElementById('imgAspectHint');
+                    const dimLabel = document.getElementById('canvasDimLabel');
+                    if (hint) hint.textContent = `أبعاد الصورة: ${currentW} × ${adaptedH} مم`;
+                    if (dimLabel) dimLabel.textContent = `${currentW} × ${adaptedH} مم`;
+                }
+
+                uploadedBgImageUrl = dataUrl;
+                renderPreview();
+                if (currentTab === 'a4') renderA4Sheet();
+            };
+            img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+        
+        const fd = new FormData();
+        fd.append('image', file);
+        fd.append('bg_image', file);
+        fd.append('background_image', file);
+        fd.append('file', file);
+        fd.append('width_mm', (currentConfig.general && currentConfig.general.width_mm) || 85);
+        fd.append('height_mm', (currentConfig.general && currentConfig.general.height_mm) || 52);
+
+        const loadToast = notify('جارٍ رفع ومعالجة الصورة...', 'يتم احتواء الصورة وتكييف أبعاد الكرت تلقائياً بدقة 100%', 'info', true);
+
+        fetch('/api/vouchers/designs/upload-bg', {
+            method: 'POST',
+            body: fd
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (loadToast && loadToast.close) loadToast.close();
+            if (res.success) {
+                uploadedBgImageUrl = res.url || res.file_url;
+                if (currentConfig.general) {
+                    currentConfig.general.bg_image = res.filename;
+                    if (res.suggested_height_mm) {
+                        currentConfig.general.height_mm = res.suggested_height_mm;
+                        document.getElementById('inpCardHeight').value = res.suggested_height_mm;
+                    }
+                    if (res.suggested_width_mm) {
+                        currentConfig.general.width_mm = res.suggested_width_mm;
+                        document.getElementById('inpCardWidth').value = res.suggested_width_mm;
+                    }
+                }
+                const btnRemove = document.getElementById('btnRemoveBgImage');
+                if (btnRemove) btnRemove.classList.remove('hidden');
+                
+                const w = (currentConfig.general && currentConfig.general.width_mm) || 85;
+                const h = (currentConfig.general && currentConfig.general.height_mm) || 52;
+                notify('تمت معالجة الصورة بنجاح!', `تمت مطابقة أبعاد الكرت تلقائياً (${w} × ${h} مم) بدون أي قص`, 'success');
+                renderPreview();
+                if (currentTab === 'a4') renderA4Sheet();
+            } else {
+                notify('فشل معالجة الصورة', res.message || 'حدث خطأ في الخادم أثناء معالجة الصورة', 'error');
+            }
+        })
+        .catch(err => {
+            if (loadToast && loadToast.close) loadToast.close();
+            notify('خطأ في الاتصال', err.toString(), 'error');
+        });
+    }
+
+    function removeBgImage() {
+        uploadedBgImageUrl = '';
+        if (currentConfig.general) currentConfig.general.bg_image = '';
+        const btnRemove = document.getElementById('btnRemoveBgImage');
+        if (btnRemove) btnRemove.classList.add('hidden');
+        document.getElementById('inpBgImageFile').value = '';
+        renderPreview();
+    }
+
+    // -------------------------------------------------------------
+    // Live Preview Engine (Single Card Canvas & Drag-and-Drop)
+    // -------------------------------------------------------------
+    function renderPreview() {
+        const box = document.getElementById('previewCardBox');
+        const bgLayer = document.getElementById('previewCardBgLayer');
+        const elementsContainer = document.getElementById('previewElementsContainer');
+        if (!box || !elementsContainer) return;
+
+        // Dynamic Physical Dimensions Calculation
+        const wMm = parseFloat((currentConfig.general && currentConfig.general.width_mm) || 85);
+        const hMm = parseFloat((currentConfig.general && currentConfig.general.height_mm) || 52);
+        
+        // Base scale: 1mm = 4.8px with responsive container bounds
+        const maxCanvasWidth = 520;
+        const maxCanvasHeight = 360;
+
+        let scale = 4.8;
+        if (wMm * scale > maxCanvasWidth) {
+            scale = maxCanvasWidth / wMm;
+        }
+        if (hMm * scale > maxCanvasHeight) {
+            scale = Math.min(scale, maxCanvasHeight / hMm);
+        }
+
+        const cardWidthPx = Math.round(wMm * scale);
+        const cardHeightPx = Math.round(hMm * scale);
+
+        box.style.width = `${cardWidthPx}px`;
+        box.style.height = `${cardHeightPx}px`;
+        box.style.backgroundColor = (currentConfig.general && currentConfig.general.bg_color) || '#ffffff';
+        box.style.borderColor = (currentConfig.general && currentConfig.general.border_color) || '#cbd5e1';
+        box.style.borderRadius = `${Math.round(((currentConfig.general && currentConfig.general.border_radius) || 8) * (scale / 4.8))}px`;
+
+        // Apply background image with 100% complete edge-to-edge containment
+        if (uploadedBgImageUrl && currentConfig.general && currentConfig.general.design_type !== 'clean') {
+            bgLayer.style.backgroundImage = `url('${uploadedBgImageUrl}')`;
+            bgLayer.style.backgroundSize = '100% 100%';
+            bgLayer.style.backgroundRepeat = 'no-repeat';
+            bgLayer.style.backgroundPosition = 'center';
+            bgLayer.style.opacity = '1';
+        } else {
+            bgLayer.style.backgroundImage = 'none';
+        }
+
+        // Render Draggable Elements
+        let html = '';
+        if (currentConfig.elements) {
+            for (const [key, def] of Object.entries(ELEMENT_DEFS)) {
+                const elCfg = currentConfig.elements[key];
+                if (!elCfg || elCfg.enabled === false) continue;
+
+                const isQr = (key === 'qr_code');
+                const posX = elCfg.x !== undefined ? elCfg.x : 50;
+                const posY = elCfg.y !== undefined ? elCfg.y : 50;
+
+                let innerContent = '';
+                if (isQr) {
+                    const qrSize = Math.max(25, Math.min(120, Math.round((elCfg.size || 55) * (scale / 4.8))));
+                    innerContent = `
+                        <div class="bg-white p-1 rounded border border-slate-300 shadow-xs flex flex-col items-center justify-center" style="width: ${qrSize}px; height: ${qrSize}px;">
+                            <i class="fa-solid fa-qrcode text-slate-800" style="font-size: ${qrSize * 0.75}px;"></i>
+                        </div>
+                    `;
+                } else {
+                    const displayText = (elCfg.prefix || '') + (elCfg.text || elCfg.sample_value || def.defaultText);
+                    const scaledFontSize = Math.max(7, Math.round((elCfg.font_size || 12) * (scale / 4.8)));
+                    const styleStr = `
+                        font-family: '${elCfg.font_family || 'Tajawal'}', sans-serif;
+                        font-size: ${scaledFontSize}px;
+                        color: ${elCfg.color || '#0f172a'};
+                        font-weight: ${elCfg.bold ? 'bold' : 'normal'};
+                        font-style: ${elCfg.italic ? 'italic' : 'normal'};
+                        text-decoration: ${elCfg.underline ? 'underline' : 'none'};
+                    `;
+                    innerContent = `<span style="${styleStr}">${escapeHtml(displayText)}</span>`;
+                }
+
+                const activeClass = (key === activeElementKey) ? 'active-drag' : '';
+
+                html += `
+                <div id="drag_el_${key}" 
+                     data-key="${key}" 
+                     class="drag-element ${activeClass}" 
+                     style="left: ${posX}%; top: ${posY}%; transform: translate(-50%, -50%);"
+                     onmousedown="startDrag(event, '${key}')"
+                     ontouchstart="startDrag(event, '${key}')"
+                     onclick="selectElement('${key}')">
+                    ${innerContent}
+                    <div class="element-handle handle-tl"></div>
+                    <div class="element-handle handle-br"></div>
+                </div>
+                `;
+            }
+        }
+
+        elementsContainer.innerHTML = html;
+
+        if (currentTab === 'a4') renderA4Sheet();
+    }
+
+    // -------------------------------------------------------------
+    // Drag-and-Drop Interaction Engine
+    // -------------------------------------------------------------
+    let isDragging = false;
+    let dragKey = null;
+    let dragStartMouseX = 0;
+    let dragStartMouseY = 0;
+    let dragStartElemLeftPercent = 0;
+    let dragStartElemTopPercent = 0;
+
+    function selectElement(key) {
+        activeElementKey = key;
+        highlightActiveElementOnCanvas(key);
+        
+        const content = document.getElementById(`content_${key}`);
+        const icon = document.getElementById(`chevron_${key}`);
+        if (content && content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            if (icon) icon.style.transform = 'rotate(180deg)';
+        }
+    }
+
+    function highlightActiveElementOnCanvas(key) {
+        document.querySelectorAll('.drag-element').forEach(el => {
+            if (el.getAttribute('data-key') === key) {
+                el.classList.add('active-drag');
+            } else {
+                el.classList.remove('active-drag');
+            }
+        });
+    }
+
+    function startDrag(e, key) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        isDragging = true;
+        dragKey = key;
+        activeElementKey = key;
+        highlightActiveElementOnCanvas(key);
+
+        const el = document.getElementById(`drag_el_${key}`);
+        if (el) el.classList.add('is-dragging');
+
+        const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+
+        dragStartMouseX = clientX;
+        dragStartMouseY = clientY;
+
+        const currentX = (currentConfig.elements[key] && currentConfig.elements[key].x !== undefined) ? currentConfig.elements[key].x : 50;
+        const currentY = (currentConfig.elements[key] && currentConfig.elements[key].y !== undefined) ? currentConfig.elements[key].y : 50;
+
+        dragStartElemLeftPercent = currentX;
+        dragStartElemTopPercent = currentY;
+
+        window.addEventListener('mousemove', onDragMove);
+        window.addEventListener('mouseup', endDrag);
+        window.addEventListener('touchmove', onDragMove, { passive: false });
+        window.addEventListener('touchend', endDrag);
+    }
+
+    function onDragMove(e) {
+        if (!isDragging || !dragKey) return;
+        e.preventDefault();
+
+        const box = document.getElementById('previewCardBox');
+        if (!box) return;
+
+        const rect = box.getBoundingClientRect();
+        const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+
+        const deltaX = clientX - dragStartMouseX;
+        const deltaY = clientY - dragStartMouseY;
+
+        const deltaPercentX = (deltaX / rect.width) * 100;
+        const deltaPercentY = (deltaY / rect.height) * 100;
+
+        let newX = Math.round(Math.max(0, Math.min(100, dragStartElemLeftPercent + deltaPercentX)));
+        let newY = Math.round(Math.max(0, Math.min(100, dragStartElemTopPercent + deltaPercentY)));
+
+        if (!currentConfig.elements[dragKey]) currentConfig.elements[dragKey] = {};
+        currentConfig.elements[dragKey].x = newX;
+        currentConfig.elements[dragKey].y = newY;
+
+        const el = document.getElementById(`drag_el_${dragKey}`);
+        if (el) {
+            el.style.left = `${newX}%`;
+            el.style.top = `${newY}%`;
+        }
+
+        const inpX = document.getElementById(`pos_x_${dragKey}`);
+        const inpY = document.getElementById(`pos_y_${dragKey}`);
+        const badge = document.getElementById(`pos_badge_${dragKey}`);
+        if (inpX) inpX.value = newX;
+        if (inpY) inpY.value = newY;
+        if (badge) badge.textContent = `X:${newX}% Y:${newY}%`;
+    }
+
+    function endDrag(e) {
+        if (!isDragging) return;
+        isDragging = false;
+
+        const el = document.getElementById(`drag_el_${dragKey}`);
+        if (el) el.classList.remove('is-dragging');
+
+        window.removeEventListener('mousemove', onDragMove);
+        window.removeEventListener('mouseup', endDrag);
+        window.removeEventListener('touchmove', onDragMove);
+        window.removeEventListener('touchend', endDrag);
+
+        dragKey = null;
+        if (currentTab === 'a4') renderA4Sheet();
+    }
+
+    function centerActiveElement() {
+        if (!activeElementKey) return;
+        updateElementProp(activeElementKey, 'x', 50);
+        const inpX = document.getElementById(`pos_x_${activeElementKey}`);
+        if (inpX) inpX.value = 50;
+    }
+
+    function resetElementsPositions() {
+        const defaults = BASE_DEFAULT_CONFIG.elements;
+        for (const [k, d] of Object.entries(defaults)) {
+            if (currentConfig.elements[k]) {
+                currentConfig.elements[k].x = d.x;
+                currentConfig.elements[k].y = d.y;
+                const inpX = document.getElementById(`pos_x_${k}`);
+                const inpY = document.getElementById(`pos_y_${k}`);
+                const badge = document.getElementById(`pos_badge_${k}`);
+                if (inpX) inpX.value = d.x;
+                if (inpY) inpY.value = d.y;
+                if (badge) badge.textContent = `X:${d.x}% Y:${d.y}%`;
+            }
+        }
+        renderPreview();
+        notify('تمت إعادة التوزيع', 'تمت استعادة إحداثيات ومواقع العناصر الأصلية بنجاح.', 'info');
+    }
+
+    // -------------------------------------------------------------
+    // Tab Switching: Single Card vs A4 Print Simulation
+    // -------------------------------------------------------------
+    function switchPreviewTab(tab) {
+        currentTab = tab;
+        const btnSingle = document.getElementById('tabBtnSingle');
+        const btnA4 = document.getElementById('tabBtnA4');
+        const viewSingle = document.getElementById('viewSingleCard');
+        const viewA4 = document.getElementById('viewA4Sheet');
+
+        if (tab === 'single') {
+            btnSingle.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-blue-600 text-white shadow-md shadow-blue-600/30 cursor-pointer";
+            btnA4.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer";
+            viewSingle.classList.remove('hidden');
+            viewA4.classList.add('hidden');
+            renderPreview();
+        } else {
+            btnA4.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 bg-emerald-600 text-white shadow-md shadow-emerald-600/30 cursor-pointer";
+            btnSingle.className = "px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer";
+            viewSingle.classList.add('hidden');
+            viewA4.classList.remove('hidden');
+            renderA4Sheet();
+        }
+    }
+
+    function renderA4Sheet() {
+        const a4Container = document.getElementById('a4SheetContainer');
+        if (!a4Container) return;
+
+        const cols = (currentConfig.layout && currentConfig.layout.cards_per_row) || 2;
+        const rows = (currentConfig.layout && currentConfig.layout.cards_per_col) || 5;
+        const totalCards = cols * rows;
+        const cutLines = currentConfig.layout && currentConfig.layout.cut_lines;
+        const wMm = (currentConfig.general && currentConfig.general.width_mm) || 85;
+        const hMm = (currentConfig.general && currentConfig.general.height_mm) || 52;
+
+        a4Container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        a4Container.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+        a4Container.style.gap = `${(currentConfig.layout && currentConfig.layout.spacing_mm) || 2}px`;
+
+        let cardsHtml = '';
+        for (let i = 0; i < totalCards; i++) {
+            const cutLineStyle = cutLines ? 'border: 1px dashed #94a3b8;' : 'border: 1px solid #e2e8f0;';
+            const bgStyle = (uploadedBgImageUrl && currentConfig.general && currentConfig.general.design_type !== 'clean') 
+                ? `background-image: url('${uploadedBgImageUrl}'); background-size: 100% 100%; background-repeat: no-repeat; background-position: center; background-color: ${(currentConfig.general && currentConfig.general.bg_color) || '#ffffff'};` 
+                : `background-color: ${(currentConfig.general && currentConfig.general.bg_color) || '#ffffff'};`;
+            
+            cardsHtml += `
+            <div class="a4-grid-cell rounded-sm flex flex-col items-center justify-center p-1 text-[7px] text-slate-700 font-bold overflow-hidden shadow-2xs" style="${cutLineStyle} ${bgStyle} aspect-ratio: ${wMm} / ${hMm};">
+                <span class="bg-black/65 text-white px-1.5 py-0.5 rounded font-mono text-[8px]">#${i + 1}</span>
+            </div>
+            `;
+        }
+
+        a4Container.innerHTML = cardsHtml;
+    }
+
+    // -------------------------------------------------------------
+    // Save & Reset Handlers
+    // -------------------------------------------------------------
+    function saveDesign() {
+        const btn = document.getElementById('btnSaveDesign');
+        const badge = document.getElementById('saveStatusBadge');
+        const nameVal = document.getElementById('inpDesignName').value.trim() || 'تصميم الكروت الجديد';
+
+        if (currentConfig.general) currentConfig.general.name = nameVal;
+
+        btn.disabled = true;
+        btn.innerHTML = `<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>جارٍ الحفظ...</span>`;
+        if (badge) {
+            badge.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-950 text-blue-300 border border-blue-800";
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>جارٍ المعالجة...`;
+        }
+
+        const payload = {
+            id: INITIAL_DESIGN ? INITIAL_DESIGN.id : 0,
+            name: nameVal,
+            design_type: (currentConfig.general && currentConfig.general.design_type) || 'image',
+            width_mm: (currentConfig.general && currentConfig.general.width_mm) || 85,
+            height_mm: (currentConfig.general && currentConfig.general.height_mm) || 52,
+            cards_per_row: (currentConfig.layout && currentConfig.layout.cards_per_row) || 2,
+            cards_per_col: (currentConfig.layout && currentConfig.layout.cards_per_col) || 5,
+            margin_top_mm: (currentConfig.layout && currentConfig.layout.margin_top_mm) || 10,
+            margin_page_mm: (currentConfig.layout && currentConfig.layout.margin_page_mm) || 10,
+            card_spacing_mm: (currentConfig.layout && currentConfig.layout.spacing_mm) || 3,
+            cut_lines: (currentConfig.layout && currentConfig.layout.cut_lines) ? 1 : 0,
+            background_color: (currentConfig.general && currentConfig.general.bg_color) || '#ffffff',
+            border_color: (currentConfig.general && currentConfig.general.border_color) || '#cbd5e1',
+            bg_image: (currentConfig.general && currentConfig.general.bg_image) || '',
+            config: currentConfig
+        };
+
+        fetch('/api/vouchers/designs/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(res => {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i><span>حفظ التصميم</span>`;
+
+            if (res.success) {
+                if (badge) {
+                    badge.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800";
+                    badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>تم الحفظ بنجاح`;
+                }
+                notify('تم حفظ التصميم بنجاح!', res.message || 'تم حفظ وتطبيق كافة إعدادات الكرت ومواضع العناصر بنجاح.', 'success');
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('voucher_designs_list') }}";
+                }, 1200);
+            } else {
+                if (badge) {
+                    badge.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-950 text-rose-300 border border-rose-800";
+                    badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>خطأ أثناء الحفظ`;
+                }
+                notify('خطأ أثناء الحفظ', res.message || 'تعذر حفظ بيانات التصميم في قاعدة البيانات.', 'error');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i><span>حفظ التصميم</span>`;
+            notify('خطأ في الشبكة', err.toString(), 'error');
+        });
+    }
+
+    function resetToDefaults() {
+        if (confirm('هل أنت متأكد من رغبتك في استعادة الإعدادات الافتراضية لهذا التصميم؟')) {
+            currentConfig = JSON.parse(JSON.stringify(BASE_DEFAULT_CONFIG));
+            uploadedBgImageUrl = '';
+            document.getElementById('inpBgImageFile').value = '';
+            const btnRemove = document.getElementById('btnRemoveBgImage');
+            if (btnRemove) btnRemove.classList.remove('hidden');
+            
+            initAccordionForm();
+            renderPreview();
+            notify('تمت الاستعادة', 'تمت استعادة كافة الإعدادات والخطوط الافتراضية.', 'info');
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+</script>
+{% endblock %}

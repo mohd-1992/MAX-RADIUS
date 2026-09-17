@@ -1,0 +1,2668 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>MAX RADIUS - {% block title %}لوحة التحكم{% endblock %}</title>
+
+    <!-- Instant Theme Loader to prevent white/dark flashes -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('wisp_theme') || 'light';
+            if (savedTheme === 'light') {
+                document.documentElement.classList.add('theme-light');
+            }
+        })();
+    </script>
+    <!-- Local Offline Tailwind CSS Engine -->
+    <script src="{{ url_for('static', filename='vendor/tailwind/tailwind.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+                        sidebar: { bg: '#0b0f19', card: '#111827', active: '#1a2642', hover: '#131d31', border: '#1c2840' }
+                    },
+                    fontFamily: {
+                        sans: ['Tajawal', 'sans-serif'],
+                        mono: ['Tajawal', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Local Offline Arabic Typography: Tajawal Font -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/tajawal.css') }}">
+    <!-- Local Offline FontAwesome 6 Icons -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+    <!-- Local Offline SweetAlert2 -->
+    <script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
+    <!-- Local Offline Chart.js -->
+    <script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}"></script>
+    <script>
+        if (window.Chart) {
+            Chart.defaults.font.family = "'Tajawal', sans-serif";
+        }
+    </script>
+    <style>
+        body, input, button, select, textarea, table, th, td, h1, h2, h3, h4, h5, h6, p, a, label, optgroup, option {
+            font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+        }
+        body { 
+            font-family: 'Tajawal', sans-serif !important; 
+            transition: background-color 0.25s ease, color 0.25s ease; 
+            -webkit-tap-highlight-color: transparent; 
+        }
+        .font-mono, [class*="font-mono"] {
+            font-family: 'Tajawal', sans-serif !important;
+        }
+        /* Preserve FontAwesome Icons */
+        .fa, .fas, .far, .fal, .fad, .fab, .fa-solid, .fa-regular, .fa-light, .fa-thin, .fa-duotone, .fa-brands, [class^="fa-"], [class*=" fa-"], i.fa, i.fas, i.far, i.fab, i[class*="fa-"] {
+            font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands", "FontAwesome", sans-serif !important;
+        }
+        .fa, .fas, .fa-solid {
+            font-weight: 900 !important;
+        }
+        .far, .fa-regular {
+            font-weight: 400 !important;
+        }
+        .fab, .fa-brands {
+            font-family: "Font Awesome 6 Brands" !important;
+            font-weight: 400 !important;
+        }
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #334155; }
+        .nav-item-active { background-color: #1a2642; color: #60a5fa; border-right: 3px solid #3b82f6; }
+        .subnav-active { color: #60a5fa !important; font-weight: 700; background-color: rgba(59, 130, 246, 0.1); }
+
+        /* Responsive Tables & Touch Scrolling */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .table-responsive::-webkit-scrollbar {
+            height: 6px;
+        }
+        .table-responsive::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 4px;
+        }
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* ========================================================== */
+        /* Global Contrast Fix: فرض النص الداكن على الخلفيات الفاتحة والكروت */
+        /* ========================================================== */
+        .card, .bg-light, .bg-white, .badge-light {
+            color: #212529 !important;
+        }
+        .card > p, .card > span, .card > div:not([class*="bg-"]):not([class*="text-"]):not([class*="from-"]) {
+            color: #212529;
+        }
+
+        /* الحفاظ على اللون الأبيض في الخلفيات الداكنة جداً والأزرار والحاويات الملونة الصريحة */
+        .badge.bg-primary, .bg-primary, .btn-primary,
+        .badge.bg-danger, .bg-danger, .btn-danger,
+        .badge.bg-success, .bg-success, .btn-success,
+        .badge.bg-dark, .bg-dark, .btn-dark,
+        .btn-indigo, .btn-purple {
+            color: #ffffff !important;
+        }
+        .badge.bg-primary *, .bg-primary *, .btn-primary *,
+        .badge.bg-danger *, .bg-danger *, .btn-danger *,
+        .badge.bg-success *, .bg-success *, .btn-success *,
+        .badge.bg-dark *, .bg-dark *, .btn-dark *,
+        .btn-indigo *, .btn-purple * {
+            color: #ffffff !important;
+        }
+
+        /* ========================================================== */
+        /* Icon Contrast Protection: أيقونات واضحة ومشرقة دائماً داخل المربعات الملونة والجريانت */
+        /* ========================================================== */
+        [class*="bg-gradient-"] i,
+        [class*="bg-gradient-"] svg,
+        [class*="bg-gradient-"] [class*="fa-"],
+        div[class*="from-"][class*="to-"] i,
+        div[class*="from-"][class*="to-"] svg,
+        div[class*="from-"][class*="to-"] [class*="fa-"],
+        .bg-blue-600 i, .bg-blue-500 i, .bg-blue-700 i,
+        .bg-indigo-600 i, .bg-indigo-500 i, .bg-indigo-700 i,
+        .bg-purple-600 i, .bg-purple-500 i, .bg-purple-700 i,
+        .bg-emerald-600 i, .bg-emerald-500 i, .bg-emerald-700 i,
+        .bg-teal-600 i, .bg-teal-500 i, .bg-teal-700 i,
+        .bg-rose-600 i, .bg-rose-500 i, .bg-rose-700 i,
+        .bg-amber-600 i, .bg-amber-500 i, .bg-amber-700 i,
+        .bg-cyan-600 i, .bg-cyan-500 i, .bg-cyan-700 i,
+        .btn-primary i, .btn-success i, .btn-danger i, .btn-indigo i, .btn-purple i,
+        .nav-item-active i,
+        .bg-blue-500.text-white i,
+        .bg-emerald-500.text-white i,
+        i.text-white,
+        .text-white i,
+        .text-white-force i {
+            color: #ffffff !important;
+        }
+
+        /* الحفاظ على توهج ووضوح الأيقونات الملونة في المربعات ذات الخلفية الشفافة */
+        .text-blue-400, .text-blue-400 i, .text-blue-400 [class*="fa-"] { color: #60a5fa !important; }
+        .text-emerald-400, .text-emerald-400 i, .text-emerald-400 [class*="fa-"] { color: #34d399 !important; }
+        .text-amber-400, .text-amber-400 i, .text-amber-400 [class*="fa-"] { color: #fbbf24 !important; }
+        .text-purple-400, .text-purple-400 i, .text-purple-400 [class*="fa-"] { color: #c084fc !important; }
+        .text-rose-400, .text-rose-400 i, .text-rose-400 [class*="fa-"] { color: #fb7185 !important; }
+        .text-cyan-400, .text-cyan-400 i, .text-cyan-400 [class*="fa-"] { color: #22d3ee !important; }
+        .text-indigo-400, .text-indigo-400 i, .text-indigo-400 [class*="fa-"] { color: #818cf8 !important; }
+        .text-teal-400, .text-teal-400 i, .text-teal-400 [class*="fa-"] { color: #2dd4bf !important; }
+
+        /* ========================================================== */
+        /* Light Theme (الوضع النهاري الاحترافي)                        */
+        /* ========================================================== */
+        html.theme-light body {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
+        html.theme-light .bg-\[\#070a13\],
+        html.theme-light div.bg-\[\#070a13\],
+        html.theme-light main.bg-\[\#070a13\],
+        html.theme-light [class*="bg-[#070a13]"],
+        html.theme-light [class*="bg-[#050811]"] {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
+        html.theme-light .bg-\[\#0b0f19\],
+        html.theme-light div.bg-\[\#0b0f19\],
+        html.theme-light section.bg-\[\#0b0f19\],
+        html.theme-light a.bg-\[\#0b0f19\],
+        html.theme-light button.bg-\[\#0b0f19\],
+        html.theme-light header.bg-\[\#0b0f19\],
+        html.theme-light nav.bg-\[\#0b0f19\],
+        html.theme-light [class*="bg-[#0b0f19]"],
+        html.theme-light .portal-card {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.theme-light a[class*="bg-[#0b0f19]"]:hover,
+        html.theme-light button[class*="bg-[#0b0f19]"]:hover,
+        html.theme-light [class*="bg-[#0b0f19]"]:hover {
+            background-color: #f8fafc !important;
+        }
+        html.theme-light .bg-\[\#070b14\],
+        html.theme-light div.bg-\[\#070b14\],
+        html.theme-light form.bg-\[\#070b14\],
+        html.theme-light a.bg-\[\#070b14\],
+        html.theme-light button.bg-\[\#070b14\],
+        html.theme-light input.bg-\[\#070b14\],
+        html.theme-light select.bg-\[\#070b14\],
+        html.theme-light [class*="bg-[#070b14]"],
+        html.theme-light .portal-subcard {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+        html.theme-light a[class*="bg-[#070b14]"]:hover,
+        html.theme-light button[class*="bg-[#070b14]"]:hover,
+        html.theme-light [class*="bg-[#070b14]"]:hover {
+            background-color: #f1f5f9 !important;
+        }
+        html.theme-light #mainSidebar {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.theme-light #mainSidebar .border-b,
+        html.theme-light #mainSidebar .border-t {
+            border-color: #f1f5f9 !important;
+        }
+        html.theme-light #mainSidebar .text-white {
+            color: #0f172a !important;
+        }
+        html.theme-light #mainSidebar .text-slate-300 {
+            color: #334155 !important;
+        }
+        html.theme-light #mainSidebar a:hover,
+        html.theme-light #mainSidebar button:hover {
+            background-color: #f8fafc !important;
+            color: #0f172a !important;
+        }
+        html.theme-light #mainSidebar .nav-item-active {
+            background-color: #eff6ff !important;
+            color: #2563eb !important;
+            border-right: 3px solid #2563eb !important;
+        }
+        html.theme-light #mainSidebar .subnav-active {
+            color: #2563eb !important;
+            background-color: #dbeafe !important;
+        }
+        html.theme-light #mainSidebar div[id$="Menu"] {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+        html.theme-light header {
+            background-color: rgba(255, 255, 255, 0.95) !important;
+            border-color: #e2e8f0 !important;
+        }
+        html.theme-light header .text-white {
+            color: #0f172a !important;
+        }
+        /* Default headings and titles in light mode */
+        html.theme-light h1,
+        html.theme-light h2,
+        html.theme-light h3,
+        html.theme-light h4,
+        html.theme-light h5,
+        html.theme-light h6 {
+            color: #0f172a !important;
+        }
+        /* النصوص العادية و text-white تصبح داكنة في الوضع النهاري على كل الحاويات والكروت */
+        html.theme-light .text-white {
+            color: #0f172a !important;
+        }
+        html.theme-light .card > p,
+        html.theme-light .card > span,
+        html.theme-light .bg-white > p,
+        html.theme-light .bg-white > span,
+        html.theme-light .bg-light > p,
+        html.theme-light .bg-light > span,
+        html.theme-light div.bg-\[\#0b0f19\] > p,
+        html.theme-light div.bg-\[\#0b0f19\] > span,
+        html.theme-light div.bg-\[\#070b14\] > p,
+        html.theme-light div.bg-\[\#070b14\] > span {
+            color: #1e293b;
+        }
+
+        /* استثناء صريح: الأزرار الملونة الصريحة والشارات الصلبة فقط تحتفظ باللون الأبيض */
+        html.theme-light .btn-primary,
+        html.theme-light .btn-success,
+        html.theme-light .btn-danger,
+        html.theme-light .btn-dark,
+        html.theme-light .btn-indigo,
+        html.theme-light .btn-purple,
+        html.theme-light button.bg-blue-600,
+        html.theme-light button.bg-indigo-600,
+        html.theme-light button.bg-emerald-600,
+        html.theme-light button.bg-rose-600,
+        html.theme-light button.bg-purple-600,
+        html.theme-light a.bg-blue-600,
+        html.theme-light a.bg-indigo-600,
+        html.theme-light a.bg-emerald-600,
+        html.theme-light a.bg-rose-600,
+        html.theme-light a.bg-purple-600,
+        html.theme-light span.bg-blue-600,
+        html.theme-light span.bg-indigo-600,
+        html.theme-light span.bg-emerald-600,
+        html.theme-light span.bg-rose-600,
+        html.theme-light span.bg-purple-600,
+        html.theme-light .badge.bg-primary,
+        html.theme-light .badge.bg-danger,
+        html.theme-light .badge.bg-success,
+        html.theme-light .badge.bg-dark,
+        html.theme-light .text-white-force,
+        html.theme-light button[class*="bg-gradient-"],
+        html.theme-light button[class*="from-"][class*="to-"],
+        html.theme-light a.btn[class*="bg-gradient-"],
+        html.theme-light a[class*="from-"][class*="to-"].btn,
+        html.theme-light .btn-gradient,
+        html.theme-light .badge[class*="bg-gradient-"] {
+            color: #ffffff !important;
+        }
+
+        html.theme-light .btn-primary *,
+        html.theme-light .btn-success *,
+        html.theme-light .btn-danger *,
+        html.theme-light .btn-dark *,
+        html.theme-light .btn-indigo *,
+        html.theme-light .btn-purple *,
+        html.theme-light button.bg-blue-600 *,
+        html.theme-light button.bg-indigo-600 *,
+        html.theme-light button.bg-emerald-600 *,
+        html.theme-light button.bg-rose-600 *,
+        html.theme-light button.bg-purple-600 *,
+        html.theme-light a.bg-blue-600 *,
+        html.theme-light a.bg-indigo-600 *,
+        html.theme-light a.bg-emerald-600 *,
+        html.theme-light a.bg-rose-600 *,
+        html.theme-light a.bg-purple-600 *,
+        html.theme-light span.bg-blue-600 *,
+        html.theme-light span.bg-indigo-600 *,
+        html.theme-light span.bg-emerald-600 *,
+        html.theme-light span.bg-rose-600 *,
+        html.theme-light span.bg-purple-600 *,
+        html.theme-light .badge.bg-primary *,
+        html.theme-light .badge.bg-danger *,
+        html.theme-light .badge.bg-success *,
+        html.theme-light .badge.bg-dark *,
+        html.theme-light .text-white-force *,
+        html.theme-light button[class*="bg-gradient-"] *,
+        html.theme-light button[class*="from-"][class*="to-"] *,
+        html.theme-light a.btn[class*="bg-gradient-"] *,
+        html.theme-light a[class*="from-"][class*="to-"].btn *,
+        html.theme-light .btn-gradient *,
+        html.theme-light .badge[class*="bg-gradient-"] * {
+            color: #ffffff !important;
+        }
+
+        /* Exemptions for dropdown menus and light cards nested inside gradient classes */
+        html.theme-light .bulk-dropdown-menu,
+        html.theme-light .bulk-dropdown-menu *,
+        html.theme-light .dropdown-menu,
+        html.theme-light .dropdown-menu *,
+        html.theme-light [id*="DropdownMenu"],
+        html.theme-light [id*="DropdownMenu"] * {
+            color: inherit !important;
+        }
+        html.theme-light a.bg-indigo-600 *,
+        html.theme-light a.bg-emerald-600 *,
+        html.theme-light a.bg-rose-600 *,
+        html.theme-light a.bg-purple-600 *,
+        html.theme-light span.bg-blue-600 *,
+        html.theme-light span.bg-indigo-600 *,
+        html.theme-light span.bg-emerald-600 *,
+        html.theme-light span.bg-rose-600 *,
+        html.theme-light span.bg-purple-600 *,
+        html.theme-light .badge.bg-primary *,
+        html.theme-light .badge.bg-danger *,
+        html.theme-light .badge.bg-success *,
+        html.theme-light .badge.bg-dark *,
+        html.theme-light .text-white-force * {
+            color: #ffffff !important;
+        }
+        html.theme-light .text-slate-100,
+        html.theme-light .text-slate-200 {
+            color: #1e293b !important;
+        }
+        html.theme-light .text-slate-300 {
+            color: #334155 !important;
+        }
+        html.theme-light .text-slate-400,
+        html.theme-light .text-slate-500,
+        html.theme-light .text-slate-600,
+        html.theme-light .text-gray-400,
+        html.theme-light .text-gray-500 {
+            color: #475569 !important;
+        }
+        html.theme-light .text-cyan-500,
+        html.theme-light .text-cyan-400,
+        html.theme-light .text-cyan-300,
+        html.theme-light .text-cyan-200,
+        html.theme-light .text-cyan-100 {
+            color: #0e7490 !important;
+        }
+        html.theme-light .text-teal-500,
+        html.theme-light .text-teal-400,
+        html.theme-light .text-teal-300,
+        html.theme-light .text-teal-200,
+        html.theme-light .text-teal-100 {
+            color: #0f766e !important;
+        }
+        html.theme-light .text-amber-500,
+        html.theme-light .text-amber-400,
+        html.theme-light .text-amber-300,
+        html.theme-light .text-amber-200,
+        html.theme-light .text-amber-100,
+        html.theme-light .text-yellow-500,
+        html.theme-light .text-yellow-400,
+        html.theme-light .text-yellow-300,
+        html.theme-light .text-yellow-200,
+        html.theme-light .text-yellow-100,
+        html.theme-light .text-orange-500,
+        html.theme-light .text-orange-400,
+        html.theme-light .text-orange-300,
+        html.theme-light .text-orange-200 {
+            color: #b45309 !important;
+        }
+        html.theme-light .text-emerald-500,
+        html.theme-light .text-emerald-400,
+        html.theme-light .text-emerald-300,
+        html.theme-light .text-emerald-200,
+        html.theme-light .text-emerald-100,
+        html.theme-light .text-green-500,
+        html.theme-light .text-green-400,
+        html.theme-light .text-green-300,
+        html.theme-light .text-green-200,
+        html.theme-light .text-green-100,
+        html.theme-light .text-lime-500,
+        html.theme-light .text-lime-400,
+        html.theme-light .text-lime-300,
+        html.theme-light .text-lime-200 {
+            color: #047857 !important;
+        }
+        html.theme-light .text-sky-500,
+        html.theme-light .text-sky-400,
+        html.theme-light .text-sky-300,
+        html.theme-light .text-sky-200,
+        html.theme-light .text-sky-100 {
+            color: #0369a1 !important;
+        }
+        html.theme-light .text-blue-500,
+        html.theme-light .text-blue-400,
+        html.theme-light .text-blue-300,
+        html.theme-light .text-blue-200,
+        html.theme-light .text-blue-100 {
+            color: #1d4ed8 !important;
+        }
+        html.theme-light .text-indigo-500,
+        html.theme-light .text-indigo-400,
+        html.theme-light .text-indigo-300,
+        html.theme-light .text-indigo-200,
+        html.theme-light .text-indigo-100 {
+            color: #4338ca !important;
+        }
+        html.theme-light .text-purple-500,
+        html.theme-light .text-purple-400,
+        html.theme-light .text-purple-300,
+        html.theme-light .text-purple-200,
+        html.theme-light .text-purple-100,
+        html.theme-light .text-violet-500,
+        html.theme-light .text-violet-400,
+        html.theme-light .text-violet-300,
+        html.theme-light .text-violet-200,
+        html.theme-light .text-fuchsia-500,
+        html.theme-light .text-fuchsia-400,
+        html.theme-light .text-fuchsia-300 {
+            color: #6d28d9 !important;
+        }
+        html.theme-light .text-rose-500,
+        html.theme-light .text-rose-400,
+        html.theme-light .text-rose-300,
+        html.theme-light .text-rose-200,
+        html.theme-light .text-rose-100,
+        html.theme-light .text-red-500,
+        html.theme-light .text-red-400,
+        html.theme-light .text-red-300,
+        html.theme-light .text-red-200,
+        html.theme-light .text-pink-500,
+        html.theme-light .text-pink-400,
+        html.theme-light .text-pink-300 {
+            color: #be123c !important;
+        }
+        /* Soft tint container adjustments in light theme */
+        html.theme-light [class*="bg-cyan-950"],
+        html.theme-light [class*="bg-cyan-900"] {
+            background-color: #ecfeff !important;
+            border-color: #a5f3fc !important;
+        }
+        html.theme-light [class*="bg-emerald-950"],
+        html.theme-light [class*="bg-emerald-900"] {
+            background-color: #ecfdf5 !important;
+            border-color: #a7f3d0 !important;
+        }
+        html.theme-light [class*="bg-amber-950"],
+        html.theme-light [class*="bg-amber-900"],
+        html.theme-light [class*="bg-amber-500\/5"],
+        html.theme-light [class*="bg-amber-500\/10"] {
+            background-color: #fffbeb !important;
+            border-color: #fde68a !important;
+        }
+        html.theme-light [class*="bg-purple-950"],
+        html.theme-light [class*="bg-purple-900"] {
+            background-color: #faf5ff !important;
+            border-color: #e9d5ff !important;
+        }
+        html.theme-light [class*="bg-rose-950"],
+        html.theme-light [class*="bg-rose-900"] {
+            background-color: #fff1f2 !important;
+            border-color: #fecdd3 !important;
+        }
+        html.theme-light [class*="bg-slate-900\/"] {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+        html.theme-light .border-\[\#1c2840\],
+        html.theme-light .border-\[\#162136\],
+        html.theme-light .border-slate-800 {
+            border-color: #e2e8f0 !important;
+        }
+        html.theme-light .border-slate-700 {
+            border-color: #cbd5e1 !important;
+        }
+        html.theme-light .divide-\[\#1c2840\] > :not([hidden]) ~ :not([hidden]),
+        html.theme-light .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+            border-color: #f1f5f9 !important;
+        }
+        html.theme-light thead.bg-\[\#070b14\],
+        html.theme-light thead {
+            background-color: #f8fafc !important;
+            color: #334155 !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+        }
+        html.theme-light tbody tr:hover {
+            background-color: #f8fafc !important;
+        }
+        html.theme-light input,
+        html.theme-light select,
+        html.theme-light textarea {
+            background-color: #ffffff !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        html.theme-light input:focus,
+        html.theme-light select:focus,
+        html.theme-light textarea:focus {
+            border-color: #2563eb !important;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+        }
+        html.theme-light input::placeholder,
+        html.theme-light textarea::placeholder {
+            color: #94a3b8 !important;
+        }
+        html.theme-light footer {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #64748b !important;
+        }
+        html.theme-light .progress-track,
+        html.theme-light .progress-bg {
+            background-color: #e2e8f0 !important;
+            border-color: #cbd5e1 !important;
+        }
+        .progress-track {
+            background-color: #1a2333;
+            border-color: #273754;
+        }
+        html.theme-light .bg-slate-800,
+        html.theme-light .bg-slate-800\/80,
+        html.theme-light .bg-slate-800\/60,
+        html.theme-light .bg-slate-800\/50,
+        html.theme-light [class*="bg-slate-800"] {
+            background-color: #f1f5f9 !important;
+            color: #334155 !important;
+            border-color: #cbd5e1 !important;
+        }
+        html.theme-light .bg-slate-800:hover,
+        html.theme-light [class*="bg-slate-800"]:hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }
+        html.theme-light .bg-slate-700,
+        html.theme-light .bg-slate-700\/80,
+        html.theme-light .bg-slate-700\/60,
+        html.theme-light [class*="bg-slate-700"] {
+            background-color: #e2e8f0 !important;
+            color: #1e293b !important;
+            border-color: #cbd5e1 !important;
+        }
+        html.theme-light .border-slate-700,
+        html.theme-light [class*="border-slate-700"] {
+            border-color: #cbd5e1 !important;
+        }
+        html.theme-light .border-slate-800,
+        html.theme-light [class*="border-slate-800"] {
+            border-color: #e2e8f0 !important;
+        }
+        html.theme-light .sidebar-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+        }
+
+        /* Sidebar Active Accordion Menus in Light Mode */
+        html.theme-light #mainSidebar button.bg-\[\#101728\],
+        html.theme-light #mainSidebar button[class*="bg-[#101728]"],
+        html.theme-light #mainSidebar a.bg-\[\#101728\],
+        html.theme-light #mainSidebar [class*="bg-[#101728]"] {
+            background-color: #f1f5f9 !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        html.theme-light #mainSidebar button[class*="bg-[#101728]"].text-emerald-400 {
+            color: #047857 !important;
+            background-color: #ecfdf5 !important;
+            border-color: #a7f3d0 !important;
+        }
+        html.theme-light #mainSidebar button[class*="bg-[#101728]"].text-amber-400 {
+            color: #b45309 !important;
+            background-color: #fffbeb !important;
+            border-color: #fde68a !important;
+        }
+        html.theme-light #mainSidebar button[class*="bg-[#101728]"].text-purple-400 {
+            color: #6d28d9 !important;
+            background-color: #faf5ff !important;
+            border-color: #e9d5ff !important;
+        }
+        html.theme-light #mainSidebar button[class*="bg-[#101728]"].text-indigo-400 {
+            color: #1d4ed8 !important;
+            background-color: #eff6ff !important;
+            border-color: #bfdbfe !important;
+        }
+        html.theme-light #mainSidebar button[class*="bg-[#101728]"].text-cyan-400 {
+            color: #0e7490 !important;
+            background-color: #ecfeff !important;
+            border-color: #a5f3fc !important;
+        }
+
+        /* Leaflet Popups & GIS Maps in Light Mode */
+        html.theme-light .leaflet-popup-content-wrapper {
+            background-color: #ffffff !important;
+            color: #0f172a !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12) !important;
+        }
+        html.theme-light .leaflet-popup-tip {
+            background-color: #ffffff !important;
+        }
+        html.theme-light .leaflet-popup-content-wrapper * {
+            color: #1e293b;
+        }
+        html.theme-light .leaflet-popup-content-wrapper .text-white {
+            color: #0f172a !important;
+        }
+        html.theme-light .leaflet-popup-content-wrapper .text-slate-300,
+        html.theme-light .leaflet-popup-content-wrapper .text-slate-400 {
+            color: #475569 !important;
+        }
+        html.theme-light .leaflet-popup-content-wrapper .border-slate-700,
+        html.theme-light .leaflet-popup-content-wrapper .border-slate-800 {
+            border-color: #e2e8f0 !important;
+        }
+        html.theme-light .leaflet-popup-content-wrapper .bg-slate-800 {
+            background-color: #f1f5f9 !important;
+            color: #334155 !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+        html.theme-light .leaflet-popup-content-wrapper button.bg-indigo-600,
+        html.theme-light .leaflet-popup-content-wrapper button.bg-cyan-600,
+        html.theme-light .leaflet-popup-content-wrapper button.bg-blue-600 {
+            color: #ffffff !important;
+        }
+
+        /* Bulk Action Bar & Dropdown Menus in Light Mode */
+        html.theme-light .bulk-action-bar {
+            background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 50%, #eff6ff 100%) !important;
+            border-color: #bfdbfe !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05) !important;
+        }
+        html.theme-light .bulk-action-bar .text-slate-400 {
+            color: #475569 !important;
+        }
+        html.theme-light .action-dropdown-menu,
+        html.theme-light .bulk-dropdown-menu {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.08) !important;
+        }
+        html.theme-light .action-dropdown-menu .bg-\[\#070b14\]\/60,
+        html.theme-light .bulk-dropdown-menu .bg-\[\#070b14\]\/60 {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+            color: #334155 !important;
+        }
+        html.theme-light .action-dropdown-menu button,
+        html.theme-light .bulk-dropdown-menu button {
+            color: #334155 !important;
+        }
+        html.theme-light .action-dropdown-menu button:hover,
+        html.theme-light .bulk-dropdown-menu button:hover {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
+        html.theme-light .action-dropdown-menu button.text-rose-400,
+        html.theme-light .bulk-dropdown-menu button.text-rose-400 {
+            color: #be123c !important;
+        }
+        html.theme-light .action-dropdown-menu button.text-rose-400:hover,
+        html.theme-light .bulk-dropdown-menu button.text-rose-400:hover {
+            background-color: #ffe4e6 !important;
+            color: #9f1239 !important;
+        }
+        html.theme-light input[type="checkbox"] {
+            background-color: #ffffff !important;
+            border-color: #94a3b8 !important;
+        }
+
+        /* Universal Toggle Switch Active Color (Emerald Green #10b981) in Dark & Light Themes */
+        input:checked ~ div.w-11,
+        input.peer:checked ~ div[class*="rounded-full"],
+        .peer:checked ~ div[class*="rounded-full"],
+        .peer:checked ~ div.peer-checked\:bg-indigo-600,
+        .peer:checked ~ div.peer-checked\:bg-blue-600,
+        .peer:checked ~ div.peer-checked\:bg-amber-600,
+        .peer:checked ~ div.peer-checked\:bg-emerald-600 {
+            background-color: #10b981 !important;
+            border-color: #059669 !important;
+        }
+        
+        /* Checkbox checked color */
+        input[type="checkbox"]:checked {
+            background-color: #10b981 !important;
+            border-color: #059669 !important;
+        }
+
+        /* Modal Dialogs in Light Mode */
+        html.theme-light .fixed.inset-0 .bg-\[\#0b0f19\],
+        html.theme-light .fixed.inset-0 div[class*="bg-[#0b0f19]"] {
+            background-color: #ffffff !important;
+            border-color: #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+        }
+
+        /* Inner Box / Pill / Sub-container Styling in Light Mode */
+        html.theme-light .bg-slate-900,
+        html.theme-light .bg-slate-900\/60,
+        html.theme-light .bg-slate-900\/80,
+        html.theme-light .bg-slate-950,
+        html.theme-light [class*="bg-slate-900"],
+        html.theme-light [class*="bg-blue-950"],
+        html.theme-light [class*="bg-emerald-950"],
+        html.theme-light [class*="bg-amber-950"],
+        html.theme-light [class*="bg-rose-950"] {
+            background-color: #f1f5f9 !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+
+        /* Diagnostic & Migration Gradient Banners in Light Mode */
+        html.theme-light [class*="from-cyan-950"],
+        html.theme-light [class*="from-blue-950"],
+        html.theme-light [class*="from-slate-950"],
+        html.theme-light [class*="from-indigo-950"],
+        html.theme-light [class*="from-emerald-950"],
+        html.theme-light [class*="from-amber-950"],
+        html.theme-light [class*="from-rose-950"] {
+            background: linear-gradient(to right, #ecfeff, #eff6ff, #f8fafc) !important;
+            border-color: #bae6fd !important;
+            color: #0f172a !important;
+        }
+        html.theme-light [class*="from-cyan-950"] *,
+        html.theme-light [class*="from-blue-950"] *,
+        html.theme-light [class*="from-slate-950"] *,
+        html.theme-light [class*="from-indigo-950"] *,
+        html.theme-light [class*="from-emerald-950"] *,
+        html.theme-light [class*="from-amber-950"] *,
+        html.theme-light [class*="from-rose-950"] * {
+            color: #1e293b;
+        }
+        html.theme-light [class*="from-cyan-950"] h1,
+        html.theme-light [class*="from-cyan-950"] h2,
+        html.theme-light [class*="from-cyan-950"] h3,
+        html.theme-light [class*="from-cyan-950"] h4,
+        html.theme-light [class*="from-cyan-950"] .text-white,
+        html.theme-light [class*="from-blue-950"] .text-white,
+        html.theme-light [class*="from-slate-950"] .text-white {
+            color: #0f172a !important;
+        }
+
+        /* Specific Helper / Wrapper Boxes in Light Mode */
+        html.theme-light #same_user_pass_wrapper {
+            background-color: #eff6ff !important;
+            border-color: #bfdbfe !important;
+        }
+        html.theme-light #same_user_pass_wrapper span {
+            color: #1d4ed8 !important;
+        }
+        html.theme-light #same_user_pass_wrapper p {
+            color: #334155 !important;
+        }
+
+        /* Password and PIN Badges in Light Mode */
+        html.theme-light #pwdDisplay {
+            background-color: #f1f5f9 !important;
+            color: #b45309 !important;
+            border-color: #cbd5e1 !important;
+        }
+
+        /* Status & Notification Badges in Light Mode */
+        html.theme-light .bg-emerald-500\/10,
+        html.theme-light .bg-emerald-500\/20 {
+            background-color: #ecfdf5 !important;
+            border-color: #a7f3d0 !important;
+            color: #047857 !important;
+        }
+        html.theme-light .bg-amber-500\/10,
+        html.theme-light .bg-amber-500\/20 {
+            background-color: #fffbeb !important;
+            border-color: #fde68a !important;
+            color: #b45309 !important;
+        }
+        html.theme-light .bg-blue-500\/10,
+        html.theme-light .bg-blue-500\/20 {
+            background-color: #eff6ff !important;
+            border-color: #bfdbfe !important;
+            color: #1d4ed8 !important;
+        }
+        html.theme-light .bg-purple-500\/10,
+        html.theme-light .bg-purple-500\/20 {
+            background-color: #faf5ff !important;
+            border-color: #e9d5ff !important;
+            color: #6d28d9 !important;
+        }
+        html.theme-light .bg-rose-500\/10,
+        html.theme-light .bg-rose-500\/20 {
+            background-color: #fff1f2 !important;
+            border-color: #fecdd3 !important;
+            color: #be123c !important;
+        }
+        html.theme-light .bg-emerald-950\/50 {
+            background-color: #ecfdf5 !important;
+            border-color: #a7f3d0 !important;
+            color: #065f46 !important;
+        }
+        html.theme-light .bg-rose-950\/50 {
+            background-color: #fff1f2 !important;
+            border-color: #fecdd3 !important;
+            color: #9f1239 !important;
+        }
+        html.theme-light .bg-amber-950\/50 {
+            background-color: #fffbeb !important;
+            border-color: #fde68a !important;
+            color: #92400e !important;
+        }
+        html.theme-light .bg-blue-950\/50 {
+            background-color: #eff6ff !important;
+            border-color: #bfdbfe !important;
+            color: #1e40af !important;
+        }
+        html.theme-light .bg-cyan-500\/10,
+        html.theme-light .bg-cyan-500\/20 {
+            background-color: #ecfeff !important;
+            border-color: #a5f3fc !important;
+            color: #0e7490 !important;
+        }
+
+        /* ========================================================== */
+        /* Universal Form Controls, Alignment & Contrast System       */
+        /* ========================================================== */
+        
+        /* 1. Form Inputs & Selects Standardization */
+        input[type="text"],
+        input[type="password"],
+        input[type="email"],
+        input[type="number"],
+        input[type="date"],
+        input[type="datetime-local"],
+        input[type="search"],
+        select {
+            min-height: 42px;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            border-radius: 0.75rem;
+            padding: 0.55rem 0.85rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        /* 2. High-Contrast Disabled States */
+        input:disabled,
+        select:disabled,
+        textarea:disabled,
+        button:disabled,
+        input[disabled],
+        select[disabled],
+        textarea[disabled],
+        button[disabled] {
+            opacity: 0.85 !important;
+            cursor: not-allowed !important;
+            background-color: #121929 !important;
+            color: #cbd5e1 !important;
+            border-color: #273754 !important;
+            -webkit-text-fill-color: #cbd5e1 !important;
+        }
+        html.theme-light input:disabled,
+        html.theme-light select:disabled,
+        html.theme-light textarea:disabled,
+        html.theme-light button:disabled,
+        html.theme-light input[disabled],
+        html.theme-light select[disabled],
+        html.theme-light textarea[disabled],
+        html.theme-light button[disabled] {
+            background-color: #f1f5f9 !important;
+            color: #334155 !important;
+            border-color: #cbd5e1 !important;
+            -webkit-text-fill-color: #334155 !important;
+        }
+
+        /* 3. Universal High-Contrast Muted & Helper Texts */
+        .text-slate-400,
+        .text-slate-500,
+        .text-slate-600,
+        .text-gray-400,
+        .text-gray-500,
+        .hint-text,
+        .text-hint {
+            color: #94a3b8 !important;
+        }
+        html.theme-light .text-slate-400,
+        html.theme-light .text-slate-500,
+        html.theme-light .text-slate-600,
+        html.theme-light .text-gray-400,
+        html.theme-light .text-gray-500,
+        html.theme-light .hint-text,
+        html.theme-light .text-hint {
+            color: #475569 !important;
+        }
+
+        /* 4. Badges & Status Indicators Alignment */
+        .badge,
+        .status-badge,
+        .pill-badge {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.375rem !important;
+            vertical-align: middle !important;
+            padding: 0.25rem 0.65rem !important;
+            border-radius: 9999px !important;
+            font-size: 0.75rem !important;
+            font-weight: 700 !important;
+            line-height: 1rem !important;
+        }
+        .badge i,
+        .status-badge i,
+        .pill-badge i {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 0.75rem !important;
+            line-height: 1 !important;
+        }
+
+        /* 5. Arabic RTL Layout & Flex Helpers */
+        .flex-start-gap {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .flex-between-center {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+    
+        
+        /* ========================================================== */
+        /* Universal Hover & Contrast Neutralizer                      */
+        /* ========================================================== */
+        /* Light Theme: Prevent white elements & tables from turning gray/dark on hover */
+        html.theme-light tbody tr:hover,
+        html.theme-light table tr:hover,
+        html.theme-light tr[class*="hover:bg-"]:hover,
+        html.theme-light [class*="hover:bg-[#11192b]"]:hover,
+        html.theme-light [class*="hover:bg-slate-800"]:hover,
+        html.theme-light [class*="hover:bg-slate-700"]:hover,
+        html.theme-light [class*="hover:bg-slate-900"]:hover,
+        html.theme-light [class*="hover:bg-gray-800"]:hover,
+        html.theme-light [class*="hover:bg-gray-900"]:hover {
+            background-color: #ffffff !important;
+            color: inherit !important;
+        }
+
+        html.theme-light tbody tr:hover td,
+        html.theme-light table tr:hover td {
+            background-color: #ffffff !important;
+            color: inherit !important;
+        }
+
+        html.theme-light [class*="bg-[#0b0f19]"]:hover,
+        html.theme-light .portal-card:hover,
+        html.theme-light a[class*="bg-[#0b0f19]"]:hover,
+        html.theme-light button[class*="bg-[#0b0f19]"]:hover {
+            background-color: #ffffff !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+        }
+
+        html.theme-light [class*="bg-[#070b14]"]:hover,
+        html.theme-light .portal-subcard:hover {
+            background-color: #f8fafc !important;
+        }
+
+        /* Tabs & Nav items in light mode: Soft light blue tint on hover */
+        html.theme-light .tab-btn:not([class*="bg-blue-600"]):hover,
+        html.theme-light .profile-tab-btn:hover,
+        html.theme-light [id^="tab-btn-"]:not([class*="bg-blue-600"]):hover,
+        html.theme-light button[id^="tab_"]:not([class*="bg-blue-600"]):hover,
+        html.theme-light button[onclick*="switchTab"]:not([class*="bg-blue-600"]):hover,
+        html.theme-light button[onclick*="showTab"]:not([class*="bg-blue-600"]):hover {
+            background-color: #eff6ff !important;
+            color: #2563eb !important;
+        }
+
+        /* Ghost/secondary buttons in light mode */
+        html.theme-light button[class*="bg-[#070b14]"]:hover,
+        html.theme-light a[class*="bg-[#070b14]"]:hover,
+        html.theme-light button.bg-slate-800:hover,
+        html.theme-light a.bg-slate-800:hover {
+            background-color: #f1f5f9 !important;
+            color: #0f172a !important;
+        }
+
+        /* Prevent hover:text-white from rendering invisible white on light backgrounds */
+        html.theme-light a.hover\:text-white:hover,
+        html.theme-light button.hover\:text-white:hover,
+        html.theme-light [class*="hover:text-white"]:hover:not(.btn-primary):not(.btn-success):not(.btn-danger):not(.btn-indigo):not(.btn-purple):not([class*="bg-blue-600"]):not([class*="bg-emerald-600"]):not([class*="bg-rose-600"]) {
+            color: #0f172a !important;
+        }
+    
+        /* ========================================================== */
+        /* Fluid Glassmorphic SaaS Notification Engine (Top-Left)     */
+        /* ========================================================== */
+        #wispToastContainer {
+            position: fixed !important;
+            top: 1.25rem !important;
+            left: 1.25rem !important;
+            z-index: 9999999 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0.75rem !important;
+            pointer-events: none !important;
+            width: 400px !important;
+            max-width: calc(100vw - 2.5rem) !important;
+            direction: rtl !important;
+        }
+
+        .wisp-toast {
+            pointer-events: auto !important;
+            position: relative !important;
+            border-radius: 1.15rem !important;
+            padding: 1rem 1.15rem !important;
+            box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+            backdrop-filter: blur(24px) saturate(180%) !important;
+            -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+            transform-origin: top left !important;
+            animation: wispToastEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+            transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            overflow: hidden !important;
+            direction: rtl !important;
+            text-align: right !important;
+        }
+
+        .wisp-toast:hover {
+            transform: translateY(-2px) scale(1.01) !important;
+            box-shadow: 0 24px 45px -10px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+        }
+
+        .wisp-toast.wisp-toast-exit {
+            opacity: 0 !important;
+            transform: translateY(-16px) scale(0.94) !important;
+            filter: blur(3px) !important;
+            max-height: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: -0.75rem !important;
+            pointer-events: none !important;
+        }
+
+        @keyframes wispToastEnter {
+            0% {
+                opacity: 0;
+                transform: translateY(-24px) scale(0.92);
+                filter: blur(4px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+                filter: blur(0px);
+            }
+        }
+
+        /* Dark Theme Toast */
+        html:not(.theme-light) .wisp-toast {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(11, 15, 25, 0.97) 100%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            color: #f8fafc !important;
+        }
+        html:not(.theme-light) .wisp-toast .wisp-title {
+            color: #ffffff !important;
+        }
+        html:not(.theme-light) .wisp-toast .wisp-msg {
+            color: #cbd5e1 !important;
+        }
+        html:not(.theme-light) .wisp-toast .wisp-close {
+            color: #94a3b8 !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        }
+        html:not(.theme-light) .wisp-toast .wisp-close:hover {
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.12) !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+        }
+
+        /* Light Theme Toast */
+        html.theme-light .wisp-toast {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.96) 100%) !important;
+            border: 1px solid rgba(226, 232, 240, 0.95) !important;
+            color: #0f172a !important;
+            box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+        }
+        html.theme-light .wisp-toast .wisp-title {
+            color: #0f172a !important;
+        }
+        html.theme-light .wisp-toast .wisp-msg {
+            color: #475569 !important;
+        }
+        html.theme-light .wisp-toast .wisp-close {
+            color: #64748b !important;
+            background: rgba(0, 0, 0, 0.03) !important;
+            border: 1px solid rgba(0, 0, 0, 0.06) !important;
+        }
+        html.theme-light .wisp-toast .wisp-close:hover {
+            color: #0f172a !important;
+            background: rgba(0, 0, 0, 0.08) !important;
+            border-color: rgba(0, 0, 0, 0.1) !important;
+        }
+
+        /* Category Glow & Accent Styles */
+        .wisp-toast.wisp-success {
+            border-right: 4px solid #10b981 !important;
+        }
+        .wisp-toast.wisp-error {
+            border-right: 4px solid #f43f5e !important;
+        }
+        .wisp-toast.wisp-warning {
+            border-right: 4px solid #f59e0b !important;
+        }
+        .wisp-toast.wisp-info {
+            border-right: 4px solid #3b82f6 !important;
+        }
+        .wisp-toast.wisp-loading {
+            border-right: 4px solid #6366f1 !important;
+        }
+
+        /* Icon Badge Containers */
+        .wisp-icon-box {
+            width: 2.25rem !important;
+            height: 2.25rem !important;
+            min-width: 2.25rem !important;
+            border-radius: 0.75rem !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 1rem !important;
+            transition: transform 0.25s ease !important;
+        }
+        .wisp-toast:hover .wisp-icon-box {
+            transform: scale(1.08) rotate(3deg) !important;
+        }
+
+        .wisp-icon-success {
+            background: rgba(16, 185, 129, 0.15) !important;
+            border: 1px solid rgba(16, 185, 129, 0.3) !important;
+            color: #10b981 !important;
+        }
+        .wisp-icon-error {
+            background: rgba(244, 63, 94, 0.15) !important;
+            border: 1px solid rgba(244, 63, 94, 0.3) !important;
+            color: #f43f5e !important;
+        }
+        .wisp-icon-warning {
+            background: rgba(245, 158, 11, 0.15) !important;
+            border: 1px solid rgba(245, 158, 11, 0.3) !important;
+            color: #f59e0b !important;
+        }
+        .wisp-icon-info {
+            background: rgba(59, 130, 246, 0.15) !important;
+            border: 1px solid rgba(59, 130, 246, 0.3) !important;
+            color: #3b82f6 !important;
+        }
+        .wisp-icon-loading {
+            background: rgba(99, 102, 241, 0.15) !important;
+            border: 1px solid rgba(99, 102, 241, 0.3) !important;
+            color: #6366f1 !important;
+        }
+
+        /* Progress Bar */
+        .wisp-progress {
+            position: absolute !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 2.5px !important;
+            transform-origin: left !important;
+            animation: wispProgressLinear linear forwards !important;
+        }
+        .wisp-progress-success { background: linear-gradient(90deg, #10b981, #059669) !important; }
+        .wisp-progress-error { background: linear-gradient(90deg, #f43f5e, #e11d48) !important; }
+        .wisp-progress-warning { background: linear-gradient(90deg, #f59e0b, #d97706) !important; }
+        .wisp-progress-info { background: linear-gradient(90deg, #3b82f6, #06b6d4) !important; }
+
+        @keyframes wispProgressLinear {
+            from { transform: scaleX(1); }
+            to { transform: scaleX(0); }
+        }
+
+        /* Fluid Ring Spinner */
+        .wisp-spinner {
+            width: 1.25rem !important;
+            height: 1.25rem !important;
+            border: 2.5px solid rgba(99, 102, 241, 0.25) !important;
+            border-top-color: #6366f1 !important;
+            border-right-color: #3b82f6 !important;
+            border-radius: 50% !important;
+            animation: wispSpin 0.7s cubic-bezier(0.5, 0.1, 0.5, 0.9) infinite !important;
+        }
+
+        @keyframes wispSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* ========================================================== */
+        /* Confirmation Modal Design (For Confirm / Delete prompts)   */
+        /* ========================================================== */
+        .swal2-container {
+            z-index: 9999999 !important;
+            font-family: 'Tajawal', sans-serif !important;
+            backdrop-filter: blur(8px) saturate(160%) !important;
+            -webkit-backdrop-filter: blur(8px) saturate(160%) !important;
+        }
+        .wisp-modal-popup {
+            max-width: 460px !important;
+            border-radius: 1.35rem !important;
+            padding: 1.85rem !important;
+            direction: rtl !important;
+            box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+        }
+        html:not(.theme-light) .wisp-modal-popup {
+            background: linear-gradient(135deg, #0d1322 0%, #080d1a 100%) !important;
+            border: 1px solid #1c2840 !important;
+            color: #f8fafc !important;
+        }
+        html.theme-light .wisp-modal-popup {
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+            border: 1px solid #e2e8f0 !important;
+            color: #0f172a !important;
+            box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.05) !important;
+        }
+        .wisp-modal-title {
+            font-size: 1.2rem !important;
+            font-weight: 800 !important;
+            margin-top: 0.65rem !important;
+            letter-spacing: -0.01em !important;
+        }
+        html:not(.theme-light) .wisp-modal-title {
+            color: #ffffff !important;
+        }
+        html.theme-light .wisp-modal-title {
+            color: #0f172a !important;
+        }
+        .wisp-modal-html {
+            font-size: 0.885rem !important;
+            line-height: 1.65 !important;
+            margin: 0.85rem 0 1.5rem 0 !important;
+        }
+        html:not(.theme-light) .wisp-modal-html {
+            color: #cbd5e1 !important;
+        }
+        html.theme-light .wisp-modal-html {
+            color: #475569 !important;
+        }
+        .wisp-modal-confirm-btn {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+            color: #ffffff !important;
+            border: none !important;
+            border-radius: 0.85rem !important;
+            font-weight: 700 !important;
+            font-size: 0.875rem !important;
+            padding: 0.7rem 1.85rem !important;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4) !important;
+            transition: all 0.2s ease !important;
+            cursor: pointer !important;
+        }
+        .wisp-modal-confirm-btn:hover {
+            transform: translateY(-1px) !important;
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.5) !important;
+        }
+        .wisp-modal-confirm-btn.wisp-btn-danger,
+        .wisp-modal-confirm-btn[style*="e11d48"],
+        .wisp-modal-confirm-btn[style*="rgb(225, 29, 72)"] {
+            background: linear-gradient(135deg, #e11d48, #be123c) !important;
+            box-shadow: 0 4px 16px rgba(225, 29, 72, 0.45) !important;
+        }
+        .wisp-modal-confirm-btn.wisp-btn-danger:hover {
+            box-shadow: 0 6px 20px rgba(225, 29, 72, 0.55) !important;
+        }
+        .wisp-modal-confirm-btn.wisp-btn-success,
+        .wisp-modal-confirm-btn[style*="10b981"],
+        .wisp-modal-confirm-btn[style*="rgb(16, 185, 129)"] {
+            background: linear-gradient(135deg, #10b981, #059669) !important;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.45) !important;
+        }
+        .wisp-modal-confirm-btn.wisp-btn-success:hover {
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.55) !important;
+        }
+        .wisp-modal-confirm-btn.wisp-btn-indigo,
+        .wisp-modal-confirm-btn[style*="4f46e5"],
+        .wisp-modal-confirm-btn[style*="rgb(79, 70, 229)"],
+        .wisp-modal-confirm-btn[style*="6366f1"] {
+            background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+            box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45) !important;
+        }
+        .wisp-modal-confirm-btn.wisp-btn-indigo:hover {
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.55) !important;
+        }
+        .wisp-modal-cancel-btn {
+            border-radius: 0.85rem !important;
+            font-weight: 600 !important;
+            font-size: 0.875rem !important;
+            padding: 0.7rem 1.65rem !important;
+            transition: all 0.2s ease !important;
+            cursor: pointer !important;
+        }
+        html:not(.theme-light) .wisp-modal-cancel-btn {
+            background-color: #1e293b !important;
+            color: #cbd5e1 !important;
+            border: 1px solid #334155 !important;
+        }
+        html:not(.theme-light) .wisp-modal-cancel-btn:hover {
+            background-color: #334155 !important;
+            color: #ffffff !important;
+        }
+        html.theme-light .wisp-modal-cancel-btn {
+            background-color: #f1f5f9 !important;
+            color: #475569 !important;
+            border: 1px solid #cbd5e1 !important;
+        }
+        html.theme-light .wisp-modal-cancel-btn:hover {
+            background-color: #e2e8f0 !important;
+            color: #0f172a !important;
+        }</style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-[#070a13] text-slate-100 min-h-screen flex relative overflow-x-hidden">
+
+    <!-- Mobile Offcanvas Backdrop Overlay -->
+    <div id="sidebarBackdrop" onclick="toggleMobileSidebar()" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 hidden lg:hidden transition-opacity duration-300"></div>
+
+    <!-- ========================================================== -->
+    <!-- Professional Collapsible Dark / Light Sidebar (RTL)        -->
+    <!-- ========================================================== -->
+    <aside id="mainSidebar" class="fixed inset-y-0 right-0 z-50 w-72 sm:w-64 bg-[#0b0f19] border-l border-[#1c2840] flex flex-col flex-shrink-0 h-screen transition-transform duration-300 ease-in-out translate-x-full lg:translate-x-0 lg:static lg:sticky lg:top-0 select-none shadow-2xl overflow-hidden">
+        <!-- Logo & Brand Header -->
+        <div class="h-16 px-4 border-b border-[#1c2840] flex items-center justify-between bg-[#0b0f19]">
+            <div class="flex items-center gap-3 min-w-0">
+                {% if logo_url %}
+                <img src="{{ logo_url }}" alt="Logo" class="w-10 h-10 rounded-xl object-contain shadow-md shadow-blue-500/20 p-1 bg-[#070b14] border border-blue-500/30 flex-shrink-0">
+                {% else %}
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0 text-white text-lg font-black">
+                    <i class="fa-solid fa-tower-broadcast"></i>
+                </div>
+                {% endif %}
+                <div class="overflow-hidden min-w-0">
+                    <h1 class="font-extrabold text-sm text-white truncate leading-tight tracking-tight">
+                        {{ network_name or 'MAX RADIUS' }}
+                    </h1>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        <span class="text-[10px] text-blue-400 font-bold font-mono">
+                            v{{ app_version|default('2.4.0') }} {{ app_edition|default('Enterprise') }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <!-- Mobile close button -->
+            <button onclick="toggleMobileSidebar()" type="button" aria-label="Close Sidebar" class="lg:hidden text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition cursor-pointer flex items-center justify-center">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Navigation Links (Hierarchical with Section Headers) -->
+        <div class="flex-grow overflow-y-auto sidebar-scroll py-3.5 px-3 space-y-4 text-sm">
+
+            <!-- القسم: الرئيسية -->
+            <div class="space-y-1">
+                <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    الرئيسية
+                </div>
+                <!-- 1. لوحة التحكم (Dashboard) -->
+                <a href="{{ url_for('dashboard') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'dashboard' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'dashboard' %}bg-blue-500 text-white{% else %}bg-blue-500/10 text-blue-400{% endif %}">
+                            <i class="fa-solid fa-chart-pie"></i>
+                        </div>
+                        <span>لوحة التحكم</span>
+                    </div>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold">Live</span>
+                </a>
+            </div>
+
+            <!-- القسم: المشتركون والمبيعات -->
+            <div class="space-y-1">
+                <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    المشتركون والمبيعات
+                </div>
+
+                <!-- 2. إدارة المشتركين (Subscribers) -> [قائمة منسدلة] -->
+                {% set sub_active = request.endpoint in ['subscribers', 'invoices', 'subscriber_details'] %}
+                <div class="space-y-1">
+                    <button onclick="toggleMenu('subscribersMenu', 'subscribersArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if sub_active %}text-emerald-400 bg-[#101728]{% endif %}">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if sub_active %}bg-emerald-500 text-white{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
+                                <i class="fa-solid fa-users"></i>
+                            </div>
+                            <span>إدارة المشتركين</span>
+                        </div>
+                        <i id="subscribersArrow" class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform duration-200 {% if sub_active %}rotate-180 text-emerald-400{% endif %}"></i>
+                    </button>
+                    <div id="subscribersMenu" class="{% if not sub_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
+                        <!-- المشتركين -->
+                        <a href="{{ url_for('subscribers') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'subscribers' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'subscribers' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>المشتركين</span>
+                            </div>
+                            <i class="fa-solid fa-arrow-left text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- فواتير المشتركين -->
+                        <a href="{{ url_for('invoices') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'invoices' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'invoices' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>فواتير المشتركين</span>
+                            </div>
+                            <i class="fa-solid fa-receipt text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- نقاط ومكافآت الولاء -->
+                        <a href="{{ url_for('loyalty_rewards_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'loyalty_rewards_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'loyalty_rewards_page' %}bg-amber-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>نقاط ومكافآت الولاء</span>
+                            </div>
+                            <i class="fa-solid fa-gift text-[9px] text-amber-400"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 3. نظام الكروت (Vouchers) -> [قائمة منسدلة] -->
+                {% set voucher_active = request.endpoint in ['vouchers', 'view_batch_details', 'active_card_users', 'active_card_user_details', 'sales_reports', 'card_inspect', 'card_designer'] %}
+                <div class="space-y-1">
+                    <button onclick="toggleMenu('vouchersMenu', 'vouchersArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if voucher_active %}text-amber-400 bg-[#101728]{% endif %}">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if voucher_active %}bg-amber-500 text-white{% else %}bg-amber-500/10 text-amber-400{% endif %}">
+                                <i class="fa-solid fa-layer-group"></i>
+                            </div>
+                            <span>نظام الكروت</span>
+                        </div>
+                        <i id="vouchersArrow" class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform duration-200 {% if voucher_active %}rotate-180 text-amber-400{% endif %}"></i>
+                    </button>
+                    <div id="vouchersMenu" class="{% if not voucher_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
+                        <!-- إدارة الكروت (الحزم) -->
+                        <a href="{{ url_for('vouchers') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['vouchers', 'view_batch_details'] %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint in ['vouchers', 'view_batch_details'] %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>إدارة الكروت (الحزم)</span>
+                            </div>
+                            <i class="fa-solid fa-boxes-stacked text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- مشتركون الكروت -->
+                        <a href="{{ url_for('active_card_users') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['active_card_users', 'active_card_user_details'] %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint in ['active_card_users', 'active_card_user_details'] %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>مشتركون الكروت</span>
+                            </div>
+                            <i class="fa-solid fa-id-card text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- مبيعات الكروت -->
+                        <a href="{{ url_for('sales_reports') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'sales_reports' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'sales_reports' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>مبيعات الكروت والإيرادات</span>
+                            </div>
+                            <i class="fa-solid fa-receipt text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- فحص كارت -->
+                        <a href="{{ url_for('card_inspect') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'card_inspect' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'card_inspect' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>فحص كارت</span>
+                            </div>
+                            <i class="fa-solid fa-magnifying-glass text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- تصاميم الكروت -->
+                        <a href="{{ url_for('card_designer') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'card_designer' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'card_designer' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>تصاميم الكروت</span>
+                            </div>
+                            <i class="fa-solid fa-palette text-[9px] text-slate-600"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 4. الباقات والسرعات (Packages) -->
+                <a href="{{ url_for('packages') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint in ['packages', 'package_details'] %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint in ['packages', 'package_details'] %}bg-amber-500 text-white{% else %}bg-amber-500/10 text-amber-400{% endif %}">
+                            <i class="fa-solid fa-bolt"></i>
+                        </div>
+                        <span>الباقات والسرعات</span>
+                    </div>
+                </a>
+            </div>
+
+            <!-- القسم: الإدارة والشبكة -->
+            <div class="space-y-1">
+                <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    الإدارة والشبكة
+                </div>
+
+                <!-- 5. المدراء والموزعين (Managers & Resellers) -> [قائمة منسدلة] -->
+                {% set managers_active = request.endpoint in ['managers_page', 'roles_page', 'manager_statement_page', 'manager_invoices_page', 'resellers', 'reseller_wallets_page'] %}
+                <div class="space-y-1">
+                    <button onclick="toggleMenu('managersMenu', 'managersArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if managers_active %}text-purple-400 bg-[#101728]{% endif %}">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if managers_active %}bg-purple-500 text-white{% else %}bg-purple-500/10 text-purple-400{% endif %}">
+                                <i class="fa-solid fa-users-gear"></i>
+                            </div>
+                            <span>المدراء والموزعين</span>
+                        </div>
+                        <i id="managersArrow" class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform duration-200 {% if managers_active %}rotate-180 text-purple-400{% endif %}"></i>
+                    </button>
+                    <div id="managersMenu" class="{% if not managers_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
+                        <!-- المدراء والموزعين -->
+                        <a href="{{ url_for('managers_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['managers_page', 'manager_statement_page', 'resellers'] %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint in ['managers_page', 'manager_statement_page'] %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>المدراء والموزعين</span>
+                            </div>
+                            <i class="fa-solid fa-user-tie text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- محافظ الموزعين الرقمية -->
+                        <a href="{{ url_for('reseller_wallets_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'reseller_wallets_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'reseller_wallets_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>محافظ الموزعين والتحويل</span>
+                            </div>
+                            <i class="fa-solid fa-wallet text-[9px] text-emerald-400"></i>
+                        </a>
+                        <!-- صلاحيات المدراء -->
+                        <a href="{{ url_for('roles_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'roles_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'roles_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>صلاحيات المدراء</span>
+                            </div>
+                            <i class="fa-solid fa-shield-halved text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- فواتير وحسابات المدراء -->
+                        <a href="{{ url_for('manager_invoices_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'manager_invoices_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'manager_invoices_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>فواتير وحسابات المدراء</span>
+                            </div>
+                            <i class="fa-solid fa-file-invoice-dollar text-[9px] text-slate-600"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 6. أجهزة الميكروتيك (NAS) -> [قائمة منسدلة] -->
+                {% set nas_active = request.endpoint in ['nas', 'coverage_map_page'] %}
+                <div class="space-y-1">
+                    <button onclick="toggleMenu('nasMenu', 'nasArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if nas_active %}text-indigo-400 bg-[#101728]{% endif %}">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if nas_active %}bg-indigo-500 text-white{% else %}bg-indigo-500/10 text-indigo-400{% endif %}">
+                                <i class="fa-solid fa-server"></i>
+                            </div>
+                            <span>أجهزة الميكروتيك (NAS)</span>
+                        </div>
+                        <i id="nasArrow" class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform duration-200 {% if nas_active %}rotate-180 text-indigo-400{% endif %}"></i>
+                    </button>
+                    <div id="nasMenu" class="{% if not nas_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
+                        <!-- أجهزة الميكروتيك -->
+                        <a href="{{ url_for('nas') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'nas' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'nas' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>أجهزة الـ NAS</span>
+                            </div>
+                            <i class="fa-solid fa-server text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- روترات الموزعين (L2TP/IPsec VPN) -->
+                        <a href="{{ url_for('l2tp_tunnels_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'l2tp_tunnels_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'l2tp_tunnels_page' %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>روترات الموزعين (L2TP/IPsec)</span>
+                            </div>
+                            <i class="fa-solid fa-network-wired text-[9px] text-cyan-400"></i>
+                        </a>
+                        <!-- خريطة الأبراج والتغطية -->
+                        <a href="{{ url_for('coverage_map_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'coverage_map_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'coverage_map_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>خريطة الأبراج والتغطية (GIS)</span>
+                            </div>
+                            <i class="fa-solid fa-map-location-dot text-[9px] text-emerald-400"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- القسم: العمليات والخدمات -->
+            <div class="space-y-1">
+                <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                    العمليات والخدمات
+                </div>
+
+                <!-- 7. مركز الإشعارات والربط (Notifications) -->
+                <a href="{{ url_for('notifications_center_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'notifications_center_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'notifications_center_page' %}bg-sky-500 text-white{% else %}bg-sky-500/10 text-sky-400{% endif %}">
+                            <i class="fa-brands fa-telegram"></i>
+                        </div>
+                        <span>مركز الإشعارات والربط</span>
+                    </div>
+                </a>
+
+                <!-- 8. محرك الأتمتة والمهام (Automation) -->
+                <a href="{{ url_for('automation_rules_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'automation_rules_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'automation_rules_page' %}bg-purple-500 text-white{% else %}bg-purple-500/10 text-purple-400{% endif %}">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        </div>
+                        <span>محرك الأتمتة والمهام</span>
+                    </div>
+                </a>
+
+                <!-- 9. الأدوات (Tools) -> [قائمة منسدلة] -->
+                {% set tools_active = request.endpoint in ['backups_page', 'system_services_page', 'import_data_page', 'database_maintenance_page', 'autoheal_page', 'radius_simulator_page', 'traffic_analytics_page', 'accounting_archiver_page', 'database_migration_studio'] %}
+                <div class="space-y-1">
+                    <button onclick="toggleMenu('toolsMenu', 'toolsArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if tools_active %}text-cyan-400 bg-[#101728]{% endif %}">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if tools_active %}bg-cyan-500 text-white{% else %}bg-cyan-500/10 text-cyan-400{% endif %}">
+                                <i class="fa-solid fa-screwdriver-wrench"></i>
+                            </div>
+                            <span>الأدوات المتقدمة</span>
+                        </div>
+                        <i id="toolsArrow" class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform duration-200 {% if tools_active %}rotate-180 text-cyan-400{% endif %}"></i>
+                    </button>
+                    <div id="toolsMenu" class="{% if not tools_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
+                        <!-- 1. التعافي التلقائي والمراقب الآلي -->
+                        <a href="{{ url_for('autoheal_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'autoheal_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'autoheal_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>التعافي والمراقب الآلي</span>
+                            </div>
+                            <i class="fa-solid fa-heart-pulse text-[10px] text-emerald-400"></i>
+                        </a>
+                        <!-- 2. محاكي ومختبر الراديوس -->
+                        <a href="{{ url_for('radius_simulator_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'radius_simulator_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'radius_simulator_page' %}bg-purple-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>مختبر ومحاكي الراديوس</span>
+                            </div>
+                            <i class="fa-solid fa-flask-vial text-[10px] text-purple-400"></i>
+                        </a>
+                        <!-- 4. محلل حركة البيانات وساعات الذروة -->
+                        <a href="{{ url_for('traffic_analytics_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'traffic_analytics_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'traffic_analytics_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>محلل الباندوث وساعات الذروة</span>
+                            </div>
+                            <i class="fa-solid fa-chart-simple text-[10px] text-emerald-400"></i>
+                        </a>
+                        <!-- 5. أرشفة وضغط المحاسبة -->
+                        <a href="{{ url_for('accounting_archiver_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'accounting_archiver_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'accounting_archiver_page' %}bg-amber-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>أرشفة وضغط المحاسبة</span>
+                            </div>
+                            <i class="fa-solid fa-box-archive text-[10px] text-amber-400"></i>
+                        </a>
+                        <!-- 6. صيانة قاعدة البيانات -->
+                        <a href="{{ url_for('database_maintenance_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'database_maintenance_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'database_maintenance_page' %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>صيانة قاعدة البيانات</span>
+                            </div>
+                            <i class="fa-solid fa-broom-ball text-[10px] text-cyan-400"></i>
+                        </a>
+                        <!-- ترحيل واستيراد قواعد البيانات (SAS4 / SQL) -->
+                        <a href="{{ url_for('database_migration_studio') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'database_migration_studio' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'database_migration_studio' %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>استيراد قاعدة بيانات (SAS4)</span>
+                            </div>
+                            <i class="fa-solid fa-database text-[10px] text-cyan-400"></i>
+                        </a>
+                        <!-- 7. استيراد الكروت والمشتركين -->
+                        <a href="{{ url_for('import_data_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'import_data_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'import_data_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>استيراد الكروت والمشتركين</span>
+                            </div>
+                            <i class="fa-solid fa-file-excel text-[10px] text-emerald-400"></i>
+                        </a>
+                        <!-- 8. خدمات ومحركات النظام -->
+                        <a href="{{ url_for('system_services_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'system_services_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'system_services_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>خدمات النظام</span>
+                            </div>
+                            <i class="fa-solid fa-microchip text-[9px] text-slate-600"></i>
+                        </a>
+                        <!-- 9. النسخ الاحتياطي -->
+                        <a href="{{ url_for('backups_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'backups_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'backups_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>النسخ الاحتياطي</span>
+                            </div>
+                            <i class="fa-solid fa-database text-[9px] text-slate-600"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- 10. الإعدادات (Settings) -->
+                <a href="{{ url_for('settings') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'settings' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'settings' %}bg-slate-500 text-white{% else %}bg-slate-500/10 text-slate-400{% endif %}">
+                            <i class="fa-solid fa-gear"></i>
+                        </div>
+                        <span>الإعدادات العامة</span>
+                    </div>
+                </a>
+
+                <!-- 11. الترخيص والاشتراك (License) -->
+                <a href="{{ url_for('license_status_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'license_status_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'license_status_page' %}bg-emerald-500 text-white{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <span>الترخيص وتأمين النظام</span>
+                    </div>
+                </a>
+            </div>
+
+        </div>
+
+        <!-- Sidebar Bottom Footer -->
+        <div class="p-3 border-t border-[#1c2840] bg-[#0b0f19] text-xs text-slate-400 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-[11px] font-bold text-slate-300">FreeRADIUS نشط</span>
+            </div>
+            <span id="sidebarCoaPort" class="text-[10px] text-slate-400 font-mono font-bold bg-[#070b14] px-2 py-0.5 rounded border border-[#1c2840]">CoA :{{ default_coa_port|default('3799') }}</span>
+        </div>
+    </aside>
+
+    <!-- ========================================================== -->
+    <!-- Main App Container & Header Bar                            -->
+    <!-- ========================================================== -->
+    <div class="flex-grow flex flex-col min-w-0 bg-[#070a13]">
+
+        <!-- Impersonation Banner (Super Admin "Login As" Active) -->
+        {% if session.get('original_admin_id') %}
+        <div class="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 text-slate-950 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg z-50 sticky top-0 border-b border-amber-600">
+            <div class="flex items-center gap-2.5 text-xs sm:text-sm font-black">
+                <div class="w-6 h-6 rounded-full bg-slate-950 text-amber-400 flex items-center justify-center text-xs flex-shrink-0 animate-bounce">
+                    <i class="fa-solid fa-user-secret"></i>
+                </div>
+                <span>أنت تتصفح النظام حالياً بصلاحيات وحساب: <span class="underline decoration-slate-950 font-black">{{ current_manager.full_name }} (@{{ current_manager.username }})</span> — <span class="bg-slate-950/20 px-2 py-0.5 rounded font-bold">{{ current_manager.role_name }}</span></span>
+            </div>
+            <a href="{{ url_for('impersonate_exit') }}" class="px-3.5 py-1.5 bg-slate-950 hover:bg-slate-900 text-amber-400 rounded-xl text-xs font-black transition flex items-center gap-2 shadow hover:scale-105 active:scale-95 flex-shrink-0">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                <span>العودة لحسابي الأصلي</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Top Header Bar -->
+        <header class="bg-[#0b0f19]/95 backdrop-blur-md border-b border-[#1c2840] sticky {% if session.get('original_admin_id') %}top-10{% else %}top-0{% endif %} z-40 h-16 flex items-center px-4 sm:px-6 justify-between gap-4 shadow-sm">
+            <!-- Title & Mobile Toggle -->
+            <div class="flex items-center gap-3">
+                <button onclick="toggleMobileSidebar()" class="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition lg:hidden">
+                    <i class="fa-solid fa-bars text-lg"></i>
+                </button>
+                <div>
+                    <h2 class="font-extrabold text-base text-white">{% block page_title %}{{ self.title() }}{% endblock %}</h2>
+                    <span class="text-[11px] text-slate-400 hidden sm:inline">نظام MAX RADIUS لإدارة الشبكات والفوترة وميكروتيك</span>
+                </div>
+            </div>
+
+            <!-- Quick Status Indicators & Theme Switcher & Profile -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <!-- Live NTP & Dynamic Timezone Clock Widget -->
+                <div id="topLiveClockWidget" class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-[#070b14] border border-[#1c2840] hover:border-blue-500/30 text-xs font-semibold flex items-center gap-2 shadow-sm transition" title="الوقت المباشر المتزامن مع بروتوكول NTP والمنطقة الزمنية المحددة">
+                    <div class="flex items-center gap-1.5">
+                        <span id="topClockNtpDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="متزامن مع NTP"></span>
+                        <i class="fa-regular fa-clock text-amber-400 text-xs"></i>
+                        <span id="topLiveClockTime" class="font-mono font-black text-slate-100 text-xs tracking-wider">{{ server_time_only|default('00:00:00') }}</span>
+                    </div>
+                    <div class="hidden xl:flex items-center gap-1.5 text-slate-400 text-[11px] border-r border-[#1c2840] pr-2">
+                        <i class="fa-regular fa-calendar text-slate-500 text-[10px]"></i>
+                        <span id="topLiveClockDate" class="font-mono text-slate-300">{{ server_date_only|default('') }}</span>
+                    </div>
+                    <span id="topLiveClockTz" class="hidden md:inline-block px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] font-mono font-bold">{{ system_timezone|default('Asia/Aden') }}</span>
+                </div>
+
+                <!-- CoA Status Pill (Real & Synchronized) -->
+                <div id="topCoaPill" class="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold hidden lg:flex items-center gap-1.5 shadow-sm transition" title="منفذ RFC 5176 لإرسال أوامر فصل الجلسات وتعديل السرعات لراوترات MikroTik">
+                    <span id="topCoaDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <i class="fa-solid fa-tower-broadcast text-[11px] text-emerald-400"></i>
+                    <span id="topCoaLabel" class="font-mono">CoA RFC 5176 (:{{ default_coa_port|default('3799') }})</span>
+                    <span id="topCoaNasBadge" class="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono">{% if nas_count %}{{ nas_count }} NAS{% else %}0 NAS{% endif %}</span>
+                </div>
+
+                <!-- Light / Dark Theme Switcher Button -->
+                <button onclick="toggleTheme()" id="themeToggleBtn" title="تبديل وضع الثيم (نهاري / ليلي)" class="px-2.5 py-1.5 bg-[#070b14] hover:bg-slate-800 rounded-xl text-xs font-semibold transition border border-slate-700/60 flex items-center gap-2 shadow-sm cursor-pointer">
+                    <i id="themeIcon" class="fa-solid fa-moon text-sm text-blue-400"></i>
+                    <span id="themeLabel" class="hidden sm:inline text-xs text-slate-300">ليلي</span>
+                </button>
+
+                <!-- User Profile Dropdown -->
+                <div class="relative" id="profileDropdownContainer">
+                    <button onclick="toggleProfileDropdown()" type="button" class="flex items-center gap-2 pr-2 border-r border-slate-800 hover:opacity-90 transition focus:outline-none cursor-pointer">
+                        <div class="w-8 h-8 rounded-xl {% if current_manager and current_manager.id == 1 %}bg-amber-500/10 text-amber-400 border border-amber-500/30{% else %}bg-blue-600/20 text-blue-400 border border-blue-500/30{% endif %} flex items-center justify-center font-bold text-xs shadow-sm">
+                            {% if current_manager and current_manager.id == 1 %}
+                            <i class="fa-solid fa-crown"></i>
+                            {% else %}
+                            <i class="fa-solid fa-user-tie"></i>
+                            {% endif %}
+                        </div>
+                        <div class="text-right hidden sm:block">
+                            <span class="text-xs font-bold text-slate-200 block leading-tight truncate max-w-[130px]">{{ current_manager.full_name if current_manager else 'مدير النظام' }}</span>
+                            <span class="text-[10px] text-slate-400 font-medium">{{ current_manager.role_name if current_manager else 'Super Admin' }}</span>
+                        </div>
+                        <i id="profileDropdownArrow" class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform duration-200 mr-1"></i>
+                    </button>
+
+                    <!-- Dropdown Menu -->
+                    <div id="profileDropdownMenu" class="hidden absolute left-0 mt-2 w-60 bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-2xl py-2 z-50 divide-y divide-[#162136]">
+                        <div class="px-4 py-3 bg-[#070b14]/50">
+                            <p class="text-xs font-bold text-white leading-tight truncate">{{ current_manager.full_name if current_manager else 'مدير النظام' }}</p>
+                            <p class="text-[11px] text-slate-400 font-mono mt-0.5">@{{ current_manager.username if current_manager else 'admin' }}</p>
+                            <div class="mt-2 flex items-center justify-between gap-1">
+                                <span class="inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                    {{ current_manager.role_name if current_manager else 'Super Admin' }}
+                                </span>
+                                {% if current_manager and current_manager.role_code != 'superadmin' and current_manager.id != 1 %}
+                                <span class="text-xs font-bold text-emerald-400 font-mono">{{ "{:,.2f}".format(current_manager.wallet_balance) }} {{ currency_symbol }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="py-1.5">
+                            <button onclick="openProfileModal()" type="button" class="w-full text-right px-4 py-2 text-xs text-slate-300 hover:bg-[#131d31] hover:text-white transition flex items-center gap-2.5">
+                                <i class="fa-solid fa-user-gear text-blue-400 text-sm w-4 text-center"></i>
+                                <span>تعديل الملف الشخصي</span>
+                            </button>
+                            {% if session.get('original_admin_id') %}
+                            <a href="{{ url_for('impersonate_exit') }}" class="w-full text-right px-4 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition flex items-center gap-2.5 font-bold">
+                                <i class="fa-solid fa-arrow-right-from-bracket text-amber-400 text-sm w-4 text-center"></i>
+                                <span>العودة لحسابي الأصلي</span>
+                            </a>
+                            {% endif %}
+                        </div>
+
+                        <div class="py-1.5">
+                            <a href="{{ url_for('logout') }}" class="w-full text-right px-4 py-2 text-xs text-rose-400 hover:bg-rose-500/10 transition flex items-center gap-2.5 font-semibold">
+                                <i class="fa-solid fa-power-off text-rose-400 text-sm w-4 text-center"></i>
+                                <span>تسجيل الخروج</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+
+        <!-- Flash Messages Automatic Toast Dispatcher -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    {% for category, message in messages %}
+                    setTimeout(function() {
+                        if (window.showToastNotification) {
+                            window.showToastNotification({
+                                title: '{{ "تم بنجاح" if category == "success" else "تحذير" if category in ["warning", "warn"] else "حدث خطأ" if category in ["danger", "error"] else "إشعار" }}',
+                                html: {{ message|tojson }},
+                                icon: '{{ "success" if category == "success" else "warning" if category in ["warning", "warn"] else "error" if category in ["danger", "error"] else "info" }}',
+                                duration: {{ 5500 if category in ["danger", "error"] else 4000 }}
+                            });
+                        }
+                    }, {{ loop.index0 * 180 }});
+                    {% endfor %}
+                });
+            </script>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Main Body Content -->
+        <main class="flex-grow {% block container_class %}max-w-7xl{% endblock %} mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
+            {% block content %}{% endblock %}
+        </main>
+
+        <!-- Footer -->
+        <footer class="border-t border-[#1c2840] bg-[#070a13] py-4 text-center text-xs text-slate-500">
+            <div class="{% block footer_container_class %}max-w-7xl{% endblock %} mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+                <span class="font-semibold">&copy; {{ current_year|default('2026') }} {{ app_name|default('MAX RADIUS') }}. All Rights Reserved.</span>
+                <div class="flex items-center gap-4">
+                    <span>FreeRADIUS: <strong class="text-slate-400">3.2.x</strong></span>
+                    <span>MikroTik CoA: <strong class="text-emerald-400">UDP :3799</strong></span>
+                    <span>Platform: <strong class="text-blue-400">{{ app_name|default('MAX RADIUS') }} {{ app_edition|default('Enterprise') }}</strong></span>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Scripts for Theme, Accordions, and Mobile Toggle -->
+    <script>
+        function applyThemeUI(theme) {
+            const root = document.documentElement;
+            const icon = document.getElementById('themeIcon');
+            const label = document.getElementById('themeLabel');
+            const btn = document.getElementById('themeToggleBtn');
+
+            if (theme === 'light') {
+                root.classList.add('theme-light');
+                if (icon) icon.className = 'fa-solid fa-sun text-sm text-amber-500';
+                if (label) label.innerText = 'نهاري';
+                if (btn) btn.setAttribute('title', 'تبديل إلى الوضع الليلي (Dark Mode)');
+            } else {
+                root.classList.remove('theme-light');
+                if (icon) icon.className = 'fa-solid fa-moon text-sm text-blue-400';
+                if (label) label.innerText = 'ليلي';
+                if (btn) btn.setAttribute('title', 'تبديل إلى الوضع النهاري (Light Mode)');
+            }
+        }
+
+        function toggleTheme() {
+            const currentTheme = localStorage.getItem('wisp_theme') || 'light';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('wisp_theme', newTheme);
+            applyThemeUI(newTheme);
+        }
+
+        // Initialize UI state on DOM ready
+        document.addEventListener('DOMContentLoaded', function() {
+            const saved = localStorage.getItem('wisp_theme') || 'light';
+            applyThemeUI(saved);
+        });
+
+        function toggleMobileSidebar() {
+            const sb = document.getElementById('mainSidebar');
+            const backdrop = document.getElementById('sidebarBackdrop');
+            if (!sb) return;
+            const isHidden = sb.classList.contains('translate-x-full');
+            if (isHidden) {
+                sb.classList.remove('translate-x-full');
+                sb.classList.add('translate-x-0');
+                if (backdrop) backdrop.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden', 'lg:overflow-auto');
+            } else {
+                sb.classList.add('translate-x-full');
+                sb.classList.remove('translate-x-0');
+                if (backdrop) backdrop.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden', 'lg:overflow-auto');
+            }
+        }
+
+        // Close mobile sidebar on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const sb = document.getElementById('mainSidebar');
+                if (sb && !sb.classList.contains('translate-x-full') && window.innerWidth < 1024) {
+                    toggleMobileSidebar();
+                }
+            }
+        });
+
+        function toggleMenu(menuId, arrowId) {
+            const menu = document.getElementById(menuId);
+            const arrow = document.getElementById(arrowId);
+            if (menu) menu.classList.toggle('hidden');
+            if (arrow) arrow.classList.toggle('rotate-180');
+        }
+
+        // Real-time CoA RFC 5176 Status Synchronizer
+        function syncCoaStatus() {
+            fetch('/api/coa/status')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const label = document.getElementById('topCoaLabel');
+                        const dot = document.getElementById('topCoaDot');
+                        const pill = document.getElementById('topCoaPill');
+                        const badge = document.getElementById('topCoaNasBadge');
+                        const sidebarPort = document.getElementById('sidebarCoaPort');
+
+                        if (label) label.innerText = `CoA RFC 5176 (:${data.port})`;
+                        if (sidebarPort) sidebarPort.innerText = `CoA :${data.port}`;
+
+                        if (data.total_nas === 0) {
+                            if (pill) pill.className = "px-2.5 py-1 rounded-xl bg-slate-500/10 text-slate-400 border border-slate-500/20 text-xs font-semibold hidden md:flex items-center gap-1.5 shadow-sm transition";
+                            if (dot) dot.className = "w-2 h-2 rounded-full bg-slate-400";
+                            if (badge) {
+                                badge.className = "bg-slate-500/20 text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono";
+                                badge.innerText = "0 NAS";
+                            }
+                        } else if (data.online_nas === data.total_nas) {
+                            if (pill) pill.className = "px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold hidden md:flex items-center gap-1.5 shadow-sm transition";
+                            if (dot) dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                            if (badge) {
+                                badge.className = "bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono";
+                                badge.innerText = `${data.online_nas}/${data.total_nas} NAS متصل`;
+                            }
+                        } else if (data.online_nas > 0) {
+                            if (pill) pill.className = "px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold hidden md:flex items-center gap-1.5 shadow-sm transition";
+                            if (dot) dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                            if (badge) {
+                                badge.className = "bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono";
+                                badge.innerText = `${data.online_nas}/${data.total_nas} NAS متصل`;
+                            }
+                        } else {
+                            if (pill) pill.className = "px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hidden md:flex items-center gap-1.5 shadow-sm transition";
+                            if (dot) dot.className = "w-2 h-2 rounded-full bg-rose-400";
+                            if (badge) {
+                                badge.className = "bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono";
+                                badge.innerText = `0/${data.total_nas} NAS (غير متصل)`;
+                            }
+                        }
+                    }
+                }).catch(() => {});
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            syncCoaStatus();
+            setInterval(syncCoaStatus, 15000);
+        });
+    </script>
+
+    <!-- Profile Edit Modal -->
+    <div id="profileModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div class="p-4 sm:p-5 border-b border-[#1c2840] flex items-center justify-between bg-[#070b14]/70">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-sm border border-blue-500/20">
+                        <i class="fa-solid fa-user-pen"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-sm text-white">تعديل الملف الشخصي وبيانات الحساب</h3>
+                        <p class="text-[11px] text-slate-400">تحديث الاسم، الهاتف، البريد، أو تعيين كلمة مرور جديدة</p>
+                    </div>
+                </div>
+                <button onclick="closeProfileModal()" type="button" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <form id="profileForm" onsubmit="submitProfileForm(event)" class="p-5 space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div class="space-y-1 sm:col-span-2">
+                        <label class="text-xs font-bold text-slate-300">الاسم الكامل <span class="text-rose-400">*</span></label>
+                        <input type="text" name="full_name" id="profileFullName" value="{{ current_manager.full_name if current_manager else '' }}" required class="w-full bg-[#070b14] border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-400">اسم المستخدم (غير قابل للتعديل)</label>
+                        <input type="text" value="{{ current_manager.username if current_manager else '' }}" disabled class="w-full bg-[#070b14]/50 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-400 cursor-not-allowed font-mono">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-400">الدور والصلاحيات</label>
+                        <input type="text" value="{{ current_manager.role_name if current_manager else '' }}" disabled class="w-full bg-[#070b14]/50 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-400 cursor-not-allowed">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-300">البريد الإلكتروني</label>
+                        <input type="email" name="email" id="profileEmail" value="{{ current_manager.email if current_manager else '' }}" placeholder="example@domain.com" class="w-full bg-[#070b14] border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-300">رقم الهاتف / واتساب</label>
+                        <input type="text" name="phone" id="profilePhone" value="{{ current_manager.phone if current_manager else '' }}" placeholder="+967..." class="w-full bg-[#070b14] border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none font-mono">
+                    </div>
+                </div>
+
+                <div class="border-t border-[#162136] pt-4 space-y-3">
+                    <h4 class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-key"></i>
+                        <span>تغيير كلمة المرور (اختياري)</span>
+                    </h4>
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-300">كلمة المرور الحالية</label>
+                        <input type="password" name="current_password" id="profileCurrentPassword" placeholder="مطلوبة فقط في حال رغبتك بتغيير كلمة المرور" class="w-full bg-[#070b14] border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none font-mono">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-300">كلمة المرور الجديدة</label>
+                            <input type="password" name="new_password" id="profileNewPassword" placeholder="اتركها فارغة لعدم التغيير" class="w-full bg-[#070b14] border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none font-mono">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-300">تأكيد كلمة المرور الجديدة</label>
+                            <input type="password" name="confirm_password" id="profileConfirmPassword" placeholder="أعد كتابة كلمة المرور" class="w-full bg-[#070b14] border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none font-mono">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-[#162136] flex items-center justify-end gap-3">
+                    <button type="button" onclick="closeProfileModal()" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-[#070b14] hover:bg-slate-800 transition border border-slate-700">
+                        إلغاء
+                    </button>
+                    <button type="submit" id="saveProfileBtn" class="px-5 py-2 rounded-xl text-xs font-black text-white bg-blue-600 hover:bg-blue-500 transition shadow-lg shadow-blue-600/30 flex items-center gap-2">
+                        <i class="fa-solid fa-check"></i>
+                        <span>حفظ التعديلات</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scripts for Theme, Dropdowns, Modals, and CoA -->
+    <script>
+        function toggleProfileDropdown() {
+            const menu = document.getElementById('profileDropdownMenu');
+            const arrow = document.getElementById('profileDropdownArrow');
+            if (menu) menu.classList.toggle('hidden');
+            if (arrow) arrow.classList.toggle('rotate-180');
+        }
+
+        // Close profile dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const container = document.getElementById('profileDropdownContainer');
+            const menu = document.getElementById('profileDropdownMenu');
+            const arrow = document.getElementById('profileDropdownArrow');
+            if (container && !container.contains(e.target) && menu && !menu.classList.contains('hidden')) {
+                menu.classList.add('hidden');
+                if (arrow) arrow.classList.remove('rotate-180');
+            }
+        });
+
+        function openProfileModal() {
+            const menu = document.getElementById('profileDropdownMenu');
+            if (menu) menu.classList.add('hidden');
+            const modal = document.getElementById('profileModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeProfileModal() {
+            const modal = document.getElementById('profileModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function submitProfileForm(e) {
+            e.preventDefault();
+            const btn = document.getElementById('saveProfileBtn');
+            const form = document.getElementById('profileForm');
+            const formData = new FormData(form);
+
+            const newPass = formData.get('new_password');
+            const confirmPass = formData.get('confirm_password');
+            if (newPass && newPass !== confirmPass) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'تنبيه',
+                    text: 'كلمة المرور الجديدة وتأكيدها غير متطابقين!',
+                    background: '#0b0f19',
+                    color: '#fff'
+                });
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري الحفظ...';
+
+            fetch('/profile/update', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>حفظ التعديلات</span>';
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم التحديث بنجاح',
+                        text: data.message,
+                        background: '#0b0f19',
+                        color: '#fff',
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => {
+                        window.location.reload();
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: data.message,
+                        background: '#0b0f19',
+                        color: '#fff'
+                    });
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> <span>حفظ التعديلات</span>';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ في الاتصال',
+                    text: err.message,
+                    background: '#0b0f19',
+                    color: '#fff'
+                });
+            });
+        }
+
+        // ==========================================
+        // Live NTP & Dynamic Timezone Clock Manager
+        // ==========================================
+        (function initLiveClock() {
+            let serverTimeMs = {{ server_timestamp_ms|default(0) }};
+            const clientInitTime = Date.now();
+            const timezoneName = "{{ system_timezone|default('Asia/Aden') }}";
+
+            function updateClock() {
+                const nowClient = Date.now();
+                const elapsed = nowClient - clientInitTime;
+                const currentEpochMs = serverTimeMs ? (serverTimeMs + elapsed) : nowClient;
+                
+                try {
+                    const dateObj = new Date(currentEpochMs);
+                    
+                    const timeFormatter = new Intl.DateTimeFormat('en-GB', {
+                        timeZone: timezoneName,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        hour12: false
+                    });
+                    
+                    const dateFormatter = new Intl.DateTimeFormat('en-CA', {
+                        timeZone: timezoneName,
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                    });
+
+                    const timeEl = document.getElementById('topLiveClockTime');
+                    const dateEl = document.getElementById('topLiveClockDate');
+                    
+                    if (timeEl) timeEl.textContent = timeFormatter.format(dateObj);
+                    if (dateEl) dateEl.textContent = dateFormatter.format(dateObj);
+                } catch (e) {
+                    const d = new Date(currentEpochMs);
+                    const timeEl = document.getElementById('topLiveClockTime');
+                    if (timeEl) timeEl.textContent = d.toTimeString().split(' ')[0];
+                }
+            }
+
+            if (document.getElementById('topLiveClockTime')) {
+                updateClock();
+                setInterval(updateClock, 1000);
+            }
+        })();
+    </script>
+    {% block scripts %}{% endblock %}
+
+    
+    <!-- ========================================================== -->
+    <!-- Fluid SaaS Notification & Universal Confirmation Engine    -->
+    <!-- ========================================================== -->
+    <script>
+    (function initFluidNotificationEngine() {
+        function getContainer() {
+            let container = document.getElementById('wispToastContainer');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'wispToastContainer';
+                document.body.appendChild(container);
+            }
+            return container;
+        }
+
+        window.showToastNotification = function(opts) {
+            if (typeof opts === 'string') {
+                opts = { title: opts, icon: 'info' };
+            }
+            const type = (opts.type || opts.icon || 'info').toLowerCase();
+            const title = opts.title || '';
+            const message = opts.message || opts.html || opts.text || '';
+            const duration = opts.duration !== undefined ? opts.duration : (opts.isLoading ? 0 : (type === 'error' || (message && message.length > 75) ? 5500 : 3800));
+            const id = 'toast_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+
+            let iconHtml = '';
+            let typeClass = 'wisp-info';
+            let iconClass = 'wisp-icon-info';
+            let progressClass = 'wisp-progress-info';
+
+            if (opts.isLoading) {
+                iconHtml = '<div class="wisp-spinner"></div>';
+                typeClass = 'wisp-loading';
+                iconClass = 'wisp-icon-loading';
+                progressClass = 'wisp-progress-info';
+            } else if (type === 'success') {
+                iconHtml = '<i class="fa-solid fa-check"></i>';
+                typeClass = 'wisp-success';
+                iconClass = 'wisp-icon-success';
+                progressClass = 'wisp-progress-success';
+            } else if (type === 'error') {
+                iconHtml = '<i class="fa-solid fa-xmark"></i>';
+                typeClass = 'wisp-error';
+                iconClass = 'wisp-icon-error';
+                progressClass = 'wisp-progress-error';
+            } else if (type === 'warning') {
+                iconHtml = '<i class="fa-solid fa-exclamation"></i>';
+                typeClass = 'wisp-warning';
+                iconClass = 'wisp-icon-warning';
+                progressClass = 'wisp-progress-warning';
+            } else {
+                iconHtml = '<i class="fa-solid fa-info"></i>';
+                typeClass = 'wisp-info';
+                iconClass = 'wisp-icon-info';
+                progressClass = 'wisp-progress-info';
+            }
+
+            const toastEl = document.createElement('div');
+            toastEl.id = id;
+            toastEl.className = 'wisp-toast ' + typeClass;
+            toastEl.innerHTML = `
+                <div class="flex items-start gap-3 relative">
+                    <div class="wisp-icon-box ${iconClass} flex-shrink-0">
+                        ${iconHtml}
+                    </div>
+                    <div class="wisp-content flex-grow min-w-0 pr-0.5">
+                        ${title ? `<div class="wisp-title font-bold text-xs sm:text-sm leading-snug">${title}</div>` : ''}
+                        ${message ? `<div class="wisp-msg text-xs mt-1 leading-relaxed">${message}</div>` : ''}
+                    </div>
+                    <button type="button" class="wisp-close flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg transition cursor-pointer" title="إغلاق">
+                        <i class="fa-solid fa-xmark text-[11px] pointer-events-none"></i>
+                    </button>
+                    ${duration > 0 ? `<div class="wisp-progress ${progressClass}" style="animation-duration: ${duration}ms;"></div>` : ''}
+                </div>
+            `;
+
+            let isClosed = false;
+            let timerId = null;
+
+            function dismiss() {
+                if (isClosed) return;
+                isClosed = true;
+                if (timerId) clearTimeout(timerId);
+                toastEl.classList.add('wisp-toast-exit');
+                setTimeout(function() {
+                    if (toastEl.parentNode) {
+                        toastEl.parentNode.removeChild(toastEl);
+                    }
+                }, 280);
+            }
+
+            const closeBtn = toastEl.querySelector('.wisp-close');
+            if (closeBtn) {
+                closeBtn.onclick = function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dismiss();
+                };
+            }
+
+            if (duration > 0) {
+                timerId = setTimeout(dismiss, duration);
+                toastEl.onmouseenter = function() {
+                    if (timerId) clearTimeout(timerId);
+                    const progressBar = toastEl.querySelector('.wisp-progress');
+                    if (progressBar) progressBar.style.animationPlayState = 'paused';
+                };
+                toastEl.onmouseleave = function() {
+                    if (!isClosed) {
+                        const progressBar = toastEl.querySelector('.wisp-progress');
+                        if (progressBar) progressBar.style.animationPlayState = 'running';
+                        timerId = setTimeout(dismiss, 1600);
+                    }
+                };
+            }
+
+            const container = getContainer();
+            container.appendChild(toastEl);
+
+            return {
+                id: id,
+                element: toastEl,
+                close: dismiss
+            };
+        };
+
+        // Check for pending toasts on page load (only if explicitly set for redirects)
+        try {
+            const pendingToast = sessionStorage.getItem('wisp_pending_toast');
+            if (pendingToast) {
+                sessionStorage.removeItem('wisp_pending_toast');
+                const pData = JSON.parse(pendingToast);
+                setTimeout(function() {
+                    window.showToastNotification(pData);
+                }, 200);
+            }
+        } catch(e) {}
+
+        window.setPendingToast = function(opts) {
+            try {
+                sessionStorage.setItem('wisp_pending_toast', JSON.stringify(opts));
+            } catch(e) {}
+        };
+
+        // Global Universal Confirm Action Helper
+        window.confirmAction = function(optsOrTitle, message, onConfirm) {
+            let title = 'تأكيد الإجراء';
+            let text = '';
+            let confirmText = 'نعم، تأكيد ومتابعة';
+            let cancelText = 'إلغاء';
+            let icon = 'warning';
+            let isDanger = true;
+            let callback = null;
+
+            if (typeof optsOrTitle === 'object' && optsOrTitle !== null) {
+                title = optsOrTitle.title || title;
+                text = optsOrTitle.text || optsOrTitle.message || '';
+                confirmText = optsOrTitle.confirmText || (optsOrTitle.isDanger ? 'نعم، احذف نهائياً' : confirmText);
+                cancelText = optsOrTitle.cancelText || cancelText;
+                icon = optsOrTitle.icon || icon;
+                isDanger = optsOrTitle.isDanger !== undefined ? optsOrTitle.isDanger : (title.includes('حذف') || text.includes('حذف'));
+                callback = optsOrTitle.onConfirm || onConfirm;
+            } else {
+                title = optsOrTitle || title;
+                text = message || '';
+                isDanger = title.includes('حذف') || text.includes('حذف');
+                if (isDanger) confirmText = 'نعم، احذف نهائياً';
+                callback = onConfirm;
+            }
+
+            return Swal.fire({
+                title: title,
+                html: `<div class="text-sm leading-relaxed">${text}</div>`,
+                icon: icon,
+                showCancelButton: true,
+                confirmButtonText: confirmText,
+                cancelButtonText: cancelText,
+                confirmButtonColor: isDanger ? '#e11d48' : '#2563eb',
+                cancelButtonColor: '#475569',
+                reverseButtons: true,
+                focusCancel: true
+            }).then(function(res) {
+                if (res.isConfirmed && typeof callback === 'function') {
+                    callback();
+                }
+                return res;
+            });
+        };
+
+        // Bridge SweetAlert2 seamlessly
+        if (window.Swal) {
+            let activeLoadingToast = null;
+            const origSwalFire = window.Swal.fire.bind(window.Swal);
+            const origSwalClose = (typeof window.Swal.close === 'function') ? window.Swal.close.bind(window.Swal) : function() {};
+
+            function forceCleanupSwalContainers() {
+                try {
+                    origSwalClose();
+                    const containers = document.querySelectorAll('.swal2-container');
+                    containers.forEach(function(c) {
+                        if (c && c.parentNode) {
+                            c.parentNode.removeChild(c);
+                        }
+                    });
+                    document.body.classList.remove('swal2-shown', 'swal2-height-auto', 'swal2-no-backdrop', 'swal2-toast-shown');
+                    document.documentElement.classList.remove('swal2-shown', 'swal2-height-auto', 'swal2-no-backdrop');
+                } catch(e) {}
+            }
+
+            window.Swal.close = function() {
+                if (activeLoadingToast) {
+                    activeLoadingToast.close();
+                    activeLoadingToast = null;
+                }
+                forceCleanupSwalContainers();
+                return origSwalClose();
+            };
+
+            window.Swal.fire = function(...args) {
+                let opts = {};
+                if (typeof args[0] === 'string') {
+                    opts.title = args[0];
+                    opts.html = args[1] || '';
+                    opts.icon = args[2] || 'info';
+                } else if (typeof args[0] === 'object' && args[0] !== null) {
+                    opts = Object.assign({}, args[0]);
+                }
+
+                const isConfirm = Boolean(opts.showCancelButton || opts.input || opts.showDenyButton);
+                const isExplicitModal = opts.asModal === true;
+
+                // Interactive Confirmation Modal Dialog (Centered & Styled)
+                if (isConfirm || isExplicitModal) {
+                    if (activeLoadingToast) {
+                        activeLoadingToast.close();
+                        activeLoadingToast = null;
+                    }
+                    const isDanger = (opts.confirmButtonColor === '#e11d48') || (opts.title && opts.title.includes('حذف')) || (opts.text && opts.text.includes('حذف'));
+                    const isSuccess = (opts.confirmButtonColor === '#10b981') || (opts.confirmButtonColor === '#059669') || (opts.title && (opts.title.includes('تجديد') || opts.title.includes('إيداع')));
+                    const isIndigo = (opts.confirmButtonColor === '#4f46e5') || (opts.confirmButtonColor === '#6366f1');
+
+                    let btnClass = 'wisp-modal-confirm-btn';
+                    if (isDanger) btnClass += ' wisp-btn-danger';
+                    else if (isSuccess) btnClass += ' wisp-btn-success';
+                    else if (isIndigo) btnClass += ' wisp-btn-indigo';
+
+                    opts.customClass = Object.assign({
+                        popup: 'wisp-modal-popup',
+                        title: 'wisp-modal-title',
+                        htmlContainer: 'wisp-modal-html',
+                        confirmButton: btnClass,
+                        cancelButton: 'wisp-modal-cancel-btn'
+                    }, opts.customClass || {});
+                    opts.backdrop = opts.backdrop !== undefined ? opts.backdrop : 'rgba(0, 0, 0, 0.7)';
+                    opts.reverseButtons = opts.reverseButtons !== undefined ? opts.reverseButtons : true;
+                    return origSwalFire(opts);
+                }
+
+                // Close any open modal dialog before rendering toast notification
+                forceCleanupSwalContainers();
+
+                if (activeLoadingToast) {
+                    activeLoadingToast.close();
+                    activeLoadingToast = null;
+                }
+
+                const isLoading = Boolean(opts.didOpen && opts.didOpen.toString().includes('showLoading'));
+
+                // Only store pending toast in sessionStorage if explicitly requested via persist: true
+                if (opts.persist === true && !isLoading && (opts.title || opts.html || opts.text)) {
+                    try {
+                        sessionStorage.setItem('wisp_pending_toast', JSON.stringify({
+                            title: opts.title || '',
+                            html: opts.html || opts.text || '',
+                            icon: opts.icon || 'info',
+                            duration: opts.timer || 4000
+                        }));
+                    } catch(e) {}
+                }
+
+                const duration = opts.timer || (opts.icon === 'error' ? 5000 : 3800);
+                const toastInstance = window.showToastNotification({
+                    title: opts.title || '',
+                    html: opts.html || opts.text || '',
+                    icon: opts.icon || 'info',
+                    isLoading: isLoading,
+                    duration: duration
+                });
+
+                if (isLoading) {
+                    activeLoadingToast = toastInstance;
+                }
+
+                // Allow users to see the toast notification for 1.2s before any chained promise (like reload) fires
+                const resolveDelay = isLoading ? 50 : Math.min(1300, duration);
+                return new Promise(function(resolve) {
+                    setTimeout(function() {
+                        resolve({ isConfirmed: true, value: true });
+                    }, resolveDelay);
+                });
+            };
+        }
+
+        // Global Toast Utility Shortcuts
+        window.showToast = function(message, type = 'success', title = '') {
+            return window.showToastNotification({
+                title: title || (type === 'success' ? 'تم بنجاح' : type === 'error' ? 'حدث خطأ' : type === 'warning' ? 'تنبيه' : 'إشعار'),
+                html: message,
+                icon: type
+            });
+        };
+
+        window.toast = {
+            success: (msg, title) => window.showToast(msg, 'success', title),
+            error: (msg, title) => window.showToast(msg, 'error', title),
+            warning: (msg, title) => window.showToast(msg, 'warning', title),
+            info: (msg, title) => window.showToast(msg, 'info', title),
+            loading: (title, msg) => window.showToastNotification({ title: title || 'جارٍ التحميل...', html: msg || '', isLoading: true })
+        };
+
+        // Universal Interceptor for native confirm(...) forms and clicks
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            if (form.dataset.wispConfirmed === 'true') {
+                return true;
+            }
+
+            const onsubmitAttr = form.getAttribute('onsubmit') || '';
+            const dataConfirm = form.getAttribute('data-confirm');
+            const isDelete = (form.action && form.action.includes('delete')) || onsubmitAttr.includes('حذف') || (dataConfirm && dataConfirm.includes('حذف'));
+
+            let confirmMsg = '';
+            if (dataConfirm) {
+                confirmMsg = dataConfirm;
+            } else if (onsubmitAttr.includes('confirm(')) {
+                const m = onsubmitAttr.match(/confirm\(\s*['"`](.*?)['"`]\s*\)/);
+                if (m && m[1]) confirmMsg = m[1];
+            } else if (form.action && form.action.includes('delete')) {
+                confirmMsg = 'هل أنت متأكد من تنفيذ عملية الحذف نهائياً؟ لا يمكن التراجع بعد التأكيد.';
+            }
+
+            if (confirmMsg) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const title = isDelete ? 'تأكيد الحذف النهائي' : 'تأكيد الإجراء';
+                const confirmBtn = isDelete ? 'نعم، احذف نهائياً' : 'نعم، تأكيد ومتابعة';
+
+                Swal.fire({
+                    title: title,
+                    html: `<div class="text-sm leading-relaxed">${confirmMsg}</div>`,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: confirmBtn,
+                    cancelButtonText: 'إلغاء',
+                    confirmButtonColor: isDelete ? '#e11d48' : '#2563eb',
+                    cancelButtonColor: '#475569',
+                    reverseButtons: true,
+                    focusCancel: true
+                }).then(function(result) {
+                    if (result.isConfirmed) {
+                        form.dataset.wispConfirmed = 'true';
+                        form.removeAttribute('onsubmit');
+                        form.submit();
+                    }
+                });
+                return false;
+            }
+        }, true);
+
+        window.alert = function(msg) {
+            window.showToast(msg, 'info', 'إشعار');
+        };
+    })();
+    </script>
+</body>
+</html>

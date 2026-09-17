@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}محاكي ومختبر بروتوكول الراديوس - MAX RADIUS{% endblock %}
+{% block page_title %}محاكي ومختبر بروتوكول الراديوس وفحص الكروت الحية{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Banner -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-flask-vial"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    محاكي ومختبر بروتوكول الراديوس (Live RADIUS Protocol Lab)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">محاكاة إرسال حزم Access-Request، اختبار كروت الشحن، وفحص سمات الـ AVPs وسرعة الاستجابة لحظياً</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 text-xs font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-nodes text-xs"></i>
+                <span>FreeRADIUS 3.2 Live Core</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Simulator Form & Controls -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left: Input Form -->
+        <div class="lg:col-span-1 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-purple-400"></i>
+                    بيانات حزمة الـ Access-Request
+                </h3>
+            </div>
+
+            <form id="simForm" onsubmit="runRadiusSimulation(event)" class="space-y-4 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1.5">اسم المستخدم / رقم الكرت (Username):</label>
+                    <input type="text" id="simUser" required class="w-full bg-[#070b14] border border-[#1c2840] focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs transition" placeholder="e.g. 777555777 أو PIN_1234">
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1.5">كلمة المرور (User Password):</label>
+                    <input type="text" id="simPass" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs transition" placeholder="اتركه فارغاً إذا كان نظام الكروت يعتمد الرقم فقط">
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1.5">السيرفر (RADIUS Server):</label>
+                        <input type="text" id="simServer" value="127.0.0.1" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-white font-mono text-xs">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1.5">المنفذ (Port):</label>
+                        <input type="number" id="simPort" value="1812" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-white font-mono text-xs">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1.5">السر المشترك (NAS Secret):</label>
+                    <input type="text" id="simSecret" value="testing123" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-white font-mono text-xs">
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" id="btnRunSim" class="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20">
+                        <i class="fa-solid fa-play"></i>
+                        <span>إرسال الحزمة واختبار المصادقة</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Right: Results & Raw Evaluation -->
+        <div class="lg:col-span-2 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+            <div id="simResultContainer" class="space-y-5">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-square-poll-vertical text-emerald-400"></i>
+                        نتيجة الاختبار والسمات المسترجعة (Evaluation Result)
+                    </h3>
+                    <span id="resStatusBadge" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                        في انتظار تشغيل الاختبار...
+                    </span>
+                </div>
+
+                <!-- Live Metrics Pills -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="bg-[#070b14] border border-[#1c2840] p-3.5 rounded-xl">
+                        <span class="text-[11px] text-slate-400 block">زمن استجابة السيرفر</span>
+                        <span id="resLatency" class="text-base font-black text-emerald-400 font-mono mt-1 block">-- ms</span>
+                    </div>
+                    <div class="bg-[#070b14] border border-[#1c2840] p-3.5 rounded-xl">
+                        <span class="text-[11px] text-slate-400 block">المستخدم في قاعدة البيانات</span>
+                        <span id="resUserExists" class="text-xs font-bold text-slate-300 mt-1 block">--</span>
+                    </div>
+                    <div class="bg-[#070b14] border border-[#1c2840] p-3.5 rounded-xl">
+                        <span class="text-[11px] text-slate-400 block">الباقة / المجموعة المحددة</span>
+                        <span id="resGroup" class="text-xs font-bold text-blue-400 mt-1 block">--</span>
+                    </div>
+                </div>
+
+                <!-- Returned AVPs Table -->
+                <div>
+                    <h4 class="font-bold text-white text-xs mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-tags text-blue-400"></i>
+                        سمات الرد المرجعة (Returned RADIUS Attributes / AVPs)
+                    </h4>
+                    <div class="overflow-x-auto rounded-xl border border-[#1c2840]">
+                        <table class="w-full text-right text-xs">
+                            <thead class="bg-[#070b14] text-slate-300 font-bold border-b border-[#1c2840]">
+                                <tr>
+                                    <th class="py-2.5 px-4">اسم السمة (Attribute)</th>
+                                    <th class="py-2.5 px-4">القيمة المسترجعة (Value)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resAvpTableBody" class="divide-y divide-[#1c2840] bg-[#0b0f19]">
+                                <tr>
+                                    <td colspan="2" class="py-6 text-center text-slate-500">
+                                        قم بتشغيل المحاكي لعرض سمات السرعات والـ Mikrotik-Rate-Limit المرجعة
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Raw Log Output -->
+                <div>
+                    <h4 class="font-bold text-white text-xs mb-1.5 flex items-center gap-1.5">
+                        <i class="fa-solid fa-terminal text-slate-400"></i>
+                        مخرجات الحزمة الصريحة (Packet Trace)
+                    </h4>
+                    <pre id="resRawOutput" class="bg-[#05070d] border border-[#162136] text-slate-300 p-3.5 rounded-xl text-[11px] font-mono overflow-x-auto max-h-40">Ready to simulate...</pre>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function runRadiusSimulation(e) {
+        e.preventDefault();
+        const user = document.getElementById('simUser').value.trim();
+        const pass = document.getElementById('simPass').value.trim();
+        const server = document.getElementById('simServer').value.trim();
+        const port = document.getElementById('simPort').value.trim();
+        const secret = document.getElementById('simSecret').value.trim();
+
+        const btn = document.getElementById('btnRunSim');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>جارٍ الاختبار...</span>';
+
+        const fd = new FormData();
+        fd.append('username', user);
+        fd.append('password', pass);
+        fd.append('server', server);
+        fd.append('port', port);
+        fd.append('secret', secret);
+
+        fetch('/api/tools/radius-simulator/test', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-play"></i><span>إرسال الحزمة واختبار المصادقة</span>';
+
+                if (res.success && res.data) {
+                    const d = res.data;
+                    const badge = document.getElementById('resStatusBadge');
+                    if (d.is_accept) {
+                        badge.className = "px-3 py-1 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                        badge.innerHTML = '<i class="fa-solid fa-circle-check ml-1"></i> Access-Accept (ناجح)';
+                    } else {
+                        badge.className = "px-3 py-1 rounded-xl text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30";
+                        badge.innerHTML = '<i class="fa-solid fa-circle-xmark ml-1"></i> ' + d.status;
+                    }
+
+                    document.getElementById('resLatency').innerText = d.elapsed_ms + ' ms';
+                    document.getElementById('resUserExists').innerText = d.db_user_exists ? 'مسجل ومتاح' : 'غير موجود';
+                    document.getElementById('resGroup').innerText = d.assigned_group || 'افتراضي';
+
+                    // Attributes
+                    const tbody = document.getElementById('resAvpTableBody');
+                    if (d.attributes && d.attributes.length > 0) {
+                        let html = '';
+                        d.attributes.forEach(a => {
+                            html += `<tr>
+                                <td class="py-2.5 px-4 font-mono font-bold text-cyan-400">${a.attr}</td>
+                                <td class="py-2.5 px-4 font-mono text-slate-200">${a.val}</td>
+                            </tr>`;
+                        });
+                        tbody.innerHTML = html;
+                    } else {
+                        tbody.innerHTML = `<tr><td colspan="2" class="py-4 text-center text-slate-400">لم يتم إرجاع سمات إضافية.</td></tr>`;
+                    }
+
+                    document.getElementById('resRawOutput').innerText = d.raw_output || 'لا توجد مخرجات نصية إضافية.';
+                } else {
+                    Swal.fire('خطأ في المحاكاة', res.message || 'فشل تشغيل الاختبار', 'error');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-play"></i><span>إرسال الحزمة واختبار المصادقة</span>';
+                Swal.fire('خطأ غير متوقع', err.message, 'error');
+            });
+    }
+</script>
+{% endblock %}

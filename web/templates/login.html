@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="theme-light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ network_name|default('MAX RADIUS') }} - تسجيل دخول الإدارة</title>
+
+    <!-- Instant Theme Loader (Defaults to Light Mode) -->
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('wisp_theme') || 'light';
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.remove('theme-light');
+            } else {
+                document.documentElement.classList.add('theme-light');
+            }
+        })();
+    </script>
+
+    <!-- Local Offline Tailwind CSS Engine -->
+    <script src="{{ url_for('static', filename='vendor/tailwind/tailwind.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Tajawal', 'sans-serif'],
+                        mono: ['Tajawal', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Local Offline Arabic Typography: Tajawal Font -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/tajawal.css') }}">
+    <!-- Local Offline FontAwesome 6 Icons -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+
+    <style>
+        body, input, button, select, textarea, h1, h2, h3, h4, h5, h6, p, a, label, span {
+            font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        }
+        
+        /* Dark Theme Default Variables */
+        body {
+            background-color: #070b14;
+            color: #f1f5f9;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .login-card {
+            background: #0b0f19;
+            border: 1px solid #1c2840;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px -10px rgba(37, 99, 235, 0.15);
+        }
+        .login-input {
+            background-color: #070b14;
+            border-color: #1e293b;
+            color: #ffffff;
+        }
+        .login-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Light Theme (الثيم النهاري الافتراضي) */
+        html.theme-light body {
+            background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%) !important;
+            color: #0f172a !important;
+        }
+        html.theme-light .login-card {
+            background: rgba(255, 255, 255, 0.98) !important;
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: 0 20px 40px -15px rgba(30, 41, 59, 0.08), 0 0 0 1px rgba(226, 232, 240, 0.8) !important;
+        }
+        html.theme-light .login-input {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #0f172a !important;
+        }
+        html.theme-light .login-input:focus {
+            background-color: #ffffff !important;
+            border-color: #2563eb !important;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+        }
+        html.theme-light .text-white-adaptive {
+            color: #0f172a !important;
+        }
+        html.theme-light .text-muted-adaptive {
+            color: #64748b !important;
+        }
+        html.theme-light .border-adaptive {
+            border-color: #f1f5f9 !important;
+        }
+        html.theme-light .bg-subcard-adaptive {
+            background-color: #f8fafc !important;
+            border-color: #e2e8f0 !important;
+        }
+        
+        /* Preserve FontAwesome Icons */
+        .fa, .fas, .far, .fal, .fad, .fab, .fa-solid, .fa-regular, .fa-light, .fa-thin, .fa-duotone, .fa-brands, [class^="fa-"], [class*=" fa-"], i.fa, i.fas, i.far, i.fab, i[class*="fa-"] {
+            font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands", "FontAwesome", sans-serif !important;
+        }
+        .fa, .fas, .fa-solid {
+            font-weight: 900 !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4 select-none relative overflow-x-hidden">
+
+    <!-- Ambient Background Lighting / Mesh Glows -->
+    <div class="fixed -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="fixed -bottom-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <!-- Top Floating Controls: Theme Switcher -->
+    <div class="absolute top-5 left-5 z-50">
+        <button type="button" onclick="toggleTheme()" id="themeToggleBtn" class="p-2.5 rounded-2xl bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:text-blue-600 dark:hover:text-blue-400 shadow-md backdrop-blur-md transition flex items-center gap-2 text-xs font-bold" title="تبديل الثيم النهاري / الليلي">
+            <i id="themeIcon" class="fa-solid fa-moon text-sm text-indigo-500"></i>
+            <span id="themeText" class="hidden sm:inline">الوضع الليلي</span>
+        </button>
+    </div>
+
+    <div class="w-full max-w-md relative z-10 my-auto">
+        
+        <!-- Login Card -->
+        <div class="login-card rounded-3xl p-6 sm:p-9 transition-all duration-300">
+            
+            <!-- Brand & Logo Header -->
+            <div class="flex flex-col items-center justify-center text-center mb-7 w-full">
+                <!-- 1. Logo -->
+                <div class="flex items-center justify-center mb-4 w-full">
+                    {% if logo_url %}
+                        <div class="p-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-center">
+                            <img src="{{ logo_url }}" alt="{{ network_name }}" class="h-16 max-h-16 w-auto max-w-[220px] object-contain block mx-auto">
+                        </div>
+                    {% else %}
+                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-2xl shadow-xl shadow-blue-500/25 border border-blue-400/30 mx-auto">
+                            <i class="fa-solid fa-tower-broadcast text-white"></i>
+                        </div>
+                    {% endif %}
+                </div>
+                
+                <!-- 2. Badge -->
+                <div class="flex items-center justify-center mb-2.5 w-full">
+                    <span class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-[11px] font-bold">
+                        <i class="fa-solid fa-shield-halved text-xs"></i>
+                        <span>بوابة إدارة النظام والتحكم</span>
+                    </span>
+                </div>
+
+                <!-- 3. Title & Subtitle -->
+                <h1 class="text-2xl font-black tracking-tight text-slate-900 dark:text-white text-white-adaptive">{{ network_name|default('MAX RADIUS') }}</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 text-muted-adaptive mt-1 font-medium">نظام إدارة وتحكم شبكات الإنترنت والفوترة الذكية</p>
+            </div>
+
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="p-3.5 mb-5 rounded-2xl border text-xs font-semibold flex items-center gap-2.5 shadow-sm {% if category == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/50 dark:border-emerald-500/40 dark:text-emerald-300{% elif category == 'danger' or category == 'error' %}bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/50 dark:border-rose-500/40 dark:text-rose-300{% elif category == 'warning' %}bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/50 dark:border-amber-500/40 dark:text-amber-300{% else %}bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950/50 dark:border-blue-500/40 dark:text-blue-300{% endif %}">
+                            <i class="fa-solid {% if category == 'success' %}fa-circle-check text-emerald-500{% elif category == 'danger' or category == 'error' %}fa-triangle-exclamation text-rose-500{% else %}fa-circle-info text-blue-500{% endif %} text-base flex-shrink-0"></i>
+                            <span class="leading-relaxed">{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Login Form -->
+            <form action="{{ url_for('login') }}" method="POST" class="space-y-4">
+                <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
+                <!-- Username Field -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-user-tie text-blue-600 dark:text-blue-400 text-xs"></i>
+                        <span>اسم المستخدم أو الحساب</span>
+                    </label>
+                    <div class="relative">
+                        <input type="text" name="username" required autofocus placeholder="أدخل اسم المستخدم (مثال: admin)" class="login-input w-full rounded-2xl pr-10 pl-4 py-3 text-xs placeholder-slate-400 focus:outline-none transition">
+                        <i class="fa-solid fa-user absolute right-3.5 top-3.5 text-slate-400 text-xs pointer-events-none"></i>
+                    </div>
+                </div>
+
+                <!-- Password Field -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                        <div class="flex items-center gap-1.5">
+                            <i class="fa-solid fa-key text-blue-600 dark:text-blue-400 text-xs"></i>
+                            <span>كلمة المرور</span>
+                        </div>
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="loginPassword" name="password" required placeholder="أدخل كلمة المرور" class="login-input w-full rounded-2xl pr-10 pl-11 py-3 text-xs placeholder-slate-400 focus:outline-none transition font-mono">
+                        <i class="fa-solid fa-lock absolute right-3.5 top-3.5 text-slate-400 text-xs pointer-events-none"></i>
+                        <button type="button" onclick="togglePasswordVisibility()" class="absolute left-3.5 top-3 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 text-xs transition p-1" title="إظهار / إخفاء كلمة المرور">
+                            <i id="eyeIcon" class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Remember / Options -->
+                <div class="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 pt-1">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" name="remember" checked class="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                        <span class="text-[11px] font-medium">تذكر الجلسة على هذا المتصفح</span>
+                    </label>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="w-full py-3.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-lg shadow-blue-500/25 transition transform active:scale-[0.99] flex items-center justify-center gap-2 mt-3 cursor-pointer">
+                    <i class="fa-solid fa-arrow-right-to-bracket text-sm"></i>
+                    <span>تسجيل الدخول إلى النظام</span>
+                </button>
+            </form>
+
+            <!-- Subscriber Portal Link -->
+            <div class="mt-6 pt-5 border-t border-adaptive border-slate-100 dark:border-slate-800 text-center">
+                <a href="{{ url_for('user_login') }}" class="inline-flex items-center justify-center gap-2 w-full py-2.5 px-3 bg-subcard-adaptive bg-slate-50 hover:bg-blue-50/60 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 text-slate-700 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-400 rounded-2xl border border-slate-200/80 dark:border-slate-800 transition text-[11px] font-bold">
+                    <i class="fa-solid fa-id-card text-blue-600 dark:text-blue-400 text-xs"></i>
+                    <span>بوابة الخدمة الذاتية للمشتركين وأصحاب الكروت</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Footer Info -->
+        <div class="text-center mt-6 space-y-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            <div class="flex items-center justify-center gap-2 font-mono text-[10px]">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-bold">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    FreeRADIUS Core Active
+                </span>
+                <span>•</span>
+                <span>MikroTik CoA RFC 5176</span>
+            </div>
+            <p>&copy; 2026 {{ network_name|default('MAX RADIUS') }}. جميع الحقوق محفوظة.</p>
+        </div>
+
+    </div>
+
+    <script>
+        function togglePasswordVisibility() {
+            const pass = document.getElementById('loginPassword');
+            const icon = document.getElementById('eyeIcon');
+            if (pass.type === 'password') {
+                pass.type = 'text';
+                icon.className = 'fa-solid fa-eye-slash text-blue-600 dark:text-blue-400';
+            } else {
+                pass.type = 'password';
+                icon.className = 'fa-solid fa-eye text-slate-400';
+            }
+        }
+
+        function updateThemeControls(isLight) {
+            const icon = document.getElementById('themeIcon');
+            const text = document.getElementById('themeText');
+            if (icon && text) {
+                if (isLight) {
+                    icon.className = 'fa-solid fa-moon text-sm text-indigo-500';
+                    text.textContent = 'الوضع الليلي';
+                } else {
+                    icon.className = 'fa-solid fa-sun text-sm text-amber-400';
+                    text.textContent = 'الوضع النهاري';
+                }
+            }
+        }
+
+        function toggleTheme() {
+            const isCurrentlyLight = document.documentElement.classList.contains('theme-light');
+            if (isCurrentlyLight) {
+                document.documentElement.classList.remove('theme-light');
+                localStorage.setItem('wisp_theme', 'dark');
+                updateThemeControls(false);
+            } else {
+                document.documentElement.classList.add('theme-light');
+                localStorage.setItem('wisp_theme', 'light');
+                updateThemeControls(true);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const isLight = document.documentElement.classList.contains('theme-light');
+            updateThemeControls(isLight);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+ï»؟version: '3.8'
+
+services:
+  # 1. MariaDB Database for FreeRADIUS & WISP Billing
+  mariadb:
+    image: mariadb:10.11
+    container_name: wisp-mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: radiusRootSecret2026
+      MYSQL_DATABASE: radius_wisp
+      MYSQL_USER: radius
+      MYSQL_PASSWORD: radpass2026
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ../database/freeradius_standard.sql:/docker-entrypoint-initdb.d/01_freeradius_standard.sql
+      - ../database/wisp_extensions.sql:/docker-entrypoint-initdb.d/02_wisp_extensions.sql
+      - ../database/seed_data.sql:/docker-entrypoint-initdb.d/03_seed_data.sql
+    networks:
+      - wisp-net
+
+  # 2. FreeRADIUS 3.2 Server
+  freeradius:
+    image: freeradius/freeradius-server:latest
+    container_name: wisp-freeradius
+    restart: unless-stopped
+    depends_on:
+      - mariadb
+    ports:
+      - "1812:1812/udp" # RADIUS Authentication
+      - "1813:1813/udp" # RADIUS Accounting
+      - "3799:3799/udp" # CoA / Disconnect-Request
+    volumes:
+      - ./freeradius/radiusd.conf:/etc/raddb/radiusd.conf
+      - ./freeradius/mods-available/sql:/etc/raddb/mods-available/sql
+    networks:
+      - wisp-net
+
+  # 3. WISP Web GUI & Management Panel
+  wisp-web:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: wisp-web-panel
+    restart: unless-stopped
+    depends_on:
+      - mariadb
+      - freeradius
+    environment:
+      MYSQL_HOST: mariadb
+      MYSQL_USER: radius
+      MYSQL_PASSWORD: radpass2026
+      MYSQL_DB: radius_wisp
+      SECRET_KEY: enterprise-wisp-super-secret-key
+    ports:
+      - "5000:5000"
+    networks:
+      - wisp-net
+
+volumes:
+  mariadb_data:
+
+networks:
+  wisp-net:
+    driver: bridge

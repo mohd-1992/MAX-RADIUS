@@ -1,0 +1,16 @@
+﻿{# Reusable Modal Wrapper Macro #}
+{% macro modal_wrapper(modal_id, title, icon='fa-solid fa-circle-info', max_width='max-w-lg') %}
+<div id="{{ modal_id }}" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl {{ max_width }} w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="{{ icon }} text-blue-400"></i>{{ title }}
+            </h3>
+            <button type="button" onclick="closeModal('{{ modal_id }}')" class="text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}

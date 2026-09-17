@@ -1,0 +1,969 @@
+{% extends "base.html" %}
+
+{% block title %}لوحة التحكم الرئيسية{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- ========================================================== -->
+    <!-- 1. ترويسة الترحيب والإجراءات السريعة (Welcome & Quick Launcher) -->
+    <!-- ========================================================== -->
+    <!-- ========================================================== -->
+    <!-- 1. ترويسة الترحيب والإجراءات السريعة (Welcome & Quick Launcher) -->
+    <!-- ========================================================== -->
+    <div class="relative overflow-hidden bg-[#0b0f19] p-5 sm:p-6 rounded-2xl border border-[#1c2840] shadow-sm transition-all duration-300">
+        <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
+            <!-- Brand & Status -->
+            <div class="flex items-center gap-4">
+                <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white text-2xl shadow-md shadow-blue-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-chart-pie text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">
+                            نظام إدارة {{ settings.get('isp_name', 'MAX RADIUS') if settings.get('isp_name', '').startswith('شبكة') else 'شبكة ' ~ settings.get('isp_name', 'MAX RADIUS') }}
+                        </h2>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                            v{{ app_version|default('2.4.0') }} {{ app_edition|default('Enterprise') }}
+                        </span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-300 mt-2 font-medium">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold text-[11px]">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>FreeRADIUS 3.2 نشط
+                        </span>
+                        <span class="text-slate-500">•</span>
+                        <span class="font-mono text-slate-300 text-[11px] flex items-center gap-1.5 bg-[#070b14] px-2.5 py-1 rounded-lg border border-[#1c2840]">
+                            <i class="fa-solid fa-network-wired text-blue-400"></i>MikroTik CoA UDP 3799
+                        </span>
+                        <span class="text-slate-500">•</span>
+                        <span class="flex items-center gap-1.5 text-[11px] bg-[#070b14] px-2.5 py-1 rounded-lg border border-[#1c2840]">
+                            العملة: <strong class="text-emerald-400 font-bold font-mono">{{ settings.get('currency_symbol', 'ر.س') }}</strong>
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Action Launcher: Balanced 2x2 on Mobile, 4 in row on Desktop -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full xl:w-auto flex-shrink-0">
+                <a href="{{ url_for('vouchers') }}" class="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 text-center">
+                    <i class="fa-solid fa-wand-magic-sparkles text-white"></i>
+                    <span>توليد كروت</span>
+                </a>
+                <a href="{{ url_for('subscribers') }}" class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-indigo-600/20 active:scale-95 text-center">
+                    <i class="fa-solid fa-user-plus text-white"></i>
+                    <span>إضافة مشترك</span>
+                </a>
+                <a href="{{ url_for('card_inspect') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-xs active:scale-95 text-center">
+                    <i class="fa-solid fa-magnifying-glass text-sky-400"></i>
+                    <span>فحص كارت</span>
+                </a>
+                <a href="{{ url_for('resellers') }}" class="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-emerald-600/20 active:scale-95 text-center">
+                    <i class="fa-solid fa-wallet text-white"></i>
+                    <span>شحن موزع</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- 2. إحصائيات مشتركي كروت الإنترنت (Hotspot Card Subscribers) -->
+    <!-- ========================================================== -->
+    <div>
+        <div class="flex items-center justify-between mb-3 px-1">
+            <h3 class="text-sm font-extrabold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-ticket text-blue-400"></i>
+                إحصائيات كروت الهوتسبوت المباشرة (Hotspot Vouchers)
+            </h3>
+            <span class="text-xs text-slate-400 font-medium">محدث لحظياً</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- 1. مشتركو الكروت (الكل) -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">مشتركو الكروت (الكل)</span>
+                        <h3 id="stat-vouchers-total-subs" class="text-3xl font-black text-blue-400 font-mono tracking-tight">{{ metrics.voucher_summary.total_card_subscribers }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl border border-blue-500/20">
+                        <i class="fa-solid fa-users-viewfinder"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span>إجمالي الكروت المفعلة</span>
+                    <a href="{{ url_for('active_card_users') }}" class="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1">
+                        سجل المشتركين <i class="fa-solid fa-arrow-left text-[10px]"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- 2. المشتركون المفعّلون -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">المشتركون المفعّلون</span>
+                        <h3 id="stat-vouchers-active-subs" class="text-3xl font-black text-indigo-400 font-mono tracking-tight">{{ metrics.voucher_summary.active_subscribers }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-xl border border-indigo-500/20">
+                        <i class="fa-solid fa-id-card-clip"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span>كروت سارية الصلاحية</span>
+                    <a href="{{ url_for('active_card_users') }}" class="text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1">
+                        مشتركو الكروت <i class="fa-solid fa-arrow-left text-[10px]"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- 3. المشتركون المتصلون -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">المشتركون المتصلون</span>
+                        <h3 class="text-3xl font-black text-emerald-400 font-mono tracking-tight flex items-center gap-2">
+                            <span id="stat-vouchers-online-subs">{{ metrics.voucher_summary.online_subscribers }}</span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        </h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl border border-emerald-500/20">
+                        <i class="fa-solid fa-tower-broadcast"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span>جلسات كروت نشطة</span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        Hotspot Live
+                    </span>
+                </div>
+            </div>
+
+            <!-- 4. المنتهي اشتراكهم -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">المنتهي اشتراكهم</span>
+                        <h3 id="stat-vouchers-expired-subs" class="text-3xl font-black text-rose-400 font-mono tracking-tight">{{ metrics.voucher_summary.expired_subscribers }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-xl border border-rose-500/20">
+                        <i class="fa-solid fa-user-xmark"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span>استنفدوا الكوتا أو الوقت</span>
+                    <a href="{{ url_for('sales_reports') }}" class="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1">
+                        التقارير <i class="fa-solid fa-arrow-left text-[10px]"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- 3. إحصائيات المشتركين والشبكة العامة (Network & PPPoE)        -->
+    <!-- ========================================================== -->
+    <div>
+        <div class="flex items-center justify-between mb-3 px-1">
+            <h3 class="text-sm font-extrabold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-network-wired text-purple-400"></i>
+                المشتركون المنزليون وحركة البيانات (Broadband & Network)
+            </h3>
+            <span class="text-xs text-slate-400 font-medium">سيرفرات البث و PPPoE</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- 1. المشتركون المنزليون -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">المشتركون المنزليون (PPPoE)</span>
+                        <h3 id="stat-total-subs" class="text-3xl font-black text-purple-400 font-mono tracking-tight">{{ metrics.total_subscribers }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-xl border border-purple-500/20">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span>متصل الآن: <strong id="stat-online-subs" class="text-emerald-400 font-bold font-mono">{{ metrics.online_subscribers }}</strong></span>
+                    <a href="{{ url_for('subscribers') }}" class="text-purple-400 hover:text-purple-300 font-bold">إدارة المشتركين</a>
+                </div>
+            </div>
+
+            <!-- 2. إجمالي الجلسات النشطة -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي الجلسات المتصلة</span>
+                        <h3 class="text-3xl font-black text-emerald-400 font-mono tracking-tight flex items-center gap-2">
+                            <span id="stat-active-sessions">{{ metrics.active_sessions }}</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1 animate-pulse"></span>أونلاين
+                            </span>
+                        </h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl border border-emerald-500/20">
+                        <i class="fa-solid fa-wifi"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span id="stat-sessions-sub-breakdown">{{ metrics.online_subscribers }} منزلي + {{ metrics.voucher_summary.online }} كرت</span>
+                    <span class="text-emerald-400 font-mono font-bold text-[11px]">Total Sessions</span>
+                </div>
+            </div>
+
+            <!-- 3. استهلاك البيانات العام -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي استهلاك البيانات</span>
+                        <h3 id="stat-traffic-total" class="text-2xl sm:text-3xl font-black text-sky-400 font-mono tracking-tight">{{ metrics.traffic_total_str }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-xl border border-sky-500/20">
+                        <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-[#1c2840] text-xs text-slate-400 font-medium">
+                    <span class="text-emerald-400 font-semibold"><i class="fa-solid fa-cloud-arrow-down ml-1"></i>تحميل: <strong id="stat-traffic-out" class="font-mono">{{ metrics.traffic_out_str }}</strong></span>
+                    <span>•</span>
+                    <span class="text-sky-400 font-semibold"><i class="fa-solid fa-cloud-arrow-up ml-1"></i>رفع: <strong id="stat-traffic-in" class="font-mono">{{ metrics.traffic_in_str }}</strong></span>
+                </div>
+            </div>
+
+            <!-- 4. راوترات ومحطات البث -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">أجهزة MikroTik و NAS</span>
+                        <h3 id="stat-total-nas" class="text-3xl font-black text-amber-400 font-mono tracking-tight">{{ metrics.total_nas }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-xl border border-amber-500/20">
+                        <i class="fa-solid fa-server"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span class="text-emerald-400 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>جاهزة لاستقبال CoA</span>
+                    <a href="{{ url_for('nas') }}" class="text-amber-400 hover:text-amber-300 font-bold">إدارة الراوترات</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- 4. استهلاك موارد السيرفر (Hardware Metrics)                  -->
+    <!-- ========================================================== -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1c2840] pb-3">
+            <div>
+                <h4 class="text-sm sm:text-base font-extrabold text-white flex items-center gap-2.5">
+                    <i class="fa-solid fa-microchip text-blue-400"></i>
+                    استهلاك موارد خادم النظام والحاويات (Hardware & Containers)
+                </h4>
+                <p class="text-xs text-slate-400 mt-0.5">مراقبة الأداء الفعلي لموارد المعالج، الذاكرة، وقرص التخزين</p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                {% if metrics.resources.cpu_cores %}
+                <span class="text-xs text-white bg-blue-600 px-2.5 py-1 rounded-lg font-mono font-bold shadow-xs flex items-center gap-1.5">
+                    <i class="fa-solid fa-microchip text-white text-xs"></i>
+                    <span class="text-white">{{ metrics.resources.cpu_cores }} Cores</span>
+                </span>
+                {% endif %}
+                <span class="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg font-mono flex items-center gap-2 w-fit font-bold">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    System Engine Live Stats
+                </span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- CPU -->
+            <div class="bg-[#070b14] border border-[#162136] rounded-xl p-4 space-y-2.5">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-300 font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-gauge text-sky-400"></i>
+                        المعالج (CPU Load)
+                    </span>
+                    <span id="stat-cpu-percent" class="font-extrabold text-white font-mono text-sm">{{ "%.1f"|format(metrics.resources.cpu_percent) }}%</span>
+                </div>
+                <div class="w-full bg-slate-900/80 rounded-full h-2.5 overflow-hidden border border-[#1c2840]">
+                    <div id="stat-cpu-bar" class="{% if metrics.resources.cpu_percent > 85 %}bg-rose-500{% elif metrics.resources.cpu_percent > 60 %}bg-amber-500{% else %}bg-gradient-to-r from-blue-500 to-sky-400{% endif %} h-full rounded-full transition-all duration-500" style="width: {{ metrics.resources.cpu_percent }}%"></div>
+                </div>
+            </div>
+
+            <!-- RAM -->
+            <div class="bg-[#070b14] border border-[#162136] rounded-xl p-4 space-y-2.5">
+                <div class="flex justify-between items-center text-xs">
+                    <span id="stat-ram-text" class="text-slate-300 font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-memory text-emerald-400"></i>
+                        الذاكرة RAM ({{ metrics.resources.ram_used_gb }} GB / {{ metrics.resources.ram_total_gb }} GB)
+                    </span>
+                    <span id="stat-ram-percent" class="font-extrabold text-white font-mono text-sm">{{ "%.1f"|format(metrics.resources.ram_percent) }}%</span>
+                </div>
+                <div class="w-full bg-slate-900/80 rounded-full h-2.5 overflow-hidden border border-[#1c2840]">
+                    <div id="stat-ram-bar" class="{% if metrics.resources.ram_percent > 85 %}bg-rose-500{% elif metrics.resources.ram_percent > 65 %}bg-amber-500{% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %} h-full rounded-full transition-all duration-500" style="width: {{ metrics.resources.ram_percent }}%"></div>
+                </div>
+            </div>
+
+            <!-- Disk -->
+            <div class="bg-[#070b14] border border-[#162136] rounded-xl p-4 space-y-2.5">
+                <div class="flex justify-between items-center text-xs">
+                    <span id="stat-disk-text" class="text-slate-300 font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-hard-drive text-purple-400"></i>
+                        التخزين (Disk: {{ metrics.resources.disk_used_gb }}G / {{ metrics.resources.disk_total_gb }}G)
+                    </span>
+                    <span id="stat-disk-percent" class="font-extrabold text-white font-mono text-sm">{{ "%.1f"|format(metrics.resources.disk_percent) }}%</span>
+                </div>
+                <div class="w-full bg-slate-900/80 rounded-full h-2.5 overflow-hidden border border-[#1c2840]">
+                    <div id="stat-disk-bar" class="bg-gradient-to-r from-purple-500 to-indigo-400 h-full rounded-full transition-all duration-500" style="width: {{ metrics.resources.disk_percent }}%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Container Details Breakdown -->
+        <div id="stat-containers-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#1c2840] {% if not metrics.resources.containers %}hidden{% endif %}">
+            {% for ckey, cinfo in metrics.resources.containers.items() %}
+            <div data-container="{{ ckey }}" class="bg-[#070b14] border border-[#162136] hover:border-blue-500/30 rounded-xl px-4 py-3 flex items-center justify-between transition">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-2.5 h-2.5 rounded-full {% if 'core' in ckey %}bg-blue-400 shadow-sm shadow-blue-400/50{% elif 'db' in ckey %}bg-emerald-400 shadow-sm shadow-emerald-400/50{% else %}bg-purple-400 shadow-sm shadow-purple-400/50{% endif %}"></span>
+                    <span class="text-white font-bold text-xs">{{ cinfo.name }}</span>
+                </div>
+                <div class="flex items-center gap-2 font-mono text-xs">
+                    <span class="px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 font-bold">
+                        CPU: <strong class="text-white c-cpu-val">{{ cinfo.cpu_percent }}%</strong>
+                    </span>
+                    <span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
+                        RAM: <strong class="text-white c-mem-val">{{ cinfo.mem_used_mb }}M</strong>
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- 5. بطاقة حالة الاتصال بالإنترنت وسرعة الاستجابة (Ping)      -->
+    <!-- ========================================================== -->
+    <div class="bg-[#0b0f19] p-5 sm:p-6 rounded-2xl border border-[#1c2840] shadow-sm relative overflow-hidden">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-5">
+            <!-- Right: Status Indicator & Info -->
+            <div class="flex items-center gap-4">
+                <div id="ping-status-icon" class="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl {% if internet_status.is_connected %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% else %}bg-rose-500/10 text-rose-400 border border-rose-500/20{% endif %} flex items-center justify-center text-2xl shadow-md flex-shrink-0 transition-all duration-300">
+                    <i id="ping-icon-i" class="fa-solid {% if internet_status.is_connected %}fa-globe{% else %}fa-triangle-exclamation{% endif %}"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2.5">
+                        <span id="ping-pulse-dot" class="w-2.5 h-2.5 rounded-full {% if internet_status.is_connected %}bg-emerald-400 animate-pulse{% else %}bg-rose-500{% endif %}"></span>
+                        <h3 class="text-base sm:text-lg font-black text-white">
+                            حالة الاتصال بالإنترنت: 
+                            <span id="ping-status-text" class="{% if internet_status.is_connected %}text-emerald-400{% else %}text-rose-400{% endif %}">
+                                {{ internet_status.status_text }}
+                            </span>
+                        </h3>
+                    </div>
+                    <p class="text-xs text-slate-300 mt-1 flex items-center gap-2 flex-wrap font-medium">
+                        <span>خادم الفحص: <strong class="text-slate-200 font-mono bg-[#070b14] px-2 py-0.5 rounded border border-[#1c2840]">Google DNS (8.8.8.8)</strong></span>
+                        <span class="text-slate-500">•</span>
+                        <span>جودة الاستجابة: <strong id="ping-quality-label" class="{% if internet_status.is_connected %}text-emerald-400{% else %}text-rose-400{% endif %} font-bold">{{ internet_status.quality }}</strong></span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Left: Latency in ms -->
+            <div class="flex items-center gap-3 self-end md:self-center">
+                <div class="bg-[#070b14] border border-[#1c2840] rounded-xl px-4 py-2.5 flex items-center gap-3">
+                    <span class="text-xs text-slate-300 font-bold">سرعة الاستجابة (Ping):</span>
+                    <div class="flex items-baseline gap-1">
+                        <span id="ping-ms-val" class="text-2xl sm:text-3xl font-black font-mono {% if internet_status.is_connected %}text-emerald-400{% else %}text-rose-400{% endif %}">
+                            {{ internet_status.ping_ms }}
+                        </span>
+                        <span class="text-xs font-mono text-slate-400 font-bold">ms</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- 6. بطاقات معلومات وحالة النظام العامة (System Status Cards)  -->
+    <!-- ========================================================== -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. مدة عمل النظام (System Uptime) -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-blue-500/40 transition flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <div>
+                    <span class="text-xs font-bold text-slate-400 block mb-1">مدة عمل النظام (Uptime)</span>
+                    <h3 id="stat-system-uptime" class="text-sm sm:text-base font-black text-blue-400 font-mono leading-snug">{{ system_uptime }}</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl border border-blue-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-server"></i>
+                </div>
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                <span>منذ آخر إقلاع للنظام</span>
+                <span class="text-blue-400 font-mono text-[11px] font-bold">Online Server</span>
+            </div>
+        </div>
+
+        <!-- 2. المنطقة الزمنية (Server Timezone) -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-emerald-500/40 transition flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <div>
+                    <span class="text-xs font-bold text-slate-400 block mb-1">المنطقة الزمنية (Timezone)</span>
+                    <h3 class="text-base sm:text-lg font-black text-emerald-400 font-mono leading-snug">{{ server_timezone }}</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl border border-emerald-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-globe"></i>
+                </div>
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                <span>توقيت السيرفر المعتمد</span>
+                <span class="text-emerald-400 font-mono text-[11px] font-bold">UTC+03:00</span>
+            </div>
+        </div>
+
+        <!-- 3. الوقت والتاريخ الحالي (Current Time & Date Live) -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-purple-500/40 transition flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <div>
+                    <span class="text-xs font-bold text-slate-400 block mb-1">الوقت والتاريخ الحالي</span>
+                    <div class="flex flex-col">
+                        <span id="live-clock-time" class="text-lg sm:text-xl font-black text-purple-400 font-mono tracking-wider">{{ server_time_only }}</span>
+                        <span id="live-clock-date" class="text-xs text-slate-400 font-mono mt-0.5">{{ server_date_only }}</span>
+                    </div>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-xl border border-purple-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-clock"></i>
+                </div>
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span>مزامنة حية مستمرة</span>
+                <span class="text-purple-400 font-mono text-[11px] font-bold">Live Clock</span>
+            </div>
+        </div>
+
+        <!-- 4. إصدار النظام (System Version) -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-amber-500/40 transition flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <div>
+                    <span class="text-xs font-bold text-slate-400 block mb-1">إصدار النظام (System Version)</span>
+                    <h3 class="text-base sm:text-lg font-black text-amber-400 font-mono leading-snug">{{ system_version }}</h3>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-xl border border-amber-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+            </div>
+            <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                <span>Enterprise Edition</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    مستقر ومعتمد
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- 7. المخططات البيانية المدمجة (Compact Traffic & Sales)       -->
+    <!-- ========================================================== -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <!-- Traffic Chart -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h4 class="font-extrabold text-white text-sm sm:text-base flex items-center gap-2.5">
+                        <i class="fa-solid fa-chart-line text-blue-400"></i>
+                        استهلاك البيانات (Traffic Analytics)
+                    </h4>
+                    <p class="text-xs text-slate-400 mt-0.5">حجم البيانات المستهلكة لآخر 7 أيام بالجيجابايت</p>
+                </div>
+                <span class="text-xs font-bold font-mono px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">7 Days (GB)</span>
+            </div>
+            <div class="h-60">
+                <canvas id="trafficChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Sales Chart -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h4 class="font-extrabold text-white text-sm sm:text-base flex items-center gap-2.5">
+                        <i class="fa-solid fa-money-bill-trend-up text-emerald-400"></i>
+                        المبيعات والإيرادات (Sales & Revenue)
+                    </h4>
+                    <p class="text-xs text-slate-400 mt-0.5">تحليل الإيرادات والاشتراكات الشهرية</p>
+                </div>
+                <span class="text-xs font-bold font-mono px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+            </div>
+            <div class="h-60">
+                <canvas id="salesChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- 8. آخر التفعيلات والعمليات (Latest Activations & Operations) -->
+    <!-- ========================================================== -->
+    <div id="latestOperationsSection" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-5 border-b border-[#1c2840] flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <h4 class="font-extrabold text-white flex items-center gap-2 text-sm sm:text-base">
+                    <i class="fa-solid fa-bolt-lightning text-amber-400"></i>
+                    آخر التفعيلات والعمليات المباشرة (Live Operations Log)
+                </h4>
+                <p class="text-xs text-slate-400 mt-0.5 font-medium">سجل أحدث 5 عمليات تفعيل كروت، تجديد اشتراكات، شحن أرصدة، وإضافة مشتركين</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="{{ url_for('sales_reports') }}" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-chart-column"></i>تقارير المبيعات
+                </a>
+                <a href="{{ url_for('active_card_users') }}" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-id-card"></i>مشتركو الكروت
+                </a>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-[#070b14] text-slate-300 text-xs uppercase font-extrabold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-5">اسم المشترك / الكرت</th>
+                        <th class="py-3.5 px-5">نوع العملية</th>
+                        <th class="py-3.5 px-5">التاريخ والوقت</th>
+                        <th class="py-3.5 px-5">منفذ العملية</th>
+                    </tr>
+                </thead>
+                <tbody id="latest-ops-tbody" class="divide-y divide-[#1c2840]">
+                    {% for op in latest_operations %}
+                    <tr class="hover:bg-[#11192b] transition">
+                        <td class="py-3.5 px-5">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-300 text-xs flex-shrink-0 shadow-xs">
+                                    <i class="fa-solid fa-id-badge text-blue-400 text-sm"></i>
+                                </div>
+                                <div>
+                                    <span class="font-bold font-mono text-white text-sm block">{{ op.target_name }}</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold {{ op.user_type_badge }} mt-0.5">
+                                        {{ op.user_type_label }}
+                                    </span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-5">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold {{ op.badge_class }} border shadow-xs">
+                                <i class="{{ op.op_icon }}"></i>
+                                {{ op.op_label }}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-5 text-xs text-slate-300 font-mono">
+                            <div class="flex items-center gap-1.5">
+                                <i class="fa-regular fa-clock text-amber-400/80"></i>
+                                <span>{{ op.created_at_str }}</span>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-5">
+                            <div class="flex items-center gap-2 text-xs text-slate-300 font-medium">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                <span class="font-bold text-white">{{ op.operator }}</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr id="empty-ops-row">
+                        <td colspan="4" class="py-10 text-center text-slate-400">
+                            <div class="w-10 h-10 rounded-xl bg-slate-800/50 flex items-center justify-center text-slate-400 text-lg mx-auto mb-2 border border-slate-700/50">
+                                <i class="fa-solid fa-circle-info"></i>
+                            </div>
+                            <span class="font-bold text-sm">لا توجد عمليات مسجلة حديثاً في النظام.</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // ----------------- 1. Live Digital Clock -----------------
+    function updateLiveClock() {
+        const now = new Date();
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        
+        const timeEl = document.getElementById('live-clock-time');
+        if (timeEl) {
+            timeEl.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const dateEl = document.getElementById('live-clock-date');
+        if (dateEl) {
+            dateEl.textContent = `${year}-${month}-${day}`;
+        }
+    }
+    setInterval(updateLiveClock, 1000);
+    updateLiveClock();
+
+    // ----------------- 2. Update Ping UI -----------------
+    function updatePingUI(ping) {
+        const pingMs = document.getElementById('ping-ms-val');
+        const pingText = document.getElementById('ping-status-text');
+        const pingQuality = document.getElementById('ping-quality-label');
+        const pingIcon = document.getElementById('ping-status-icon');
+        const pingIconI = document.getElementById('ping-icon-i');
+        const pingDot = document.getElementById('ping-pulse-dot');
+
+        if (ping.is_connected) {
+            if (pingMs) {
+                pingMs.textContent = ping.ping_ms;
+                pingMs.className = 'text-2xl sm:text-3xl font-black font-mono text-emerald-400';
+            }
+            if (pingText) {
+                pingText.textContent = ping.status_text || 'متصل بالإنترنت';
+                pingText.className = 'text-emerald-400';
+            }
+            if (pingQuality) {
+                pingQuality.textContent = ping.quality || 'ممتاز';
+                pingQuality.className = 'text-emerald-400 font-bold';
+            }
+            if (pingIcon) {
+                pingIcon.className = 'w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-2xl shadow-md flex-shrink-0 transition-all duration-300';
+            }
+            if (pingIconI) {
+                pingIconI.className = 'fa-solid fa-globe';
+            }
+            if (pingDot) {
+                pingDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse';
+            }
+        } else {
+            if (pingMs) {
+                pingMs.textContent = '0';
+                pingMs.className = 'text-2xl sm:text-3xl font-black font-mono text-rose-400';
+            }
+            if (pingText) {
+                pingText.textContent = ping.status_text || 'غير متصل بالإنترنت';
+                pingText.className = 'text-rose-400';
+            }
+            if (pingQuality) {
+                pingQuality.textContent = 'منقطع';
+                pingQuality.className = 'text-rose-400 font-bold';
+            }
+            if (pingIcon) {
+                pingIcon.className = 'w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center text-2xl shadow-md flex-shrink-0 transition-all duration-300';
+            }
+            if (pingIconI) {
+                pingIconI.className = 'fa-solid fa-triangle-exclamation';
+            }
+            if (pingDot) {
+                pingDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+            }
+        }
+    }
+
+    // ----------------- 3. Charts Initializations -----------------
+    const trafficCanvas = document.getElementById('trafficChart');
+    if (trafficCanvas) {
+        const trafficCtx = trafficCanvas.getContext('2d');
+        const isDark = !document.documentElement.classList.contains('theme-light');
+        const chartTextColor = isDark ? '#94a3b8' : '#64748b';
+        const chartGridColor = isDark ? '#1c2840' : '#e2e8f0';
+
+        const gradientDown = trafficCtx.createLinearGradient(0, 0, 0, 240);
+        gradientDown.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+        gradientDown.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+
+        const gradientUp = trafficCtx.createLinearGradient(0, 0, 0, 240);
+        gradientUp.addColorStop(0, 'rgba(56, 189, 248, 0.25)');
+        gradientUp.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
+
+        new Chart(trafficCtx, {
+            type: 'line',
+            data: {
+                labels: {{ traffic_chart.labels | tojson }},
+                datasets: [
+                    {
+                        label: 'تحميل (Download)',
+                        data: {{ traffic_chart.download | tojson }},
+                        borderColor: '#10b981',
+                        borderWidth: 2.5,
+                        backgroundColor: gradientDown,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#10b981'
+                    },
+                    {
+                        label: 'رفع (Upload)',
+                        data: {{ traffic_chart.upload | tojson }},
+                        borderColor: '#38bdf8',
+                        borderWidth: 2.5,
+                        backgroundColor: gradientUp,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: '#38bdf8'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { 
+                        position: 'top',
+                        align: 'end',
+                        labels: { 
+                            color: chartTextColor, 
+                            font: { family: "'Tajawal', sans-serif", size: 11, weight: 'bold' },
+                            usePointStyle: true,
+                            boxWidth: 8
+                        } 
+                    } 
+                },
+                scales: {
+                    x: { grid: { color: chartGridColor }, ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10, weight: 'bold' } } },
+                    y: { grid: { color: chartGridColor }, ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10 } }, beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    const salesCanvas = document.getElementById('salesChart');
+    if (salesCanvas) {
+        const salesCtx = salesCanvas.getContext('2d');
+        const isDark = !document.documentElement.classList.contains('theme-light');
+        const chartTextColor = isDark ? '#94a3b8' : '#64748b';
+        const chartGridColor = isDark ? '#1c2840' : '#e2e8f0';
+
+        new Chart(salesCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ sales_chart.labels | tojson }},
+                datasets: [{
+                    label: 'المبيعات الشهرية',
+                    data: {{ sales_chart.sales | tojson }},
+                    backgroundColor: '#3b82f6',
+                    hoverBackgroundColor: '#2563eb',
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { 
+                        position: 'top',
+                        align: 'end',
+                        labels: { 
+                            color: chartTextColor, 
+                            font: { family: "'Tajawal', sans-serif", size: 11, weight: 'bold' },
+                            usePointStyle: true,
+                            boxWidth: 8
+                        } 
+                    } 
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10, weight: 'bold' } } },
+                    y: { grid: { color: chartGridColor }, ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10 } }, beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    // ----------------- 4. Real-Time Live Metrics Polling (Every 3.5s) -----------------
+    let isPolling = false;
+    async function updateDashboardLiveStats() {
+        if (isPolling) return;
+        isPolling = true;
+        try {
+            const resp = await fetch('/api/dashboard/live-metrics');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (!data.success || !data.metrics) return;
+
+            const m = data.metrics;
+            const vs = m.voucher_summary || {};
+            const res = m.resources || {};
+
+            // 1. Voucher Cards Real-Time Numbers
+            const elVTotalSubs = document.getElementById('stat-vouchers-total-subs');
+            if (elVTotalSubs && (vs.total_card_subscribers !== undefined || vs.activated !== undefined)) {
+                elVTotalSubs.textContent = vs.total_card_subscribers !== undefined ? vs.total_card_subscribers : vs.activated;
+            }
+            const elVActiveSubs = document.getElementById('stat-vouchers-active-subs');
+            if (elVActiveSubs && vs.active_subscribers !== undefined) {
+                elVActiveSubs.textContent = vs.active_subscribers;
+            }
+            const elVOnlineSubs = document.getElementById('stat-vouchers-online-subs');
+            if (elVOnlineSubs && (vs.online_subscribers !== undefined || vs.online !== undefined)) {
+                elVOnlineSubs.textContent = vs.online_subscribers !== undefined ? vs.online_subscribers : vs.online;
+            }
+            const elVExpiredSubs = document.getElementById('stat-vouchers-expired-subs');
+            if (elVExpiredSubs && (vs.expired_subscribers !== undefined || vs.expired !== undefined)) {
+                elVExpiredSubs.textContent = vs.expired_subscribers !== undefined ? vs.expired_subscribers : vs.expired;
+            }
+
+            // 2. Network & Subscribers
+            const elSubsTotal = document.getElementById('stat-total-subs');
+            if (elSubsTotal && m.total_subscribers !== undefined) elSubsTotal.textContent = m.total_subscribers;
+            const elSubsOnl = document.getElementById('stat-online-subs');
+            if (elSubsOnl && m.online_subscribers !== undefined) elSubsOnl.textContent = m.online_subscribers;
+            const elActSess = document.getElementById('stat-active-sessions');
+            if (elActSess && m.active_sessions !== undefined) elActSess.textContent = m.active_sessions;
+            const elSessBreak = document.getElementById('stat-sessions-sub-breakdown');
+            if (elSessBreak) elSessBreak.textContent = `${m.online_subscribers || 0} منزلي + ${vs.online || 0} كرت`;
+
+            const elTfTot = document.getElementById('stat-traffic-total');
+            if (elTfTot && m.traffic_total_str) elTfTot.textContent = m.traffic_total_str;
+            const elTfOut = document.getElementById('stat-traffic-out');
+            if (elTfOut && m.traffic_out_str) elTfOut.textContent = m.traffic_out_str;
+            const elTfIn = document.getElementById('stat-traffic-in');
+            if (elTfIn && m.traffic_in_str) elTfIn.textContent = m.traffic_in_str;
+            const elNas = document.getElementById('stat-total-nas');
+            if (elNas && m.total_nas !== undefined) elNas.textContent = m.total_nas;
+
+            // 3. System Uptime
+            if (data.system_uptime) {
+                const elUptime = document.getElementById('stat-system-uptime');
+                if (elUptime) elUptime.textContent = data.system_uptime;
+            }
+
+            // 4. Internet Ping
+            if (data.internet_status) {
+                updatePingUI(data.internet_status);
+            }
+
+            // 5. Server Hardware Resources
+            if (res.cpu_percent !== undefined) {
+                const elCpu = document.getElementById('stat-cpu-percent');
+                if (elCpu) elCpu.textContent = res.cpu_percent.toFixed(1) + '%';
+                const barCpu = document.getElementById('stat-cpu-bar');
+                if (barCpu) {
+                    barCpu.style.width = Math.min(100, Math.max(0, res.cpu_percent)) + '%';
+                    barCpu.className = (res.cpu_percent > 85 ? 'bg-rose-500' : (res.cpu_percent > 60 ? 'bg-amber-500' : 'bg-gradient-to-r from-blue-500 to-sky-400')) + ' h-full rounded-full transition-all duration-500';
+                }
+            }
+
+            if (res.ram_percent !== undefined) {
+                const elRamTxt = document.getElementById('stat-ram-text');
+                if (elRamTxt) elRamTxt.innerHTML = `<i class="fa-solid fa-memory text-emerald-400"></i> الذاكرة RAM (${res.ram_used_gb} GB / ${res.ram_total_gb} GB)`;
+                const elRam = document.getElementById('stat-ram-percent');
+                if (elRam) elRam.textContent = res.ram_percent.toFixed(1) + '%';
+                const barRam = document.getElementById('stat-ram-bar');
+                if (barRam) {
+                    barRam.style.width = Math.min(100, Math.max(0, res.ram_percent)) + '%';
+                    barRam.className = (res.ram_percent > 85 ? 'bg-rose-500' : (res.ram_percent > 65 ? 'bg-amber-500' : 'bg-gradient-to-r from-emerald-500 to-teal-400')) + ' h-full rounded-full transition-all duration-500';
+                }
+            }
+
+            if (res.disk_percent !== undefined) {
+                const elDiskTxt = document.getElementById('stat-disk-text');
+                if (elDiskTxt) elDiskTxt.innerHTML = `<i class="fa-solid fa-hard-drive text-purple-400"></i> التخزين (Disk: ${res.disk_used_gb}G / ${res.disk_total_gb}G)`;
+                const elDisk = document.getElementById('stat-disk-percent');
+                if (elDisk) elDisk.textContent = res.disk_percent.toFixed(1) + '%';
+                const barDisk = document.getElementById('stat-disk-bar');
+                if (barDisk) barDisk.style.width = Math.min(100, Math.max(0, res.disk_percent)) + '%';
+            }
+
+            // Containers breakdown
+            if (res.containers && Object.keys(res.containers).length > 0) {
+                const grid = document.getElementById('stat-containers-grid');
+                if (grid) grid.classList.remove('hidden');
+                for (const [ckey, cinfo] of Object.entries(res.containers)) {
+                    const cRow = document.querySelector(`[data-container="${ckey}"]`);
+                    if (cRow) {
+                        const cpuStrong = cRow.querySelector('.c-cpu-val');
+                        if (cpuStrong) cpuStrong.textContent = cinfo.cpu_percent + '%';
+                        const memStrong = cRow.querySelector('.c-mem-val');
+                        if (memStrong) memStrong.textContent = cinfo.mem_used_mb + 'M';
+                    }
+                }
+            }
+
+            // 6. Latest Operations Table (Smooth Live Refresh)
+            if (data.latest_operations && Array.isArray(data.latest_operations)) {
+                const tbody = document.getElementById('latest-ops-tbody');
+                if (tbody) {
+                    if (data.latest_operations.length === 0) {
+                        tbody.innerHTML = `
+                            <tr id="empty-ops-row">
+                                <td colspan="4" class="py-10 text-center text-slate-400">
+                                    <div class="w-10 h-10 rounded-xl bg-slate-800/50 flex items-center justify-center text-slate-400 text-lg mx-auto mb-2 border border-slate-700/50">
+                                        <i class="fa-solid fa-circle-info"></i>
+                                    </div>
+                                    <span class="font-bold text-sm">لا توجد عمليات مسجلة حديثاً في النظام.</span>
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        let html = '';
+                        for (const op of data.latest_operations) {
+                            html += `
+                            <tr class="hover:bg-[#11192b] transition">
+                                <td class="py-3.5 px-5">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-8 h-8 rounded-lg bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-slate-300 text-xs flex-shrink-0 shadow-xs">
+                                            <i class="fa-solid fa-id-badge text-blue-400 text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <span class="font-bold font-mono text-white text-sm block">${escapeHtml(op.target_name)}</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${escapeHtml(op.user_type_badge)} mt-0.5">
+                                                ${escapeHtml(op.user_type_label)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-3.5 px-5">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${escapeHtml(op.badge_class)} border shadow-xs">
+                                        <i class="${escapeHtml(op.op_icon)}"></i>
+                                        ${escapeHtml(op.op_label)}
+                                    </span>
+                                </td>
+                                <td class="py-3.5 px-5 text-xs text-slate-300 font-mono">
+                                    <div class="flex items-center gap-1.5">
+                                        <i class="fa-regular fa-clock text-amber-400/80"></i>
+                                        <span>${escapeHtml(op.created_at_str)}</span>
+                                    </div>
+                                </td>
+                                <td class="py-3.5 px-5">
+                                    <div class="flex items-center gap-2 text-xs text-slate-300 font-medium">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                                        <span class="font-bold text-white">${escapeHtml(op.operator)}</span>
+                                    </div>
+                                </td>
+                            </tr>
+                            `;
+                        }
+                        tbody.innerHTML = html;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Live stats refresh error:', e);
+        } finally {
+            isPolling = false;
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return String(text)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    // Start Real-Time Live Polling Every 3.5s
+    setInterval(updateDashboardLiveStats, 3500);
+
+</script>
+{% endblock %}
+

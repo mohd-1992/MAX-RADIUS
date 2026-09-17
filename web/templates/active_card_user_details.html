@@ -1,0 +1,859 @@
+{% extends "base.html" %}
+
+{% block title %}الملف الشخصي لكرت المشترك: {{ card.username }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-xs text-slate-400">
+        <a href="{{ url_for('active_card_users') }}" class="hover:text-blue-400 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span>العودة إلى مشتركين الكروت المفعلة</span>
+        </a>
+        <span>/</span>
+        <span class="text-slate-200 font-semibold">{{ card.username }}</span>
+    </div>
+
+    <!-- Header & Action Profile Card -->
+    <div class="bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-600/30 to-orange-600/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner">
+                    <i class="fa-solid fa-id-card"></i>
+                </div>
+                {% if card.is_online %}
+                <span class="absolute -top-1 -left-1 flex h-4 w-4">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#0b0f19]"></span>
+                </span>
+                {% endif %}
+            </div>
+            <div>
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <h2 class="text-xl font-black text-white font-mono tracking-wide select-all">{{ card.username }}</h2>
+                    <span class="text-xs font-mono text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-lg border border-amber-500/20">كرت / قسيمة</span>
+                    
+                    {% if card.status == 'active' %}
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                            <i class="fa-solid fa-circle-check text-[10px]"></i>مفعل (Active)
+                        </span>
+                    {% elif card.status == 'expired' or is_expired %}
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1">
+                            <i class="fa-solid fa-circle-exclamation text-[10px]"></i>منتهي
+                        </span>
+                    {% else %}
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-700 text-slate-300 border border-slate-600 flex items-center gap-1">
+                            <i class="fa-solid fa-clock text-[10px]"></i>{{ card.status }}
+                        </span>
+                    {% endif %}
+
+                    {% if card.is_online %}
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>متصل الآن (Online)
+                    </span>
+                    {% else %}
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                        غير متصل (Offline)
+                    </span>
+                    {% endif %}
+                </div>
+                <div class="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-2">
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-cube text-blue-400"></i>
+                        الباقة: <strong class="text-white font-semibold">{{ card.package_name }}</strong>
+                    </span>
+                    <span>•</span>
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-barcode text-slate-400"></i>
+                        الرقم التسلسلي: <strong class="text-slate-300 font-mono">{{ card.serial_number or '-' }}</strong>
+                    </span>
+                    <span>•</span>
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-wifi text-emerald-400"></i>
+                        الخدمة: <strong class="uppercase font-mono text-slate-200">Hotspot</strong>
+                    </span>
+                    {% if card.ip_address and card.ip_address != '-' %}
+                    <span>•</span>
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-laptop-code text-cyan-400"></i>
+                        IP: <strong class="font-mono text-cyan-300">{{ card.ip_address }}</strong>
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 self-end md:self-center">
+            {% if card.is_online %}
+            <button onclick="disconnectVoucher('{{ card.username }}')" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-power-off"></i>فصل الجلسة (CoA)
+            </button>
+            {% endif %}
+            <a href="{{ url_for('active_card_users') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
+                رجوع
+            </a>
+            <button onclick="document.getElementById('editCardForm').submit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات
+            </button>
+        </div>
+    </div>
+
+    <!-- Responsive Tabs Bar -->
+    <div class="bg-[#0b0f19] p-1.5 rounded-2xl border border-[#1c2840] shadow-lg">
+        <div class="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth">
+            <button onclick="switchTab('overview')" id="tab-btn-overview" class="profile-tab-btn active flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap">
+                <i class="fa-solid fa-id-card-clip text-sm"></i>
+                <span>البيانات العامة</span>
+            </button>
+            <button onclick="switchTab('edit')" id="tab-btn-edit" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <i class="fa-solid fa-user-pen text-sm"></i>
+                <span>تعديل البيانات</span>
+            </button>
+            <button onclick="switchTab('sessions')" id="tab-btn-sessions" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <i class="fa-solid fa-clock-rotate-left text-sm"></i>
+                <span>سجل الجلسات</span>
+                <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ sessions|length }}</span>
+            </button>
+            <button onclick="switchTab('invoices')" id="tab-btn-invoices" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <i class="fa-solid fa-file-invoice-dollar text-sm"></i>
+                <span>سجل المبيعات / الفواتير</span>
+                <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ invoices|length }}</span>
+            </button>
+            <button onclick="switchTab('audit')" id="tab-btn-audit" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <i class="fa-solid fa-shield-halved text-sm"></i>
+                <span>سجل التعديلات</span>
+                <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ audit_logs|length }}</span>
+            </button>
+            <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
+                <i class="fa-solid fa-chart-line text-sm"></i>
+                <span>الرسم البياني</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- TAB 1: OVERVIEW (البيانات العامة) -->
+    <div id="tab-pane-overview" class="tab-pane space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <!-- Card 1: البيانات الأساسية -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 hover:border-amber-500/40 transition shadow-lg">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-address-card text-amber-400"></i>البيانات الأساسية للكرت
+                    </h4>
+                    <span class="text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded font-mono border border-amber-500/20">ID: #{{ card.id }}</span>
+                </div>
+                <div class="space-y-2.5 text-xs">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">اسم المستخدم / الرمز (PIN):</span>
+                        <span class="font-mono text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20 select-all">{{ card.username }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">كلمة المرور في RADIUS:</span>
+                        <div class="flex items-center gap-1.5">
+                            <span id="pwdDisplay" class="font-mono text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">••••••••</span>
+                            <button onclick="togglePasswordVisibility('{{ card.password }}')" class="text-slate-400 hover:text-white p-1" title="إظهار / إخفاء">
+                                <i id="pwdEyeIcon" class="fa-solid fa-eye text-xs"></i>
+                            </button>
+                            <button onclick="copyToClipboard('{{ card.password }}')" class="text-slate-400 hover:text-blue-400 p-1" title="نسخ">
+                                <i class="fa-solid fa-copy text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">الرقم التسلسلي (Serial):</span>
+                        <strong class="text-slate-200 font-mono">{{ card.serial_number or '-' }}</strong>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">الحزمة / الدفعة:</span>
+                        <strong class="text-slate-300">{{ card.batch_name or card.batch_number or 'دفعة منفصلة' }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: حالة الباقة والاستهلاك -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 hover:border-emerald-500/40 transition shadow-lg">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-gauge-simple-high text-emerald-400"></i>حالة الباقة والاستهلاك
+                    </h4>
+                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/20">{{ card.price }} {{ settings.get('currency_symbol', 'ر.س') }}</span>
+                </div>
+                <div class="space-y-3 text-xs">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">الباقة الحالية (Profile):</span>
+                        <strong class="text-emerald-400 font-bold">{{ card.package_name }}</strong>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">إجمالي التحميل (Download):</span>
+                        <span class="font-mono text-cyan-400 font-bold">{{ total_download }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">إجمالي الرفع (Upload):</span>
+                        <span class="font-mono text-indigo-400 font-bold">{{ total_upload }}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">المتبقي من الحصة (Remaining):</span>
+                        <strong class="text-amber-400 font-bold font-mono">{{ remaining_str }}</strong>
+                    </div>
+                    <!-- Usage Progress Bar -->
+                    <div class="space-y-1.5 pt-1">
+                        <div class="flex items-center justify-between text-[11px]">
+                            <span class="text-slate-400 font-medium">نسبة استهلاك الحصة:</span>
+                            <span class="font-bold {% if usage_percent > 85 %}text-rose-400{% else %}text-emerald-400{% endif %}">{{ usage_percent }}%</span>
+                        </div>
+                        <div class="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                            <div class="h-full rounded-full transition-all duration-500 {% if usage_percent > 85 %}bg-rose-500{% elif usage_percent > 60 %}bg-amber-500{% else %}bg-emerald-500{% endif %}" style="width: {{ usage_percent }}%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: التواريخ والصلاحية -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 hover:border-orange-500/40 transition shadow-lg">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-calendar-days text-orange-400"></i>التواريخ والصلاحية
+                    </h4>
+                    <span class="text-[10px] {% if is_expired %}bg-rose-500/10 text-rose-400 border-rose-500/20{% else %}bg-emerald-500/10 text-emerald-400 border-emerald-500/20{% endif %} px-2 py-0.5 rounded font-bold border">
+                        {{ remaining_days_text }}
+                    </span>
+                </div>
+                <div class="space-y-3 text-xs">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">تاريخ التوليد / الإنشاء:</span>
+                        <strong class="text-slate-300 font-mono">{{ card.created_at or '-' }}</strong>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">تاريخ أول تفعيل / دخول:</span>
+                        <strong class="text-slate-300 font-mono">{{ card.first_used_at or card.first_login or card.activated_at or '-' }}</strong>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 font-medium">تاريخ الانتهاء الفعلي (Expiry):</span>
+                        <strong class="{% if is_expired %}text-rose-400 font-black{% else %}text-white font-bold{% endif %} font-mono">
+                            {{ card.expires_at or 'غير محدد' }}
+                        </strong>
+                    </div>
+                    <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 text-[11px] text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-hourglass-half text-amber-400 text-sm"></i>
+                        <span>حالة الصلاحية: <strong class="{% if is_expired %}text-rose-400{% else %}text-emerald-400{% endif %} font-bold">{{ remaining_days_text }}</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 4: الشبكة والاتصال -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 hover:border-cyan-500/40 transition shadow-lg">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-network-wired text-cyan-400"></i>الشبكة والاتصال
+                    </h4>
+                    <span class="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded font-mono border border-cyan-500/20">HOTSPOT</span>
+                </div>
+                <div class="space-y-2.5 text-xs">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400">حالة الاتصال:</span>
+                        {% if card.is_online %}
+                        <span class="text-emerald-400 font-bold flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>أونلاين (متصل)
+                        </span>
+                        {% else %}
+                        <span class="text-slate-400 font-semibold">غير متصل</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400">آخر ظهور (Last Seen):</span>
+                        <strong class="text-slate-300 font-mono">{{ card.last_seen }}</strong>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400">آخر عنوان IP مسجل:</span>
+                        <strong class="text-cyan-300 font-mono">{{ card.ip_address or '-' }}</strong>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400">سيرفر الـ NAS / الراوتر:</span>
+                        <strong class="text-slate-300">{{ card.nas_name or '-' }}</strong>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400">الماك المقيد (Bound MAC):</span>
+                        <strong class="text-slate-300 font-mono">{{ card.bound_mac or 'غير مقيد' }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 5: الإدارة والتوزيع -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 hover:border-purple-500/40 transition shadow-lg md:col-span-2 lg:col-span-2">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h4 class="font-bold text-sm text-white flex items-center gap-2">
+                        <i class="fa-solid fa-store text-purple-400"></i>الإدارة والموزع
+                    </h4>
+                    <span class="text-[10px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded font-mono border border-purple-500/20">Voucher Distribution</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div class="space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">حالة الكرت:</span>
+                            {% if card.status == 'active' %}
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">مفعل (Active)</span>
+                            {% elif card.status == 'expired' %}
+                            <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30">منتهي (Expired)</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-bold border border-slate-600">{{ card.status }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">نقطة البيع / الموزع:</span>
+                            <strong class="text-white">{{ card.reseller_name or 'المخزون الرئيسي للشبكة' }}</strong>
+                        </div>
+                    </div>
+                    <div class="space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">سعر البيع:</span>
+                            <strong class="text-emerald-400 font-bold font-mono">{{ card.price }} {{ settings.get('currency_symbol', 'ر.س') }}</strong>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-slate-400">السرعة القصوى:</span>
+                            <strong class="text-slate-300 font-mono">{{ card.rate_download }} / {{ card.rate_upload }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: EDIT PROFILE (تعديل البيانات) -->
+    <div id="tab-pane-edit" class="tab-pane hidden space-y-6">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-xl space-y-5">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-4">
+                <div>
+                    <h3 class="font-bold text-white text-base flex items-center gap-2">
+                        <i class="fa-solid fa-user-pen text-blue-400"></i>تعديل بيانات الكرت وقيود الاتصال
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">قم بتعديل بيانات المستخدم، الباقة، أو تقييد الماك وسيقوم النظام بتحديث FreeRADIUS وتسجيل الحركة في سجل الرقابة.</p>
+                </div>
+            </div>
+
+            <form id="editCardForm" method="POST" action="{{ url_for('edit_active_card_action', card_id=card.id) }}" class="space-y-4 text-xs">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">اسم المستخدم (Username / PIN)</label>
+                        <input type="text" name="username" value="{{ card.username }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">كلمة المرور في RADIUS (Password)</label>
+                        <input type="text" name="password" value="{{ card.password }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-amber-300 font-mono focus:border-blue-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">الباقة المخصصة والسرعة</label>
+                        <select name="package_id" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
+                            {% for p in packages %}
+                            <option value="{{ p.id }}" {% if card.package_id == p.id %}selected{% endif %}>
+                                {{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }}) - {{ p.rate_download }}/{{ p.rate_upload }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">تاريخ الانتهاء الفعلي (Expires At)</label>
+                        <input type="datetime-local" name="expires_at" value="{{ (card.expires_at|string)[:16].replace(' ', 'T') if card.expires_at else '' }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">حالة الكرت</label>
+                        <select name="status" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
+                            <option value="active" {% if card.status == 'active' %}selected{% endif %}>مفعل (Active)</option>
+                            <option value="expired" {% if card.status == 'expired' %}selected{% endif %}>منتهي (Expired)</option>
+                            <option value="disabled" {% if card.status == 'disabled' %}selected{% endif %}>موقوف (Disabled)</option>
+                            <option value="unused" {% if card.status == 'unused' %}selected{% endif %}>غير مستخدم (Unused)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">تقييد عنوان الماك (Bound MAC)</label>
+                    <input type="text" name="bound_mac" value="{{ card.bound_mac or '' }}" placeholder="AA:BB:CC:DD:EE:FF" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                    <span class="text-[11px] text-slate-500 mt-1 block">اتركه فارغاً للسماح للمستخدم بالدخول من أي جهاز بدون تقييد</span>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-[#1c2840]">
+                    <button type="reset" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">إعادة تعيين</button>
+                    <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 flex items-center gap-2">
+                        <i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات ومزامنة RADIUS
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TAB 3: SESSIONS LOG (سجل الجلسات) -->
+    <div id="tab-pane-sessions" class="tab-pane hidden space-y-6">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>سجل جلسات الاتصال التاريخية للكرت (FreeRADIUS Accounting)
+                </h3>
+                <span class="text-xs text-slate-400">إجمالي الجلسات: <strong class="text-white font-mono">{{ sessions|length }}</strong></span>
+            </div>
+
+            {% if sessions %}
+            <div class="table-responsive rounded-xl border border-[#1c2840]">
+                <table class="w-full text-right text-xs text-slate-300">
+                    <thead class="bg-[#070b14] text-slate-400 font-bold border-b border-[#1c2840]">
+                        <tr>
+                            <th class="p-3">وقت البدء</th>
+                            <th class="p-3">وقت النهاية</th>
+                            <th class="p-3">مدة الاتصال</th>
+                            <th class="p-3">التحميل (Down)</th>
+                            <th class="p-3">الرفع (Up)</th>
+                            <th class="p-3">إجمالي البيانات</th>
+                            <th class="p-3">عنوان IP والماك</th>
+                            <th class="p-3">سيرفر الـ NAS</th>
+                            <th class="p-3">سبب الإغلاق</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[#1c2840]">
+                        {% for s in sessions %}
+                        <tr class="hover:bg-[#11192b] transition">
+                            <td class="p-3 font-mono text-slate-300">{{ s.acctstarttime }}</td>
+                            <td class="p-3 font-mono">
+                                {% if s.is_active %}
+                                <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block ml-1 animate-pulse"></span>متصل الآن
+                                </span>
+                                {% else %}
+                                <span class="text-slate-400">{{ s.acctstoptime or '-' }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-3 font-mono text-amber-300 font-semibold">{{ s.duration_str }}</td>
+                            <td class="p-3 font-mono text-cyan-400 font-bold">{{ s.download_str }}</td>
+                            <td class="p-3 font-mono text-indigo-400 font-bold">{{ s.upload_str }}</td>
+                            <td class="p-3 font-mono text-white font-bold">{{ s.total_str }}</td>
+                            <td class="p-3">
+                                <div class="font-mono text-blue-300">{{ s.framedipaddress or '-' }}</div>
+                                <div class="text-[10px] font-mono text-slate-500">{{ s.callingstationid or '-' }}</div>
+                            </td>
+                            <td class="p-3 font-mono text-slate-400">{{ s.nasipaddress or '-' }}</td>
+                            <td class="p-3">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                                    {{ s.acctterminatecause or 'Active' }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-10 text-slate-400 space-y-2">
+                <i class="fa-solid fa-folder-open text-3xl text-slate-600"></i>
+                <p class="text-sm">لا توجد جلسات اتصال مسجلة لهذا الكرت حتى الآن.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- TAB 4: INVOICES & SALES LOG (سجل المبيعات / الفواتير) -->
+    <div id="tab-pane-invoices" class="tab-pane hidden space-y-6">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice-dollar text-emerald-400"></i>سجل مبيعات وحركات الكرت
+                </h3>
+                <span class="text-xs text-slate-400">إجمالي الحركات: <strong class="text-white font-mono">{{ invoices|length }}</strong></span>
+            </div>
+
+            {% if invoices %}
+            <div class="table-responsive rounded-xl border border-[#1c2840]">
+                <table class="w-full text-right text-xs text-slate-300">
+                    <thead class="bg-[#070b14] text-slate-400 font-bold border-b border-[#1c2840]">
+                        <tr>
+                            <th class="p-3">رقم المرجع / الفاتورة</th>
+                            <th class="p-3">تاريخ البيع / التفعيل</th>
+                            <th class="p-3">الباقة</th>
+                            <th class="p-3">المبلغ</th>
+                            <th class="p-3">نوع الحركة</th>
+                            <th class="p-3">الحالة</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[#1c2840]">
+                        {% for inv in invoices %}
+                        <tr class="hover:bg-[#11192b] transition">
+                            <td class="p-3 font-mono font-bold text-blue-400">{{ inv.invoice_number or inv.id }}</td>
+                            <td class="p-3 font-mono text-slate-300">{{ inv.created_at or '-' }}</td>
+                            <td class="p-3 font-semibold text-white">{{ card.package_name }}</td>
+                            <td class="p-3 font-mono font-bold text-emerald-400">{{ inv.amount or card.price }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                            <td class="p-3">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                    {{ inv.operation_type or 'شراء كرت' }}
+                                </span>
+                            </td>
+                            <td class="p-3">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                    <i class="fa-solid fa-check ml-1"></i>مكتملة
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-10 text-slate-400 space-y-2">
+                <i class="fa-solid fa-receipt text-3xl text-slate-600"></i>
+                <p class="text-sm">لا توجد حركات مبيعات منفصلة مسجلة للكرت.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- TAB 5: AUDIT LOG (سجل التعديلات) -->
+    <div id="tab-pane-audit" class="tab-pane hidden space-y-6">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                <div>
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-purple-400"></i>سجل الرقابة وتعديلات الإدارة (Audit & Activity Log)
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">تتبع دقيق لكافة العمليات والتغييرات الإدارية التي تمت على هذا الكرت.</p>
+                </div>
+                <span class="text-xs text-slate-400">إجمالي السجلات: <strong class="text-white font-mono">{{ audit_logs|length }}</strong></span>
+            </div>
+
+            {% if audit_logs %}
+            <div class="table-responsive rounded-xl border border-[#1c2840]">
+                <table class="w-full text-right text-xs text-slate-300">
+                    <thead class="bg-[#070b14] text-slate-400 font-bold border-b border-[#1c2840]">
+                        <tr>
+                            <th class="p-3">تاريخ ووقت التعديل</th>
+                            <th class="p-3">اسم المدير (Admin)</th>
+                            <th class="p-3">نوع الإجراء</th>
+                            <th class="p-3">تفاصيل التعديل</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[#1c2840]">
+                        {% for log in audit_logs %}
+                        <tr class="hover:bg-[#11192b] transition">
+                            <td class="p-3 font-mono text-slate-300 whitespace-nowrap">{{ log.created_at }}</td>
+                            <td class="p-3 font-bold text-white whitespace-nowrap">
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fa-solid fa-user-gear text-purple-400"></i>
+                                    {{ log.admin_name }}
+                                </span>
+                            </td>
+                            <td class="p-3 whitespace-nowrap">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase font-mono">
+                                    {{ log.action }}
+                                </span>
+                            </td>
+                            <td class="p-3 text-slate-200">
+                                {{ log.change_details }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-10 text-slate-400 space-y-2">
+                <i class="fa-solid fa-clipboard-check text-3xl text-slate-600"></i>
+                <p class="text-sm">لا توجد تعديلات سابقة مسجلة في سجل الرقابة لهذا الكرت.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- TAB 6: USAGE ANALYTICS CHART (الرسم البياني) -->
+    <div id="tab-pane-analytics" class="tab-pane hidden space-y-6">
+        <!-- Quick Stats Cards in Chart Tab -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 shadow-lg flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] text-slate-400 block mb-1">إجمالي التحميل بالرسم</span>
+                    <h4 class="text-lg font-black text-cyan-400 font-mono">{{ analytics.total_down_str }}</h4>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-download"></i>
+                </div>
+            </div>
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 shadow-lg flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] text-slate-400 block mb-1">إجمالي الرفع بالرسم</span>
+                    <h4 class="text-lg font-black text-indigo-400 font-mono">{{ analytics.total_up_str }}</h4>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-upload"></i>
+                </div>
+            </div>
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 shadow-lg flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] text-slate-400 block mb-1">إجمالي مدة الاتصال</span>
+                    <h4 class="text-lg font-black text-amber-400 font-mono">{{ analytics.total_duration_str }}</h4>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-clock"></i>
+                </div>
+            </div>
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 shadow-lg flex items-center justify-between">
+                <div>
+                    <span class="text-[11px] text-slate-400 block mb-1">عدد الجلسات الإجمالي</span>
+                    <h4 class="text-lg font-black text-emerald-400 font-mono">{{ analytics.total_sessions }}</h4>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Container -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3 flex-wrap gap-2">
+                <div>
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-chart-area text-blue-400"></i>استهلاك البيانات وأوقات الاتصال اليومية للكرت
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">تجميع استهلاك الرفع والتحميل (MB) وساعات الاتصال اليومية من جدول radacct.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1 text-[11px] text-cyan-400 font-semibold bg-cyan-500/10 px-2 py-1 rounded-lg border border-cyan-500/20">
+                        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>تحميل (MB)
+                    </span>
+                    <span class="inline-flex items-center gap-1 text-[11px] text-indigo-400 font-semibold bg-indigo-500/10 px-2 py-1 rounded-lg border border-indigo-500/20">
+                        <span class="w-2 h-2 rounded-full bg-indigo-400"></span>رفع (MB)
+                    </span>
+                    <span class="inline-flex items-center gap-1 text-[11px] text-amber-400 font-semibold bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>ساعات الاتصال
+                    </span>
+                </div>
+            </div>
+
+            {% if analytics.has_data %}
+            <div class="relative h-[360px] w-full pt-2">
+                <canvas id="usageAnalyticsChart"></canvas>
+            </div>
+            {% else %}
+            <div class="text-center py-16 text-slate-400 space-y-2">
+                <i class="fa-solid fa-chart-line text-4xl text-slate-600"></i>
+                <p class="text-sm">لا توجد بيانات حركة مرور مسجلة بعد في FreeRADIUS accounting لرسمها بيانيا.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .profile-tab-btn.active {
+        background-color: #2563eb !important;
+        color: #ffffff !important;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Tab switching logic
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-pane').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.profile-tab-btn').forEach(btn => {
+            btn.classList.remove('active', 'bg-blue-600', 'text-white');
+            btn.classList.add('text-slate-400');
+        });
+
+        const targetPane = document.getElementById(`tab-pane-${tabId}`);
+        const targetBtn = document.getElementById(`tab-btn-${tabId}`);
+        if (targetPane && targetBtn) {
+            targetPane.classList.remove('hidden');
+            targetBtn.classList.add('active');
+            targetBtn.classList.remove('text-slate-400');
+            window.location.hash = tabId;
+        }
+
+        if (tabId === 'analytics') {
+            renderUsageChart();
+        }
+    }
+
+    // Initialize tab from URL hash on load
+    document.addEventListener('DOMContentLoaded', () => {
+        const hash = window.location.hash.replace('#', '');
+        if (hash && document.getElementById(`tab-pane-${hash}`)) {
+            switchTab(hash);
+        }
+    });
+
+    // Password show / hide
+    let pwdVisible = false;
+    function togglePasswordVisibility(realPwd) {
+        const display = document.getElementById('pwdDisplay');
+        const icon = document.getElementById('pwdEyeIcon');
+        pwdVisible = !pwdVisible;
+        if (pwdVisible) {
+            display.textContent = realPwd;
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            display.textContent = '••••••••';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    // Copy to clipboard
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: 'تم نسخ كلمة المرور بنجاح',
+                showConfirmButton: false,
+                timer: 1800,
+                background: '#0b0f19',
+                color: '#fff'
+            });
+        });
+    }
+
+    // CoA Disconnect voucher
+    function disconnectVoucher(username) {
+        Swal.fire({
+            title: 'تأكيد فصل الجلسة (CoA)',
+            text: `هل تريد إرسال طلب قطع الاتصال الفوري للكرت ${username}؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#334155',
+            confirmButtonText: 'نعم، افصل الجلسة',
+            cancelButtonText: 'إلغاء',
+            background: '#0b0f19',
+            color: '#fff'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch('/api/actions/disconnect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: new URLSearchParams({target_type: 'voucher', ids: '{{ card.id }}'})
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({title: 'تم الفصل', text: data.message, icon: 'success', background: '#0b0f19', color: '#fff'})
+                        .then(() => location.reload());
+                    } else {
+                        Swal.fire({title: 'خطأ', text: data.message, icon: 'error', background: '#0b0f19', color: '#fff'});
+                    }
+                });
+            }
+        });
+    }
+
+    // Chart.js rendering
+    let chartRendered = false;
+    const analyticsData = {{ analytics_json|safe }};
+
+    function renderUsageChart() {
+        if (chartRendered || !analyticsData.has_data) return;
+        const canvas = document.getElementById('usageAnalyticsChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        const isDark = !document.documentElement.classList.contains('theme-light');
+        const chartTextColor = isDark ? '#94a3b8' : '#64748b';
+        const chartGridColor = isDark ? '#1c2840' : '#e2e8f0';
+
+        const gradLine = ctx.createLinearGradient(0, 0, 0, 300);
+        gradLine.addColorStop(0, 'rgba(245, 158, 11, 0.25)');
+        gradLine.addColorStop(1, 'rgba(245, 158, 11, 0.0)');
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: analyticsData.labels,
+                datasets: [
+                    {
+                        label: 'تحميل (Download MB)',
+                        data: analyticsData.download_mb,
+                        backgroundColor: '#06b6d4',
+                        hoverBackgroundColor: '#0891b2',
+                        borderRadius: 6,
+                        maxBarThickness: 24,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'رفع (Upload MB)',
+                        data: analyticsData.upload_mb,
+                        backgroundColor: '#6366f1',
+                        hoverBackgroundColor: '#4f46e5',
+                        borderRadius: 6,
+                        maxBarThickness: 24,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'ساعات الاتصال (Hours)',
+                        data: analyticsData.duration_hours,
+                        type: 'line',
+                        borderColor: '#f59e0b',
+                        backgroundColor: gradLine,
+                        fill: true,
+                        borderWidth: 2.5,
+                        pointBackgroundColor: '#f59e0b',
+                        pointHoverRadius: 6,
+                        pointRadius: 4,
+                        tension: 0.4,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        align: 'end',
+                        labels: { 
+                            color: chartTextColor, 
+                            font: { family: "'Tajawal', sans-serif", size: 11, weight: 'bold' },
+                            usePointStyle: true,
+                            boxWidth: 8
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: isDark ? '#0b0f19' : '#ffffff',
+                        titleColor: isDark ? '#ffffff' : '#0f172a',
+                        bodyColor: isDark ? '#cbd5e1' : '#334155',
+                        borderColor: chartGridColor,
+                        borderWidth: 1,
+                        padding: 10,
+                        titleFont: { family: "'Tajawal', sans-serif", weight: 'bold' },
+                        bodyFont: { family: "'Tajawal', sans-serif" }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: chartGridColor },
+                        ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10, weight: 'bold' } }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: { color: chartGridColor },
+                        ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10 } },
+                        title: { display: true, text: 'البيانات (MB)', color: '#06b6d4', font: { family: "'Tajawal', sans-serif", size: 11, weight: 'bold' } }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        grid: { drawOnChartArea: false },
+                        ticks: { color: '#f59e0b', font: { family: "'Tajawal', sans-serif", size: 10 } },
+                        title: { display: true, text: 'ساعات الاتصال', color: '#f59e0b', font: { family: "'Tajawal', sans-serif", size: 11, weight: 'bold' } }
+                    }
+                }
+            }
+        });
+        chartRendered = true;
+    }
+</script>
+{% endblock %}

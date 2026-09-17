@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}نقاط البيع والموزعون (POS & Resellers){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840]">
+        <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-store text-emerald-400"></i>
+                نقاط البيع والموزعون (POS & Reseller Portals)
+            </h2>
+            <p class="text-xs text-slate-300">إدارة محافظ الموزعين مسبقة الدفع وشحن الرصيد وتتبع عمولات ومبيعات الكروت</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="openTopupModal()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/30 transition flex items-center gap-2">
+                <i class="fa-solid fa-wallet"></i>شحن رصيد موزع
+            </button>
+            <button onclick="openAddResellerModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2">
+                <i class="fa-solid fa-user-plus"></i>إضافة موزع جديد
+            </button>
+        </div>
+    </div>
+
+    <!-- Resellers Table -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-5 border-b border-[#1c2840]">
+            <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+                <i class="fa-solid fa-users-gear text-blue-400"></i>قائمة الموزعين المعتمدين
+            </h3>
+        </div>
+        <div class="overflow-x-auto table-responsive">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-[#070b14] text-slate-300 text-xs uppercase font-bold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-5">اسم الموزع / المحل</th>
+                        <th class="py-3.5 px-5 hidden sm:table-cell">الشخص المسؤول والتواصل</th>
+                        <th class="py-3.5 px-5">الرصيد المالي المتاح</th>
+                        <th class="py-3.5 px-5 hidden md:table-cell">نسبة العمولة</th>
+                        <th class="py-3.5 px-5 hidden lg:table-cell">الكروت المخصصة</th>
+                        <th class="py-3.5 px-5">الحالة</th>
+                        <th class="py-3.5 px-5 text-center">إجراء سريع</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% for r in resellers %}
+                    <tr class="hover:bg-[#11192b] transition">
+                        <td class="py-3.5 px-5 font-bold text-white">
+                            {{ r.name }}
+                        </td>
+                        <td class="py-3.5 px-5 text-xs text-slate-200 hidden sm:table-cell">
+                            <div class="font-medium text-white">{{ r.contact_person or '-' }}</div>
+                            <div class="text-sky-300 font-mono mt-0.5"><i class="fa-solid fa-phone text-[10px] ml-1"></i>{{ r.phone or '-' }}</div>
+                        </td>
+                        <td class="py-3.5 px-5">
+                            <span class="text-base font-black text-emerald-400 font-mono">{{ r.balance }}</span>
+                            <span class="text-xs text-slate-300">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                        </td>
+                        <td class="py-3.5 px-5 font-mono text-xs font-bold text-slate-200 hidden md:table-cell">
+                            {{ r.commission_percent }}%
+                        </td>
+                        <td class="py-3.5 px-5 text-xs hidden lg:table-cell">
+                            <span class="text-white font-bold">{{ r.total_cards }} كرت</span>
+                            <span class="text-slate-300 block text-[11px]">({{ r.unused_cards }} متاح)</span>
+                        </td>
+                        <td class="py-3.5 px-5">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {% if r.status == 'active' %}bg-emerald-500/20 text-emerald-300 border border-emerald-500/30{% else %}bg-slate-700 text-slate-300{% endif %}">
+                                {{ r.status }}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-5 text-center">
+                            <button onclick="quickTopup({{ r.id }}, '{{ r.name }}')" class="px-3 py-1 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition">
+                                <i class="fa-solid fa-plus ml-1"></i>شحن رصيد
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="py-8 text-center text-slate-400">لا يوجد موزعين مسجلين حالياً.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Financial Ledger (Transactions) -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-5 border-b border-[#1c2840]">
+            <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+                <i class="fa-solid fa-receipt text-purple-400"></i>سجل العمليات المالية وحركات الرصيد (Ledger)
+            </h3>
+        </div>
+        <div class="overflow-x-auto table-responsive">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-5">الموزع</th>
+                        <th class="py-3.5 px-5">نوع الحركة</th>
+                        <th class="py-3.5 px-5">المبلغ</th>
+                        <th class="py-3.5 px-5 hidden md:table-cell">الرصيد بعد الحركة</th>
+                        <th class="py-3.5 px-5 hidden sm:table-cell">البيان والملاحظات</th>
+                        <th class="py-3.5 px-5 hidden lg:table-cell">التاريخ والوقت</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% for t in transactions %}
+                    <tr class="hover:bg-[#11192b] transition">
+                        <td class="py-3 px-5 font-bold text-white">{{ t.reseller_name }}</td>
+                        <td class="py-3 px-5">
+                            {% if t.type == 'topup' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300">
+                                    <i class="fa-solid fa-arrow-down ml-1 text-[9px]"></i>إيداع رصيد
+                                </span>
+                            {% elif t.type == 'card_purchase' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-500/20 text-blue-300">
+                                    <i class="fa-solid fa-arrow-up ml-1 text-[9px]"></i>شراء كروت
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-700 text-slate-300">
+                                    {{ t.type }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-5 font-mono font-bold {% if t.type == 'topup' %}text-emerald-400{% else %}text-rose-400{% endif %}">
+                            {% if t.type == 'topup' %}+{% else %}-{% endif %}{{ t.amount }} {{ settings.get('currency_symbol', 'ر.س') }}
+                        </td>
+                        <td class="py-3 px-5 font-mono text-slate-300 hidden md:table-cell">{{ t.balance_after }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                        <td class="py-3 px-5 text-slate-400 hidden sm:table-cell">{{ t.description or '-' }}</td>
+                        <td class="py-3 px-5 text-slate-400 font-mono text-[11px] hidden lg:table-cell">{{ t.created_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="py-8 text-center text-slate-400">لا توجد حركات مالية مسجلة بعد.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Reseller Modal -->
+<div id="addResellerModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-lg p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                <i class="fa-solid fa-user-plus text-blue-400"></i>إضافة موزع / نقطة بيع جديدة
+            </h3>
+            <button onclick="closeModal('addResellerModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <form method="POST" action="{{ url_for('add_reseller_action') }}" class="space-y-3.5">
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">اسم الموزع / المحل</label>
+                <input type="text" name="name" required placeholder="مثال: مركز الأمل للاتصالات" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">الشخص المسؤول</label>
+                <input type="text" name="contact_person" placeholder="الاسم الكامل للمسؤول" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">رقم الهاتف</label>
+                    <input type="text" name="phone" placeholder="05xxxxxxxx" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">نسبة العمولة (%)</label>
+                    <input type="number" step="0.5" name="commission_percent" value="10.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">الرصيد الافتتاحي ({{ settings.get('currency_symbol', 'ر.س') }})</label>
+                <input type="number" step="0.01" name="initial_balance" value="0.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('addResellerModal')" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-semibold">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/30">حفظ الموزع</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Topup Modal -->
+<div id="topupModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                <i class="fa-solid fa-wallet text-emerald-400"></i>شحن رصيد محفظة موزع
+            </h3>
+            <button onclick="closeModal('topupModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <form method="POST" action="{{ url_for('topup_reseller_action') }}" class="space-y-3.5">
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">اختر الموزع</label>
+                <select id="topupResellerSelect" name="reseller_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-emerald-500">
+                    {% for r in resellers %}
+                    <option value="{{ r.id }}">{{ r.name }} (الرصيد الحالي: {{ r.balance }} {{ settings.get('currency_symbol', 'ر.س') }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">المبلغ المراد شحنه ({{ settings.get('currency_symbol', 'ر.س') }})</label>
+                <input type="number" step="0.01" name="amount" required placeholder="100.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">ملاحظات / رقم الإيصال</label>
+                <input type="text" name="description" placeholder="إيداع نقدي أو حوالة بنكية" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-emerald-500">
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('topupModal')" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-sm font-semibold">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/30">تأكيد الشحن</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openAddResellerModal() {
+        document.getElementById('addResellerModal').classList.remove('hidden');
+    }
+    function openTopupModal() {
+        document.getElementById('topupModal').classList.remove('hidden');
+    }
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+    function quickTopup(resellerId, resellerName) {
+        const sel = document.getElementById('topupResellerSelect');
+        if (sel) sel.value = resellerId;
+        openTopupModal();
+    }
+</script>
+{% endblock %}

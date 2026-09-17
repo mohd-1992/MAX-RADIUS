@@ -1,0 +1,389 @@
+{% extends "base.html" %}
+
+{% block title %}حالة ترخيص النظام والأمان الرقمي - MAX RADIUS{% endblock %}
+{% block page_title %}حالة ترخيص النظام والأمان الرقمي{% endblock %}
+
+{% block content %}
+<style>
+    /* High-contrast and theme compatibility rules for License & Lock screen */
+    html.theme-light .lic-card {
+        background-color: #ffffff !important;
+        border-color: #e2e8f0 !important;
+        color: #0f172a !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    }
+    html.theme-light .lic-subcard {
+        background-color: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .lic-title {
+        color: #0f172a !important;
+    }
+    html.theme-light .lic-muted {
+        color: #475569 !important;
+    }
+    html.theme-light .lic-hwid {
+        color: #1d4ed8 !important;
+    }
+    html.theme-light .lic-alert-box {
+        background-color: #fff1f2 !important;
+        border-color: #fecdd3 !important;
+    }
+    html.theme-light .lic-alert-title {
+        color: #be123c !important;
+    }
+    html.theme-light .lic-alert-desc {
+        color: #475569 !important;
+    }
+    html.theme-light .lic-btn-text {
+        color: #ffffff !important;
+    }
+</style>
+
+<div class="space-y-6 max-w-7xl mx-auto pb-10">
+
+    <!-- Top Header Banner & Actions -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] lic-card p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 border shadow-sm
+                {% if license.valid %}
+                    bg-emerald-500/10 text-emerald-400 border-emerald-500/20
+                {% elif license.status == 'revoked' %}
+                    bg-rose-500/10 text-rose-400 border-rose-500/20
+                {% elif license.status == 'expired' %}
+                    bg-amber-500/10 text-amber-400 border-amber-500/20
+                {% else %}
+                    bg-rose-500/10 text-rose-400 border-rose-500/20 animate-pulse
+                {% endif %}">
+                <i class="fa-solid {% if license.valid %}fa-shield-halved{% elif license.status == 'revoked' %}fa-ban{% elif license.status == 'expired' %}fa-hourglass-end{% else %}fa-lock{% endif %}"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white lic-title flex items-center gap-2">
+                    <span>حالة ترخيص النظام والأمان الرقمي</span>
+                    <span class="text-xs px-2.5 py-0.5 rounded-full font-bold
+                        {% if license.valid %}
+                            bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+                        {% elif license.status == 'revoked' %}
+                            bg-rose-500/10 text-rose-400 border border-rose-500/20
+                        {% elif license.status == 'expired' %}
+                            bg-amber-500/10 text-amber-400 border border-amber-500/20
+                        {% else %}
+                            bg-rose-500/10 text-rose-400 border border-rose-500/20
+                        {% endif %}">
+                        {{ license.status_text }}
+                    </span>
+                </h2>
+                <p class="text-xs text-slate-400 lic-muted mt-0.5">
+                    إدارة الترخيص الرقمي الموثق بخوارزمية Ed25519 ومزامنة الحصص والنبضات مع خادم التراخيص المركزي
+                </p>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <button onclick="syncHeartbeat()" id="btnSyncHeartbeat" class="px-3.5 py-2 bg-[#070b14] hover:bg-[#11192b] lic-subcard text-slate-200 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer">
+                <i class="fa-solid fa-arrows-rotate text-blue-400"></i>
+                <span class="lic-title">مزامنة النبضات مع الخادم</span>
+            </button>
+            <a href="https://wa.me/967777000000?text={{ ('طلب ترخيص جديد لنظام MAX RADIUS - بصمة السيرفر: ' ~ license.current_machine_id) | urlencode }}" target="_blank" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center gap-2">
+                <i class="fa-brands fa-whatsapp text-sm lic-btn-text"></i>
+                <span class="lic-btn-text">طلب ترخيص / واتساب</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert Banner when System is Locked / Expired / Unlicensed -->
+    {% if not license.valid %}
+    <div class="p-5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm lic-alert-box
+        {% if license.status == 'revoked' %}
+            bg-rose-500/10 border-rose-500/30
+        {% elif license.status == 'expired' %}
+            bg-amber-500/10 border-amber-500/30
+        {% else %}
+            bg-rose-500/10 border-rose-500/30
+        {% endif %}">
+        <div class="flex items-center gap-3.5">
+            <div class="w-11 h-11 rounded-xl flex items-center justify-center text-xl flex-shrink-0
+                {% if license.status == 'expired' %}
+                    bg-amber-500/20 text-amber-400 border border-amber-500/30
+                {% else %}
+                    bg-rose-500/20 text-rose-400 border border-rose-500/30
+                {% endif %}">
+                <i class="fa-solid {% if license.status == 'revoked' %}fa-ban{% elif license.status == 'expired' %}fa-hourglass-end{% else %}fa-triangle-exclamation{% endif %}"></i>
+            </div>
+            <div>
+                <h3 class="text-sm font-black lic-alert-title
+                    {% if license.status == 'expired' %}
+                        text-amber-400
+                    {% else %}
+                        text-rose-400
+                    {% endif %}">
+                    {% if license.status == 'revoked' %}
+                        تم تعليق وحظر هذا الترخيص من قِبل المطور أو الإدارة المركزية!
+                    {% elif license.status == 'locked_sync_failed' %}
+                        النظام مقفل: تعذر إتمام نبضة المزامنة الدورية (كل 5 دقائق) مع خادم التراخيص!
+                    {% elif license.status == 'expired' %}
+                        انتهت فترة صلاحية الترخيص الرقمي للنظام!
+                    {% else %}
+                        تنبيه: النظام مقفل بانتظار إدخال وتفعيل كود الترخيص الرقمي!
+                    {% endif %}
+                </h3>
+                <p class="text-xs text-slate-300 lic-alert-desc mt-0.5 font-medium">
+                    {% if license.message %}
+                        {{ license.message }}
+                    {% else %}
+                        لا يمكن استخدام ميزات النظام أو إدارة المشتركين وسيرفرات الـ NAS حتى يتم تفعيل ترخيص معتمد وموثق رقمياً ومزامنته مع الخادم.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        <a href="#activationBox" class="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-rose-600/30 transition flex items-center gap-1.5 flex-shrink-0 cursor-pointer">
+            <i class="fa-solid fa-key lic-btn-text"></i>
+            <span class="lic-btn-text">تفعيل الآن</span>
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left 2 Cols: License Information & Hardware ID -->
+        <div class="lg:col-span-2 space-y-6">
+
+            <!-- Hardware Fingerprint Card -->
+            <div class="bg-[#0b0f19] lic-card p-5 rounded-2xl border border-[#1c2840] shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-[#162136] pb-3">
+                    <h3 class="text-xs font-black text-white lic-title uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-fingerprint text-blue-400"></i>
+                        <span>بصمة العتاد الثابتة للسيرفر (Hardware Machine ID)</span>
+                    </h3>
+                    <span class="text-[11px] px-2.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">معتمد ودائم (DMI + CPU)</span>
+                </div>
+
+                <p class="text-xs text-slate-400 lic-muted leading-relaxed">
+                    هذه البصمة الفيزيائية الفريدة والخاصة بهذا السيرفر لا تتغير مع إعادة التشغيل أو التحديثات. يرجى نسخها وتزويد المطور بها لإصدار ترخيصك:
+                </p>
+
+                <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3.5 bg-[#070b14] lic-subcard rounded-xl border border-[#162136] gap-3">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-server text-slate-400 text-lg"></i>
+                        <span id="machineIdText" class="font-mono text-sm md:text-base font-black text-cyan-400 lic-hwid tracking-wider select-all">{{ license.current_machine_id }}</span>
+                    </div>
+                    <button type="button" onclick="copyMachineId()" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-blue-500/20">
+                        <i id="copyIcon" class="fa-solid fa-copy lic-btn-text"></i>
+                        <span id="copyText" class="lic-btn-text">نسخ البصمة</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- License Overview Card -->
+            <div class="bg-[#0b0f19] lic-card p-5 rounded-2xl border border-[#1c2840] shadow-sm space-y-5">
+                <div class="flex items-center justify-between border-b border-[#162136] pb-3">
+                    <h3 class="text-xs font-black text-white lic-title uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-certificate text-emerald-400"></i>
+                        <span>تفاصيل وبيانات الترخيص الحالي</span>
+                    </h3>
+                    {% if license.license_id %}
+                        <span class="font-mono text-xs text-slate-400 lic-muted font-bold">{{ license.license_id }}</span>
+                    {% endif %}
+                </div>
+
+                {% if license.has_license %}
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                    <div class="p-3.5 rounded-xl bg-[#070b14] lic-subcard border border-[#162136] space-y-1">
+                        <span class="text-[11px] text-slate-400 lic-muted font-bold block">اسم العميل / الشبكة</span>
+                        <span class="text-xs font-black text-white lic-title">{{ license.client_name or 'غير محدد' }}</span>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-[#070b14] lic-subcard border border-[#162136] space-y-1">
+                        <span class="text-[11px] text-slate-400 lic-muted font-bold block">خطة وباقة الترخيص</span>
+                        <span class="text-xs font-black text-emerald-400">{{ license.plan_tier or 'Enterprise' }}</span>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-[#070b14] lic-subcard border border-[#162136] space-y-1">
+                        <span class="text-[11px] text-slate-400 lic-muted font-bold block">فترة الصلاحية المتبقية</span>
+                        <span class="text-xs font-black {% if license.days_left and license.days_left > 15 %}text-blue-400{% else %}text-amber-400{% endif %}">
+                            {% if license.is_lifetime %}
+                                مدى الحياة (Lifetime) ♾️
+                            {% elif license.days_left is not none %}
+                                {{ license.days_left }} يوم متبقي
+                            {% else %}
+                                غير محدد
+                            {% endif %}
+                        </span>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-[#070b14] lic-subcard border border-[#162136] space-y-1">
+                        <span class="text-[11px] text-slate-400 lic-muted font-bold block">تاريخ الانتهاء</span>
+                        <span class="text-xs font-mono text-white lic-title font-bold">{{ license.expires_at or 'غير محدد' }}</span>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-[#070b14] lic-subcard border border-[#162136] space-y-1">
+                        <span class="text-[11px] text-slate-400 lic-muted font-bold block">آخر تحقق وتوثيق</span>
+                        <span class="text-xs font-mono text-white lic-title font-bold">{{ license.last_verified_at or 'الآن' }}</span>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-[#070b14] lic-subcard border border-[#162136] space-y-1">
+                        <span class="text-[11px] text-slate-400 lic-muted font-bold block">خوارزمية التوقيع الرقمي</span>
+                        <span class="text-xs font-mono text-purple-400 font-bold">Ed25519 (256-bit)</span>
+                    </div>
+                </div>
+
+                <!-- Quota Utilization -->
+                <div class="space-y-3.5 pt-2 border-t border-[#162136]">
+                    <h4 class="text-xs font-black text-white lic-title">مؤشرات استهلاك الحصص المعتمدة في الترخيص:</h4>
+
+                    <div>
+                        <div class="flex items-center justify-between text-xs font-bold mb-1.5">
+                            <span class="text-slate-400 lic-muted">المشتركين والمستخدمين المسجلين</span>
+                            <span class="font-mono text-blue-400 font-bold">{{ license.current_subscribers }} / {{ license.max_subscribers }} مشترك</span>
+                        </div>
+                        {% set subs_pct = (license.current_subscribers / license.max_subscribers * 100) | round if license.max_subscribers > 0 else 0 %}
+                        <div class="w-full h-2.5 bg-[#070b14] lic-subcard rounded-full overflow-hidden border border-[#162136]">
+                            <div class="h-full bg-gradient-to-r from-blue-600 to-indigo-500 rounded-full transition-all duration-500" style="width: {{ [subs_pct, 100] | min }}%;"></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between text-xs font-bold mb-1.5">
+                            <span class="text-slate-400 lic-muted">أجهزة الميكروتيك وسيرفرات الـ NAS</span>
+                            <span class="font-mono text-emerald-400 font-bold">{{ license.current_nas }} / {{ license.max_nas }} جهاز NAS</span>
+                        </div>
+                        {% set nas_pct = (license.current_nas / license.max_nas * 100) | round if license.max_nas > 0 else 0 %}
+                        <div class="w-full h-2.5 bg-[#070b14] lic-subcard rounded-full overflow-hidden border border-[#162136]">
+                            <div class="h-full bg-gradient-to-r from-emerald-600 to-teal-500 rounded-full transition-all duration-500" style="width: {{ [nas_pct, 100] | min }}%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Features Badges -->
+                <div class="pt-3 border-t border-[#162136]">
+                    <span class="text-[11px] font-bold text-slate-400 lic-muted block mb-2">الوحدات والميزات المفعلة في ترخيصك:</span>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-check text-[10px]"></i>
+                            <span>بوابة المشتركين الذاتية</span>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-check text-[10px]"></i>
+                            <span>محرك الأتمتة الذكي</span>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-check text-[10px]"></i>
+                            <span>خريطة الأبراج (GIS)</span>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-check text-[10px]"></i>
+                            <span>التعافي التلقائي (Autoheal)</span>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-check text-[10px]"></i>
+                            <span>محلل الترافيك والباندوث</span>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-check text-[10px]"></i>
+                            <span>واجهات التكامل و API</span>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-check text-[10px]"></i>
+                            <span>أنفاق L2TP / IPsec VPN</span>
+                        </span>
+                    </div>
+                </div>
+
+                {% else %}
+                <div class="p-8 text-center space-y-3 bg-[#070b14] lic-subcard rounded-xl border border-dashed border-slate-700">
+                    <div class="w-14 h-14 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center text-2xl mx-auto">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <h4 class="text-sm font-black text-white lic-title">لا يوجد ترخيص رقمي مفعل حالياً على هذا النظام</h4>
+                    <p class="text-xs text-slate-400 lic-muted max-w-md mx-auto">يرجى نسخ بصمة العتاد أعلاه والتواصل مع المطور لإصدار ترخيصك وتفعيله من النموذج المقابل.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Right 1 Col: License Activation Box -->
+        <div id="activationBox" class="space-y-6">
+            <div class="bg-[#0b0f19] lic-card p-5 rounded-2xl border border-[#1c2840] shadow-sm space-y-4">
+                <h3 class="text-xs font-black text-white lic-title uppercase tracking-wider flex items-center gap-2 border-b border-[#162136] pb-3">
+                    <i class="fa-solid fa-key text-amber-400"></i>
+                    <span>تفعيل / تجديد الترخيص الرقمي</span>
+                </h3>
+
+                <form method="POST" action="{{ url_for('activate_license_action') }}" enctype="multipart/form-data" class="space-y-4 text-xs font-bold">
+                    <div>
+                        <label class="block text-slate-300 lic-title mb-1.5">1. رفع ملف الترخيص (.lic أو .json)</label>
+                        <input type="file" name="license_file" accept=".lic,.json" class="w-full bg-[#070b14] lic-subcard border border-[#162136] rounded-xl px-3 py-2 text-slate-200 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer">
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-300 lic-title mb-1.5">2. أو لصق كود الترخيص المشفر (Base64 Token)</label>
+                        <textarea name="license_token" rows="5" class="w-full bg-[#070b14] lic-subcard border border-[#162136] rounded-xl p-3 text-emerald-400 font-mono text-[11px] focus:border-blue-500 focus:outline-none placeholder-slate-500" placeholder="الصق كود الترخيص المشفر هنا..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-slate-300 lic-title mb-1.5">عنوان خادم التراخيص المركزي للمزامنة</label>
+                        <input type="text" name="master_server_url" value="{{ license.master_server_url or 'http://136.244.95.245:3030' }}" class="w-full bg-[#070b14] lic-subcard border border-[#162136] rounded-xl px-3 py-2 text-slate-200 font-mono focus:border-blue-500 focus:outline-none">
+                    </div>
+
+                    <button type="submit" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 cursor-pointer transform active:scale-[0.99]">
+                        <i class="fa-solid fa-circle-check text-sm lic-btn-text"></i>
+                        <span class="lic-btn-text">تفعيل وتوثيق الترخيص الرقمي</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Help / Instructions Card -->
+            <div class="bg-[#0b0f19] lic-card p-5 rounded-2xl border border-[#1c2840] shadow-sm space-y-3 text-xs">
+                <h4 class="font-black text-white lic-title flex items-center gap-2">
+                    <i class="fa-solid fa-circle-question text-blue-400"></i>
+                    <span>كيفية الحصول على الترخيص؟</span>
+                </h4>
+                <ol class="list-decimal list-inside space-y-2 text-slate-400 lic-muted leading-relaxed">
+                    <li>قم بنسخ <strong>بصمة العتاد (Hardware Machine ID)</strong> من المربع أعلاه.</li>
+                    <li>أرسل البصمة عبر واتساب إلى فريق الدعم والمطورين.</li>
+                    <li>ستتلقى ملف ترخيص <code>.lic</code> أو كود تفعيل مشفر.</li>
+                    <li>قم برفع الملف أو لصق الكود واضغط <strong>«تفعيل وتوثيق»</strong> لفتح كامل النظام فوراً.</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyMachineId() {
+    const txt = document.getElementById("machineIdText").innerText.trim();
+    navigator.clipboard.writeText(txt).then(() => {
+        const icon = document.getElementById("copyIcon");
+        const text = document.getElementById("copyText");
+        icon.className = "fa-solid fa-check text-emerald-300";
+        text.innerText = "تم النسخ بنجاح!";
+        setTimeout(() => {
+            icon.className = "fa-solid fa-copy";
+            text.innerText = "نسخ البصمة";
+        }, 2500);
+    });
+}
+
+async function syncHeartbeat() {
+    const btn = document.getElementById("btnSyncHeartbeat");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400"></i> <span>جاري الاتصال والمزامنة...</span>';
+    try {
+        const resp = await fetch("{{ url_for('sync_license_heartbeat_action') }}", { method: "POST" });
+        const data = await resp.json();
+        alert(data.message);
+        if (data.success) {
+            window.location.reload();
+        }
+    } catch(e) {
+        alert("تعذر الاتصال بخادم التراخيص: " + e);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-arrows-rotate text-blue-400"></i> <span>مزامنة النبضات مع الخادم</span>';
+    }
+}
+</script>
+{% endblock %}

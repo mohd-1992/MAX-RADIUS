@@ -1,0 +1,108 @@
+services:
+  mock-routeros:
+    image: vaerhme/routeros:latest
+    container_name: max_mock_routeros
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "8291:8291"
+      - "8088:80"
+      - "8728:8728"
+      - "3799:3799/udp"
+    volumes:
+      - ./mikrotik/entrypoint-routeros.sh:/entrypoint-custom.sh:ro
+    entrypoint: ["/entrypoint-custom.sh"]
+    networks:
+      max-radius-net:
+        ipv4_address: 172.21.0.100
+      hotspot_net:
+
+  client1:
+    image: alpine:latest
+    container_name: max_client1
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - hotspot_net
+    depends_on:
+      - mock-routeros
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        udhcpc -i eth0 -n -q || true
+        while true; do
+          wget -q -T 3 -O /dev/null http://10.5.5.1/ || true
+          sleep 10
+        done
+
+  client2:
+    image: alpine:latest
+    container_name: max_client2
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - hotspot_net
+    depends_on:
+      - mock-routeros
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        udhcpc -i eth0 -n -q || true
+        while true; do
+          wget -q -T 3 -O /dev/null http://10.5.5.1/ || true
+          sleep 10
+        done
+
+  client3:
+    image: alpine:latest
+    container_name: max_client3
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - hotspot_net
+    depends_on:
+      - mock-routeros
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        udhcpc -i eth0 -n -q || true
+        while true; do
+          wget -q -T 3 -O /dev/null http://10.5.5.1/ || true
+          sleep 10
+        done
+
+  browser:
+    image: lscr.io/linuxserver/firefox:latest
+    container_name: max_browser_client
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    shm_size: "1gb"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=UTC
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./browser_init:/custom-cont-init.d:ro
+    networks:
+      - hotspot_net
+    depends_on:
+      - mock-routeros
+
+networks:
+  max-radius-net:
+    name: max-radius_max-radius-net
+    external: true
+  hotspot_net:
+    name: max_hotspot_net
+    driver: bridge

@@ -1,0 +1,18 @@
+require-mschap-v2
+refuse-mschap
+refuse-pap
+require-chap
+refuse-eap
+nodefaultroute
+lock
+nobsdcomp
+novj
+novjccomp
+nologfd
+mtu 1400
+mru 1400
+ms-dns 192.168.44.1
+ms-dns 8.8.8.8
+proxyarp
+lcp-echo-interval 15
+lcp-echo-failure 4

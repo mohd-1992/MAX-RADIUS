@@ -1,0 +1,43 @@
+# Environments & Secrets
+.env
+*.env
+env/
+.venv/
+venv/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Large Bundles, Dumps & Backups
+export/
+app_backup/
+*.tar
+*.tar.gz
+*.gz
+*.zip
+database/full_db.sql
+
+# Runtime Storage & Data
+storage/
+data/
+tmp/
+.tmp/
+.cache/
+.pytest_cache/
+
+# Database Binaries
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# IDE & OS Files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

@@ -1,0 +1,1536 @@
+{% extends "base.html" %}
+
+{% block title %}مشتركين الكروت المفعلة{% endblock %}
+
+{% block container_class %}max-w-full px-3 sm:px-6 2xl:px-8{% endblock %}
+{% block footer_container_class %}max-w-full px-3 sm:px-6 2xl:px-8{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840]">
+        <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-id-card text-emerald-400"></i>
+                مشتركين الكروت المفعلة والمستخدمة (Active Voucher Users)
+            </h2>
+            <p class="text-xs text-slate-400">مراقبة حية للكروت النشطة، الحزمة التابعة لها، واستهلاك البيانات والوقت من واقع FreeRADIUS radacct</p>
+        </div>
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <button type="button" onclick="openColumnCustomizerModal()" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-table-columns text-emerald-400"></i>
+                <span>تخصيص الأعمدة</span>
+            </button>
+            <a href="{{ url_for('card_inspect') }}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-2">
+                <i class="fa-solid fa-magnifying-glass text-sky-400"></i>فحص كارت
+            </a>
+            <a href="{{ url_for('vouchers') }}" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 transition flex items-center gap-2">
+                <i class="fa-solid fa-layer-group"></i>إدارة الحزم
+            </a>
+        </div>
+    </div>
+
+    <!-- Filters & Search Bar -->
+    <div class="bg-[#0b0f19] p-4 rounded-2xl border border-[#1c2840]">
+        <form method="GET" action="{{ url_for('active_card_users') }}" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
+            <!-- Search Query -->
+            <div class="relative">
+                <input type="text" name="q" value="{{ q or '' }}" placeholder="بحث بالرمز، الرقم التسلسلي، أو الـ PIN..." class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition pl-8">
+                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+            </div>
+            <!-- Batch Filter -->
+            <div>
+                <select name="batch_id" onchange="this.form.submit()" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-slate-300 focus:border-blue-500">
+                    <option value="">جميع الحزم والدفعات (All Batches)</option>
+                    {% for b in batches %}
+                    <option value="{{ b.id }}" {% if batch_id == b.id|string %}selected{% endif %}>{{ b.name }} ({{ b.batch_number }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Package Filter -->
+            <div>
+                <select name="package_id" onchange="this.form.submit()" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-slate-300 focus:border-blue-500">
+                    <option value="">جميع الباقات (All Packages)</option>
+                    {% for p in packages %}
+                    <option value="{{ p.id }}" {% if package_id == p.id|string %}selected{% endif %}>{{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Status & Actions -->
+            <div class="flex items-center gap-2">
+                <select name="status" onchange="this.form.submit()" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-slate-300 focus:border-blue-500">
+                    <option value="">جميع الحالات (All)</option>
+                    <option value="active" {% if status == 'active' %}selected{% endif %}>نشط (Active)</option>
+                    <option value="recharged" {% if status == 'recharged' %}selected{% endif %}>مشحون / معطل (Recharged)</option>
+                    <option value="expired" {% if status == 'expired' %}selected{% endif %}>منتهي (Expired)</option>
+                </select>
+                <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
+                    <i class="fa-solid fa-filter"></i>
+                    <span>تصفية</span>
+                </button>
+                {% if q or batch_id or package_id or status %}
+                <a href="{{ url_for('active_card_users') }}" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition shrink-0" title="إعادة ضبط">
+                    <i class="fa-solid fa-xmark"></i>
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+<style>
+    /* ========================================================== */
+    /* Bulk Action Bar (Light & Dark Compatible)                  */
+    /* ========================================================== */
+    .bulk-action-bar-container-emerald {
+        background: linear-gradient(135deg, rgba(6, 78, 59, 0.45) 0%, #0b0f19 50%, #070b14 100%);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .bulk-selected-badge-emerald {
+        background-color: rgba(16, 185, 129, 0.2);
+        color: #6ee7b7;
+        border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+    .bulk-clear-btn {
+        color: #94a3b8;
+    }
+    .bulk-clear-btn:hover {
+        color: #f43f5e;
+    }
+
+    /* Light Theme Bulk Action Bar */
+    html.theme-light .bulk-action-bar-container-emerald {
+        background: #ffffff !important;
+        border: 1px solid #a7f3d0 !important;
+        box-shadow: 0 10px 25px -5px rgba(16, 185, 129, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+    }
+    html.theme-light .bulk-selected-badge-emerald {
+        background-color: #ecfdf5 !important;
+        color: #047857 !important;
+        border: 1px solid #a7f3d0 !important;
+        font-weight: 700 !important;
+    }
+    html.theme-light .bulk-clear-btn {
+        color: #64748b !important;
+        font-weight: 600 !important;
+    }
+    html.theme-light .bulk-clear-btn:hover {
+        color: #e11d48 !important;
+    }
+</style>
+
+    <!-- Top Bulk Action Bar (Visible when 1 or more checkboxes are checked) -->
+    <div id="bulkActionBar" class="bulk-action-bar bulk-action-bar-container-emerald hidden p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-4 transition-all duration-300">
+        <!-- Count Badge & Clear Selection -->
+        <div class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bulk-selected-badge-emerald shadow-sm">
+                <i class="fa-solid fa-check-double text-emerald-500"></i>
+                <span id="selectedCountBadge">تم تحديد 0 كرت</span>
+            </span>
+            <button type="button" onclick="clearSelection()" class="text-xs bulk-clear-btn transition flex items-center gap-1 cursor-pointer">
+                <i class="fa-solid fa-xmark text-xs"></i>
+                <span>إلغاء التحديد</span>
+            </button>
+        </div>
+
+        <!-- Actions Menu Dropdown -->
+        <div class="relative">
+            <button type="button" id="bulkDropdownBtn" onclick="toggleBulkDropdown(event)" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/25 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-bolt-lightning text-amber-300"></i>
+                <span>الإجراءات الجماعية</span>
+                <i class="fa-solid fa-chevron-down text-[10px] transition-transform duration-200" id="bulkChevron"></i>
+            </button>
+
+            <!-- Floating Menu (Matched exactly to ID dropdown design & colors) -->
+            <div id="bulkDropdownMenu" class="bulk-dropdown-menu action-dropdown-menu hidden absolute left-0 top-full mt-2 z-[9999] w-64 bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-2xl py-2 text-xs divide-y divide-[#1c2840]">
+                <div class="px-3.5 py-2 text-[11px] font-bold text-slate-400 bg-[#070b14]/60 border-b border-[#1c2840] flex items-center justify-between">
+                    <span>قائمة الإجراءات المجمعة</span>
+                    <span id="bulkMenuCount" class="text-emerald-400 font-mono font-bold">0 كرت</span>
+                </div>
+                
+                <!-- المجموعة 1: الحذف (الأول) -->
+                <div class="py-1">
+                    <button type="button" onclick="bulkAction('delete')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
+                        <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
+                        <span>حذف الكروت المحددة (Delete)</span>
+                    </button>
+                </div>
+
+                <!-- المجموعة 2: الصلاحية والباقات -->
+                <div class="py-1">
+                    <button type="button" onclick="bulkAction('extend')" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                        <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
+                        <span>تمديد الصلاحية</span>
+                    </button>
+                    <button type="button" onclick="bulkAction('terminate')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                        <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
+                        <span>إنهاء الاشتراك وتصفير الكوتا</span>
+                    </button>
+                    <button type="button" onclick="bulkAction('renew')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                        <i class="fa-solid fa-arrows-rotate text-emerald-400 w-4 text-center"></i>
+                        <span>تجديد الباقة الحالية</span>
+                    </button>
+                    <button type="button" onclick="bulkAction('change-pkg')" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
+                        <i class="fa-solid fa-layer-group text-indigo-400 w-4 text-center"></i>
+                        <span>تغيير باقة المحدد</span>
+                    </button>
+                </div>
+
+                <!-- المجموعة 3: الكوتا -->
+                <div class="py-1">
+                    <button type="button" onclick="bulkAction('add-quota')" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
+                        <i class="fa-solid fa-database text-sky-400 w-4 text-center"></i>
+                        <span>إضافة رصيد كوتا (Data Quota)</span>
+                    </button>
+                </div>
+
+                <!-- المجموعة 4: الرصيد والمحفظة -->
+                <div class="py-1">
+                    <button type="button" onclick="bulkAction('add-wallet')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                        <i class="fa-solid fa-wallet text-emerald-400 w-4 text-center"></i>
+                        <span>إيداع رصيد مالي بالكرت</span>
+                    </button>
+                    <button type="button" onclick="bulkAction('deduct-wallet')" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
+                        <i class="fa-solid fa-money-bill-transfer text-amber-400 w-4 text-center"></i>
+                        <span>سحب / تصحيح رصيد مالي</span>
+                    </button>
+                </div>
+
+                <!-- المجموعة 5: الجلسات والإنهاء -->
+                <div class="py-1">
+                    <button type="button" onclick="bulkAction('disconnect')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                        <i class="fa-solid fa-power-off text-rose-400 w-4 text-center"></i>
+                        <span>قطع الاتصال الفوري (Kick CoA)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Active Cards Table -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-4 border-b border-[#1c2840] flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-300">
+                إجمالي الكروت المطابقة: <strong class="text-emerald-400 font-mono text-sm">{{ total_records }}</strong> كرت
+                <span class="text-slate-500 mr-2">(الصفحة {{ page }} من {{ total_pages }})</span>
+            </span>
+            <span class="text-xs text-slate-500">انقر على أي كرت للانتقال لصفحة تفاصيله المستقلة وتعديله</span>
+        </div>
+        <div class="overflow-x-auto table-responsive">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-[#070b14] text-slate-300 text-xs uppercase font-bold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-3 text-center w-10">
+                            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="w-4 h-4 rounded border-slate-700 bg-[#070b14] text-emerald-600 focus:ring-0 cursor-pointer">
+                        </th>
+                        <th class="py-3.5 px-3 text-center w-16 col-id whitespace-nowrap">ID</th>
+                        <th class="py-3.5 px-4 col-username whitespace-nowrap min-w-[150px]">اسم المستخدم / رمز الكرت</th>
+                        <th class="py-3.5 px-4 text-center col-days whitespace-nowrap min-w-[110px]">الأيام المتبقية</th>
+                        <th class="py-3.5 px-4 col-lastseen whitespace-nowrap min-w-[150px]">آخر ظهور</th>
+                        <th class="py-3.5 px-4 col-package whitespace-nowrap min-w-[130px]">الباقة</th>
+                        <th class="py-3.5 px-4 col-accesspoint whitespace-nowrap min-w-[130px]">نقطة الاتصال</th>
+                        <th class="py-3.5 px-4 col-consumption min-w-[220px] whitespace-nowrap">الاستهلاك والكوتا</th>
+                        
+                        <!-- الأعمدة الإضافية الافتراضية مخفية -->
+                        <th class="py-3.5 px-4 col-expires hidden whitespace-nowrap min-w-[140px]">تاريخ الانتهاء</th>
+                        <th class="py-3.5 px-4 col-ip hidden whitespace-nowrap min-w-[125px]">عنوان IP</th>
+                        <th class="py-3.5 px-4 col-balance hidden whitespace-nowrap min-w-[110px]">الرصيد المالي</th>
+                        <th class="py-3.5 px-4 col-batch hidden whitespace-nowrap min-w-[140px]">الحزمة الأصلية</th>
+                        <th class="py-3.5 px-4 col-mac hidden whitespace-nowrap min-w-[140px]">الماك المسجل (MAC)</th>
+                        <th class="py-3.5 px-4 col-reseller hidden whitespace-nowrap min-w-[130px]">الموزع / البائع</th>
+                        <th class="py-3.5 px-4 col-createdat hidden whitespace-nowrap min-w-[140px]">تاريخ التفعيل / الإنشاء</th>
+                        <th class="py-3.5 px-4 col-notes hidden whitespace-nowrap min-w-[160px]">ملاحظات</th>
+
+                        <th class="py-3.5 px-4 text-center col-service whitespace-nowrap min-w-[115px]">نوع الخدمة</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% for c in active_cards %}
+                    <tr class="hover:bg-[#11192b] transition cursor-pointer" onclick="window.location.href='{{ url_for('active_card_user_details', card_id=c.id) }}'">
+                        <!-- 0. مربع التحديد الجماعي -->
+                        <td class="py-3.5 px-3 text-center" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="row-checkbox w-4 h-4 rounded border-slate-700 bg-[#070b14] text-emerald-600 focus:ring-0 cursor-pointer" value="{{ c.id }}" data-username="{{ c.username }}" onchange="handleRowSelect()">
+                        </td>
+
+                        <!-- 1. ID مع القائمة المنسدلة للإجراءات -->
+                        <td class="py-3.5 px-3 text-center col-id whitespace-nowrap" onclick="event.stopPropagation()">
+                            <button type="button" onclick="toggleActionDropdown(event, 'card-dd-{{ c.id }}')" class="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-emerald-500/20 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1 mx-auto shadow-sm" title="فتح قائمة الإجراءات السريعة">
+                                <span>#{{ c.seq_id }}</span>
+                                <i class="fa-solid fa-chevron-down text-[9px]"></i>
+                            </button>
+                            
+                            <!-- القائمة المنسدلة للإجراءات الـ 10 -->
+                            <div id="card-dd-{{ c.id }}" class="action-dropdown-menu hidden fixed z-[9999] w-60 bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-2xl py-2 text-xs divide-y divide-[#1c2840]">
+                                <div class="px-3 py-1.5 text-[11px] font-bold text-slate-400 bg-[#070b14]/60 border-b border-[#1c2840] flex items-center justify-between">
+                                    <span>الكرت: {{ c.username }}</span>
+                                    <span class="text-emerald-400 font-mono">#{{ c.seq_id }}</span>
+                                </div>
+                                <!-- الخيار الأول: الحذف الكامل -->
+                                <div class="py-1">
+                                    <button onclick="confirmDelete('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
+                                        <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
+                                        <span>حذف الكرت (Delete)</span>
+                                    </button>
+                                </div>
+                                <!-- مجموعة 1: الصلاحية والباقة -->
+                                <div class="py-1">
+                                    <button onclick="openExtendModal('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.expires_at }}')" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
+                                        <span>تمديد الصلاحية (Extend Time)</span>
+                                    </button>
+                                    <button onclick="confirmTerminate('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
+                                        <span>إنهاء الاشتراك (Terminate)</span>
+                                    </button>
+                                    <button onclick="confirmRenew('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.package_name }}')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-arrows-rotate text-emerald-400 w-4 text-center"></i>
+                                        <span>تجديد الباقة (Renew Package)</span>
+                                    </button>
+                                    <button onclick="openChangePackageModal('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.package_id }}')" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-layer-group text-indigo-400 w-4 text-center"></i>
+                                        <span>تغيير الباقة (Change Package)</span>
+                                    </button>
+                                </div>
+                                <!-- مجموعة 2: الكوتا وسجل الاستهلاك -->
+                                <div class="py-1">
+                                    <button onclick="openAddQuotaModal('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-database text-sky-400 w-4 text-center"></i>
+                                        <span>إضافة رصيد تحميل (Add Quota)</span>
+                                    </button>
+                                    <button onclick="openUsageHistoryModal('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-chart-line text-purple-400 w-4 text-center"></i>
+                                        <span>سجل الاستهلاك (Usage History)</span>
+                                    </button>
+                                </div>
+                                <!-- مجموعة 3: المحفظة المالية -->
+                                <div class="py-1">
+                                    <button onclick="openAddWalletModal('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.balance or 0 }}')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-wallet text-emerald-400 w-4 text-center"></i>
+                                        <span>إضافة رصيد مالي (Add Wallet)</span>
+                                    </button>
+                                    <button onclick="openDeductWalletModal('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.balance or 0 }}')" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-money-bill-transfer text-amber-400 w-4 text-center"></i>
+                                        <span>سحب رصيد مالي (Deduct Wallet)</span>
+                                    </button>
+                                </div>
+                                <!-- مجموعة 4: قطع الاتصال الفوري -->
+                                <div class="py-1">
+                                    <button onclick="confirmDisconnect('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-power-off text-rose-400 w-4 text-center"></i>
+                                        <span>قطع الاتصال (Disconnect CoA)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- 2. اسم المستخدم / رمز الكرت (بدون عمود اسم المشترك) -->
+                        <td class="py-3.5 px-4 col-username whitespace-nowrap min-w-[150px]">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 {% if c.is_online %}bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse{% else %}bg-slate-600{% endif %}"></span>
+                                <a href="{{ url_for('active_card_user_details', card_id=c.id) }}" class="font-bold font-mono text-emerald-400 hover:text-emerald-300 transition" onclick="event.stopPropagation()">
+                                    {{ c.username }}
+                                </a>
+                            </div>
+                            <span class="text-[10px] text-slate-500 font-mono block mt-0.5">S/N: {{ c.serial_number or '-' }}</span>
+                        </td>
+
+                        <!-- 3. الأيام المتبقية والحالة -->
+                        <td class="py-3.5 px-4 text-center col-days whitespace-nowrap min-w-[110px]">
+                            {% if c.status in ('recharged', 'disabled') %}
+                                <div>
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm" title="{{ c.expire_reason or 'تم استهلاك الكرت في الشحن' }}">
+                                        <i class="fa-solid fa-bolt text-amber-400 ml-1.5 text-[11px]"></i>مشحون
+                                    </span>
+                                    {% if c.bound_mac and ('by ' in c.bound_mac or 'Top-up' in c.bound_mac) %}
+                                        <span class="block text-[10px] text-amber-400/80 font-mono mt-1 font-semibold" title="{{ c.bound_mac }}">
+                                            {{ c.bound_mac }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            {% elif c.is_expired %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                    منتهي
+                                </span>
+                            {% elif c.days_remaining_num < 3 %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+                                    {{ c.days_remaining_str }}
+                                </span>
+                            {% elif c.days_remaining_num == 9999 %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                                    غير محدد
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-mono">
+                                    {{ c.days_remaining_str }}
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 4. آخر ظهور / وقت الشحن -->
+                        <td class="py-3.5 px-4 text-xs col-lastseen whitespace-nowrap min-w-[150px]">
+                            {% if c.is_online %}
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1.5 animate-pulse"></span>متصل الآن
+                                </span>
+                            {% elif c.status in ('recharged', 'disabled') and c.first_used_at_str != '-' %}
+                                <span class="font-mono text-amber-300/90 text-xs inline-flex items-center gap-1.5" title="تاريخ ووقت عملية الشحن">
+                                    <i class="fa-solid fa-receipt text-amber-400 text-[11px]"></i>
+                                    {{ c.first_used_at_str }}
+                                </span>
+                            {% elif c.last_seen_str != 'لم يتصل بعد' %}
+                                <span class="font-mono text-slate-300 text-xs inline-flex items-center gap-1.5">
+                                    <i class="fa-regular fa-clock text-slate-500 text-[11px]"></i>
+                                    {{ c.last_seen_str }}
+                                </span>
+                            {% else %}
+                                <span class="text-slate-500 text-xs">لم يتصل بعد</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 5. الباقة -->
+                        <td class="py-3.5 px-4 col-package whitespace-nowrap min-w-[130px]">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30 shadow-sm whitespace-nowrap">
+                                <i class="fa-solid fa-box text-purple-400 text-xs flex-shrink-0"></i>
+                                <span class="font-bold leading-none">{{ c.package_name }}</span>
+                            </span>
+                        </td>
+
+                        <!-- 6. نقطة الاتصال -->
+                        <td class="py-3.5 px-4 text-xs font-mono text-slate-300 col-accesspoint whitespace-nowrap min-w-[130px]">
+                            {% if c.access_point != '-' %}
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-300 border border-sky-500/20 font-bold">
+                                    <i class="fa-solid fa-tower-broadcast text-sky-400 text-[10px]"></i>
+                                    {{ c.access_point }}
+                                </span>
+                            {% else %}
+                                <span class="text-slate-500">-</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 7. الاستهلاك والكوتا -->
+                        <td class="py-3.5 px-4 text-xs col-consumption min-w-[220px] whitespace-nowrap">
+                            {% if c.has_quota %}
+                                <div class="flex items-center justify-between text-[11px] font-mono mb-1 gap-2">
+                                    <span class="text-slate-300 font-semibold">{{ c.used_bytes_str }}</span>
+                                    <span class="text-slate-400">من {{ c.quota_bytes_str }}</span>
+                                </div>
+                                <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-700/60 p-0">
+                                    <div class="{% if c.consumption_percent > 90 %}bg-rose-500{% elif c.consumption_percent > 70 %}bg-amber-500{% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %} h-full rounded-full transition-all duration-300" style="width: {{ c.consumption_percent }}%"></div>
+                                </div>
+                                <div class="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-1 gap-2">
+                                    <span>النسبة: <strong class="text-white">{{ c.consumption_percent }}%</strong></span>
+                                    <span>المتبقي: <strong class="text-emerald-400">{{ c.remaining_bytes_str }}</strong></span>
+                                </div>
+                            {% else %}
+                                <div class="font-mono text-slate-300 text-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/60 border border-slate-700/50">
+                                    <i class="fa-solid fa-infinity text-sky-400 text-xs"></i>
+                                    <span>مفتوح ({{ c.used_bytes_str }})</span>
+                                </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- الأعمدة الإضافية -->
+                        <!-- 8. تاريخ الانتهاء -->
+                        <td class="py-3.5 px-4 text-xs font-mono text-slate-300 col-expires hidden whitespace-nowrap min-w-[140px]">
+                            {{ c.expires_at_str }}
+                        </td>
+
+                        <!-- 9. عنوان IP -->
+                        <td class="py-3.5 px-4 text-xs font-mono text-blue-300 col-ip hidden whitespace-nowrap min-w-[125px]">
+                            {{ c.ip_address }}
+                        </td>
+
+                        <!-- 10. الرصيد المالي -->
+                        <td class="py-3.5 px-4 text-xs font-mono text-emerald-400 font-bold col-balance hidden whitespace-nowrap min-w-[110px]">
+                            {{ c.balance_formatted }} {{ settings.get('currency_symbol', 'ر.س') }}
+                        </td>
+
+                        <!-- 11. الحزمة الأصلية -->
+                        <td class="py-3.5 px-4 text-xs text-slate-300 col-batch hidden whitespace-nowrap min-w-[140px]">
+                            <a href="{{ url_for('view_batch_details', batch_id=c.batch_id) }}" class="hover:text-blue-400 transition font-semibold text-slate-200 flex items-center gap-1" onclick="event.stopPropagation()">
+                                <i class="fa-solid fa-folder text-blue-400 text-xs"></i>
+                                <span>{{ c.batch_name }}</span>
+                            </a>
+                            <div class="text-[10px] font-mono text-slate-500">{{ c.batch_number }}</div>
+                        </td>
+
+                        <!-- 12. الماك المسجل -->
+                        <td class="py-3.5 px-4 font-mono text-xs text-slate-300 col-mac hidden whitespace-nowrap min-w-[140px]">
+                            {{ c.bound_mac or '<span class="text-slate-500">غير مقيد</span>'|safe }}
+                        </td>
+
+                        <!-- 13. الموزع / البائع -->
+                        <td class="py-3.5 px-4 text-xs text-slate-300 col-reseller hidden whitespace-nowrap min-w-[130px]">
+                            {{ c.reseller_name or '-' }}
+                        </td>
+
+                        <!-- 14. تاريخ التفعيل / الإنشاء -->
+                        <td class="py-3.5 px-4 text-xs font-mono text-slate-400 col-createdat hidden whitespace-nowrap min-w-[140px]">
+                            {{ c.first_used_at_str if c.first_used_at_str != '-' else c.created_at_str }}
+                        </td>
+
+                        <!-- 15. ملاحظات -->
+                        <td class="py-3.5 px-4 text-xs text-slate-400 truncate max-w-xs col-notes hidden min-w-[160px]" title="{{ c.notes or '' }}">
+                            {{ c.notes or '-' }}
+                        </td>
+
+                        <!-- 16. الخدمة (Hotspot / PPPoE) -->
+                        <td class="py-3.5 px-4 text-center col-service whitespace-nowrap min-w-[115px]">
+                            {% if c.service_type == 'pppoe' %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/25 shadow-sm">
+                                <i class="fa-solid fa-network-wired text-indigo-400 text-xs"></i>
+                                PPPoE
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 shadow-sm">
+                                <i class="fa-solid fa-wifi text-cyan-400 text-xs"></i>
+                                Hotspot
+                            </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="16" class="py-12 text-center text-slate-500">
+                            <i class="fa-solid fa-id-card text-3xl mb-2 block text-slate-600"></i>
+                            لا توجد كروت بحالة "مفعلة" حالياً.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        {% if total_pages > 1 %}
+        <div class="p-4 border-t border-[#1c2840] flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#070b14]/50">
+            <div class="text-xs text-slate-400">
+                عرض <span class="font-bold text-white">{{ active_cards|length }}</span> من إجمالي <span class="font-bold text-emerald-400">{{ total_records }}</span> كرت
+            </div>
+            <div class="flex items-center gap-1.5">
+                <!-- First Page -->
+                {% if page > 1 %}
+                <a href="{{ url_for('active_card_users', page=1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition" title="الصفحة الأولى">
+                    <i class="fa-solid fa-angles-right"></i>
+                </a>
+                <a href="{{ url_for('active_card_users', page=page-1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition flex items-center gap-1">
+                    <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    <span>السابق</span>
+                </a>
+                {% endif %}
+
+                <!-- Page indicator -->
+                <span class="px-3.5 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-mono font-bold">
+                    {{ page }} / {{ total_pages }}
+                </span>
+
+                <!-- Next Page -->
+                {% if page < total_pages %}
+                <a href="{{ url_for('active_card_users', page=page+1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition flex items-center gap-1">
+                    <span>التالي</span>
+                    <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                </a>
+                <a href="{{ url_for('active_card_users', page=total_pages, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition" title="الصفحة الأخيرة">
+                    <i class="fa-solid fa-angles-left"></i>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+<!-- ============================================================== -->
+<!-- Quick Action Modals Suite                                      -->
+<!-- ============================================================== -->
+
+<!-- 1. Extend Time Modal -->
+<div id="modalExtend" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-hourglass-half text-amber-400"></i>تمديد صلاحية الكرت (Extend Time)
+            </h3>
+            <button onclick="closeModal('modalExtend')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="formExtend" onsubmit="submitExtendTime(event)" class="space-y-4 text-xs">
+            <input type="hidden" id="ext_type" name="target_type">
+            <input type="hidden" id="ext_id" name="target_id">
+            <div>
+                <span class="text-slate-400 block mb-1">رمز الكرت:</span>
+                <span id="ext_username" class="font-bold font-mono text-emerald-400 text-sm"></span>
+            </div>
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">عدد الأيام المراد تمديدها (+ Days)</label>
+                <input type="number" id="ext_days" name="days" value="30" min="1" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                <span class="text-[11px] text-slate-500 mt-1 block">سيتم إضافة الأيام على تاريخ الانتهاء الحالي ومزامنة سمة Expiration في FreeRADIUS</span>
+            </div>
+            <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('modalExtend')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold">تطبيق التمديد</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 4. Change Package Modal -->
+<div id="modalChangePkg" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-indigo-400"></i>تغيير باقة الكرت (Change Package)
+            </h3>
+            <button onclick="closeModal('modalChangePkg')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="formChangePkg" onsubmit="submitChangePackage(event)" class="space-y-4 text-xs">
+            <input type="hidden" id="cp_type" name="target_type">
+            <input type="hidden" id="cp_id" name="target_id">
+            <div>
+                <span class="text-slate-400 block mb-1">الكرت:</span>
+                <span id="cp_username" class="font-bold font-mono text-indigo-400 text-sm"></span>
+            </div>
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">اختر الباقة الجديدة</label>
+                <select id="cp_pkg_id" name="new_package_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 font-semibold">
+                    {% for p in packages %}
+                    <option value="{{ p.id }}">{{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }}) | {{ p.rate_download }}/{{ p.rate_upload }}</option>
+                    {% endfor %}
+                </select>
+                <span class="text-[11px] text-slate-500 mt-1 block">سيتم تحديث radusergroup، إعادة تعيين الصلاحية والكوتا، وفصل الجلسة لتطبيق السرعة الجديدة</span>
+            </div>
+            <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('modalChangePkg')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold">تغيير الباقة والترحيل</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 5. Add Quota Modal -->
+<div id="modalAddQuota" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-database text-sky-400"></i>إضافة رصيد تحميل (Add Data Quota)
+            </h3>
+            <button onclick="closeModal('modalAddQuota')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="formAddQuota" onsubmit="submitAddQuota(event)" class="space-y-4 text-xs">
+            <input type="hidden" id="aq_type" name="target_type">
+            <input type="hidden" id="aq_id" name="target_id">
+            <div>
+                <span class="text-slate-400 block mb-1">الكرت:</span>
+                <span id="aq_username" class="font-bold font-mono text-sky-400 text-sm"></span>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                <div class="col-span-2">
+                    <label class="block text-slate-300 font-semibold mb-1">حجم البيانات الإضافي</label>
+                    <input type="number" step="0.5" id="aq_amount" name="quota_amount" value="5" min="0.1" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">الوحدة</label>
+                    <select id="aq_unit" name="quota_unit" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-2.5 py-2.5 text-sm text-white font-semibold focus:border-blue-500">
+                        <option value="GB" selected>جيجابايت (GB)</option>
+                        <option value="MB">ميجابايت (MB)</option>
+                    </select>
+                </div>
+            </div>
+            <span class="text-[11px] text-slate-500 block">تضاف هذه السعة فوراً إلى رصيد الكرت المتبقي وتنعكس في بوابة المشترك /user</span>
+            <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('modalAddQuota')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold">إضافة السعة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 6. Usage History Modal -->
+<div id="modalUsageHistory" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-3xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-purple-400"></i>سجل استهلاك الجلسات التفصيلي (radacct)
+            </h3>
+            <button onclick="closeModal('modalUsageHistory')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-[#070b14] p-3 rounded-xl border border-slate-800">
+                <span class="text-[10px] text-slate-400 block">إجمالي التحميل (Download)</span>
+                <span id="uh_total_down" class="text-xs font-bold font-mono text-emerald-400">0 MB</span>
+            </div>
+            <div class="bg-[#070b14] p-3 rounded-xl border border-slate-800">
+                <span class="text-[10px] text-slate-400 block">إجمالي الرفع (Upload)</span>
+                <span id="uh_total_up" class="text-xs font-bold font-mono text-sky-400">0 MB</span>
+            </div>
+            <div class="bg-[#070b14] p-3 rounded-xl border border-slate-800">
+                <span class="text-[10px] text-slate-400 block">إجمالي الاستهلاك</span>
+                <span id="uh_total_traffic" class="text-xs font-bold font-mono text-purple-400">0 MB</span>
+            </div>
+            <div class="bg-[#070b14] p-3 rounded-xl border border-slate-800">
+                <span class="text-[10px] text-slate-400 block">عدد الجلسات والمدة</span>
+                <span id="uh_total_sessions" class="text-xs font-bold font-mono text-amber-400">0 جلسة</span>
+            </div>
+        </div>
+
+        <!-- Sessions List Table -->
+        <div class="overflow-y-auto flex-grow border border-[#1c2840] rounded-xl">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-[#070b14] text-slate-400 uppercase font-semibold sticky top-0">
+                    <tr>
+                        <th class="py-2.5 px-3">بداية الجلسة</th>
+                        <th class="py-2.5 px-3">نهاية الجلسة</th>
+                        <th class="py-2.5 px-3">المدة</th>
+                        <th class="py-2.5 px-3">التحميل</th>
+                        <th class="py-2.5 px-3">الرفع</th>
+                        <th class="py-2.5 px-3">عنوان IP والماك</th>
+                        <th class="py-2.5 px-3">الحالة</th>
+                    </tr>
+                </thead>
+                <tbody id="uh_sessions_tbody" class="divide-y divide-[#1c2840] font-mono text-[11px]">
+                    <!-- Injected by JS -->
+                </tbody>
+            </table>
+        </div>
+        <div class="flex justify-end pt-2 border-t border-[#1c2840]">
+            <button type="button" onclick="closeModal('modalUsageHistory')" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<!-- 7. Add Wallet Balance Modal -->
+<div id="modalAddWallet" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-wallet text-emerald-400"></i>إيداع رصيد مالي بالمحفظة (Add Balance)
+            </h3>
+            <button onclick="closeModal('modalAddWallet')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="formAddWallet" onsubmit="submitAddWallet(event)" class="space-y-4 text-xs">
+            <input type="hidden" id="aw_type" name="target_type">
+            <input type="hidden" id="aw_id" name="target_id">
+            <div class="flex justify-between items-center bg-[#070b14] p-3 rounded-xl border border-slate-800">
+                <div>
+                    <span class="text-slate-400 block text-[11px]">الكرت:</span>
+                    <span id="aw_username" class="font-bold font-mono text-emerald-400 text-sm"></span>
+                </div>
+                <div class="text-left">
+                    <span class="text-slate-400 block text-[11px]">الرصيد الحالي:</span>
+                    <span id="aw_current_bal" class="font-bold font-mono text-white text-sm">0.00</span>
+                </div>
+            </div>
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">المبلغ المراد إيداعه ({{ settings.get('currency_symbol', 'ر.س') }})</label>
+                <input type="number" step="0.5" id="aw_amount" name="amount" value="50" min="0.5" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-slate-400 mb-1">ملاحظات أو سبب الإيداع (اختياري)</label>
+                <input type="text" id="aw_notes" name="notes" placeholder="مثال: إيداع نقدي / تحويل بنكي" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500">
+            </div>
+            <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('modalAddWallet')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold">تأكيد الإيداع</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 8. Deduct Wallet Balance Modal -->
+<div id="modalDeductWallet" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                <i class="fa-solid fa-money-bill-transfer text-amber-400"></i>سحب / تصحيح رصيد مالي (Deduct Balance)
+            </h3>
+            <button onclick="closeModal('modalDeductWallet')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="formDeductWallet" onsubmit="submitDeductWallet(event)" class="space-y-4 text-xs">
+            <input type="hidden" id="dw_type" name="target_type">
+            <input type="hidden" id="dw_id" name="target_id">
+            <div class="flex justify-between items-center bg-[#070b14] p-3 rounded-xl border border-slate-800">
+                <div>
+                    <span class="text-slate-400 block text-[11px]">الكرت:</span>
+                    <span id="dw_username" class="font-bold font-mono text-amber-400 text-sm"></span>
+                </div>
+                <div class="text-left">
+                    <span class="text-slate-400 block text-[11px]">الرصيد الحالي:</span>
+                    <span id="dw_current_bal" class="font-bold font-mono text-white text-sm">0.00</span>
+                </div>
+            </div>
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">المبلغ المراد سحبه/خصمه ({{ settings.get('currency_symbol', 'ر.س') }})</label>
+                <input type="number" step="0.5" id="dw_amount" name="amount" value="10" min="0.5" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-slate-400 mb-1">سبب السحب / التصحيح</label>
+                <input type="text" id="dw_notes" name="notes" placeholder="مثال: تصحيح خطأ إيداع / استرجاع" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500">
+            </div>
+            <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('modalDeductWallet')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold">تأكيد الخصم</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Column Customizer Modal -->
+<div id="modalColumnCustomizer" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-xl p-6 shadow-2xl space-y-5 animate-in fade-in duration-200">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <div>
+                <h3 class="font-bold text-base text-white flex items-center gap-2">
+                    <i class="fa-solid fa-table-columns text-emerald-400"></i>تخصيص أعمدة قائمة الكروت المفعلة
+                </h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">حدد الأعمدة التي ترغب بظهورها في الجدول، سيتم حفظ اختياراتك تلقائياً</p>
+            </div>
+            <button type="button" onclick="closeModal('modalColumnCustomizer')" class="text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Quick actions buttons -->
+        <div class="flex items-center justify-between bg-[#070b14] p-3 rounded-xl border border-slate-800 text-xs">
+            <span class="text-slate-400">تحكم سريع:</span>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="selectAllColumns(true)" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition text-[11px]">
+                    <i class="fa-solid fa-check-double text-emerald-400 ml-1"></i>تحديد الكل
+                </button>
+                <button type="button" onclick="resetColumnsToDefault()" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg transition text-[11px]">
+                    <i class="fa-solid fa-rotate-left ml-1"></i>استعادة الافتراضي
+                </button>
+            </div>
+        </div>
+
+        <!-- Checkboxes Columns Grid -->
+        <form id="formColumnCustomizer" onsubmit="saveColumnPreferences(event)" class="space-y-4">
+            <div>
+                <span class="text-xs font-bold text-emerald-400 block mb-2.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-star text-amber-400 text-[10px]"></i>الأعمدة الافتراضية والأساسية
+                </span>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="id" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-bold text-white">ID (المعرف)</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="username" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-bold text-white">اسم المستخدم / الرمز</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="days" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-bold text-white">الأيام المتبقية</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="lastseen" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-bold text-white">آخر ظهور</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="package" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-bold text-white">الباقة والسرعة</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="accesspoint" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-bold text-white">نقطة الاتصال</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="consumption" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-bold text-white">الاستهلاك والكوتا</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="service" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-emerald-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-bold text-white">الخدمة (Hotspot / PPPoE)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <span class="text-xs font-bold text-indigo-400 block mb-2.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus-circle text-indigo-400 text-[10px]"></i>أعمدة إضافية قابلة للتفعيل
+                </span>
+                <div class="grid grid-cols-2 sm:grid-cols-2 gap-2.5">
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="expires" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-medium text-slate-200">تاريخ الانتهاء</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="ip" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-medium text-slate-200">عنوان IP</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="balance" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-medium text-slate-200">الرصيد المالي</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="batch" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-medium text-slate-200">الحزمة الأصلية</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="mac" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-medium text-slate-200">الماك المسجل (MAC)</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="reseller" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-medium text-slate-200">الموزع / البائع</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="createdat" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-medium text-slate-200">تاريخ التفعيل / الإنشاء</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                        <input type="checkbox" name="col_pref" value="notes" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
+                        <span class="text-xs font-medium text-slate-200">ملاحظات</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('modalColumnCustomizer')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إلغاء</button>
+                <button type="submit" class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/25">
+                    <i class="fa-solid fa-check"></i>
+                    <span>حفظ وتطبيق</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    // Column customizer settings & localStorage persistence
+    const DEFAULT_VISIBLE_COLUMNS = ['id', 'username', 'days', 'lastseen', 'package', 'accesspoint', 'consumption', 'service'];
+    const ALL_COLUMN_KEYS = ['id', 'username', 'days', 'lastseen', 'package', 'accesspoint', 'consumption', 'service', 'expires', 'ip', 'balance', 'batch', 'mac', 'reseller', 'createdat', 'notes'];
+
+    function getSavedColumnPreferences() {
+        try {
+            const raw = localStorage.getItem('max_vouchers_cols');
+            if (raw) {
+                let parsed = JSON.parse(raw);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    parsed = parsed.map(c => (c === 'status' || c === 'actions') ? 'service' : c);
+                    return parsed;
+                }
+            }
+        } catch (e) {
+            console.error('Error reading saved columns:', e);
+        }
+        return DEFAULT_VISIBLE_COLUMNS;
+    }
+
+    function applyColumnVisibility(columns) {
+        const visibleCols = columns || getSavedColumnPreferences();
+        ALL_COLUMN_KEYS.forEach(col => {
+            const elements = document.querySelectorAll(`.col-${col}`);
+            const isVisible = visibleCols.includes(col);
+            elements.forEach(el => {
+                if (isVisible) {
+                    el.classList.remove('hidden');
+                } else {
+                    el.classList.add('hidden');
+                }
+            });
+        });
+    }
+
+    function openColumnCustomizerModal() {
+        const activeCols = getSavedColumnPreferences();
+        document.querySelectorAll('input[name="col_pref"]').forEach(cb => {
+            cb.checked = activeCols.includes(cb.value);
+        });
+        document.getElementById('modalColumnCustomizer').classList.remove('hidden');
+    }
+
+    function selectAllColumns(checked) {
+        document.querySelectorAll('input[name="col_pref"]').forEach(cb => {
+            cb.checked = checked;
+        });
+    }
+
+    function resetColumnsToDefault() {
+        document.querySelectorAll('input[name="col_pref"]').forEach(cb => {
+            cb.checked = DEFAULT_VISIBLE_COLUMNS.includes(cb.value);
+        });
+    }
+
+    function saveColumnPreferences(e) {
+        if (e) e.preventDefault();
+        const selected = Array.from(document.querySelectorAll('input[name="col_pref"]:checked')).map(cb => cb.value);
+        if (selected.length === 0) {
+            Swal.fire('تنبيه', 'يرجى تحديد عمود واحد على الأقل للعرض', 'warning');
+            return;
+        }
+        try {
+            localStorage.setItem('max_vouchers_cols', JSON.stringify(selected));
+        } catch (err) {
+            console.error('Could not save to localStorage:', err);
+        }
+        applyColumnVisibility(selected);
+        closeModal('modalColumnCustomizer');
+        
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true,
+            background: '#0b0f19',
+            color: '#fff'
+        });
+        Toast.fire({
+            icon: 'success',
+            title: 'تم حفظ تخصيص الأعمدة بنجاح'
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        applyColumnVisibility();
+    });
+
+    // Global helper to close all action dropdown menus
+    function closeAllActionDropdowns() {
+        document.querySelectorAll('.action-dropdown-menu').forEach(m => m.classList.add('hidden'));
+        const bulkMenu = document.getElementById('bulkDropdownMenu');
+        const chevron = document.getElementById('bulkChevron');
+        if (bulkMenu) bulkMenu.classList.add('hidden');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+    }
+
+    // Dynamic Dropdown Menu Positioner (Single Row)
+    function toggleActionDropdown(e, menuId) {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+        const menu = document.getElementById(menuId);
+        if (!menu) return;
+        
+        const isHidden = menu.classList.contains('hidden');
+        closeAllActionDropdowns();
+        
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            const rect = btn.getBoundingClientRect();
+            menu.style.top = (rect.bottom + 6) + 'px';
+            menu.style.right = (window.innerWidth - rect.right) + 'px';
+        }
+    }
+
+    // Toggle Bulk Actions Floating Dropdown
+    function toggleBulkDropdown(e) {
+        e.stopPropagation();
+        const menu = document.getElementById('bulkDropdownMenu');
+        const chevron = document.getElementById('bulkChevron');
+        if (!menu) return;
+        
+        const isHidden = menu.classList.contains('hidden');
+        closeAllActionDropdowns();
+        
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+        }
+    }
+
+    document.addEventListener('click', (e) => {
+        closeAllActionDropdowns();
+    });
+
+    // ==============================================================
+    // Bulk Selection Helpers
+    // ==============================================================
+    function getSelectedIds() {
+        return Array.from(document.querySelectorAll('.row-checkbox:checked')).map(cb => cb.value);
+    }
+
+    function handleRowSelect() {
+        const selected = getSelectedIds();
+        const bar = document.getElementById('bulkActionBar');
+        const badge = document.getElementById('selectedCountBadge');
+        const menuCount = document.getElementById('bulkMenuCount');
+        const master = document.getElementById('selectAllCheckbox');
+        const allCheckboxes = document.querySelectorAll('.row-checkbox');
+        
+        if (selected.length > 0) {
+            bar.classList.remove('hidden');
+            badge.innerText = `تم تحديد ${selected.length} كرت`;
+            if (menuCount) menuCount.innerText = `${selected.length} كرت محدد`;
+        } else {
+            bar.classList.add('hidden');
+            const bulkMenu = document.getElementById('bulkDropdownMenu');
+            if (bulkMenu) bulkMenu.classList.add('hidden');
+        }
+        
+        if (master) {
+            master.checked = (selected.length > 0 && selected.length === allCheckboxes.length);
+            master.indeterminate = (selected.length > 0 && selected.length < allCheckboxes.length);
+        }
+    }
+
+
+    function toggleSelectAll(master) {
+        document.querySelectorAll('.row-checkbox').forEach(cb => {
+            cb.checked = master.checked;
+        });
+        handleRowSelect();
+    }
+
+    function clearSelection() {
+        document.querySelectorAll('.row-checkbox').forEach(cb => { cb.checked = false; });
+        const master = document.getElementById('selectAllCheckbox');
+        if (master) { master.checked = false; master.indeterminate = false; }
+        handleRowSelect();
+    }
+
+    function bulkAction(actionName) {
+        closeAllActionDropdowns();
+        const selected = getSelectedIds();
+        if (!selected.length) {
+            Swal.fire('تنبيه', 'يرجى تحديد كرت واحد على الأقل أولاً', 'info');
+            return;
+        }
+        const count = selected.length;
+        
+        if (actionName === 'delete') {
+            confirmDelete('voucher', selected, `${count} كرت محدد`);
+        } else if (actionName === 'extend') {
+            openExtendModal('voucher', selected, `${count} كرت محدد`, 'جماعي');
+        } else if (actionName === 'terminate') {
+            confirmTerminate('voucher', selected, `${count} كرت محدد`);
+        } else if (actionName === 'renew') {
+            confirmRenew('voucher', selected, `${count} كرت محدد`, 'الباقة الحالية لكل كرت');
+        } else if (actionName === 'change-pkg') {
+            openChangePackageModal('voucher', selected, `${count} كرت محدد`, '');
+        } else if (actionName === 'add-quota') {
+            openAddQuotaModal('voucher', selected, `${count} كرت محدد`);
+        } else if (actionName === 'add-wallet') {
+            openAddWalletModal('voucher', selected, `${count} كرت محدد`, 0);
+        } else if (actionName === 'deduct-wallet') {
+            openDeductWalletModal('voucher', selected, `${count} كرت محدد`, 0);
+        } else if (actionName === 'disconnect') {
+            confirmDisconnect('voucher', selected, `${count} كرت محدد`);
+        }
+    }
+
+    function appendTargetIds(fd, inputId) {
+        const raw = document.getElementById(inputId).value;
+        if (raw.includes(',')) {
+            raw.split(',').forEach(id => {
+                if (id.trim()) fd.append('target_ids[]', id.trim());
+            });
+        } else {
+            fd.append('target_id', raw.trim());
+        }
+    }
+
+    // ==============================================================
+    // Quick Actions Suite
+    // ==============================================================
+
+    // 0. Delete Action
+    function confirmDelete(type, idOrIds, label) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        const count = isBulk ? idOrIds.length : 1;
+        const title = isBulk ? `حذف ${count} كرت نهائياً` : `حذف الكرت [${label}] نهائياً`;
+        const text = isBulk 
+            ? `هل أنت متأكد من حذف ${count} كرت محدد نهائياً من النظام ومسح بياناتهم من FreeRADIUS وطرد جلساتهم من الميكروتيك؟ لا يمكن التراجع عن هذا الإجراء!`
+            : `هل أنت متأكد من حذف الكرت [${label}] نهائياً من النظام ومسح بياناته من FreeRADIUS وطرد جلسته؟`;
+
+        Swal.fire({
+            title: title,
+            text: text,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، احذف نهائياً',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ الحذف...',
+                    text: 'يرجى الانتظار لحين اكتمال عملية الحذف',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => Swal.showLoading()
+                });
+                const fd = new FormData();
+                fd.append('target_type', type);
+                if (isBulk) {
+                    idOrIds.forEach(id => fd.append('target_ids[]', id));
+                } else {
+                    fd.append('target_id', idOrIds);
+                }
+                fetch('/api/actions/delete', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        Swal.close();
+                        if (data.success) {
+                            window.toast.success(data.message || 'تم حذف الكروت بنجاح', 'تم الحذف');
+                            setTimeout(() => location.reload(), 1200);
+                        } else {
+                            Swal.fire('خطأ', data.message || 'فشلت عملية الحذف', 'error');
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                    });
+            }
+        });
+    }
+
+    // 1. Extend Time
+    function openExtendModal(type, idOrIds, username, currentExpiry) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        document.getElementById('ext_type').value = type;
+        document.getElementById('ext_id').value = isBulk ? idOrIds.join(',') : idOrIds;
+        document.getElementById('ext_username').innerText = isBulk ? username : `${username} (ينتهي: ${currentExpiry || 'غير محدد'})`;
+        document.getElementById('modalExtend').classList.remove('hidden');
+    }
+    function submitExtendTime(e) {
+        e.preventDefault();
+        closeModal('modalExtend');
+        Swal.fire({
+            title: 'جارٍ تمديد الصلاحية...',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+        const fd = new FormData(document.getElementById('formExtend'));
+        appendTargetIds(fd, 'ext_id');
+        fetch('/api/actions/extend-time', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                Swal.close();
+                if (res.success) {
+                    window.toast.success(res.message || 'تم تمديد الصلاحية بنجاح', 'تم التمديد');
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    Swal.fire('خطأ', res.message || 'فشل التمديد', 'error');
+                }
+            })
+            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+    }
+
+    // 2. Terminate Subscription
+    function confirmTerminate(type, idOrIds, label) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        const count = isBulk ? idOrIds.length : 1;
+        Swal.fire({
+            title: 'تأكيد إنهاء الاشتراك',
+            text: isBulk 
+                ? `هل أنت متأكد من إنهاء اشتراك ${count} كرت محدد فوراً وتصفير رصيد الكوتا وفصلهم من الميكروتيك؟`
+                : `هل أنت متأكد من إنهاء اشتراك الكرت [${label}] فوراً وتصفير رصيد الكوتا وفصله من الميكروتيك؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            confirmButtonText: 'نعم، إنهاء الاشتراك فوراً',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ إنهاء الاشتراك...',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => Swal.showLoading()
+                });
+                const fd = new FormData();
+                fd.append('target_type', type);
+                if (isBulk) {
+                    idOrIds.forEach(id => fd.append('target_ids[]', id));
+                } else {
+                    fd.append('target_id', idOrIds);
+                }
+                fetch('/api/actions/terminate', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        Swal.close();
+                        if (data.success) {
+                            window.toast.success(data.message || 'تم إنهاء الاشتراك بنجاح', 'تم الإنهاء');
+                            setTimeout(() => location.reload(), 1200);
+                        } else {
+                            Swal.fire('خطأ', data.message || 'فشلت العملية', 'error');
+                        }
+                    })
+                    .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+            }
+        });
+    }
+
+    // 3. Renew Package
+    function confirmRenew(type, idOrIds, label, pkgName) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        const count = isBulk ? idOrIds.length : 1;
+        Swal.fire({
+            title: 'تجديد الباقة',
+            text: isBulk 
+                ? `هل تريد تجديد الباقة لـ ${count} كرت محدد وإعادة تعيين الصلاحية والكوتا؟`
+                : `هل تريد تجديد باقة [${pkgName}] للكرت [${label}] وإعادة تعيين الصلاحية والكوتا؟`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            confirmButtonText: 'نعم، تجديد الباقة الآن',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ تجديد الباقة...',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => Swal.showLoading()
+                });
+                const fd = new FormData();
+                fd.append('target_type', type);
+                if (isBulk) {
+                    idOrIds.forEach(id => fd.append('target_ids[]', id));
+                } else {
+                    fd.append('target_id', idOrIds);
+                }
+                fetch('/api/actions/renew', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        Swal.close();
+                        if (data.success) {
+                            window.toast.success(data.message || 'تم تجديد الباقة بنجاح', 'تم التجديد');
+                            setTimeout(() => location.reload(), 1200);
+                        } else {
+                            Swal.fire('خطأ', data.message || 'فشل التجديد', 'error');
+                        }
+                    })
+                    .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+            }
+        });
+    }
+
+    // 4. Change Package
+    function openChangePackageModal(type, idOrIds, username, currentPkgId) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        document.getElementById('cp_type').value = type;
+        document.getElementById('cp_id').value = isBulk ? idOrIds.join(',') : idOrIds;
+        document.getElementById('cp_username').innerText = isBulk ? username : username;
+        if (currentPkgId) document.getElementById('cp_pkg_id').value = currentPkgId;
+        document.getElementById('modalChangePkg').classList.remove('hidden');
+    }
+    function submitChangePackage(e) {
+        e.preventDefault();
+        closeModal('modalChangePkg');
+        Swal.fire({
+            title: 'جارٍ تغيير الباقة...',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+        const fd = new FormData(document.getElementById('formChangePkg'));
+        appendTargetIds(fd, 'cp_id');
+        fetch('/api/actions/change-package', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                Swal.close();
+                if (res.success) {
+                    window.toast.success(res.message || 'تم تغيير الباقة بنجاح', 'تم التغيير');
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    Swal.fire('خطأ', res.message || 'فشل تغيير الباقة', 'error');
+                }
+            })
+            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+    }
+
+    // 5. Add Quota
+    function openAddQuotaModal(type, idOrIds, username) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        document.getElementById('aq_type').value = type;
+        document.getElementById('aq_id').value = isBulk ? idOrIds.join(',') : idOrIds;
+        document.getElementById('aq_username').innerText = username;
+        document.getElementById('modalAddQuota').classList.remove('hidden');
+    }
+    function submitAddQuota(e) {
+        e.preventDefault();
+        closeModal('modalAddQuota');
+        Swal.fire({
+            title: 'جارٍ إضافة الكوتا...',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+        const fd = new FormData(document.getElementById('formAddQuota'));
+        appendTargetIds(fd, 'aq_id');
+        fetch('/api/actions/add-quota', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                Swal.close();
+                if (res.success) {
+                    window.toast.success(res.message || 'تمت إضافة الكوتا بنجاح', 'تمت الإضافة');
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    Swal.fire('خطأ', res.message || 'فشلت إضافة الكوتا', 'error');
+                }
+            })
+            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+    }
+
+    // 6. Usage History
+    function openUsageHistoryModal(type, id, username) {
+        closeAllActionDropdowns();
+        fetch(`/api/actions/usage-history?target_type=${type}&target_id=${id}`)
+            .then(r => r.json())
+            .then(res => {
+                if (res.success && res.data) {
+                    const d = res.data;
+                    document.getElementById('uh_total_down').innerText = d.total_download;
+                    document.getElementById('uh_total_up').innerText = d.total_upload;
+                    document.getElementById('uh_total_traffic').innerText = d.total_traffic;
+                    document.getElementById('uh_total_sessions').innerText = `${d.total_sessions} جلسة (${d.total_duration})`;
+                    
+                    const tbody = document.getElementById('uh_sessions_tbody');
+                    tbody.innerHTML = '';
+                    if (!d.sessions || d.sessions.length === 0) {
+                        tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-500 font-sans">لا توجد جلسات مسجلة في radacct حتى الآن</td></tr>`;
+                    } else {
+                        d.sessions.forEach(s => {
+                            tbody.innerHTML += `
+                                <tr class="hover:bg-[#11192b]">
+                                    <td class="py-2 px-3 text-slate-300">${s.acctstarttime || '-'}</td>
+                                    <td class="py-2 px-3 text-slate-400">${s.acctstoptime || '<span class="text-emerald-400 font-bold">نشطة الآن</span>'}</td>
+                                    <td class="py-2 px-3 text-slate-300 font-bold">${s.duration_str}</td>
+                                    <td class="py-2 px-3 text-emerald-400">${s.download_str}</td>
+                                    <td class="py-2 px-3 text-sky-400">${s.upload_str}</td>
+                                    <td class="py-2 px-3 text-slate-300">${s.framedipaddress || '-'} <br><span class="text-[10px] text-slate-500">${s.callingstationid || ''}</span></td>
+                                    <td class="py-2 px-3">${s.status_str}</td>
+                                </tr>
+                            `;
+                        });
+                    }
+                    document.getElementById('modalUsageHistory').classList.remove('hidden');
+                } else {
+                    Swal.fire('خطأ', res.message || 'فشل جلب سجل الاستهلاك', 'error');
+                }
+            })
+            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+    }
+
+    // 7. Add Wallet Balance
+    function openAddWalletModal(type, idOrIds, username, currentBal) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        document.getElementById('aw_type').value = type;
+        document.getElementById('aw_id').value = isBulk ? idOrIds.join(',') : idOrIds;
+        document.getElementById('aw_username').innerText = username;
+        document.getElementById('aw_current_bal').innerText = isBulk ? 'متعدد' : Number(currentBal).toFixed(2);
+        document.getElementById('modalAddWallet').classList.remove('hidden');
+    }
+    function submitAddWallet(e) {
+        e.preventDefault();
+        closeModal('modalAddWallet');
+        Swal.fire({
+            title: 'جارٍ إيداع الرصيد...',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+        const fd = new FormData(document.getElementById('formAddWallet'));
+        appendTargetIds(fd, 'aw_id');
+        fetch('/api/actions/add-wallet', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                Swal.close();
+                if (res.success) {
+                    window.toast.success(res.message || 'تم الإيداع بنجاح', 'تم الإيداع');
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    Swal.fire('خطأ', res.message || 'فشل الإيداع', 'error');
+                }
+            })
+            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+    }
+
+    // 8. Deduct Wallet Balance
+    function openDeductWalletModal(type, idOrIds, username, currentBal) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        document.getElementById('dw_type').value = type;
+        document.getElementById('dw_id').value = isBulk ? idOrIds.join(',') : idOrIds;
+        document.getElementById('dw_username').innerText = username;
+        document.getElementById('dw_current_bal').innerText = isBulk ? 'متعدد' : Number(currentBal).toFixed(2);
+        document.getElementById('modalDeductWallet').classList.remove('hidden');
+    }
+    function submitDeductWallet(e) {
+        e.preventDefault();
+        closeModal('modalDeductWallet');
+        Swal.fire({
+            title: 'جارٍ خصم الرصيد...',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+        const fd = new FormData(document.getElementById('formDeductWallet'));
+        appendTargetIds(fd, 'dw_id');
+        fetch('/api/actions/deduct-wallet', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                Swal.close();
+                if (res.success) {
+                    window.toast.success(res.message || 'تم الخصم بنجاح', 'تم الخصم');
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    Swal.fire('خطأ', res.message || 'فشل الخصم', 'error');
+                }
+            })
+            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+    }
+
+    // 9. Disconnect Kick
+    function confirmDisconnect(type, idOrIds, label) {
+        closeAllActionDropdowns();
+        const isBulk = Array.isArray(idOrIds);
+        const count = isBulk ? idOrIds.length : 1;
+        Swal.fire({
+            title: 'قطع الاتصال الفوري (CoA)',
+            text: isBulk 
+                ? `هل تريد إرسال Disconnect-Request لـ ${count} كرت محدد لطردهم فوراً من المتصلين؟`
+                : `هل تريد إرسال Disconnect-Request للكرت [${label}] لطرده فوراً من المتصلين؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            confirmButtonText: 'نعم، قطع الاتصال الآن',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ إرسال أمر الفصل...',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => Swal.showLoading()
+                });
+                const fd = new FormData();
+                fd.append('target_type', type);
+                if (isBulk) {
+                    idOrIds.forEach(id => fd.append('target_ids[]', id));
+                } else {
+                    fd.append('target_id', idOrIds);
+                }
+                fetch('/api/actions/disconnect', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        Swal.close();
+                        if (data.success) {
+                            window.toast.success(data.message || 'تم قطع الاتصال بنجاح', 'تم الفصل');
+                            setTimeout(() => location.reload(), 1200);
+                        } else {
+                            Swal.fire('إشعار', data.message || 'فشل إرسال أمر الفصل', 'info');
+                        }
+                    })
+                    .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+            }
+        });
+    }
+</script>
+{% endblock %}
+
+

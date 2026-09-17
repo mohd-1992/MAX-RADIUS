@@ -1,0 +1,25 @@
+# Development / Local Docker Setup
+APP_NAME=MAX_RADIUS
+APP_ENV=development
+DEBUG=True
+SECRET_KEY=max-radius-secret-key-2026
+HOST=0.0.0.0
+PORT=5090
+
+DB_TYPE=mysql
+DB_HOST=mariadb
+DB_PORT=3306
+DB_USER=radius
+DB_PASSWORD=radpass
+DB_NAME=radius_wisp
+MYSQL_ROOT_PASSWORD=rootpass
+
+RADIUS_AUTH_PORT=18120
+RADIUS_ACCT_PORT=18130
+RADIUS_COA_PORT=37990
+RADIUS_SECRET_DEFAULT=testing123
+
+STORAGE_DIR=storage
+BACKUPS_DIR=storage/backups
+UPLOADS_DIR=storage/uploads
+LOGS_DIR=storage/logs

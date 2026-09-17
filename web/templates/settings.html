@@ -1,0 +1,971 @@
+{% extends "base.html" %}
+
+{% block title %}الإعدادات العامة للنظام والهوية والعملة{% endblock %}
+{% block page_title %}إعدادات النظام العامة (General Settings){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Banner & Quick Status Header -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
+                <i class="fa-solid fa-sliders"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    <span>إعدادات النظام والهوية والخدمات</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    تخصيص هوية وشعار الشبكة، العملة الافتراضية، التوقيت الدقيق، بوابة المشتركين، ومحددات اتصال FreeRADIUS
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <span class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>FreeRADIUS 3.2</span>
+            </span>
+            <span class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center gap-2">
+                <i class="fa-solid fa-database text-xs"></i>
+                <span>MariaDB Active</span>
+            </span>
+            <a href="{{ url_for('backups_page') }}" class="px-3.5 py-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-box-archive text-amber-400"></i>
+                <span>النسخ الاحتياطي</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Tab Navigation Bar -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-1.5 shadow-sm">
+        <nav class="flex items-center gap-1 overflow-x-auto no-scrollbar" id="settingsTabNav" role="tablist">
+            
+            <!-- Tab 1: Branding -->
+            <button type="button" onclick="switchSettingsTab('branding')" id="tab-btn-branding"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap bg-blue-600 text-white shadow-lg shadow-blue-500/25">
+                <i class="fa-solid fa-palette text-sm"></i>
+                <span>الهوية والشعار</span>
+            </button>
+
+            <!-- Tab 2: Currency & Time -->
+            <button type="button" onclick="switchSettingsTab('currency')" id="tab-btn-currency"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]">
+                <i class="fa-solid fa-coins text-sm text-amber-400"></i>
+                <span>العملة والتوقيت</span>
+            </button>
+
+            <!-- Tab 3: User Portal -->
+            <button type="button" onclick="switchSettingsTab('portal')" id="tab-btn-portal"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]">
+                <i class="fa-solid fa-users-gear text-sm text-indigo-400"></i>
+                <span>بوابة المشتركين</span>
+            </button>
+
+            <!-- Tab 4: Network & RADIUS -->
+            <button type="button" onclick="switchSettingsTab('network')" id="tab-btn-network"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]">
+                <i class="fa-solid fa-network-wired text-sm text-sky-400"></i>
+                <span>الشبكة و FreeRADIUS</span>
+            </button>
+
+            <!-- Tab 5: Contact & SMS -->
+            <button type="button" onclick="switchSettingsTab('contact')" id="tab-btn-contact"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]">
+                <i class="fa-solid fa-headset text-sm text-emerald-400"></i>
+                <span>التواصل وبوابة SMS</span>
+            </button>
+
+            <!-- Tab 6: Admins & Audit -->
+            <button type="button" onclick="switchSettingsTab('audit')" id="tab-btn-audit"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]">
+                <i class="fa-solid fa-shield-halved text-sm text-purple-400"></i>
+                <span>المدراء وسجل الرقابة</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Main Settings Form -->
+    <form id="mainSettingsForm" method="POST" action="{{ url_for('update_settings_action') }}" enctype="multipart/form-data" class="space-y-6">
+
+        {% set cur = currency|default('SAR') %}
+        {% set sym = currency_symbol|default('ر.س') %}
+        {% set tz = timezone|default('Asia/Riyadh') %}
+
+        <!-- ========================================================= -->
+        <!-- TAB 1: الهوية والشعار (Identity & Branding)               -->
+        <!-- ========================================================= -->
+        <div id="tab-content-branding" class="tab-pane space-y-6">
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-6">
+                
+                <div class="border-b border-[#1c2840] pb-4 flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                        <h3 class="font-bold text-white text-base flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-sm">
+                                <i class="fa-solid fa-paintbrush"></i>
+                            </div>
+                            <span>هوية وشعار الشبكة (Branding & Logo)</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">
+                            تنعكس هذه البيانات فوراً على شريط التنقل العلوي، بوابة المشتركين الذكية، الفواتير، ونماذج طباعة الكروت
+                        </p>
+                    </div>
+
+                    <!-- Live Brand Preview Pill -->
+                    <div class="bg-[#070b14] border border-[#162136] px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-2.5">
+                        <span class="text-slate-400 text-[11px]">معاينة الهوية:</span>
+                        <div class="flex items-center gap-2">
+                            {% if logo_url %}
+                            <img src="{{ logo_url }}" alt="Logo" class="h-5 w-auto object-contain rounded">
+                            {% endif %}
+                            <span class="text-white font-bold" id="liveBrandPreview">{{ network_name }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    <!-- Logo Upload Box with Live Preview -->
+                    <div class="lg:col-span-4 bg-[#070b14] border border-[#162136] rounded-2xl p-5 flex flex-col items-center justify-center text-center">
+                        <label class="text-xs font-bold text-slate-300 mb-3 self-start flex items-center gap-1.5">
+                            <i class="fa-solid fa-image text-blue-400"></i>
+                            <span>شعار الشبكة (Network Logo)</span>
+                        </label>
+                        
+                        <div class="w-36 h-36 rounded-2xl bg-[#0b0f19] border-2 border-dashed border-[#1c2840] hover:border-blue-500 flex items-center justify-center p-3 relative overflow-hidden group transition cursor-pointer"
+                             onclick="document.getElementById('networkLogoInput').click()">
+                            <img id="logoPreviewImg" 
+                                 src="{{ logo_url if logo_url else '' }}" 
+                                 alt="الشعار الحالي" 
+                                 class="max-w-full max-h-full object-contain {% if not logo_url %}hidden{% endif %}">
+                            <div id="logoPlaceholder" class="{% if logo_url %}hidden{% endif %} flex flex-col items-center justify-center text-slate-500">
+                                <i class="fa-solid fa-cloud-arrow-up text-3xl mb-1.5 text-slate-600 group-hover:text-blue-400 transition"></i>
+                                <span class="text-xs font-semibold text-slate-400">انقر لاختيار الشعار</span>
+                                <span class="text-[10px] text-slate-500 mt-0.5">PNG / SVG / WebP</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 w-full">
+                            <input type="file" id="networkLogoInput" name="network_logo" accept="image/png, image/jpeg, image/webp, image/svg+xml" onchange="previewLogoFile(this)" class="hidden">
+                            <button type="button" onclick="document.getElementById('networkLogoInput').click()" class="w-full py-2.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-upload"></i>
+                                <span>رفع شعار جديد للمؤسسة</span>
+                            </button>
+                            <p class="text-[10px] text-slate-500 mt-2">الأبعاد الموصى بها: 512×512 بكسل بخلفية شفافة</p>
+                        </div>
+                    </div>
+
+                    <!-- Network Name, Title & Domain Inputs -->
+                    <div class="lg:col-span-8 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                                اسم الشبكة أو مزود الخدمة (Network / ISP Name) <span class="text-rose-400">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-sm">
+                                    <i class="fa-solid fa-tower-broadcast"></i>
+                                </span>
+                                <input type="text" name="network_name" id="networkNameInput" value="{{ network_name }}" required 
+                                       oninput="document.getElementById('liveBrandPreview').innerText = this.value || 'MAX RADIUS'"
+                                       placeholder="مثال: شبكة الأفق الذكية WISP" 
+                                       class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-sm text-white font-bold focus:border-blue-500 transition">
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-1">يظهر في القائمة الجانبية وعنوان البوابة الرئيسية وصفحات المستخدمين</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                                    عنوان المتصفح العام (System Title)
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-xs">
+                                        <i class="fa-solid fa-window-maximize"></i>
+                                    </span>
+                                    <input type="text" name="system_title" value="{{ system_title }}" 
+                                           placeholder="MAX RADIUS - نظام إدارة الشبكات"
+                                           class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white focus:border-blue-500 transition">
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">يظهر في شريط علامة تبويب المتصفح</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                                    نطاق صفحة الهوتسبوت (Hotspot Domain)
+                                </label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-xs">
+                                        <i class="fa-solid fa-globe"></i>
+                                    </span>
+                                    <input type="text" name="hotspot_domain" value="{{ hotspot_domain }}" 
+                                           placeholder="wifi.maxradius.net" 
+                                           class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white font-mono focus:border-blue-500 transition">
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">النطاق المستخدم لإعادة توجيه المشتركين في الراوتر</p>
+                            </div>
+                        </div>
+
+                        <!-- Brand Identity Tips Card -->
+                        <div class="p-4 bg-[#070b14] rounded-xl border border-[#162136] text-xs text-slate-300 space-y-1.5">
+                            <div class="font-bold text-blue-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span>تكامل الهوية البصرية:</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                يتم تطبيق الشعار والاسم تلقائياً في مصمم الكروت الحراري ونماذج طباعة فواتير المشتركين وعقود الاشتراك وبوابة تسجيل الدخول.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- TAB 2: العملة والتوقيت (Currency & Timezone)              -->
+        <!-- ========================================================= -->
+        <div id="tab-content-currency" class="tab-pane hidden space-y-6">
+            
+            <!-- Currency Selection Section -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-4 flex-wrap gap-2">
+                    <div>
+                        <h3 class="font-bold text-white text-base flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-sm">
+                                <i class="fa-solid fa-coins"></i>
+                            </div>
+                            <span>العملة المعتمدة للنظام (Default Currency)</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">
+                            تطبق العملة تلقائياً على كافة الباقات، الكروت، الفواتير، المحافظ المالية، وتقارير المبيعات
+                        </p>
+                    </div>
+                    
+                    <!-- Live Currency Preview Badge -->
+                    <div class="bg-[#070b14] border border-[#162136] px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-inner">
+                        <span class="text-slate-400">معاينة تسعير الباقات:</span>
+                        <strong id="currencyPreviewBadge" class="text-emerald-400 font-bold font-mono text-sm">25.00 {{ sym }}</strong>
+                    </div>
+                </div>
+
+                <!-- Currency Radio Cards Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                    <!-- Option 1: Saudi Riyal -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="currency" value="SAR" {% if cur == 'SAR' %}checked{% endif %} onchange="updateCurrencyFields('SAR', 'ر.س')" class="peer sr-only">
+                        <div class="p-4 rounded-xl border border-slate-700 bg-[#070b14] hover:bg-[#11192b] peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 peer-checked:ring-1 peer-checked:ring-emerald-500 transition space-y-1.5 text-center shadow-sm">
+                            <div class="text-2xl">🇸🇦</div>
+                            <div class="font-bold text-white text-xs">ريال سعودي</div>
+                            <span class="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded inline-block">ر.س (SAR)</span>
+                        </div>
+                    </label>
+
+                    <!-- Option 2: Yemeni Riyal -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="currency" value="YER" {% if cur == 'YER' %}checked{% endif %} onchange="updateCurrencyFields('YER', 'ر.ي')" class="peer sr-only">
+                        <div class="p-4 rounded-xl border border-slate-700 bg-[#070b14] hover:bg-[#11192b] peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 peer-checked:ring-1 peer-checked:ring-emerald-500 transition space-y-1.5 text-center shadow-sm">
+                            <div class="text-2xl">🇾🇪</div>
+                            <div class="font-bold text-white text-xs">ريال يمني</div>
+                            <span class="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded inline-block">ر.ي (YER)</span>
+                        </div>
+                    </label>
+
+                    <!-- Option 3: UAE Dirham -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="currency" value="AED" {% if cur == 'AED' %}checked{% endif %} onchange="updateCurrencyFields('AED', 'د.إ')" class="peer sr-only">
+                        <div class="p-4 rounded-xl border border-slate-700 bg-[#070b14] hover:bg-[#11192b] peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 peer-checked:ring-1 peer-checked:ring-emerald-500 transition space-y-1.5 text-center shadow-sm">
+                            <div class="text-2xl">🇦🇪</div>
+                            <div class="font-bold text-white text-xs">درهم إماراتي</div>
+                            <span class="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded inline-block">د.إ (AED)</span>
+                        </div>
+                    </label>
+
+                    <!-- Option 4: Egyptian Pound -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="currency" value="EGP" {% if cur == 'EGP' %}checked{% endif %} onchange="updateCurrencyFields('EGP', 'ج.م')" class="peer sr-only">
+                        <div class="p-4 rounded-xl border border-slate-700 bg-[#070b14] hover:bg-[#11192b] peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 peer-checked:ring-1 peer-checked:ring-emerald-500 transition space-y-1.5 text-center shadow-sm">
+                            <div class="text-2xl">🇪🇬</div>
+                            <div class="font-bold text-white text-xs">جنيه مصري</div>
+                            <span class="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded inline-block">ج.م (EGP)</span>
+                        </div>
+                    </label>
+
+                    <!-- Option 5: US Dollar -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="currency" value="USD" {% if cur == 'USD' %}checked{% endif %} onchange="updateCurrencyFields('USD', '$')" class="peer sr-only">
+                        <div class="p-4 rounded-xl border border-slate-700 bg-[#070b14] hover:bg-[#11192b] peer-checked:border-emerald-500 peer-checked:bg-emerald-500/10 peer-checked:ring-1 peer-checked:ring-emerald-500 transition space-y-1.5 text-center shadow-sm">
+                            <div class="text-2xl">🇺🇸</div>
+                            <div class="font-bold text-white text-xs">دولار أمريكي</div>
+                            <span class="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded inline-block">$ (USD)</span>
+                        </div>
+                    </label>
+                </div>
+
+                <!-- Custom Symbol Input -->
+                <div class="pt-4 border-t border-[#1c2840] flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <label class="text-xs font-semibold text-slate-300 flex-shrink-0">رمز العملة المخصص (Custom Symbol):</label>
+                    <input type="text" id="currencySymbolInput" name="currency_symbol" value="{{ sym }}" oninput="updatePreviewText(this.value)" 
+                           class="w-full sm:w-48 bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white font-bold focus:border-blue-500">
+                    <span class="text-[11px] text-slate-400">يمكنك تعديل رمز العملة النصي (مثل: ر.ي أو ر.س أو $) وسيتم اعتماده فوراً في كافة الواجهات</span>
+                </div>
+            </div>
+
+            <!-- Timezone & Server Clock Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Timezone Selector -->
+                <div class="lg:col-span-8 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4">
+                    <div class="border-b border-[#1c2840] pb-3 flex items-center justify-between flex-wrap gap-2">
+                        <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-earth-americas text-emerald-400"></i>
+                            <span>المنطقة الزمنية وتوقيت السيرفر (Timezone Localization)</span>
+                        </h3>
+                        <span class="text-[11px] text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-bold">
+                            RFC 2866 Accounting Sync
+                        </span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                            اختر المنطقة الزمنية لسيرفر الراديوس ونظام المحاسبة <span class="text-rose-400">*</span>
+                        </label>
+                        <select name="timezone" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:border-blue-500">
+                            <option value="Asia/Riyadh" {% if tz == 'Asia/Riyadh' %}selected{% endif %}>🇸🇦 السعودية / الكويت / قطر (Asia/Riyadh - UTC+3)</option>
+                            <option value="Asia/Aden" {% if tz == 'Asia/Aden' %}selected{% endif %}>🇾🇪 اليمن - صنعاء / عدن (Asia/Aden - UTC+3)</option>
+                            <option value="Asia/Dubai" {% if tz == 'Asia/Dubai' %}selected{% endif %}>🇦🇪 الإمارات / عمان (Asia/Dubai - UTC+4)</option>
+                            <option value="Africa/Cairo" {% if tz == 'Africa/Cairo' %}selected{% endif %}>🇪🇬 مصر - القاهرة (Africa/Cairo - UTC+2 / UTC+3)</option>
+                            <option value="Asia/Baghdad" {% if tz == 'Asia/Baghdad' %}selected{% endif %}>🇮🇶 العراق - بغداد (Asia/Baghdad - UTC+3)</option>
+                            <option value="Asia/Amman" {% if tz == 'Asia/Amman' %}selected{% endif %}>🇯🇴 الأردن - عمّان (Asia/Amman - UTC+3)</option>
+                            <option value="Asia/Beirut" {% if tz == 'Asia/Beirut' %}selected{% endif %}>🇱🇧 لبنان - بيروت (Asia/Beirut - UTC+2 / UTC+3)</option>
+                            <option value="Asia/Damascus" {% if tz == 'Asia/Damascus' %}selected{% endif %}>🇸🇾 سوريا - دمشق (Asia/Damascus - UTC+3)</option>
+                            <option value="Africa/Tripoli" {% if tz == 'Africa/Tripoli' %}selected{% endif %}>🇱🇾 ليبيا - طرابلس (Africa/Tripoli - UTC+2)</option>
+                            <option value="Africa/Tunis" {% if tz == 'Africa/Tunis' %}selected{% endif %}>🇹🇳 تونس / الجزائر (Africa/Tunis - UTC+1)</option>
+                            <option value="Africa/Casablanca" {% if tz == 'Africa/Casablanca' %}selected{% endif %}>🇲🇦 المغرب - الدار البيضاء (Africa/Casablanca - UTC+1)</option>
+                            <option value="Africa/Khartoum" {% if tz == 'Africa/Khartoum' %}selected{% endif %}>🇸🇩 السودان - الخرطوم (Africa/Khartoum - UTC+2)</option>
+                            <option value="UTC" {% if tz == 'UTC' %}selected{% endif %}>🌐 التوقيت العالمي الموحد (UTC)</option>
+                        </select>
+                    </div>
+
+                    <div class="p-3.5 bg-[#070b14] rounded-xl border border-[#162136] text-xs text-slate-300 flex items-start gap-2.5">
+                        <i class="fa-solid fa-circle-info text-blue-400 text-sm mt-0.5 flex-shrink-0"></i>
+                        <span class="leading-relaxed">
+                            هذا الإعداد يضمن دقة تسجيل أوقات بدء وانتهاء الجلسات في جدول <code class="text-amber-400 font-mono">radacct</code>، وحساب انتهاء الصلاحيات بدقة متناهية لمنع استهلاك الخدمة بعد انتهائها.
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Live Server Clock & NTP Sync Widget -->
+                <div class="lg:col-span-4 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-4">
+                    <div>
+                        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3 mb-3">
+                            <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-clock text-blue-400"></i>
+                                <span>ساعة السيرفر الحالية</span>
+                            </span>
+                            <span class="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">LIVE</span>
+                        </div>
+
+                        <div class="bg-[#070b14] p-4 rounded-xl border border-[#162136] text-center">
+                            <div class="text-2xl font-black text-white font-mono tracking-wider" id="liveClockDisplay">
+                                {{ server_time_now if server_time_now else '00:00:00' }}
+                            </div>
+                            <div class="text-[11px] text-slate-400 mt-1">المنطقة الزمنية: <strong class="text-slate-200">{{ tz }}</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <button type="button" onclick="triggerNtpSync()" id="ntpSyncBtn"
+                                class="w-full py-2.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-rotate text-xs"></i>
+                            <span>مزامنة التوقيت عبر NTP الآن</span>
+                        </button>
+                        <p class="text-[10px] text-slate-500 text-center" id="ntpStatusText">مزامنة دورية تلقائية مع خوادم pool.ntp.org</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- TAB 3: بوابة المشتركين (User Portal & Self-Service)       -->
+        <!-- ========================================================= -->
+        <div id="tab-content-portal" class="tab-pane hidden space-y-6">
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-6">
+                
+                <div class="border-b border-[#1c2840] pb-4 flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                        <h3 class="font-bold text-white text-base flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center text-sm">
+                                <i class="fa-solid fa-users-gear"></i>
+                            </div>
+                            <span>إعدادات بوابة المشترك والخدمات الذاتية (User Portal)</span>
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">
+                            التحكم الكامل في الميزات المتاحة للمشتركين ومستخدمي الكروت داخل بوابتهم الذكية
+                        </p>
+                    </div>
+                    <span class="text-[11px] bg-indigo-500/10 text-indigo-300 font-bold px-3 py-1 rounded-xl border border-indigo-500/20 flex items-center gap-1.5">
+                        <i class="fa-solid fa-toggle-on text-indigo-400"></i>
+                        <span>التحكم في البوابة</span>
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <!-- Toggle 1: Self Registration -->
+                    <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
+                        <div class="space-y-1">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-user-plus text-emerald-400"></i>
+                                <span>السماح بإنشاء حساب جديد</span>
+                            </span>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">إظهار خيار "إنشاء حساب جديد" في شاشة تسجيل دخول المشتركين للبوابة.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input type="checkbox" name="portal_allow_registration" value="1" {% if settings.get('portal_allow_registration', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                    </div>
+
+                    <!-- Toggle 2: Package Renewal/Change -->
+                    <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
+                        <div class="space-y-1">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-arrows-rotate text-blue-400"></i>
+                                <span>السماح بتجديد وتغيير الباقة</span>
+                            </span>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">تمكين المشتركين من تجديد باقاتهم الحالية أو الترقية لباقة أخرى من رصيد المحفظة.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input type="checkbox" name="portal_allow_package_change" value="1" {% if settings.get('portal_allow_package_change', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                    </div>
+
+                    <!-- Toggle 3: Password Change -->
+                    <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
+                        <div class="space-y-1">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-key text-amber-400"></i>
+                                <span>السماح بتغيير كلمة المرور</span>
+                            </span>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">إتاحة إمكانية تغيير كلمة المرور للمشتركين ذاتياً من داخل حساباتهم الشخصية.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input type="checkbox" name="portal_allow_password_change" value="1" {% if settings.get('portal_allow_password_change', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                    </div>
+
+                    <!-- Toggle 3.5: Username Only Login (Single-Field PIN Login) -->
+                    <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
+                        <div class="space-y-1">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-id-card text-sky-400"></i>
+                                <span>تسجيل الدخول باسم المستخدم فقط</span>
+                            </span>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">إخفاء حقل كلمة المرور والاكتفاء بإدخال رقم المستخدم أو الكرت فقط في شاشة الدخول.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input type="checkbox" name="portal_login_username_only" value="1" {% if settings.get('portal_login_username_only', '0') == '1' %}checked{% endif %} class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                    </div>
+
+                    <!-- Toggle 4: Data Loan Feature -->
+                    <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
+                        <div class="space-y-1">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-hand-holding-dollar text-amber-400"></i>
+                                <span>سلفة بيانات الطوارئ (Data Loan)</span>
+                            </span>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">تمكين المشترك من طلب سلفة بيانات عند اقتراب نفاذ رصيده، تُسدد من الكرت القادم.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input type="checkbox" name="allow_data_loan" value="1" {% if settings.get('allow_data_loan', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
+                    </div>
+
+                    <!-- Input 5: Data Loan Amount (MB) -->
+                    <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-5 flex flex-col justify-between gap-3 transition shadow-sm">
+                        <div class="space-y-1">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-database text-blue-400"></i>
+                                <span>حجم السلفة الممنوحة (Loan Size)</span>
+                            </span>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">سعة السلفة بالميجابايت (مثلاً: 1024 MB تعادل 1 GB).</p>
+                        </div>
+                        <div class="relative">
+                            <input type="number" name="loan_amount_mb" min="10" max="102400" step="1" 
+                                   value="{{ settings.get('loan_amount_mb', '1024') }}" required placeholder="1024" 
+                                   class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl pr-3.5 pl-14 py-2 text-xs text-white font-mono font-bold focus:border-amber-500 focus:outline-none transition">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[11px] text-amber-400 font-bold">MB</span>
+                        </div>
+                    </div>
+
+                    <!-- Input 6: Data Loan Threshold (MB) -->
+                    <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-5 flex flex-col justify-between gap-3 transition shadow-sm">
+                        <div class="space-y-1">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-gauge-simple-high text-emerald-400"></i>
+                                <span>حد استحقاق السلفة (Threshold)</span>
+                            </span>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">الحد الأقصى للرصيد المتبقي (MB) الذي تتاح عنده السلفة للمشترك.</p>
+                        </div>
+                        <div class="relative">
+                            <input type="number" name="loan_threshold_mb" min="1" max="10240" step="1" 
+                                   value="{{ settings.get('loan_threshold_mb', '100') }}" required placeholder="100" 
+                                   class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl pr-3.5 pl-14 py-2 text-xs text-white font-mono font-bold focus:border-emerald-500 focus:outline-none transition">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[11px] text-emerald-400 font-bold">MB</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- TAB 4: الشبكة و FreeRADIUS (Network, RADIUS & CoA)       -->
+        <!-- ========================================================= -->
+        <div id="tab-content-network" class="tab-pane hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                <!-- CoA Disconnect Port Card -->
+                <div class="lg:col-span-6 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4">
+                    <div class="border-b border-[#1c2840] pb-3 flex items-center justify-between">
+                        <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-network-wired text-sky-400"></i>
+                            <span>محددات اتصال MikroTik & CoA Disconnect</span>
+                        </h3>
+                        <span class="text-[10px] text-sky-400 font-mono bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 font-bold">RFC 5176</span>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                            منفذ RFC 5176 CoA / PoD الافتراضي (Default CoA Port) <span class="text-rose-400">*</span>
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-xs">
+                                <i class="fa-solid fa-ethernet"></i>
+                            </span>
+                            <input type="number" name="default_coa_port" value="{{ settings.get('default_coa_port', '3799') }}" required
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white font-mono font-bold focus:border-blue-500">
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1">المنفذ الافتراضي القياسي في راوترات MikroTik RouterOS هو <code class="text-blue-400 font-mono">3799 UDP</code></p>
+                    </div>
+
+                    <div class="p-3.5 bg-[#070b14] rounded-xl border border-[#162136] text-xs text-slate-300 space-y-1">
+                        <div class="text-sky-400 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>فصل الجلسات الفوري (Instant Disconnect):</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                            يتم إرسال حزم Packet of Disconnect فور انتهاء الكرت أو تجاوز سقف البيانات أو إيقاف المشترك من لوحة التحكم.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- FreeRADIUS Engine Status & Quick Navigation -->
+                <div class="lg:col-span-6 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
+                    <div>
+                        <div class="border-b border-[#1c2840] pb-3 flex items-center justify-between mb-4">
+                            <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-server text-purple-400"></i>
+                                <span>محرك الراديوس والخدمات (Engine Health)</span>
+                            </h3>
+                            <span class="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">RUNNING</span>
+                        </div>
+
+                        <div class="space-y-2.5">
+                            <div class="p-3 bg-[#070b14] rounded-xl border border-[#162136] flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+                                    <span class="text-xs font-bold text-white">FreeRADIUS 3.2 Daemon</span>
+                                </div>
+                                <span class="text-[11px] font-mono text-emerald-400 font-bold">Port 1812/1813 UDP</span>
+                            </div>
+
+                            <div class="p-3 bg-[#070b14] rounded-xl border border-[#162136] flex items-center justify-between">
+                                <div class="flex items-center gap-2.5">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span>
+                                    <span class="text-xs font-bold text-white">MariaDB Database</span>
+                                </div>
+                                <span class="text-[11px] font-mono text-blue-400 font-bold">SQL Driver Connected</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <a href="{{ url_for('nas') }}" class="w-full p-2.5 bg-[#070b14] hover:bg-[#11192b] border border-slate-700 hover:border-blue-500 rounded-xl text-center text-xs font-bold text-slate-200 transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-server text-blue-400"></i>
+                            <span>إدارة أجهزة الرواتر والـ NAS</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- TAB 5: التواصل وبوابة SMS (Contact & SMS Gateway)         -->
+        <!-- ========================================================= -->
+        <div id="tab-content-contact" class="tab-pane hidden space-y-6">
+            
+            <!-- Support & Contact Details -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+                <div class="border-b border-[#1c2840] pb-3 flex items-center justify-between">
+                    <h3 class="font-bold text-white text-base flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-sm">
+                            <i class="fa-solid fa-headset"></i>
+                        </div>
+                        <span>بيانات التواصل والدعم الفني (Support & Invoicing Info)</span>
+                    </h3>
+                    <span class="text-[11px] text-slate-400">تظهر في ترويسة وتذييل الفواتير وبوابة المشتركين</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                            رقم الهاتف / الواتساب للدعم الفني
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-sm">
+                                <i class="fa-solid fa-phone"></i>
+                            </span>
+                            <input type="text" name="support_phone" value="{{ support_phone }}" placeholder="+967 770 000 000" 
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white focus:border-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                            البريد الإلكتروني للإدارة والدعم
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-sm">
+                                <i class="fa-solid fa-envelope"></i>
+                            </span>
+                            <input type="email" name="support_email" value="{{ support_email }}" placeholder="support@wisp-network.com" 
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white focus:border-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                            العنوان والمقر الرئيسي للشبكة
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-sm">
+                                <i class="fa-solid fa-location-dot"></i>
+                            </span>
+                            <input type="text" name="address" value="{{ address }}" placeholder="المركز الرئيسي لخدمات الإنترنت" 
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white focus:border-blue-500 transition">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SMS Gateway Settings -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+                <div class="border-b border-[#1c2840] pb-3 flex items-center justify-between flex-wrap gap-2">
+                    <h3 class="font-bold text-white text-base flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center text-sm">
+                            <i class="fa-solid fa-comment-sms"></i>
+                        </div>
+                        <span>بوابة الرسائل النصية القصيرة (SMS Gateway API)</span>
+                    </h3>
+                    <span class="text-[11px] text-sky-400 font-mono bg-sky-500/10 px-2.5 py-0.5 rounded-full border border-sky-500/20 font-bold">SMS Notifications</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                            رابط بوابة الإرسال (SMS Gateway URL)
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-xs">
+                                <i class="fa-solid fa-link"></i>
+                            </span>
+                            <input type="url" name="sms_gateway_url" value="{{ settings.get('sms_gateway_url', '') }}" 
+                                   placeholder="https://api.sms-gateway.com/send?to={to}&msg={msg}" 
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white font-mono focus:border-blue-500 transition">
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">يدعم متغيرات URL مثل <code class="text-blue-400">{to}</code> و <code class="text-blue-400">{msg}</code></p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                            اسم المرسل (Sender ID)
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-xs">
+                                <i class="fa-solid fa-tag"></i>
+                            </span>
+                            <input type="text" name="sms_sender_id" value="{{ settings.get('sms_sender_id', 'WISP-NET') }}" 
+                                   placeholder="WISP-NET" 
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white font-mono focus:border-blue-500 transition">
+                        </div>
+                    </div>
+
+                    <div class="sm:col-span-3">
+                        <label class="block text-xs font-bold text-slate-200 mb-1.5">
+                            مفتاح الواجهة البرمجية (API Token / Key)
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-xs">
+                                <i class="fa-solid fa-key"></i>
+                            </span>
+                            <input type="password" name="sms_api_key" value="{{ settings.get('sms_api_key', '') }}" 
+                                   placeholder="sk_live_xxxxxxxxxxxxxxxxxxxxxxxx" 
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white font-mono focus:border-blue-500 transition">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================================= -->
+        <!-- TAB 6: المدراء وسجل الرقابة (Admins RBAC & Audit Logs)    -->
+        <!-- ========================================================= -->
+        <div id="tab-content-audit" class="tab-pane hidden space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Admins RBAC Card -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm flex flex-col justify-between space-y-4">
+                    <div>
+                        <div class="border-b border-[#1c2840] pb-3 mb-4 flex items-center justify-between">
+                            <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-user-shield text-emerald-400"></i>
+                                <span>مدراء النظام والصلاحيات (Admin RBAC)</span>
+                            </h3>
+                            <a href="{{ url_for('managers_page') }}" class="text-xs font-bold text-blue-400 hover:underline flex items-center gap-1">
+                                <span>إدارة الحسابات</span>
+                                <i class="fa-solid fa-arrow-left text-[10px]"></i>
+                            </a>
+                        </div>
+                        
+                        <div class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                            {% for a in admins %}
+                            <div class="p-3 bg-[#070b14] rounded-xl border border-[#162136] flex items-center justify-between hover:border-slate-700 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold text-xs">
+                                        {{ a.username[0]|upper }}
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-white text-xs">{{ a.full_name }}</div>
+                                        <div class="text-[11px] text-slate-400 font-mono">@{{ a.username }}</div>
+                                    </div>
+                                </div>
+                                <span class="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase bg-blue-500/15 text-blue-300 border border-blue-500/25">
+                                    {{ a.role }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-[#070b14] rounded-xl border border-[#162136] text-xs text-slate-400 flex items-center gap-2">
+                        <i class="fa-solid fa-shield-check text-emerald-400 text-sm flex-shrink-0"></i>
+                        <span>يدعم النظام تشفير كلمات المرور وسجلات التدقيق المحاسبي الصارمة.</span>
+                    </div>
+                </div>
+
+                <!-- Audit Trail Logs Table -->
+                <div class="lg:col-span-2 bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between">
+                    <div class="p-5 border-b border-[#1c2840] flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                            <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+                                <i class="fa-solid fa-shield-halved text-purple-400"></i>
+                                <span>سجل العمليات والرقابة (Audit Logs)</span>
+                            </h3>
+                            <p class="text-[11px] text-slate-400 mt-0.5">آخر 30 حركة إدارية ومحاسبية مسجلة بالنظام</p>
+                        </div>
+
+                        <!-- Audit Search Input -->
+                        <div class="relative w-full sm:w-56">
+                            <i class="fa-solid fa-magnifying-glass absolute right-3 top-2.5 text-slate-500 text-xs"></i>
+                            <input type="text" id="auditSearchInput" onkeyup="filterAuditTable()" placeholder="تصفية السجل..."
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-8 pl-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto flex-grow max-h-[380px] overflow-y-auto">
+                        <table class="w-full text-right text-xs" id="auditLogsTable">
+                            <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840] sticky top-0 z-10">
+                                <tr>
+                                    <th class="py-3 px-4">المستخدم</th>
+                                    <th class="py-3 px-4">الإجراء</th>
+                                    <th class="py-3 px-4">التفاصيل</th>
+                                    <th class="py-3 px-4">التاريخ والوقت</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[#1c2840]">
+                                {% for l in audit_logs %}
+                                <tr class="hover:bg-[#11192b] transition audit-row">
+                                    <td class="py-3 px-4 font-bold text-white text-xs">
+                                        <span class="bg-[#070b14] px-2 py-0.5 rounded border border-slate-700">{{ l.username }}</span>
+                                    </td>
+                                    <td class="py-3 px-4 font-mono font-bold text-blue-400">{{ l.action }}</td>
+                                    <td class="py-3 px-4 text-slate-300 text-xs truncate max-w-xs">{{ l.details }}</td>
+                                    <td class="py-3 px-4 text-slate-400 font-mono text-[11px] whitespace-nowrap">{{ l.created_at }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="py-8 text-center text-slate-400">
+                                        لا توجد سجلات بعد.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sticky / Global Save Action Bar -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4 sticky bottom-4 z-30">
+            <div class="flex items-center gap-2.5 text-xs text-slate-400">
+                <i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+                <span>يتم حفظ وتطبيق التعديلات في كافة وحدات النظام فور النقر على حفظ.</span>
+            </div>
+
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <button type="reset" class="w-1/2 sm:w-auto px-5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition">
+                    إلغاء التعديلات
+                </button>
+                <button type="submit" class="w-1/2 sm:w-auto px-7 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>حفظ وتطبيق الإعدادات الآن</span>
+                </button>
+            </div>
+        </div>
+
+    </form>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Tab switching logic with URL Hash persistence
+    function switchSettingsTab(tabName) {
+        // Hide all panes
+        document.querySelectorAll('.tab-pane').forEach(el => {
+            el.classList.add('hidden');
+        });
+
+        // Show selected pane
+        const targetPane = document.getElementById(`tab-content-${tabName}`);
+        if (targetPane) {
+            targetPane.classList.remove('hidden');
+        }
+
+        // Reset tab buttons style
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.className = 'tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]';
+        });
+
+        // Activate clicked button
+        const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+        if (activeBtn) {
+            activeBtn.className = 'tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap bg-blue-600 text-white shadow-lg shadow-blue-500/25';
+        }
+
+        // Update hash in URL
+        window.location.hash = tabName;
+    }
+
+    // Auto open tab from hash on load
+    document.addEventListener('DOMContentLoaded', function() {
+        const hash = window.location.hash.replace('#', '');
+        const validTabs = ['branding', 'currency', 'portal', 'network', 'contact', 'audit'];
+        if (hash && validTabs.includes(hash)) {
+            switchSettingsTab(hash);
+        }
+
+        // Live Clock Ticker
+        setInterval(function() {
+            const clockEl = document.getElementById('liveClockDisplay');
+            if (clockEl) {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('en-GB');
+                const dateStr = now.toISOString().slice(0, 10);
+                clockEl.innerText = `${dateStr} ${timeStr}`;
+            }
+        }, 1000);
+    });
+
+    // Currency update handlers
+    function updateCurrencyFields(code, symbol) {
+        const symInput = document.getElementById('currencySymbolInput');
+        if (symInput) {
+            symInput.value = symbol;
+        }
+        updatePreviewText(symbol);
+    }
+
+    function updatePreviewText(symbol) {
+        const badge = document.getElementById('currencyPreviewBadge');
+        if (badge) {
+            badge.innerText = `25.00 ${symbol}`;
+        }
+    }
+
+    // Logo image preview
+    function previewLogoFile(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('logoPreviewImg');
+                const placeholder = document.getElementById('logoPlaceholder');
+                img.src = e.target.result;
+                img.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // NTP Time Sync Trigger
+    function triggerNtpSync() {
+        const btn = document.getElementById('ntpSyncBtn');
+        const statusText = document.getElementById('ntpStatusText');
+        if (!btn) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span>جاري مزامنة الوقت...</span>';
+        
+        fetch('/api/time/sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                statusText.innerHTML = '<span class="text-emerald-400 font-bold"><i class="fa-solid fa-check ml-1"></i>تمت المزامنة بنجاح مع ' + (data.data?.active_server || 'NTP Server') + '</span>';
+                if (data.data?.time_str) {
+                    const clock = document.getElementById('liveClockDisplay');
+                    if (clock) clock.innerText = data.data.time_str;
+                }
+            } else {
+                statusText.innerHTML = '<span class="text-amber-400 font-bold">' + (data.message || 'فشلت المزامنة') + '</span>';
+            }
+        })
+        .catch(err => {
+            statusText.innerHTML = '<span class="text-rose-400 font-bold">خطأ في الاتصال بالخادم</span>';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-rotate text-xs"></i> <span>مزامنة التوقيت عبر NTP الآن</span>';
+        });
+    }
+
+    // Audit logs quick filter
+    function filterAuditTable() {
+        const query = document.getElementById('auditSearchInput').value.toLowerCase().trim();
+        const rows = document.querySelectorAll('#auditLogsTable tbody tr.audit-row');
+        rows.forEach(row => {
+            const text = row.innerText.toLowerCase();
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

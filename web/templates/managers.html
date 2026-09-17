@@ -1,0 +1,802 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة المدراء والموزعين ومجموعات الصلاحيات{% endblock %}
+{% block page_title %}المدراء والموزعين (Managers & Resellers){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Header Banner & Actions -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840]">
+        <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-lg flex-shrink-0">
+                    <i class="fa-solid fa-users-gear"></i>
+                </div>
+                <span>إدارة المدراء ونقاط البيع والموزعين</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+                إدارة حسابات لوحة التحكم، صلاحيات الوصول (RBAC)، وشحن أرصدة الموزعين نقدياً وآجلاً وسداد الذمم المالية
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <a href="{{ url_for('roles_page') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-shield-halved text-blue-400"></i>
+                <span>مجموعات الصلاحيات</span>
+            </a>
+
+            <a href="{{ url_for('manager_invoices_page') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-file-invoice-dollar text-emerald-400"></i>
+                <span>سجل الفواتير العام</span>
+            </a>
+
+            <button type="button" onclick="openAddManagerModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>إضافة مدير / موزع جديد</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Search & Filter Controls -->
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#0b0f19] p-4 rounded-xl border border-[#1c2840]">
+        <div class="relative sm:col-span-2">
+            <i class="fa-solid fa-magnifying-glass absolute right-3 top-3.5 text-slate-500 text-sm"></i>
+            <input type="text" id="searchInput" onkeyup="filterManagersTable()" placeholder="بحث بالاسم، اسم المستخدم، أو رقم الهاتف..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-9 pl-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+        </div>
+        <div>
+            <select id="roleFilter" onchange="filterManagersTable()" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                <option value="">جميع الأدوار والصلاحيات</option>
+                {% for r in roles %}
+                <option value="{{ r.name }}">{{ r.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <select id="statusFilter" onchange="filterManagersTable()" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+                <option value="">جميع الحالات (نشط / معطل)</option>
+                <option value="active">نشط فقط (Active)</option>
+                <option value="inactive">معطل فقط (Inactive)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 4 KPI Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Total Managers -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-blue-500/40 transition">
+            <div>
+                <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي الحسابات</span>
+                <h4 class="text-2xl font-black text-white font-mono">{{ kpis.total_managers }}</h4>
+                <span class="text-[11px] text-emerald-400 font-medium">نشط: {{ kpis.active_managers }} حساب</span>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-lg border border-blue-500/20 flex-shrink-0">
+                <i class="fa-solid fa-users-gear"></i>
+            </div>
+        </div>
+
+        <!-- 2. Wallet Balances -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-emerald-500/40 transition">
+            <div>
+                <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي أرصدة المحافظ</span>
+                <h4 class="text-2xl font-black text-emerald-400 font-mono">
+                    {{ "{:,.2f}".format(kpis.total_wallet_balances) }}
+                </h4>
+                <span class="text-[11px] text-slate-400 font-medium">{{ currency_symbol }} متاح بالمحافظ</span>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg border border-emerald-500/20 flex-shrink-0">
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+        </div>
+
+        <!-- 3. Cash Deposits -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-sky-500/40 transition">
+            <div>
+                <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي الإيداعات النقدية</span>
+                <h4 class="text-2xl font-black text-sky-400 font-mono">
+                    {{ "{:,.2f}".format(kpis.cash_deposits) }}
+                </h4>
+                <span class="text-[11px] text-slate-400 font-medium">{{ currency_symbol }} مدفوعات مسددة</span>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-lg border border-sky-500/20 flex-shrink-0">
+                <i class="fa-solid fa-money-bill-wave"></i>
+            </div>
+        </div>
+
+        <!-- 4. Net Outstanding Debt -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-amber-500/40 transition">
+            <div>
+                <span class="text-xs font-bold text-slate-400 block mb-1">صافي الذمم المستحقة (الآجل)</span>
+                <h4 class="text-2xl font-black text-amber-400 font-mono">
+                    {{ "{:,.2f}".format(kpis.net_outstanding_debt) }}
+                </h4>
+                <span class="text-[11px] text-amber-300 font-medium">مستحقة التحصيل</span>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg border border-amber-500/20 flex-shrink-0">
+                <i class="fa-solid fa-handshake"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Managers Table Card -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-sm overflow-hidden">
+        <div class="p-4 sm:p-5 border-b border-[#1c2840] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h3 class="font-bold text-slate-100 flex items-center gap-2.5 text-sm">
+                <i class="fa-solid fa-users text-blue-400"></i>
+                <span>قائمة حسابات المدراء ونقاط البيع (Managers List)</span>
+            </h3>
+            <span class="text-xs text-slate-400">إجمالي الحسابات: <strong class="text-white font-mono">{{ managers|length }}</strong></span>
+        </div>
+
+        <!-- Table Content -->
+        <div class="overflow-x-auto table-responsive">
+            <table class="w-full text-right text-sm" id="managersTable">
+                <thead class="bg-[#070b14] text-slate-400 text-xs uppercase font-semibold border-b border-[#1c2840] select-none">
+                    <tr>
+                        <th class="py-3.5 px-5">المدير / الموزع</th>
+                        <th class="py-3.5 px-5">الدور والصلاحيات</th>
+                        <th class="py-3.5 px-5">رصيد المحفظة</th>
+                        <th class="py-3.5 px-5 hidden lg:table-cell">الذمة المالية (الآجل)</th>
+                        <th class="py-3.5 px-5 hidden md:table-cell">بيانات الاتصال</th>
+                        <th class="py-3.5 px-5 text-center">الحالة</th>
+                        <th class="py-3.5 px-5 text-center">الإجراءات والعمليات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% for m in managers %}
+                    <tr class="hover:bg-[#11192b] transition group" data-role="{{ m.role_name }}" data-active="{{ 'active' if m.is_active else 'inactive' }}">
+                        
+                        <!-- 1. Manager Name & Username -->
+                        <td class="py-3.5 px-5">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl {% if m.id == 1 %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% else %}bg-blue-500/10 text-blue-400 border border-blue-500/20{% endif %} flex items-center justify-center text-base flex-shrink-0 font-bold">
+                                    {% if m.id == 1 %}
+                                    <i class="fa-solid fa-crown"></i>
+                                    {% else %}
+                                    <i class="fa-solid fa-user-shield"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <span class="font-bold text-white text-sm block group-hover:text-blue-400 transition">{{ m.full_name }}</span>
+                                    <div class="flex items-center gap-1.5 mt-0.5 text-slate-400 font-mono text-[11px]">
+                                        <i class="fa-solid fa-at text-[10px] text-slate-500"></i>
+                                        <span>{{ m.username }}</span>
+                                        {% if m.id == 1 %}
+                                        <span class="bg-amber-500/20 text-amber-300 text-[9px] px-1.5 py-0.2 rounded font-sans font-bold">المدير العام</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- 2. Role -->
+                        <td class="py-3.5 px-5">
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold {% if m.role_code == 'superadmin' %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% elif m.role_code == 'manager' %}bg-blue-500/10 text-blue-400 border border-blue-500/20{% else %}bg-purple-500/10 text-purple-400 border border-purple-500/20{% endif %}">
+                                <i class="fa-solid fa-shield text-[10px]"></i>
+                                <span>{{ m.role_name }}</span>
+                            </span>
+                        </td>
+
+                        <!-- 3. Wallet Balance -->
+                        <td class="py-3.5 px-5">
+                            <div class="font-mono font-black text-sm {% if m.wallet_balance > 0 %}text-emerald-400{% elif m.wallet_balance < 0 %}text-rose-400{% else %}text-slate-300{% endif %}">
+                                {{ "{:,.2f}".format(m.wallet_balance) }} <span class="text-[10px] font-sans font-normal text-slate-400">{{ currency_symbol }}</span>
+                            </div>
+                            {% if m.credit_limit > 0 %}
+                            <span class="text-[10px] text-slate-500 font-mono block mt-0.5">سقف الآجل: {{ "{:,.0f}".format(m.credit_limit) }}</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 4. Net Outstanding Debt -->
+                        <td class="py-3.5 px-5 font-mono text-xs hidden lg:table-cell">
+                            {% if m.net_outstanding_debt > 0 %}
+                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold">
+                                <i class="fa-solid fa-handshake text-[11px]"></i>
+                                <span>{{ "{:,.2f}".format(m.net_outstanding_debt) }} {{ currency_symbol }}</span>
+                            </div>
+                            {% else %}
+                            <span class="text-slate-500 text-[11px]">لا توجد ذمم (مسدد)</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 5. Contact -->
+                        <td class="py-3.5 px-5 text-slate-300 text-xs hidden md:table-cell">
+                            <div class="flex items-center gap-1 font-mono">
+                                <i class="fa-solid fa-phone text-slate-500 text-[10px]"></i>
+                                <span>{{ m.phone or '-' }}</span>
+                            </div>
+                            {% if m.email %}
+                            <div class="text-[11px] text-slate-400 truncate max-w-[140px] mt-0.5">{{ m.email }}</div>
+                            {% endif %}
+                        </td>
+
+                        <!-- 6. Status -->
+                        <td class="py-3.5 px-5 text-center">
+                            {% if m.is_active %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1.5 animate-pulse"></span>نشط
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                معطل
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 7. Actions -->
+                        <td class="py-3.5 px-5 text-center">
+                            <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                                
+                                <!-- Statement of Account (كشف الحساب) -->
+                                <a href="{{ url_for('manager_statement_page', manager_id=m.id) }}" class="px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1" title="عرض كشف الحساب المالي والحركات">
+                                    <i class="fa-solid fa-receipt"></i>
+                                    <span>كشف حساب</span>
+                                </a>
+
+                                <!-- Deposit Wallet (شحن رصيد) -->
+                                <button type="button" onclick="openDepositModal({{ m.id }}, '{{ m.full_name }}', {{ m.wallet_balance }}, {{ m.net_outstanding_debt }})" class="px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="شحن رصيد نقدي أو آجل">
+                                    <i class="fa-solid fa-circle-plus"></i>
+                                    <span>شحن</span>
+                                </button>
+
+                                <!-- Settle Debt (سداد ذمة / سند قبض) -->
+                                {% if m.net_outstanding_debt > 0 %}
+                                <button type="button" onclick="openSettleDebtModal({{ m.id }}, '{{ m.full_name }}', {{ m.net_outstanding_debt }})" class="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="سداد ذمة مالية أو قيد سند قبض">
+                                    <i class="fa-solid fa-handshake"></i>
+                                    <span>سداد ذمة</span>
+                                </button>
+                                {% endif %}
+
+                                <!-- Login As / Impersonate (For Super Admin) -->
+                                {% if current_manager and (current_manager.id == 1 or current_manager.role_code == 'superadmin' or session.get('original_admin_id') == 1) %}
+                                {% if m.id != current_manager.id %}
+                                <button type="button" onclick="impersonateManager({{ m.id }}, '{{ m.full_name }}')" class="px-2.5 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="تسجيل الدخول والتصفح بحساب هذا الموزع/المدير">
+                                    <i class="fa-solid fa-user-secret"></i>
+                                    <span>الدخول كـ</span>
+                                </button>
+                                {% endif %}
+                                {% endif %}
+
+                                <!-- Edit Manager -->
+                                <button type="button" onclick="openEditManagerModal({{ m|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="تعديل الحساب">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+
+                                <!-- Toggle Active / Inactive -->
+                                {% if m.id != 1 %}
+                                <button type="button" onclick="toggleManagerStatus({{ m.id }}, '{{ m.full_name }}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 {% if m.is_active %}text-amber-400 hover:text-amber-300{% else %}text-emerald-400 hover:text-emerald-300{% endif %} rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="{% if m.is_active %}تعطيل الحساب{% else %}تفعيل الحساب{% endif %}">
+                                    <i class="fa-solid {% if m.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
+                                </button>
+
+                                <!-- Delete -->
+                                <button type="button" onclick="confirmDeleteManager({{ m.id }}, '{{ m.full_name }}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الحساب">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                                {% endif %}
+
+                            </div>
+                        </td>
+
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="py-12 text-center text-slate-500">
+                            <div class="w-12 h-12 rounded-xl bg-slate-800/50 flex items-center justify-center text-xl mx-auto mb-2 text-slate-400">
+                                <i class="fa-solid fa-user-slash"></i>
+                            </div>
+                            <span>لا يوجد مدراء أو موزعين مسجلين حالياً.</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ============================================================== -->
+<!-- 1. Add Manager Modal                                           -->
+<!-- ============================================================== -->
+<div id="addManagerModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto sidebar-scroll">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                <i class="fa-solid fa-user-plus text-blue-400"></i>
+                <span>إضافة مدير / موزع جديد</span>
+            </h3>
+            <button type="button" onclick="closeModal('addManagerModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <form method="POST" action="{{ url_for('add_manager_action') }}" class="space-y-3.5 text-xs">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">اسم المستخدم <span class="text-rose-400">*</span></label>
+                    <input type="text" name="username" required placeholder="manager1" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">كلمة المرور <span class="text-rose-400">*</span></label>
+                    <input type="password" name="password" required placeholder="••••••••" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">الاسم الكامل / اسم نقطة البيع <span class="text-rose-400">*</span></label>
+                <input type="text" name="full_name" required placeholder="مثال: مركز الأمل - موزع معتمد" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">الدور والصلاحيات <span class="text-rose-400">*</span></label>
+                    <select name="role_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                        {% for r in roles %}
+                        <option value="{{ r.id }}" {% if r.code == 'manager' %}selected{% endif %}>{{ r.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">رقم الهاتف</label>
+                    <input type="text" name="phone" placeholder="+967 ..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">البريد الإلكتروني</label>
+                    <input type="email" name="email" placeholder="pos@example.com" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">نسبة العمولة (%)</label>
+                    <input type="number" step="0.1" name="commission_percent" value="0.0" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Allowed Packages Selection -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136] space-y-2">
+                <label class="block text-slate-200 font-semibold mb-1 flex items-center justify-between">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-box text-blue-400"></i>الباقات المسموح ببيعها وتوليدها</span>
+                    <span class="text-[10px] text-slate-400">(اتركها فارغة لإتاحة كافة الباقات)</span>
+                </label>
+                <div class="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-2 bg-[#0b0f19] rounded-xl border border-slate-800 sidebar-scroll">
+                    {% for p in packages %}
+                    <label class="flex items-center gap-2 p-1.5 hover:bg-[#11192b] rounded-lg cursor-pointer">
+                        <input type="checkbox" name="allowed_packages" value="{{ p.id }}" class="rounded border-slate-700 text-blue-500 focus:ring-0">
+                        <span class="text-slate-300 text-xs truncate">{{ p.name }} ({{ p.price }} {{ currency_symbol }})</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Financial Setup -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136] space-y-3">
+                <h4 class="font-bold text-slate-200 text-xs flex items-center gap-1.5">
+                    <i class="fa-solid fa-coins text-amber-400"></i>إعدادات الرصيد والذمم الافتتاحية
+                </h4>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-400 mb-1">الرصيد الافتتاحي</label>
+                        <input type="number" step="0.01" name="wallet_balance" value="0.00" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-sm text-emerald-400 font-mono font-bold focus:border-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 mb-1">نوع دفع الرصيد الافتتاحي</label>
+                        <select name="initial_payment_type" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+                            <option value="cash">💵 نقدي (Cash)</option>
+                            <option value="credit">📝 آجل / ذمة (Credit)</option>
+                            <option value="transfer">💳 تحويل بنكي</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-400 mb-1">الحد الأقصى للآجل (Credit Limit)</label>
+                    <input type="number" step="1" name="credit_limit" value="0" placeholder="0 = غير محدد" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-blue-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">ملاحظات إضافية</label>
+                <textarea name="notes" rows="2" placeholder="موقع النقطة أو بيانات الاتصال البديلة" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"></textarea>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('addManagerModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 cursor-pointer">حفظ وإنشاء الحساب</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- 2. Deposit / Recharge Wallet Modal                             -->
+<!-- ============================================================== -->
+<div id="depositModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="fa-solid fa-money-bill-transfer text-emerald-400"></i>
+                <span>شحن وإيداع رصيد المحفظة</span>
+            </h3>
+            <button type="button" onclick="closeModal('depositModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <form method="POST" id="depositForm" action="" class="space-y-4 text-xs">
+            <div class="bg-[#070b14] p-3 rounded-xl border border-[#162136]">
+                <span class="text-slate-400 block">الموزع / نقطة البيع:</span>
+                <span id="depositTargetName" class="font-bold text-white text-sm block mt-0.5"></span>
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-800 text-[11px]">
+                    <span class="text-slate-400">الرصيد الحالي: <strong id="depositCurrentBal" class="text-emerald-400 font-mono font-bold"></strong></span>
+                    <span class="text-slate-400">الذمة الحالية: <strong id="depositCurrentDebt" class="text-amber-400 font-mono font-bold"></strong></span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">المبلغ المراد شحنه (Amount) <span class="text-rose-400">*</span></label>
+                <input type="number" step="0.01" name="amount" required placeholder="0.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-emerald-400 font-mono font-black focus:border-emerald-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">نوع الدفع المحاسبي (Payment Type) <span class="text-rose-400">*</span></label>
+                <div class="grid grid-cols-3 gap-2">
+                    <label class="flex flex-col items-center justify-center p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-emerald-500 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
+                        <input type="radio" name="payment_type" value="cash" checked class="hidden">
+                        <i class="fa-solid fa-money-bill text-emerald-400 text-sm mb-1"></i>
+                        <span class="font-bold text-slate-200 text-[11px]">نقدي (Cash)</span>
+                    </label>
+
+                    <label class="flex flex-col items-center justify-center p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-amber-500 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/10 transition">
+                        <input type="radio" name="payment_type" value="credit" class="hidden">
+                        <i class="fa-solid fa-handshake text-amber-400 text-sm mb-1"></i>
+                        <span class="font-bold text-slate-200 text-[11px]">آجل (ذمة)</span>
+                    </label>
+
+                    <label class="flex flex-col items-center justify-center p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-sky-500 has-[:checked]:border-sky-500 has-[:checked]:bg-sky-500/10 transition">
+                        <input type="radio" name="payment_type" value="transfer" class="hidden">
+                        <i class="fa-solid fa-building-columns text-sky-400 text-sm mb-1"></i>
+                        <span class="font-bold text-slate-200 text-[11px]">تحويل بنكي</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">البيان / ملاحظات الفاتورة</label>
+                <input type="text" name="notes" placeholder="مثال: دفعة نقدية مستلمة / شحن رصيد كروت" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('depositModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/30 cursor-pointer">تأكيد الإيداع وإصدار الفاتورة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- 3. Settle Debt Modal (سند قبض / سداد ذمة مالية)                  -->
+<!-- ============================================================== -->
+<div id="settleDebtModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="fa-solid fa-handshake text-amber-400"></i>
+                <span>سند قبض / سداد ذمة مالية (سداد آجل)</span>
+            </h3>
+            <button type="button" onclick="closeModal('settleDebtModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <form method="POST" id="settleDebtForm" action="" class="space-y-4 text-xs">
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136]">
+                <span class="text-slate-400 block">الموزع / المدين:</span>
+                <span id="settleTargetName" class="font-bold text-white text-sm block mt-0.5"></span>
+                <div class="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between">
+                    <span class="text-xs text-slate-400">إجمالي الذمة المستحقة:</span>
+                    <strong id="settleTargetDebt" class="text-amber-400 font-mono font-black text-sm"></strong>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block text-slate-300 font-semibold">المبلغ المسدد (Amount) <span class="text-rose-400">*</span></label>
+                    <button type="button" id="btnFullSettlement" class="text-[11px] text-blue-400 hover:underline cursor-pointer">سداد كامل المبلغ</button>
+                </div>
+                <input type="number" step="0.01" id="settleAmountInput" name="amount" required placeholder="0.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-amber-400 font-mono font-black focus:border-amber-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">طريقة القبض / الاستلام <span class="text-rose-400">*</span></label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-center justify-center gap-2 p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-emerald-500 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
+                        <input type="radio" name="payment_type" value="cash" checked class="hidden">
+                        <i class="fa-solid fa-money-bill text-emerald-400 text-sm"></i>
+                        <span class="font-bold text-slate-200 text-xs">نقدي (Cash)</span>
+                    </label>
+
+                    <label class="flex items-center justify-center gap-2 p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-sky-500 has-[:checked]:border-sky-500 has-[:checked]:bg-sky-500/10 transition">
+                        <input type="radio" name="payment_type" value="transfer" class="hidden">
+                        <i class="fa-solid fa-building-columns text-sky-400 text-sm"></i>
+                        <span class="font-bold text-slate-200 text-xs">حوالة / تحويل</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">البيان وملاحظات سند القبض</label>
+                <input type="text" name="notes" placeholder="مثال: سند قبض نقدي تسوية ذمة عن شهر ..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('settleDebtModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-500/30 cursor-pointer">تسجيل سند القبض وسداد الذمة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================================== -->
+<!-- 4. Edit Manager Modal                                          -->
+<!-- ============================================================== -->
+<div id="editManagerModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto sidebar-scroll">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                <i class="fa-solid fa-user-pen text-blue-400"></i>
+                <span>تعديل بيانات الحساب</span>
+            </h3>
+            <button type="button" onclick="closeModal('editManagerModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <form method="POST" id="editManagerForm" action="" class="space-y-3.5 text-xs">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">اسم المستخدم</label>
+                    <input type="text" id="edit_username" disabled class="w-full bg-[#070b14] border border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-400 font-mono cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">تغيير كلمة المرور (اختياري)</label>
+                    <input type="password" name="password" placeholder="اتركه فارغاً دون تغيير" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">الاسم الكامل <span class="text-rose-400">*</span></label>
+                <input type="text" name="full_name" id="edit_full_name" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">الدور والصلاحيات</label>
+                    <select name="role_id" id="edit_role_id" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                        {% for r in roles %}
+                        <option value="{{ r.id }}">{{ r.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">رقم الهاتف</label>
+                    <input type="text" name="phone" id="edit_phone" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">البريد الإلكتروني</label>
+                    <input type="email" name="email" id="edit_email" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">نسبة العمولة (%)</label>
+                    <input type="number" step="0.1" name="commission_percent" id="edit_commission" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Allowed Packages Edit Selection -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136] space-y-2">
+                <label class="block text-slate-200 font-semibold mb-1 flex items-center justify-between">
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-box text-blue-400"></i>الباقات المسموح ببيعها وتوليدها</span>
+                    <span class="text-[10px] text-slate-400">(اتركها فارغة لإتاحة كافة الباقات)</span>
+                </label>
+                <div class="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto p-2 bg-[#0b0f19] rounded-xl border border-slate-800 sidebar-scroll" id="editPackagesList">
+                    {% for p in packages %}
+                    <label class="flex items-center gap-2 p-1.5 hover:bg-[#11192b] rounded-lg cursor-pointer">
+                        <input type="checkbox" name="allowed_packages" value="{{ p.id }}" id="edit_pkg_{{ p.id }}" class="rounded border-slate-700 text-blue-500 focus:ring-0">
+                        <span class="text-slate-300 text-xs truncate">{{ p.name }} ({{ p.price }} {{ currency_symbol }})</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">الحد الأقصى للآجل (Credit Limit)</label>
+                <input type="number" step="1" name="credit_limit" id="edit_credit_limit" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">ملاحظات</label>
+                <textarea name="notes" id="edit_notes" rows="2" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"></textarea>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('editManagerModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 cursor-pointer">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openAddManagerModal() {
+        document.getElementById('addManagerModal').classList.remove('hidden');
+    }
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    function openDepositModal(managerId, managerName, currentBal, currentDebt) {
+        const form = document.getElementById('depositForm');
+        form.action = `/managers/${managerId}/deposit`;
+        document.getElementById('depositTargetName').innerText = managerName;
+        document.getElementById('depositCurrentBal').innerText = `${Number(currentBal || 0).toFixed(2)} {{ currency_symbol }}`;
+        document.getElementById('depositCurrentDebt').innerText = `${Number(currentDebt || 0).toFixed(2)} {{ currency_symbol }}`;
+        document.getElementById('depositModal').classList.remove('hidden');
+    }
+
+    function openSettleDebtModal(managerId, managerName, netDebt) {
+        const form = document.getElementById('settleDebtForm');
+        form.action = `/managers/${managerId}/settle-debt`;
+        document.getElementById('settleTargetName').innerText = managerName;
+        document.getElementById('settleTargetDebt').innerText = `${Number(netDebt || 0).toFixed(2)} {{ currency_symbol }}`;
+        const amtInput = document.getElementById('settleAmountInput');
+        amtInput.value = Number(netDebt || 0).toFixed(2);
+        amtInput.max = Number(netDebt || 0).toFixed(2);
+
+        document.getElementById('btnFullSettlement').onclick = function() {
+            amtInput.value = Number(netDebt || 0).toFixed(2);
+        };
+
+        document.getElementById('settleDebtModal').classList.remove('hidden');
+    }
+
+    function openEditManagerModal(mgr) {
+        const form = document.getElementById('editManagerForm');
+        form.action = `/managers/edit/${mgr.id}`;
+        document.getElementById('edit_username').value = mgr.username;
+        document.getElementById('edit_full_name').value = mgr.full_name;
+        document.getElementById('edit_phone').value = mgr.phone || '';
+        document.getElementById('edit_email').value = mgr.email || '';
+        document.getElementById('edit_role_id').value = mgr.role_id;
+        document.getElementById('edit_commission').value = mgr.commission_percent || 0;
+        document.getElementById('edit_credit_limit').value = mgr.credit_limit || 0;
+        document.getElementById('edit_notes').value = mgr.notes || '';
+
+        // Reset package checkboxes
+        const checkboxes = document.querySelectorAll('#editPackagesList input[type="checkbox"]');
+        checkboxes.forEach(cb => { cb.checked = false; });
+
+        // Check assigned packages
+        const allowed = mgr.allowed_packages_list || [];
+        allowed.forEach(pkgId => {
+            const cb = document.getElementById(`edit_pkg_${pkgId}`);
+            if (cb) cb.checked = true;
+        });
+
+        document.getElementById('editManagerModal').classList.remove('hidden');
+    }
+
+    function impersonateManager(managerId, name) {
+        Swal.fire({
+            title: 'تسجيل الدخول كـ (انتحال الشخصية)',
+            html: `هل تريد الانتقال للتصفح بحساب الموزع/المدير <strong class="text-amber-400 font-bold">[${name}]</strong>؟<br><span class="text-xs text-slate-400 mt-2 block">ستتمكن من استعراض كافة أقسام النظام بصلاحياته وبياناته والعودة لحسابك في أي وقت.</span>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، الدخول كـ هذا الموزع',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#d97706',
+            cancelButtonColor: '#475569',
+            background: '#0b0f19',
+            color: '#fff'
+        }).then(res => {
+            if (res.isConfirmed) {
+                fetch(`/managers/${managerId}/impersonate`, {
+                    method: 'POST'
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'تم التحويل بنجاح',
+                            text: data.message,
+                            background: '#0b0f19',
+                            color: '#fff',
+                            timer: 1200,
+                            showConfirmButton: false
+                        }).then(() => {
+                            window.location.href = data.redirect_url || '/';
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'تعذر الدخول',
+                            text: data.message,
+                            background: '#0b0f19',
+                            color: '#fff'
+                        });
+                    }
+                })
+                .catch(err => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: err.message,
+                        background: '#0b0f19',
+                        color: '#fff'
+                    });
+                });
+            }
+        });
+    }
+
+    function toggleManagerStatus(managerId, name) {
+        Swal.fire({
+            title: 'تغيير حالة الحساب',
+            text: `هل أنت متأكد من تغيير حالة حساب [${name}]؟`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، تغيير الحالة',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#3b82f6',
+            background: '#0b0f19',
+            color: '#fff'
+        }).then(res => {
+            if (res.isConfirmed) {
+                const f = document.createElement('form');
+                f.method = 'POST';
+                f.action = `/managers/toggle-status/${managerId}`;
+                document.body.appendChild(f);
+                f.submit();
+            }
+        });
+    }
+
+    function confirmDeleteManager(managerId, name) {
+        Swal.fire({
+            title: 'حذف وتعطيل الحساب',
+            html: `هل أنت متأكد من حذف وتعطيل حساب <strong class="text-rose-400 font-bold">[${name}]</strong>؟<br><span class="text-xs text-slate-400 mt-2 block">سيتم التحقق من عدم وجود رصيد متبقي أو ذمم مالية مستحقة، والاحتفاظ بالسجل المالي والفواتير كاملة.</span>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، حذف الحساب',
+            cancelButtonText: 'إلغاء',
+            background: '#0b0f19',
+            color: '#fff'
+        }).then(res => {
+            if (res.isConfirmed) {
+                const f = document.createElement('form');
+                f.method = 'POST';
+                f.action = `/managers/delete/${managerId}`;
+                document.body.appendChild(f);
+                f.submit();
+            }
+        });
+    }
+
+    function filterManagersTable() {
+        const q = (document.getElementById('searchInput').value || '').toLowerCase();
+        const role = (document.getElementById('roleFilter').value || '').toLowerCase();
+        const status = (document.getElementById('statusFilter').value || '').toLowerCase();
+        
+        const rows = document.querySelectorAll('#managersTable tbody tr');
+        rows.forEach(r => {
+            const text = r.innerText.toLowerCase();
+            const rRole = (r.getAttribute('data-role') || '').toLowerCase();
+            const rActive = (r.getAttribute('data-active') || '').toLowerCase();
+            
+            const matchQ = !q || text.includes(q);
+            const matchRole = !role || rRole.includes(role);
+            const matchStatus = !status || rActive === status;
+            
+            r.style.display = (matchQ && matchRole && matchStatus) ? '' : 'none';
+        });
+    }
+</script>
+{% endblock %}

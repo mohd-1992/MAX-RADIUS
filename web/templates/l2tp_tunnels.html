@@ -1,0 +1,811 @@
+{% extends "base.html" %}
+
+{% block title %}روترات الموزعين وأنفاق (L2TP/IPsec VPN) - MAX RADIUS{% endblock %}
+{% block page_title %}روترات الموزعين وأنفاق (L2TP/IPsec VPN){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Header Banner & Actions -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-network-wired"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    روترات الموزعين وأنفاق (L2TP/IPsec VPN)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    ربط راوترات MikroTik البعيدة عبر نفق L2TP مشفر بـ IPsec (UDP 1701 / 500 / 4500) لتمرير حركة الراديوس والتحكم بسرعة استجابة فائقة
+                </p>
+            </div>
+        </div>
+
+        <!-- Actions & Live Status -->
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="bg-[#070b14] border border-[#162136] px-3.5 py-2 rounded-xl text-xs flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-slate-400">بوابة الراديوس:</span>
+                <span class="font-mono text-cyan-400 font-bold">{{ l2tp_gateway_ip or '10.10.0.1' }}</span>
+            </div>
+
+            <div class="bg-[#070b14] border border-[#162136] px-3.5 py-2 rounded-xl text-xs flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-slate-400">تحديث تلقائي:</span>
+                <span id="l2tpCountdown" class="font-mono text-emerald-400 font-bold">25s</span>
+            </div>
+
+            <button onclick="fetchL2tpLiveStatus(true)" id="btnRefreshL2tp" class="px-3.5 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer">
+                <i id="l2tpRefreshIcon" class="fa-solid fa-arrows-rotate text-blue-400"></i>
+                <span>تحديث فوري</span>
+            </button>
+
+            <button onclick="openSettingsModal()" class="px-3.5 py-2 bg-[#070b14] hover:bg-[#11192b] text-amber-300 border border-amber-500/30 hover:border-amber-500/50 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer">
+                <i class="fa-solid fa-sliders"></i>
+                <span>إعدادات النفق</span>
+            </button>
+
+            <button onclick="openAddModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-plus"></i>
+                <span>إضافة راوتر نفق جديد</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Overview Cards (4 Grid) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Total Routers -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">إجمالي روترات النفق</span>
+                <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-base border border-blue-500/20">
+                    <i class="fa-solid fa-server"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-white font-mono" id="countAll">{{ tunnels|length }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>النوع:</span>
+                    <span class="text-blue-400 font-bold">MikroTik L2TP Client</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Online Tunnels -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">المتصلة الآن (Online)</span>
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/20">
+                    <i class="fa-solid fa-signal"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 id="kpiOnlineTunnels" class="text-2xl font-black text-emerald-400 font-mono">
+                    {{ tunnels|selectattr('is_online', 'equalto', true)|list|length }} / {{ tunnels|length }}
+                </h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حالة الاتصال:</span>
+                    <span class="text-emerald-400 font-bold">نفق VPN نشط</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Protocol & Port -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">منفذ وبروتوكول النفق</span>
+                <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-base border border-amber-500/20">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-xl font-black text-amber-400 font-mono">UDP {{ l2tp_port or 1701 }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>التشفير:</span>
+                    <span class="text-amber-400 font-bold">L2TP / IPsec PSK</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Subnet Pool -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">نطاق عناوين الأنفاق</span>
+                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
+                    <i class="fa-solid fa-map-location-dot"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-sm font-black text-purple-400 font-mono">{{ l2tp_pool_start or '10.10.0.10' }} - {{ l2tp_pool_end or '10.10.0.250' }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>قناع الشبكة:</span>
+                    <span class="text-purple-400 font-mono">{{ l2tp_mask or '255.255.255.0' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tunnels Table Card -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        
+        <!-- Table Search & Filter Toolbar -->
+        <div class="p-5 border-b border-[#1c2840] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-[#070b14]/50">
+            <div class="flex items-center gap-2 flex-1 max-w-md">
+                <div class="relative w-full">
+                    <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                    <input type="text" id="tunnelSearchInput" onkeyup="filterTunnelsTable()" placeholder="بحث باسم الراوتر، اسم المستخدم، أو عنوان IP..." class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl pr-9 pl-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <div class="bg-[#0b0f19] p-1 rounded-xl border border-[#1c2840] flex items-center gap-1 text-xs">
+                    <button type="button" onclick="setTunnelFilter('all')" id="filterBtnAll" class="px-3 py-1.5 rounded-lg text-xs font-bold transition bg-blue-600 text-white shadow-sm cursor-pointer">
+                        الكل (<span id="countFilterAll">{{ tunnels|length }}</span>)
+                    </button>
+                    <button type="button" onclick="setTunnelFilter('online')" id="filterBtnOnline" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white cursor-pointer">
+                        المتصلة (<span id="countOnline">{{ tunnels|selectattr('is_online', 'equalto', true)|list|length }}</span>)
+                    </button>
+                    <button type="button" onclick="setTunnelFilter('offline')" id="filterBtnOffline" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white cursor-pointer">
+                        غير المتصلة (<span id="countOffline">{{ tunnels|rejectattr('is_online')|list|length }}</span>)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table View -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead>
+                    <tr class="bg-[#070b14] text-slate-400 border-b border-[#1c2840]">
+                        <th class="px-5 py-3.5 font-bold">الراوتر / الفرع</th>
+                        <th class="px-5 py-3.5 font-bold">بيانات حساب النفق</th>
+                        <th class="px-5 py-3.5 font-bold">عنوان IP داخل النفق</th>
+                        <th class="px-5 py-3.5 font-bold">مفتاح IPsec PSK</th>
+                        <th class="px-5 py-3.5 font-bold text-center">حالة النفق</th>
+                        <th class="px-5 py-3.5 font-bold text-center">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#162136]" id="tunnelsTableBody">
+                    {% for t in tunnels %}
+                    <tr class="hover:bg-[#11192b]/50 transition tunnel-row" id="row-tunnel-{{ t.id }}" 
+                        data-name="{{ t.name|lower }}" 
+                        data-user="{{ t.username|lower }}" 
+                        data-ip="{{ t.tunnel_ip }}" 
+                        data-desc="{{ t.description|default('', true)|lower }}"
+                        data-online="{{ 'true' if t.is_online else 'false' }}">
+                        <td class="px-5 py-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-sm">
+                                    <i class="fa-solid fa-router"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-bold text-white text-sm">{{ t.name }}</h4>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">{{ t.description or 'راوتر موزع بعيد' }}</p>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-5 py-4">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-1.5 font-mono text-slate-200">
+                                    <i class="fa-solid fa-user text-[10px] text-blue-400"></i>
+                                    <span class="font-bold text-blue-300">{{ t.username }}</span>
+                                </div>
+                                <div class="flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
+                                    <i class="fa-solid fa-lock text-[10px] text-slate-500"></i>
+                                    <span>••••••••</span>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-5 py-4">
+                            <div class="space-y-1">
+                                <span class="font-mono text-xs font-bold text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 inline-block">
+                                    {{ t.tunnel_ip }}
+                                </span>
+                                <div class="text-[10px] text-slate-400">راديوس: <span class="font-mono text-cyan-400">{{ t.radius_secret }}</span></div>
+                            </div>
+                        </td>
+                        <td class="px-5 py-4">
+                            {% if t.ipsec_secret %}
+                            <span class="font-mono text-[11px] text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 inline-flex items-center gap-1">
+                                <i class="fa-solid fa-lock text-[10px] text-emerald-400"></i>
+                                <span>{{ t.ipsec_secret }}</span>
+                            </span>
+                            {% else %}
+                            <span class="text-[11px] text-slate-400 bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/60 inline-flex items-center gap-1">
+                                <i class="fa-solid fa-bolt text-[10px] text-amber-400"></i>
+                                <span>بدون تشفير (Pure L2TP)</span>
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-4 text-center" id="status-cell-{{ t.id }}">
+                            {% if t.is_online %}
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="الراوتر متصل بنجاح">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                <span>{{ t.latency_ms or 1 }} ms</span>
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800/80 text-slate-400 border border-slate-700/60">
+                                <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+                                <span>غير متصل</span>
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-5 py-4 text-center">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <!-- 1. سكربت الربط -->
+                                <button type="button" onclick="openScriptModal({{ t.id }}, '{{ t.name|escape }}')" class="px-3 py-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm" title="توليد سكربت الربط الشامل لميكروتيك">
+                                    <i class="fa-solid fa-terminal text-[11px]"></i>
+                                    <span>سكربت الربط</span>
+                                </button>
+
+                                <!-- 2. تعديل النفق -->
+                                <button type="button" onclick="openEditModal({{ t.id }}, '{{ t.name|escape }}', '{{ t.username|escape }}', '{{ t.password|escape }}', '{{ t.tunnel_ip }}', '{{ t.radius_secret|escape }}', '{{ (t.ipsec_secret or '')|escape }}', '{{ (t.description or '')|escape }}')" class="p-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-300 border border-blue-500/30 rounded-xl text-xs transition cursor-pointer" title="تعديل بيانات النفق">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+
+                                <!-- 3. حذف النفق -->
+                                <button type="button" onclick="confirmDeleteTunnel({{ t.id }}, '{{ t.name|escape }}')" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-xs transition cursor-pointer" title="حذف هذا النفق">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                                <form id="deleteForm-{{ t.id }}" action="/nas/l2tp/delete/{{ t.id }}" method="POST" class="hidden"></form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr id="emptyTableState">
+                        <td colspan="6" class="px-6 py-16 text-center text-slate-500">
+                            <div class="w-16 h-16 rounded-2xl bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-slate-600 text-3xl mx-auto mb-3">
+                                <i class="fa-solid fa-network-wired"></i>
+                            </div>
+                            <p class="text-sm font-bold text-slate-300">لا توجد روترات L2TP مسجلة حالياً</p>
+                            <p class="text-xs text-slate-500 mt-1">اضغط على زر "إضافة راوتر نفق جديد" لبدء ربط أول راوتر بعيد عبر النفق المشفر</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add Tunnel -->
+<div id="addModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div class="p-5 border-b border-[#1c2840] flex justify-between items-center bg-[#070b14]/70">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-circle-plus text-blue-400"></i>
+                <span>إضافة راوتر نفق L2TP/IPsec جديد</span>
+            </h3>
+            <button type="button" onclick="closeAddModal()" class="text-slate-400 hover:text-white text-base cursor-pointer">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <form action="/nas/l2tp/add" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">اسم الراوتر / الفرع / الموزع *</label>
+                <input type="text" name="name" required placeholder="مثال: راوتر فرع الأمل / موزع السلام" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs focus:outline-none focus:border-blue-500 transition">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">اسم مستخدم النفق (VPN User) *</label>
+                    <input type="text" name="username" required placeholder="مثال: router_branch1" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">كلمة مرور النفق (VPN Pass) *</label>
+                    <input type="text" name="password" required placeholder="كلمة مرور قوية" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">IP الراوتر داخل النفق (Static IP) *</label>
+                    <input type="text" name="tunnel_ip" required value="{{ next_suggested_ip }}" placeholder="مثال: {{ next_suggested_ip }}" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-amber-300 text-xs font-mono font-bold focus:outline-none focus:border-blue-500 transition">
+                    <span class="text-[10px] text-slate-500 mt-1 block">النطاق المتاح: {{ l2tp_pool_start }} إلى {{ l2tp_pool_end }}</span>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">الرمز السري للراديوس (Secret) *</label>
+                    <input type="text" name="radius_secret" required value="123" placeholder="123" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">مفتاح IPsec PSK (اختياري)</label>
+                    <input type="text" name="ipsec_secret" placeholder="اتركه فارغاً لاتصال Pure L2TP فائق السرعة" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                    <span class="text-[10px] text-slate-500 mt-1 block">إذا تُرك فارغاً، سيعمل النفق بنمط Pure L2TP عالي الأداء</span>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">ملاحظات / وصف (اختياري)</label>
+                    <input type="text" name="description" placeholder="موقع الراوتر، رقم هاتف الموزع" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="pt-3 flex justify-end gap-2.5 border-t border-[#1c2840]">
+                <button type="button" onclick="closeAddModal()" class="px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition cursor-pointer">حفظ واعتماد النفق</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Edit Tunnel -->
+<div id="editModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div class="p-5 border-b border-[#1c2840] flex justify-between items-center bg-[#070b14]/70">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-blue-400"></i>
+                <span>تعديل راوتر نفق L2TP</span>
+            </h3>
+            <button type="button" onclick="closeEditModal()" class="text-slate-400 hover:text-white text-base cursor-pointer">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <form id="editForm" action="" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5">اسم الراوتر / الفرع *</label>
+                <input type="text" id="edit_name" name="name" required class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs focus:outline-none focus:border-blue-500 transition">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">اسم مستخدم النفق (VPN User) *</label>
+                    <input type="text" id="edit_username" name="username" readonly class="w-full bg-[#070b14]/60 border border-[#162136] rounded-xl px-4 py-2.5 text-slate-400 text-xs font-mono focus:outline-none cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">كلمة مرور النفق (VPN Pass) *</label>
+                    <input type="text" id="edit_password" name="password" required class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">IP الراوتر داخل النفق (Static IP) *</label>
+                    <input type="text" id="edit_tunnel_ip" name="tunnel_ip" required class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-amber-300 text-xs font-mono font-bold focus:outline-none focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">الرمز السري للراديوس (Secret) *</label>
+                    <input type="text" id="edit_radius_secret" name="radius_secret" required class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">مفتاح IPsec PSK (اختياري)</label>
+                    <input type="text" id="edit_ipsec_secret" name="ipsec_secret" placeholder="اتركه فارغاً لاتصال Pure L2TP فائق السرعة" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                    <span class="text-[10px] text-slate-500 mt-1 block">اتركه فارغاً لتشغيل النفق بدون IPsec</span>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">ملاحظات / وصف</label>
+                    <input type="text" id="edit_description" name="description" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="pt-3 flex justify-end gap-2.5 border-t border-[#1c2840]">
+                <button type="button" onclick="closeEditModal()" class="px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition cursor-pointer">حفظ التعديلات</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: L2TP Network Settings -->
+<div id="settingsModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div class="p-5 border-b border-[#1c2840] flex justify-between items-center bg-[#070b14]/70">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-amber-400"></i>
+                <span>إعدادات شبكة نفق L2TP / IPsec</span>
+            </h3>
+            <button type="button" onclick="closeSettingsModal()" class="text-slate-400 hover:text-white text-base cursor-pointer">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <form action="/nas/l2tp/settings" method="POST" class="p-6 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">عنوان بوابة الراديوس (Gateway IP) *</label>
+                    <input type="text" name="l2tp_gateway_ip" required value="{{ l2tp_gateway_ip or '10.10.0.1' }}" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-cyan-300 text-xs font-mono font-bold focus:outline-none focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">قناع الشبكة (Subnet Mask) *</label>
+                    <input type="text" name="l2tp_mask" required value="{{ l2tp_mask or '255.255.255.0' }}" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">بداية نطاق IP للأنفاق *</label>
+                    <input type="text" name="l2tp_pool_start" required value="{{ l2tp_pool_start or '10.10.0.10' }}" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">نهاية نطاق IP للأنفاق *</label>
+                    <input type="text" name="l2tp_pool_end" required value="{{ l2tp_pool_end or '10.10.0.250' }}" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">منفذ خادم L2TP (UDP Port) *</label>
+                    <input type="number" name="l2tp_server_port" required value="{{ l2tp_port or 1701 }}" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-white text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">مفتاح IPsec PSK الافتراضي (اختياري)</label>
+                    <input type="text" name="l2tp_ipsec_secret" value="{{ l2tp_ipsec_secret or '' }}" placeholder="اتركه فارغاً إذا كنت تفضل Pure L2TP" class="w-full bg-[#070b14] border border-[#162136] rounded-xl px-4 py-2.5 text-amber-300 text-xs font-mono focus:outline-none focus:border-blue-500 transition">
+                </div>
+            </div>
+
+            <div class="pt-3 flex justify-end gap-2.5 border-t border-[#1c2840]">
+                <button type="button" onclick="closeSettingsModal()" class="px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-500/25 transition cursor-pointer">حفظ الإعدادات وتطبيقها</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Script Generator -->
+<div id="scriptModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div class="p-5 border-b border-[#1c2840] flex justify-between items-center bg-[#070b14]/70">
+            <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-terminal text-cyan-400"></i>
+                    <span>سكربت الربط الشامل لميكروتيك (MikroTik L2TP/IPsec)</span>
+                </h3>
+                <p id="scriptRouterTitle" class="text-xs text-slate-400 mt-0.5"></p>
+            </div>
+            <button type="button" onclick="closeScriptModal()" class="text-slate-400 hover:text-white text-base cursor-pointer">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3 bg-[#070b14] p-3 rounded-xl border border-[#162136]">
+                <label class="text-xs font-semibold text-slate-300 whitespace-nowrap flex items-center gap-1.5">
+                    <i class="fa-solid fa-globe text-blue-400"></i>
+                    <span>عنوان السيرفر السحابي (VPS Host / IP):</span>
+                </label>
+                <div class="flex-1 w-full flex gap-2">
+                    <input type="text" id="customVpsHost" value="{{ vps_detected_ip }}" placeholder="مثال: 136.244.95.245 أو vps.example.com" class="flex-1 bg-[#0b0f19] border border-slate-700 rounded-lg px-3 py-1.5 text-cyan-300 text-xs font-mono focus:outline-none focus:border-blue-500">
+                    <button type="button" onclick="reloadScriptWithHost()" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition cursor-pointer">تحديث</button>
+                </div>
+            </div>
+
+            <div class="relative">
+                <textarea id="scriptContent" readonly rows="13" class="w-full bg-[#070b14] border border-[#162136] rounded-xl p-4 text-emerald-400 text-xs font-mono focus:outline-none leading-relaxed select-all" spellcheck="false"></textarea>
+            </div>
+
+            <div class="bg-blue-950/30 border border-blue-800/40 p-3.5 rounded-xl text-xs text-blue-200 flex items-start gap-2.5">
+                <i class="fa-solid fa-circle-info text-blue-400 mt-0.5 text-sm flex-shrink-0"></i>
+                <div class="leading-relaxed">
+                    <strong>طريقة التطبيق في MikroTik:</strong> افتح برنامج <strong>WinBox</strong>، ثم افتح قائمة <strong>Terminal</strong>، والصق هذا السكربت بالكامل واضغط Enter. سيتم إنشاء نفق L2TP/IPsec وضبط مسارات الراديوس وتفعيل الهوتسبوت والـ PPPoE وميزة قطع الاتصال الفوري (CoA RFC 5176) تلقائياً.
+                </div>
+            </div>
+
+            <div class="pt-3 flex flex-col sm:flex-row justify-between items-center gap-2.5 border-t border-[#1c2840]">
+                <button type="button" onclick="downloadRscFile()" class="w-full sm:w-auto px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-download text-blue-400"></i>
+                    <span>تحميل ملف السكربت (.rsc)</span>
+                </button>
+                <div class="w-full sm:w-auto flex gap-2">
+                    <button type="button" onclick="closeScriptModal()" class="flex-1 sm:flex-initial px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">إغلاق</button>
+                    <button type="button" onclick="copyScript()" id="copyBtn" class="flex-1 sm:flex-initial px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-copy"></i>
+                        <span>نسخ الكود بالكامل</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentTunnelId = null;
+let currentTunnelName = '';
+let activeFilter = 'all';
+
+function openAddModal() {
+    const m = document.getElementById('addModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+}
+
+function closeAddModal() {
+    const m = document.getElementById('addModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+
+function openSettingsModal() {
+    const m = document.getElementById('settingsModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+}
+
+function closeSettingsModal() {
+    const m = document.getElementById('settingsModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+
+function openEditModal(id, name, user, pass, ip, secret, ipsec_secret, desc) {
+    document.getElementById('editForm').action = '/nas/l2tp/edit/' + id;
+    document.getElementById('edit_name').value = name;
+    document.getElementById('edit_username').value = user;
+    document.getElementById('edit_password').value = pass;
+    document.getElementById('edit_tunnel_ip').value = ip;
+    document.getElementById('edit_radius_secret').value = secret;
+    document.getElementById('edit_ipsec_secret').value = ipsec_secret || '';
+    document.getElementById('edit_description').value = desc || '';
+    
+    const m = document.getElementById('editModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+}
+
+function closeEditModal() {
+    const m = document.getElementById('editModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+
+function openScriptModal(tunnelId, tunnelName) {
+    currentTunnelId = tunnelId;
+    currentTunnelName = tunnelName;
+    document.getElementById('scriptRouterTitle').innerText = 'الراوتر المستهدف: ' + tunnelName;
+    document.getElementById('scriptContent').value = '# جاري توليد سكربت L2TP / IPsec مخصص للراوتر...';
+    
+    const m = document.getElementById('scriptModal');
+    m.classList.remove('hidden');
+    m.classList.add('flex');
+
+    loadScriptContent();
+}
+
+function closeScriptModal() {
+    const m = document.getElementById('scriptModal');
+    m.classList.add('hidden');
+    m.classList.remove('flex');
+}
+
+function loadScriptContent() {
+    if (!currentTunnelId) return;
+    const host = document.getElementById('customVpsHost').value.trim();
+    const url = `/api/nas/l2tp/${currentTunnelId}/script` + (host ? `?host=${encodeURIComponent(host)}` : '');
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.script) {
+                document.getElementById('scriptContent').value = data.script;
+            } else {
+                document.getElementById('scriptContent').value = '# تعذر جلب السكربت: ' + (data.error || 'خطأ غير معروف');
+            }
+        })
+        .catch(err => {
+            document.getElementById('scriptContent').value = '# خطأ في الاتصال بالخادم: ' + err;
+        });
+}
+
+function reloadScriptWithHost() {
+    loadScriptContent();
+}
+
+function copyScript() {
+    const text = document.getElementById('scriptContent').value;
+    if (window.copyTextToClipboard) {
+        window.copyTextToClipboard(text).then(showCopySuccess).catch(fallbackDirectCopy);
+    } else {
+        fallbackDirectCopy();
+    }
+}
+
+function fallbackDirectCopy() {
+    const textarea = document.getElementById('scriptContent');
+    textarea.select();
+    document.execCommand('copy');
+    showCopySuccess();
+}
+
+function showCopySuccess() {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'تم النسخ بنجاح!',
+            text: 'تم نسخ سكربت إعداد MikroTik L2TP/IPsec إلى الحافظة. الصقه الآن في نافذة Terminal في الراوتر.',
+            icon: 'success',
+            confirmButtonText: 'حسناً',
+            confirmButtonColor: '#2563eb',
+            timer: 3000
+        });
+    } else {
+        const copyBtn = document.getElementById('copyBtn');
+        const origHTML = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="fa-solid fa-check"></i> <span>تم النسخ!</span>';
+        copyBtn.classList.replace('bg-blue-600', 'bg-emerald-600');
+        setTimeout(() => {
+            copyBtn.innerHTML = origHTML;
+            copyBtn.classList.replace('bg-emerald-600', 'bg-blue-600');
+        }, 2000);
+    }
+}
+
+function downloadRscFile() {
+    if (!currentTunnelId) return;
+    const host = document.getElementById('customVpsHost').value.trim();
+    const url = `/nas/l2tp/${currentTunnelId}/download-script` + (host ? `?host=${encodeURIComponent(host)}` : '');
+    window.location.href = url;
+}
+
+function confirmDeleteTunnel(tunnelId, tunnelName) {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'هل أنت متأكد من حذف النفق؟',
+            html: '<div class="text-right text-xs text-slate-300 space-y-2">' +
+                  '<p>سيتم حذف نفق الراوتر: <strong class="text-rose-400">[' + tunnelName + ']</strong></p>' +
+                  '<p class="text-[11px] text-slate-400">سيتم إلغاء صلاحية هذا الراوتر من سيرفر L2TP والراديوس فوراً وقطع أي اتصالات نشطة مرتبطة به.</p>' +
+                  '</div>',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fa-solid fa-trash-can mr-1"></i> نعم، احذف النفق',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('deleteForm-' + tunnelId).submit();
+            }
+        });
+    } else {
+        if (confirm('هل أنت متأكد من حذف نفق [' + tunnelName + ']؟')) {
+            document.getElementById('deleteForm-' + tunnelId).submit();
+        }
+    }
+}
+
+function filterTunnelsTable() {
+    const q = (document.getElementById('tunnelSearchInput').value || '').trim().toLowerCase();
+    const rows = document.querySelectorAll('.tunnel-row');
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+        const name = row.getAttribute('data-name') || '';
+        const user = row.getAttribute('data-user') || '';
+        const ip = row.getAttribute('data-ip') || '';
+        const desc = row.getAttribute('data-desc') || '';
+        const isOnline = row.getAttribute('data-online') === 'true';
+
+        const matchesQuery = !q || name.includes(q) || user.includes(q) || ip.includes(q) || desc.includes(q);
+        const matchesFilter = (activeFilter === 'all') ||
+                              (activeFilter === 'online' && isOnline) ||
+                              (activeFilter === 'offline' && !isOnline);
+
+        if (matchesQuery && matchesFilter) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    const countEl = document.getElementById('countFilterAll');
+    if (countEl) countEl.innerText = visibleCount;
+}
+
+function setTunnelFilter(filter) {
+    activeFilter = filter;
+    
+    // Update button states
+    const btnAll = document.getElementById('filterBtnAll');
+    const btnOnline = document.getElementById('filterBtnOnline');
+    const btnOffline = document.getElementById('filterBtnOffline');
+    
+    [btnAll, btnOnline, btnOffline].forEach(b => {
+        if (b) {
+            b.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition text-slate-400 hover:text-white cursor-pointer';
+        }
+    });
+
+    if (filter === 'all' && btnAll) {
+        btnAll.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition bg-blue-600 text-white shadow-sm cursor-pointer';
+    } else if (filter === 'online' && btnOnline) {
+        btnOnline.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition bg-emerald-600 text-white shadow-sm cursor-pointer';
+    } else if (filter === 'offline' && btnOffline) {
+        btnOffline.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition bg-rose-600 text-white shadow-sm cursor-pointer';
+    }
+
+    filterTunnelsTable();
+}
+
+// -------------------------------------------------------------
+// Live Status Polling & Real-time Auto Refresh
+// -------------------------------------------------------------
+let countdownVal = 25;
+let countdownInterval = null;
+
+function startL2tpCountdown() {
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownVal = 25;
+    const el = document.getElementById('l2tpCountdown');
+    if (el) el.innerText = countdownVal + 's';
+    countdownInterval = setInterval(() => {
+        countdownVal--;
+        if (el) el.innerText = countdownVal + 's';
+        if (countdownVal <= 0) {
+            fetchL2tpLiveStatus(false);
+        }
+    }, 1000);
+}
+
+function fetchL2tpLiveStatus(manual = false) {
+    const icon = document.getElementById('l2tpRefreshIcon');
+    if (icon) icon.classList.add('fa-spin');
+
+    fetch('/api/nas/l2tp/live-status')
+        .then(r => r.json())
+        .then(data => {
+            if (icon) icon.classList.remove('fa-spin');
+            if (data.success && Array.isArray(data.tunnels)) {
+                data.tunnels.forEach(t => {
+                    const cell = document.getElementById(`status-cell-${t.id}`);
+                    const row = document.getElementById(`row-tunnel-${t.id}`);
+                    if (row) {
+                        row.setAttribute('data-online', t.is_online ? 'true' : 'false');
+                    }
+                    if (cell) {
+                        if (t.is_online) {
+                            const lat = t.latency_ms || 1;
+                            cell.innerHTML = `
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="الراوتر متصل بنجاح">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    <span>${lat} ms</span>
+                                </span>
+                            `;
+                        } else {
+                            cell.innerHTML = `
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800/80 text-slate-400 border border-slate-700/60">
+                                    <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+                                    <span>غير متصل</span>
+                                </span>
+                            `;
+                        }
+                    }
+                });
+
+                const kpiOnline = document.getElementById('kpiOnlineTunnels');
+                if (kpiOnline) {
+                    kpiOnline.innerText = `${data.online_count || 0} / ${data.total_count || 0}`;
+                }
+                const countOnline = document.getElementById('countOnline');
+                if (countOnline) countOnline.innerText = data.online_count || 0;
+                const countOffline = document.getElementById('countOffline');
+                if (countOffline) countOffline.innerText = data.offline_count || 0;
+                const countAll = document.getElementById('countAll');
+                if (countAll) countAll.innerText = data.total_count || 0;
+
+                filterTunnelsTable();
+                startL2tpCountdown();
+            }
+        })
+        .catch(() => {
+            if (icon) icon.classList.remove('fa-spin');
+            startL2tpCountdown();
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    fetchL2tpLiveStatus(false);
+    startL2tpCountdown();
+});
+
+// Close modals on ESC
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeAddModal();
+        closeEditModal();
+        closeSettingsModal();
+        closeScriptModal();
+    }
+});
+</script>
+{% endblock %}

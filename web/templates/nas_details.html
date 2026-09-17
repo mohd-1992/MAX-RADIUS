@@ -1,0 +1,706 @@
+{% extends "base.html" %}
+
+{% block title %}إعدادات وتفاصيل الراوتر: {{ device.name }}{% endblock %}
+{% block page_title %}تفاصيل الراوتر{% endblock %}
+
+{% block content %}
+<!-- Top Inline Script to Guarantee Clipboard Copy Handlers are Active Immediately -->
+<script>
+    window.copyTextToClipboard = function(text) {
+        return new Promise(function(resolve, reject) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(resolve).catch(function() {
+                        window.fallbackCopy(text) ? resolve() : reject();
+                    });
+                    return;
+                }
+            } catch (e) {}
+
+            if (window.fallbackCopy(text)) {
+                resolve();
+            } else {
+                reject();
+            }
+        });
+    };
+
+    window.fallbackCopy = function(text) {
+        try {
+            var textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            textArea.setAttribute("readonly", "");
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, 99999);
+            var successful = document.execCommand("copy");
+            document.body.removeChild(textArea);
+            return successful;
+        } catch (err) {
+            return false;
+        }
+    };
+
+    window.copyRouterScript = function() {
+        var el = document.getElementById('routerCliCode');
+        var text = el ? el.innerText : '';
+        window.copyTextToClipboard(text).then(function() {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'تم نسخ الكود!',
+                    text: 'تم نسخ أوامر MikroTik Terminal إلى الحافظة بنجاح.',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                alert('تم نسخ أوامر MikroTik بنجاح!');
+            }
+        }).catch(function() {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'أوامر تهيئة MikroTik CLI',
+                    html: '<div class="text-right space-y-2 mt-2">' +
+                          '<p class="text-xs text-slate-300">حدد النص أدناه وانسخه (Ctrl+C):</p>' +
+                          '<textarea readonly class="w-full bg-[#070b14] text-emerald-400 p-3 rounded-xl text-[11px] font-mono border border-slate-700 leading-relaxed h-32 select-all">' + text + '</textarea>' +
+                          '</div>',
+                    icon: 'info',
+                    confirmButtonText: 'إغلاق',
+                    confirmButtonColor: '#2563eb'
+                });
+            } else {
+                prompt('انسخ الأوامر أدناه (Ctrl+C):', text);
+            }
+        });
+    };
+
+    window.testCoa = function(nasId, ip, nasName) {
+        var routerLabel = nasName ? ('[' + nasName + '] - ' + ip) : ip;
+        if (typeof Swal === 'undefined') {
+            if (confirm('هل تريد إرسال فحص CoA تجريبي للراوتر ' + routerLabel + '؟')) {
+                fetch('/api/nas/test-coa/' + nasId, {method: 'POST'})
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) { alert(data.message); })
+                    .catch(function(e) { alert('خطأ: ' + e); });
+            }
+            return;
+        }
+
+        Swal.fire({
+            title: 'اختبار حزمة CoA RFC 5176',
+            html: '<div class="text-right text-xs space-y-2 text-slate-300">' +
+                  '<p>سيتم إرسال حزمة Disconnect-Request تجريبية للراوتر: <strong class="text-cyan-400 font-mono">' + routerLabel + '</strong></p>' +
+                  '<p class="text-[11px] text-slate-400">يتحقق هذا الفحص من فتح منفذ CoA وجاهزية الراوتر لاستقبال أوامر فصل المستخدمين وتعديل السرعات فورياً.</p>' +
+                  '</div>',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fa-solid fa-satellite-dish mr-1"></i> إرسال الفحص الآن',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#059669',
+            cancelButtonColor: '#475569'
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ فحص منفذ CoA...',
+                    html: '<p class="text-xs text-slate-400 mt-2">يتم إرسال حزمة UDP واستقبال الرد من الراوتر...</p>',
+                    allowOutsideClick: false,
+                    didOpen: function() { Swal.showLoading(); }
+                });
+
+                fetch('/api/nas/test-coa/' + nasId, {method: 'POST'})
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var title = data.success ? 'استجاب الراوتر بنجاح!' : 'نتيجة الفحص';
+                    var icon = data.success ? 'success' : (data.status === 'timeout' ? 'warning' : 'error');
+                    if (data.status === 'secret_mismatch') {
+                        title = 'خطأ في المفتاح المشترك (Secret)';
+                    }
+                    Swal.fire({
+                        title: title,
+                        html: '<div class="text-right text-xs space-y-2 mt-2 leading-relaxed text-slate-200">' +
+                              '<p class="font-semibold">' + data.message + '</p>' +
+                              (data.latency_ms ? '<div class="text-[11px] text-emerald-400 font-mono">زمن الاستجابة: ' + data.latency_ms + ' ms</div>' : '') +
+                              '</div>',
+                        icon: icon,
+                        confirmButtonText: 'حسناً',
+                        confirmButtonColor: '#2563eb'
+                    });
+                })
+                .catch(function(err) {
+                    Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                });
+            }
+        });
+    };
+</script>
+
+<div class="space-y-6">
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-xs text-slate-400">
+        <a href="{{ url_for('nas') }}" class="hover:text-blue-400 transition flex items-center gap-1.5">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span>العودة إلى قائمة الراوترات وخوادم البث (NAS)</span>
+        </a>
+        <span>/</span>
+        <span class="text-slate-200 font-semibold">{{ device.name }}</span>
+    </div>
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl flex-shrink-0 shadow-lg shadow-blue-500/10">
+                <i class="fa-solid fa-server"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2.5">
+                    <h2 class="text-xl font-bold text-white">{{ device.name }}</h2>
+                    <span class="text-xs font-mono font-bold text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20">{{ device.ip_address }}</span>
+                    {% if live_status == 'online' %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1.5"></span>متصل ({{ latency_ms }}ms)
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                        غير متصل
+                    </span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">{{ device.description or 'راوتر توزيع وتغذية الشبكة والتحكم في المشتركين' }}</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2.5">
+            <button type="button" onclick="testCoa({{ device.id }}, '{{ device.ip_address }}')" class="px-3.5 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-satellite-dish"></i>اختبار حزمة CoA
+            </button>
+            <a href="{{ url_for('nas') }}" class="px-4 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
+                إلغاء
+            </a>
+            <button type="button" onclick="document.getElementById('editNasForm').submit()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2">
+                <i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات ومزامنة RADIUS
+            </button>
+        </div>
+    </div>
+
+    <!-- 4 KPI Cards for this Router -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Live Latency -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-emerald-500/40 transition flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-300">زمن استجابة الشبكة (Latency)</span>
+                <div class="w-10 h-10 rounded-xl {% if live_status == 'online' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% else %}bg-rose-500/10 text-rose-400 border border-rose-500/20{% endif %} flex items-center justify-center text-lg flex-shrink-0">
+                    <i class="fa-solid fa-signal"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-white font-mono flex items-center gap-1.5">
+                    {% if live_status == 'online' %}
+                        <span>{{ latency_ms }}</span>
+                        <span class="text-xs text-emerald-400 font-sans font-bold">ms</span>
+                    {% else %}
+                        <span class="text-rose-400 text-lg">غير متاح</span>
+                    {% endif %}
+                </h4>
+                <div class="mt-2.5 text-[11px] text-slate-400 font-medium flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حالة الاستجابة:</span>
+                    <span class="{% if live_status == 'online' %}text-emerald-400{% else %}text-rose-400{% endif %} font-bold">
+                        {% if live_status == 'online' %}استجابة ممتازة{% else %}مقطوع / غير مستجيب{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Active Sessions on this Router -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-blue-500/40 transition flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-300">المشتركون المتصلون حالياً</span>
+                <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-lg flex-shrink-0">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-blue-400 font-mono flex items-center gap-1.5">
+                    <span>{{ active_sessions|length }}</span>
+                    <span class="text-xs text-slate-400 font-sans font-medium">جلسة نشطة</span>
+                </h4>
+                <div class="mt-2.5 text-[11px] text-slate-400 font-medium flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>نوع التوثيق:</span>
+                    <span class="text-blue-400 font-bold">FreeRADIUS radacct</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Total Download Traffic -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-emerald-500/40 transition flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-300">إجمالي التنزيل (Download Rx)</span>
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-lg flex-shrink-0">
+                    <i class="fa-solid fa-arrow-down"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-emerald-400 font-mono">{{ total_download_str }}</h4>
+                <div class="mt-2.5 text-[11px] text-slate-400 font-medium flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حركة البيانات الواردة:</span>
+                    <span class="text-emerald-400 font-bold">Inbound Traffic</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Total Upload Traffic -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-sky-500/40 transition flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-300">إجمالي الرفع (Upload Tx)</span>
+                <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center text-lg flex-shrink-0">
+                    <i class="fa-solid fa-arrow-up"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-sky-400 font-mono">{{ total_upload_str }}</h4>
+                <div class="mt-2.5 text-[11px] text-slate-400 font-medium flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حركة البيانات الصادرة:</span>
+                    <span class="text-sky-400 font-bold">Outbound Traffic</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hardware & Real-Time System Metrics Box -->
+    <div class="bg-[#0b0f19] border {% if status_info.is_online %}border-[#1c2840]{% else %}border-rose-900/30{% endif %} rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                <i class="fa-solid fa-microchip text-sky-400"></i>
+                <span>مواصفات العتاد والحالة المباشرة (Hardware & Live Metrics)</span>
+            </h3>
+            <div class="flex items-center gap-2">
+                {% if status_info.api_connected %}
+                <span id="detailApiBadge" class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <i class="fa-solid fa-check-circle ml-1"></i> API متصل
+                </span>
+                {% elif status_info.is_online %}
+                <span id="detailApiBadge" class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20" title="{{ status_info.api_error }}">
+                    <i class="fa-solid fa-triangle-exclamation ml-1"></i> API غير مفعل
+                </span>
+                {% else %}
+                <span id="detailApiBadge" class="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    <i class="fa-solid fa-circle-xmark ml-1"></i> غير متصل
+                </span>
+                {% endif %}
+                <button type="button" onclick="refreshSingleNasStatus()" class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-bold flex items-center gap-1 transition">
+                    <i id="detailsRefreshIcon" class="fa-solid fa-rotate"></i>
+                    <span>تحديث</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Board Model -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136]">
+                <span class="text-[11px] text-slate-400 block mb-1">موديل اللوحة (Board Model)</span>
+                <span id="detailBoardName" class="font-bold text-slate-200 text-sm font-mono truncate block">{{ status_info.board_name or '-' }}</span>
+            </div>
+
+            <!-- RouterOS Version -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136]">
+                <span class="text-[11px] text-slate-400 block mb-1">إصدار النظام (RouterOS Version)</span>
+                <span id="detailRosVersion" class="font-bold text-sky-400 text-sm font-mono block">{{ status_info.ros_version or '-' }}</span>
+            </div>
+
+            <!-- Uptime -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136]">
+                <span class="text-[11px] text-slate-400 block mb-1">مدة التشغيل (Uptime)</span>
+                <span id="detailUptime" class="font-bold text-slate-200 text-sm font-mono block">{{ status_info.uptime or '-' }}</span>
+            </div>
+
+            <!-- Active Sessions On Router -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136]">
+                <span class="text-[11px] text-slate-400 block mb-1">المستخدمون النشطون (Hotspot / PPP)</span>
+                <span id="detailActiveUsers" class="font-bold text-purple-400 text-sm font-mono block">{{ status_info.active_users or 0 }} مستخدم</span>
+            </div>
+        </div>
+
+        <!-- CPU & RAM Bars -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            <!-- CPU Load -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136] space-y-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-microchip text-sky-400"></i>
+                        <span>استهلاك المعالج (CPU Load):</span>
+                    </span>
+                    <span id="detailCpuText" class="font-mono font-bold text-sky-400">{{ status_info.cpu_load or 0 }}%</span>
+                </div>
+                <div class="w-full bg-slate-900 border border-slate-800 rounded-full h-3 p-0.5 overflow-hidden shadow-inner">
+                    <div id="detailCpuBar" class="{% if (status_info.cpu_load or 0) > 85 %}bg-gradient-to-r from-rose-500 to-red-600{% elif (status_info.cpu_load or 0) > 60 %}bg-gradient-to-r from-amber-500 to-orange-500{% else %}bg-gradient-to-r from-blue-500 to-sky-400{% endif %} h-full rounded-full transition-all duration-500" style="width: {{ status_info.cpu_load or 0 }}%"></div>
+                </div>
+            </div>
+
+            <!-- RAM Memory Usage -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136] space-y-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-memory text-emerald-400"></i>
+                        <span>استهلاك الذاكرة (RAM Usage):</span>
+                    </span>
+                    <div class="flex items-center gap-1.5 font-mono">
+                        <span id="detailRamText" class="font-bold text-emerald-400">{{ status_info.ram_usage_pct or 0 }}%</span>
+                        {% if status_info.total_memory_mb %}
+                        <span id="detailRamMb" class="text-[10px] text-slate-500">({{ (status_info.total_memory_mb - status_info.free_memory_mb)|round(0)|int }}/{{ status_info.total_memory_mb|round(0)|int }}MB)</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="w-full bg-slate-900 border border-slate-800 rounded-full h-3 p-0.5 overflow-hidden shadow-inner">
+                    <div id="detailRamBar" class="{% if (status_info.ram_usage_pct or 0) > 85 %}bg-gradient-to-r from-rose-500 to-red-600{% elif (status_info.ram_usage_pct or 0) > 60 %}bg-gradient-to-r from-amber-500 to-orange-500{% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %} h-full rounded-full transition-all duration-500" style="width: {{ status_info.ram_usage_pct or 0 }}%"></div>
+                </div>
+            </div>
+        </div>
+
+        {% if not status_info.api_connected and status_info.is_online and status_info.api_error %}
+        <div id="detailApiAlert" class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-start gap-2">
+            <i class="fa-solid fa-circle-info text-amber-400 mt-0.5 flex-shrink-0"></i>
+            <div>
+                <span class="font-bold">تنبيه اتصال API:</span> {{ status_info.api_error }}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Main Grid: Edit Form (7 cols) & Mikrotik Script + Active Sessions (5 cols) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left: Edit Form (7 cols) -->
+        <div class="lg:col-span-7 space-y-6">
+            <form id="editNasForm" method="POST" action="{{ url_for('edit_nas_action', nas_id=device.id) }}" class="space-y-5">
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 shadow-sm">
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                        <i class="fa-solid fa-sliders text-blue-400"></i>تعديل محددات الراوتر وبيانات الاتصال
+                    </h3>
+                    
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">اسم الراوتر التعريفي <span class="text-rose-400">*</span></label>
+                        <input type="text" name="name" value="{{ device.name }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500">
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">عنوان IP للراوتر <span class="text-rose-400">*</span></label>
+                            <input type="text" name="ip_address" value="{{ device.ip_address }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                            <span class="text-[11px] text-slate-500 mt-1 block">يجب أن يطابق عنوان المصدر (NAS-IP-Address)</span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">السر المشترك (RADIUS Secret) <span class="text-rose-400">*</span></label>
+                            <input type="text" name="secret" value="{{ device.secret }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-amber-300 font-mono font-bold focus:border-blue-500">
+                            <span class="text-[11px] text-slate-500 mt-1 block">يجب أن يطابق secret المعين في MikroTik /radius</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">منفذ CoA (RFC 5176 UDP)</label>
+                            <input type="number" name="coa_port" value="{{ device.coa_port or 3799 }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                            <span class="text-[11px] text-slate-500 mt-1 block">الافتراضي: 3799 (MikroTik Incoming Port)</span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">منفذ RouterOS API</label>
+                            <input type="number" name="api_port" value="{{ device.api_port or 8728 }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                            <span class="text-[11px] text-slate-500 mt-1 block">الافتراضي: 8728</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">اسم مستخدم API (اختياري)</label>
+                            <input type="text" name="api_username" value="{{ device.api_username or 'admin' }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">كلمة مرور API (اختياري)</label>
+                            <input type="password" name="api_password" value="{{ device.api_password or '' }}" placeholder="اتركه فارغاً إذا لم تتغير" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">رابط صفحة الدخول (Hotspot Login URL للـ QR Code)</label>
+                        <input type="text" name="hotspot_login_url" value="{{ device.hotspot_login_url or 'http://192.168.88.1/login' }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">الوصف والملاحظات</label>
+                        <textarea name="description" rows="2" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-xs text-white focus:border-blue-500">{{ device.description or '' }}</textarea>
+                    </div>
+
+                    <div class="flex justify-between items-center pt-3 border-t border-[#1c2840]">
+                        <button type="button" onclick="confirmDeleteNas({{ device.id }}, '{{ device.name }}')" class="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-trash"></i>حذف الراوتر
+                        </button>
+                        <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2">
+                            <i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Right: MikroTik Terminal Setup & Active Sessions (5 cols) -->
+        <div class="lg:col-span-5 space-y-6">
+            <!-- 1. MikroTik Terminal Quick Setup Code -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-2.5">
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-terminal text-emerald-400"></i>أوامر تهيئة الراوتر (MikroTik CLI)
+                    </h3>
+                    <button type="button" onclick="copyRouterScript()" class="text-xs px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg font-bold flex items-center gap-1 transition">
+                        <i class="fa-solid fa-copy"></i><span>نسخ الكود</span>
+                    </button>
+                </div>
+                <div class="flex items-center justify-between gap-2 text-xs">
+                    <span class="text-slate-400">عنوان IP سيرفر الراديوس:</span>
+                    <input type="text" id="customRadiusIp" value="{{ radius_server_ip }}" oninput="updateRouterScriptLive()" class="bg-[#070b14] border border-slate-700 rounded-lg px-2 py-1 text-xs text-cyan-400 font-mono text-center w-36 focus:border-blue-500 font-bold" title="يمكنك تعديل الآيبي هنا ويتحدث الكود تلقائياً">
+                </div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                    انسخ الأوامر التالية والصقها في Terminal الراوتر لتفعيل التوثيق مع سيرفر MAX RADIUS ومنفذ الفصل السريع CoA:
+                </p>
+                <div class="bg-[#070b14] rounded-xl p-3 text-[11px] font-mono text-emerald-400 overflow-x-auto border border-slate-800 leading-relaxed select-all" id="routerCliCode">
+/radius incoming set accept=yes port={{ device.coa_port or 3799 }}
+/radius add address={{ radius_server_ip }} secret="{{ device.secret }}" service=hotspot,ppp,login authentication-port=1812 accounting-port=1813 timeout=3000ms comment="MAX_RADIUS"
+/ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
+/ppp aaa set use-radius=yes interim-update=1m</div>
+            </div>
+
+            <!-- 2. Active Sessions Table on this Router -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-2.5">
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-tower-broadcast text-blue-400"></i>الجلسات النشطة على هذا الراوتر
+                    </h3>
+                    <span class="text-xs font-mono text-slate-400">({{ active_sessions|length }})</span>
+                </div>
+                
+                <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {% for s in active_sessions %}
+                    <div class="p-3 bg-[#070b14] rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                        <div>
+                            <div class="font-bold font-mono text-white flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                {{ s.username }}
+                            </div>
+                            <div class="text-[10px] text-slate-400 font-mono mt-0.5">IP: {{ s.framedipaddress or '-' }} • MAC: {{ s.callingstationid or '-' }}</div>
+                        </div>
+                        <div class="text-left font-mono">
+                            <span class="text-emerald-400 text-xs font-bold">{{ s.download_str }}</span>
+                            <div class="text-[10px] text-slate-400">{{ s.duration_str }}</div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-6 text-slate-500 text-xs">
+                        <i class="fa-solid fa-users-slash text-2xl mb-1 block text-slate-600"></i>
+                        لا توجد جلسات نشطة متصلة عبر هذا الراوتر حالياً.
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateRouterScriptLive() {
+        const ip = document.getElementById('customRadiusIp').value.trim() || '192.168.1.100';
+        const coaPort = "{{ device.coa_port or 3799 }}";
+        const secret = "{{ device.secret }}";
+        const codeEl = document.getElementById('routerCliCode');
+        if (codeEl) {
+            codeEl.innerText = `/radius incoming set accept=yes port=${coaPort}
+/radius add address=${ip} secret="${secret}" service=hotspot,ppp,login authentication-port=1812 accounting-port=1813 timeout=3000ms comment="MAX_RADIUS"
+/ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
+/ppp aaa set use-radius=yes interim-update=1m`;
+        }
+    }
+
+    function copyTextToClipboard(text) {
+        return new Promise(function(resolve, reject) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(resolve).catch(function() {
+                        fallbackCopy(text) ? resolve() : reject();
+                    });
+                    return;
+                }
+            } catch (e) {}
+
+            if (fallbackCopy(text)) {
+                resolve();
+            } else {
+                reject();
+            }
+        });
+    }
+
+    function fallbackCopy(text) {
+        try {
+            var textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            textArea.setAttribute("readonly", "");
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, 99999);
+            var successful = document.execCommand("copy");
+            document.body.removeChild(textArea);
+            return successful;
+        } catch (err) {
+            return false;
+        }
+    }
+
+    function copyRouterScript() {
+        const text = document.getElementById('routerCliCode').innerText;
+        copyTextToClipboard(text).then(() => {
+            Swal.fire({
+                title: 'تم نسخ الكود!',
+                text: 'تم نسخ أوامر MikroTik Terminal إلى الحافظة بنجاح.',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }).catch(() => {
+            Swal.fire({
+                title: 'أوامر تهيئة MikroTik CLI',
+                html: `
+                    <div class="text-right space-y-2 mt-2">
+                        <p class="text-xs text-slate-300">حدد النص أدناه وانسخه (Ctrl+C):</p>
+                        <textarea readonly class="w-full bg-[#070b14] text-emerald-400 p-3 rounded-xl text-[11px] font-mono border border-slate-700 leading-relaxed h-32 select-all">${text}</textarea>
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonText: 'إغلاق',
+                confirmButtonColor: '#2563eb'
+            });
+        });
+    }
+
+    function testCoa(nasId, ip) {
+        Swal.fire({
+            title: 'جارٍ اختبار حزمة CoA...',
+            text: `يتم إرسال حزمة RFC 5176 UDP إلى الراوتر [${ip}]...`,
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        fetch(`/api/nas/test-coa/${nasId}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                Swal.fire({
+                    title: data.success ? 'الراوتر يستجيب!' : 'نتيجة الفحص',
+                    text: data.message,
+                    icon: data.success ? 'success' : (data.status === 'timeout' ? 'warning' : 'info')
+                });
+            })
+            .catch(err => {
+                Swal.fire('خطأ في الاتصال', err.message, 'error');
+            });
+    }
+
+    function confirmDeleteNas(nasId, name) {
+        Swal.fire({
+            title: 'حذف الراوتر من FreeRADIUS',
+            text: `هل أنت متأكد من حذف راوتر [${name}] نهائياً؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، احذف الراوتر',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/nas/delete/${nasId}`;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
+
+    function refreshSingleNasStatus() {
+        const icon = document.getElementById('detailsRefreshIcon');
+        if (icon) icon.classList.add('fa-spin');
+
+        fetch('/api/nas/{{ device.id }}/status')
+            .then(r => r.json())
+            .then(res => {
+                if (icon) icon.classList.remove('fa-spin');
+                if (res.success && res.data) {
+                    const st = res.data;
+                    const elBoard = document.getElementById('detailBoardName');
+                    const elRos = document.getElementById('detailRosVersion');
+                    const elUptime = document.getElementById('detailUptime');
+                    const elUsers = document.getElementById('detailActiveUsers');
+                    const elCpuText = document.getElementById('detailCpuText');
+                    const elCpuBar = document.getElementById('detailCpuBar');
+                    const elRamText = document.getElementById('detailRamText');
+                    const elRamBar = document.getElementById('detailRamBar');
+                    const elRamMb = document.getElementById('detailRamMb');
+                    const elApiBadge = document.getElementById('detailApiBadge');
+
+                    if (elBoard && st.board_name) elBoard.innerText = st.board_name;
+                    if (elRos && st.ros_version) elRos.innerText = st.ros_version;
+                    if (elUptime && st.uptime) elUptime.innerText = st.uptime;
+                    if (elUsers) elUsers.innerText = `${st.active_users || 0} مستخدم`;
+
+                    if (elCpuText) elCpuText.innerText = `${st.cpu_load || 0}%`;
+                    if (elCpuBar) {
+                        elCpuBar.style.width = `${st.cpu_load || 0}%`;
+                        elCpuBar.className = (st.cpu_load || 0) > 85
+                            ? "bg-gradient-to-r from-rose-500 to-red-600 h-full rounded-full transition-all duration-500"
+                            : ((st.cpu_load || 0) > 60
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full transition-all duration-500"
+                                : "bg-gradient-to-r from-blue-500 to-sky-400 h-full rounded-full transition-all duration-500");
+                    }
+
+                    if (elRamText) elRamText.innerText = `${st.ram_usage_pct || 0}%`;
+                    if (elRamMb && st.total_memory_mb) {
+                        const usedMb = Math.round(st.total_memory_mb - st.free_memory_mb);
+                        elRamMb.innerText = `(${usedMb}/${Math.round(st.total_memory_mb)}MB)`;
+                    }
+                    if (elRamBar) {
+                        elRamBar.style.width = `${st.ram_usage_pct || 0}%`;
+                        elRamBar.className = (st.ram_usage_pct || 0) > 85
+                            ? "bg-gradient-to-r from-rose-500 to-red-600 h-full rounded-full transition-all duration-500"
+                            : ((st.ram_usage_pct || 0) > 60
+                                ? "bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full transition-all duration-500"
+                                : "bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500");
+                    }
+
+                    if (elApiBadge) {
+                        if (st.api_connected) {
+                            elApiBadge.className = "inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                            elApiBadge.innerHTML = '<i class="fa-solid fa-check-circle ml-1"></i> API متصل';
+                        } else if (st.is_online) {
+                            elApiBadge.className = "inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20";
+                            elApiBadge.innerHTML = '<i class="fa-solid fa-triangle-exclamation ml-1"></i> API غير مفعل';
+                            elApiBadge.title = st.api_error || '';
+                        } else {
+                            elApiBadge.className = "inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20";
+                            elApiBadge.innerHTML = '<i class="fa-solid fa-circle-xmark ml-1"></i> غير متصل';
+                        }
+                    }
+                }
+            })
+            .catch(err => {
+                if (icon) icon.classList.remove('fa-spin');
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        setInterval(refreshSingleNasStatus, 8000);
+    });
+</script>
+{% endblock %}

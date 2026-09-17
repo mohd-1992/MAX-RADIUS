@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+
+{% block title %}محلل حركة المرور وساعات الذروة - MAX RADIUS{% endblock %}
+{% block page_title %}تحليل حركة البيانات واستهلاك الباندوث وساعات الذروة{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Header Banner & Timeframe Filter -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-chart-line"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    محلل حركة المرور وساعات الذروة (Traffic & Peak Hours Inspector)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">تحليل ديناميكي لاستهلاك الباندوث، تحديد ساعات الذروة، ورصد كبار المستهلكين</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <!-- Timeframe selector buttons -->
+            <div class="bg-[#070b14] p-1 rounded-xl border border-slate-700/80 flex items-center gap-1">
+                <a href="{{ url_for('traffic_analytics_page', timeframe='today') }}" class="px-3 py-1.5 rounded-lg text-xs font-bold transition {% if timeframe == 'today' %}bg-blue-600 text-white shadow-sm{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                    اليوم (24 س)
+                </a>
+                <a href="{{ url_for('traffic_analytics_page', timeframe='7d') }}" class="px-3 py-1.5 rounded-lg text-xs font-bold transition {% if timeframe == '7d' %}bg-blue-600 text-white shadow-sm{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                    آخر 7 أيام
+                </a>
+                <a href="{{ url_for('traffic_analytics_page', timeframe='30d') }}" class="px-3 py-1.5 rounded-lg text-xs font-bold transition {% if not timeframe or timeframe == '30d' %}bg-blue-600 text-white shadow-sm{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                    آخر 30 يوماً
+                </a>
+            </div>
+
+            <button onclick="location.reload()" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer" title="تحديث البيانات">
+                <i class="fa-solid fa-arrows-rotate text-emerald-400"></i>
+                <span>تحديث</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 4 KPI Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Total Traffic -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-emerald-500/40 transition">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400">إجمالي حركة البيانات</span>
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg border border-emerald-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-right-left"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-baseline gap-1.5">
+                    <h4 class="text-2xl font-black text-emerald-400 font-mono">{{ data.total_traffic_gb }}</h4>
+                    <span class="text-xs font-bold text-slate-400 font-mono">GB</span>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span class="text-cyan-400 font-semibold">تحميل: {{ data.total_download_gb }} GB</span>
+                    <span class="text-purple-400 font-semibold">رفع: {{ data.total_upload_gb }} GB</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Peak Hour -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-rose-500/40 transition">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400">ساعة الذروة القصوى (Peak)</span>
+                <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-lg border border-rose-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-fire"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-baseline gap-2">
+                    <h4 class="text-2xl font-black text-rose-400 font-mono">{{ data.peak_hour }}</h4>
+                    <span class="text-xs text-rose-300 font-mono font-bold">{{ data.peak_hour_traffic_mb }} MB</span>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حالة الضغط:</span>
+                    <span class="font-bold text-rose-400">أعلى استهلاك للباندوث</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Off-Peak Hour -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-sky-500/40 transition">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400">ساعة الهدوء (Off-Peak)</span>
+                <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-lg border border-sky-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-moon"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-baseline gap-2">
+                    <h4 class="text-2xl font-black text-sky-400 font-mono">{{ data.offpeak_hour }}</h4>
+                    <span class="text-xs text-slate-400">أقل استهلاك</span>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>النسبة:</span>
+                    <span class="text-sky-300 font-bold font-mono">{{ data.download_ratio }}% تنزيل / {{ data.upload_ratio }}% رفع</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Total Sessions & Unique Users -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-purple-500/40 transition">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400">إجمالي الجلسات والمشتركين</span>
+                <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg border border-purple-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-baseline gap-2">
+                    <h4 class="text-2xl font-black text-purple-400 font-mono">{{ data.total_sessions }}</h4>
+                    <span class="text-xs text-slate-400">جلسة</span>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>مشتركون فريدون:</span>
+                    <span class="font-mono text-purple-300 font-bold">{{ data.unique_users }} مستخدم</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Chart Card & Time Period Breakdown -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- 1. Interactive Main Chart (2 Cols on lg) -->
+        <div class="lg:col-span-2 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col justify-between">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1c2840] pb-4 mb-4">
+                <div>
+                    <h3 class="font-bold text-white text-base flex items-center gap-2">
+                        <i class="fa-solid fa-chart-area text-cyan-400"></i>
+                        <span>منحنى حركة المرور وساعات الذروة على مدار 24 ساعة</span>
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">توزيع استهلاك التنزيل (Download) والرفع (Upload) بالـ Megabytes</p>
+                </div>
+
+                <!-- Chart Mode Selector -->
+                <div class="flex items-center gap-1.5 bg-[#070b14] p-1 rounded-xl border border-slate-700/70 self-start sm:self-auto">
+                    <button type="button" onclick="setChartType('area')" id="btnArea" class="px-2.5 py-1 rounded-lg text-xs font-bold transition bg-blue-600 text-white cursor-pointer" title="مخطط انسيابي">
+                        <i class="fa-solid fa-chart-area"></i>
+                    </button>
+                    <button type="button" onclick="setChartType('bar')" id="btnBar" class="px-2.5 py-1 rounded-lg text-xs font-bold transition text-slate-400 hover:text-white cursor-pointer" title="مخطط أعمدة متراكمة">
+                        <i class="fa-solid fa-chart-column"></i>
+                    </button>
+                    <button type="button" onclick="setChartType('sessions')" id="btnSessions" class="px-2.5 py-1 rounded-lg text-xs font-bold transition text-slate-400 hover:text-white cursor-pointer" title="كثافة الجلسات">
+                        <i class="fa-solid fa-users"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chart Canvas -->
+            <div class="relative w-full h-72 sm:h-80">
+                <canvas id="trafficAnalyticsChart"></canvas>
+            </div>
+
+            <!-- Chart Footer Legend & Peak Highlight -->
+            <div class="mt-4 pt-3 border-t border-[#162136] flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+                <div class="flex items-center gap-4 flex-wrap">
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded bg-cyan-400 inline-block"></span>
+                        <span class="text-slate-300">التحميل (Download)</span>
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded bg-purple-400 inline-block"></span>
+                        <span class="text-slate-300">الرفع (Upload)</span>
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded bg-emerald-400 inline-block"></span>
+                        <span class="text-slate-300">إجمالي الباندوث</span>
+                    </span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-400 border border-rose-500/20 font-mono font-bold text-[11px]">
+                        🔥 ذروة الاستهلاك: {{ data.peak_hour }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Time-Blocks & Traffic Ratio Breakdown (1 Col on lg) -->
+        <div class="space-y-4">
+            
+            <!-- Daily Time-Blocks Distribution -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3.5">
+                <h4 class="font-bold text-white text-xs flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                    <i class="fa-solid fa-clock text-amber-400"></i>
+                    <span>توزيع فترات الاستهلاك اليومي</span>
+                </h4>
+
+                <div class="space-y-3">
+                    <!-- Morning -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-sun text-amber-400 text-[11px]"></i>الصباح (06:00 - 12:00)</span>
+                            <span class="text-slate-200 font-mono font-bold">{{ data.time_blocks.morning_mb }} MB</span>
+                        </div>
+                        <div class="w-full bg-[#070b14] rounded-full h-2 overflow-hidden border border-slate-800">
+                            <div class="bg-gradient-to-r from-amber-500 to-yellow-400 h-full rounded-full" style="width: {{ [(data.time_blocks.morning_mb / (data.total_traffic_mb or 1) * 100)|round, 4]|max }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Afternoon -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-briefcase text-blue-400 text-[11px]"></i>الظهيرة والعمل (12:00 - 18:00)</span>
+                            <span class="text-slate-200 font-mono font-bold">{{ data.time_blocks.afternoon_mb }} MB</span>
+                        </div>
+                        <div class="w-full bg-[#070b14] rounded-full h-2 overflow-hidden border border-slate-800">
+                            <div class="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full" style="width: {{ [(data.time_blocks.afternoon_mb / (data.total_traffic_mb or 1) * 100)|round, 4]|max }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Evening Peak -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-fire text-rose-400 text-[11px]"></i>الذروة المسائية (18:00 - 00:00)</span>
+                            <span class="text-rose-400 font-mono font-bold">{{ data.time_blocks.evening_mb }} MB</span>
+                        </div>
+                        <div class="w-full bg-[#070b14] rounded-full h-2 overflow-hidden border border-slate-800">
+                            <div class="bg-gradient-to-r from-rose-500 to-orange-400 h-full rounded-full" style="width: {{ [(data.time_blocks.evening_mb / (data.total_traffic_mb or 1) * 100)|round, 4]|max }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Night -->
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-moon text-indigo-400 text-[11px]"></i>الهدوء الليلي (00:00 - 06:00)</span>
+                            <span class="text-slate-200 font-mono font-bold">{{ data.time_blocks.night_mb }} MB</span>
+                        </div>
+                        <div class="w-full bg-[#070b14] rounded-full h-2 overflow-hidden border border-slate-800">
+                            <div class="bg-gradient-to-r from-indigo-500 to-purple-400 h-full rounded-full" style="width: {{ [(data.time_blocks.night_mb / (data.total_traffic_mb or 1) * 100)|round, 4]|max }}%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Download vs Upload Ratio Card -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+                <h4 class="font-bold text-white text-xs flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                    <i class="fa-solid fa-arrows-up-down text-emerald-400"></i>
+                    <span>معدل التنزيل والرفع (Traffic Ratio)</span>
+                </h4>
+
+                <div class="flex items-center justify-between text-xs">
+                    <span class="text-cyan-400 font-bold">التحميل: {{ data.download_ratio }}%</span>
+                    <span class="text-purple-400 font-bold">الرفع: {{ data.upload_ratio }}%</span>
+                </div>
+
+                <div class="w-full bg-purple-600 rounded-full h-3 overflow-hidden flex shadow-inner">
+                    <div class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full transition-all duration-500" style="width: {{ data.download_ratio }}%"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-center text-xs mt-2">
+                    <div class="bg-[#070b14] p-2 rounded-xl border border-slate-800">
+                        <span class="text-slate-400 text-[10px] block">إجمالي التنزيل</span>
+                        <strong class="text-cyan-400 font-mono text-sm">{{ data.total_download_gb }} GB</strong>
+                    </div>
+                    <div class="bg-[#070b14] p-2 rounded-xl border border-slate-800">
+                        <span class="text-slate-400 text-[10px] block">إجمالي الرفع</span>
+                        <strong class="text-purple-400 font-mono text-sm">{{ data.total_upload_gb }} GB</strong>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Top Consumers (Data Hogs) Table -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-5 border-b border-[#1c2840] flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+                    <i class="fa-solid fa-crown text-amber-400"></i>
+                    <span>أعلى 10 مستهلكين للبيانات (Top 10 Data Consumers)</span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">الحسابات الأكثر استهلاكاً للباندوث وسعة البيانات في الشبكة</p>
+            </div>
+            <span class="text-xs text-slate-400">إجمالي المكتشفين: <strong class="text-white font-mono">{{ data.top_users|length }}</strong></span>
+        </div>
+        <div class="overflow-x-auto table-responsive">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-5">المشترك / الكرت</th>
+                        <th class="py-3.5 px-5">إجمالي الاستهلاك</th>
+                        <th class="py-3.5 px-5">حصة الاستهلاك من الشبكة</th>
+                        <th class="py-3.5 px-5">التحميل (Download)</th>
+                        <th class="py-3.5 px-5">الرفع (Upload)</th>
+                        <th class="py-3.5 px-5">عدد الجلسات</th>
+                        <th class="py-3.5 px-5">زمن الاتصال</th>
+                        <th class="py-3.5 px-5">آخر ظهور</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% for u in data.top_users %}
+                    <tr class="hover:bg-[#11192b] transition">
+                        <td class="py-3.5 px-5 font-mono font-bold text-white flex items-center gap-2">
+                            <div class="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center text-xs border border-blue-500/20">
+                                {{ loop.index }}
+                            </div>
+                            <span>{{ u.username }}</span>
+                        </td>
+                        <td class="py-3.5 px-5 font-mono font-black text-emerald-400 text-sm">{{ u.total_gb }} GB</td>
+                        <td class="py-3.5 px-5 font-mono">
+                            <div class="flex items-center gap-2">
+                                <div class="w-20 bg-[#070b14] rounded-full h-1.5 overflow-hidden border border-slate-800">
+                                    <div class="bg-emerald-400 h-full rounded-full" style="width: {{ [u.share_percent, 5]|max }}%"></div>
+                                </div>
+                                <span class="text-[11px] text-slate-300">{{ u.share_percent }}%</span>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-5 font-mono text-cyan-400">{{ u.download_mb }} MB</td>
+                        <td class="py-3.5 px-5 font-mono text-purple-400">{{ u.upload_mb }} MB</td>
+                        <td class="py-3.5 px-5 font-mono text-slate-300">{{ u.session_count }}</td>
+                        <td class="py-3.5 px-5 font-mono text-slate-400">{{ u.total_hours }} ساعة</td>
+                        <td class="py-3.5 px-5 font-mono text-slate-400 text-[11px]">{{ u.last_seen }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="py-8 text-center text-slate-400">
+                            لا توجد بيانات استهلاك مسجلة خلال الفترة.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const hourlyLabels = {{ data.chart_data.labels | tojson }};
+    const downloadData = {{ data.chart_data.download_mb | tojson }};
+    const uploadData = {{ data.chart_data.upload_mb | tojson }};
+    const totalTrafficData = {{ data.chart_data.total_mb | tojson }};
+    const sessionsData = {{ data.chart_data.sessions | tojson }};
+    const peakHour = {{ data.peak_hour | tojson }};
+
+    let chartInstance = null;
+    let currentMode = 'area';
+
+    function initTrafficChart(mode = 'area') {
+        const canvas = document.getElementById('trafficAnalyticsChart');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+
+        const isDark = !document.documentElement.classList.contains('theme-light');
+        const chartTextColor = isDark ? '#94a3b8' : '#64748b';
+        const chartGridColor = isDark ? '#1c2840' : '#e2e8f0';
+
+        // Gradients
+        const gradDownload = ctx.createLinearGradient(0, 0, 0, 300);
+        gradDownload.addColorStop(0, 'rgba(6, 182, 212, 0.35)');
+        gradDownload.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+
+        const gradUpload = ctx.createLinearGradient(0, 0, 0, 300);
+        gradUpload.addColorStop(0, 'rgba(168, 85, 247, 0.35)');
+        gradUpload.addColorStop(1, 'rgba(168, 85, 247, 0.0)');
+
+        const gradTotal = ctx.createLinearGradient(0, 0, 0, 300);
+        gradTotal.addColorStop(0, 'rgba(16, 185, 129, 0.35)');
+        gradTotal.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
+
+        let chartConfig = {};
+
+        if (mode === 'area') {
+            chartConfig = {
+                type: 'line',
+                data: {
+                    labels: hourlyLabels,
+                    datasets: [
+                        {
+                            label: 'التحميل (Download MB)',
+                            data: downloadData,
+                            borderColor: '#06b6d4',
+                            borderWidth: 2.5,
+                            backgroundColor: gradDownload,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 2.5,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: '#06b6d4'
+                        },
+                        {
+                            label: 'الرفع (Upload MB)',
+                            data: uploadData,
+                            borderColor: '#a855f7',
+                            borderWidth: 2.5,
+                            backgroundColor: gradUpload,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 2.5,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: '#a855f7'
+                        },
+                        {
+                            label: 'إجمالي الباندوث (Total MB)',
+                            data: totalTrafficData,
+                            borderColor: '#10b981',
+                            borderWidth: 2,
+                            borderDash: [4, 4],
+                            backgroundColor: 'transparent',
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 3,
+                            pointHoverRadius: 6,
+                            pointBackgroundColor: '#10b981'
+                        }
+                    ]
+                },
+                options: getChartOptions('MB', chartTextColor, chartGridColor)
+            };
+        } else if (mode === 'bar') {
+            chartConfig = {
+                type: 'bar',
+                data: {
+                    labels: hourlyLabels,
+                    datasets: [
+                        {
+                            label: 'التحميل (Download MB)',
+                            data: downloadData,
+                            backgroundColor: '#06b6d4',
+                            borderRadius: 4,
+                            stack: 'traffic'
+                        },
+                        {
+                            label: 'الرفع (Upload MB)',
+                            data: uploadData,
+                            backgroundColor: '#a855f7',
+                            borderRadius: 4,
+                            stack: 'traffic'
+                        }
+                    ]
+                },
+                options: getChartOptions('MB', chartTextColor, chartGridColor, true)
+            };
+        } else if (mode === 'sessions') {
+            const gradSessions = ctx.createLinearGradient(0, 0, 0, 300);
+            gradSessions.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
+            gradSessions.addColorStop(1, 'rgba(59, 130, 246, 0.0)');
+
+            chartConfig = {
+                type: 'line',
+                data: {
+                    labels: hourlyLabels,
+                    datasets: [
+                        {
+                            label: 'عدد الجلسات المسجلة بالساعة',
+                            data: sessionsData,
+                            borderColor: '#3b82f6',
+                            borderWidth: 3,
+                            backgroundColor: gradSessions,
+                            fill: true,
+                            tension: 0.35,
+                            pointRadius: 4,
+                            pointHoverRadius: 7,
+                            pointBackgroundColor: '#3b82f6'
+                        }
+                    ]
+                },
+                options: getChartOptions('جلسة', chartTextColor, chartGridColor)
+            };
+        }
+
+        chartInstance = new Chart(ctx, chartConfig);
+    }
+
+    function getChartOptions(unit, chartTextColor, chartGridColor, isStacked = false) {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    align: 'end',
+                    labels: {
+                        color: chartTextColor,
+                        font: { family: "'Tajawal', sans-serif", size: 11, weight: 'bold' },
+                        usePointStyle: true,
+                        boxWidth: 8
+                    }
+                },
+                tooltip: {
+                    rtl: true,
+                    backgroundColor: 'rgba(11, 15, 25, 0.95)',
+                    titleColor: '#fff',
+                    bodyColor: '#cbd5e1',
+                    borderColor: '#1c2840',
+                    borderWidth: 1,
+                    padding: 12,
+                    boxPadding: 6,
+                    usePointStyle: true,
+                    titleFont: { family: "'Tajawal', sans-serif", size: 13, weight: 'bold' },
+                    bodyFont: { family: "'Tajawal', sans-serif", size: 12 },
+                    callbacks: {
+                        title: function(items) {
+                            return `الساعة: ${items[0].label}`;
+                        },
+                        label: function(context) {
+                            const val = Number(context.parsed.y).toFixed(2);
+                            return ` ${context.dataset.label}: ${val} ${unit}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: isStacked,
+                    grid: { color: 'rgba(28, 40, 64, 0.3)', drawBorder: false },
+                    ticks: {
+                        color: chartTextColor,
+                        font: { family: "'Tajawal', sans-serif", size: 10, weight: 'bold' }
+                    }
+                },
+                y: {
+                    stacked: isStacked,
+                    beginAtZero: true,
+                    grid: { color: chartGridColor, drawBorder: false },
+                    ticks: {
+                        color: chartTextColor,
+                        font: { family: "'Tajawal', sans-serif", size: 10, weight: 'bold' },
+                        callback: function(value) {
+                            return value >= 1024 ? (value / 1024).toFixed(1) + ' GB' : value + ' ' + unit;
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    function setChartType(mode) {
+        currentMode = mode;
+        ['btnArea', 'btnBar', 'btnSessions'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.remove('bg-blue-600', 'text-white');
+                el.classList.add('text-slate-400');
+            }
+        });
+
+        if (mode === 'area') {
+            const btn = document.getElementById('btnArea');
+            btn.classList.add('bg-blue-600', 'text-white');
+            btn.classList.remove('text-slate-400');
+        } else if (mode === 'bar') {
+            const btn = document.getElementById('btnBar');
+            btn.classList.add('bg-blue-600', 'text-white');
+            btn.classList.remove('text-slate-400');
+        } else if (mode === 'sessions') {
+            const btn = document.getElementById('btnSessions');
+            btn.classList.add('bg-blue-600', 'text-white');
+            btn.classList.remove('text-slate-400');
+        }
+
+        initTrafficChart(mode);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initTrafficChart('area');
+    });
+</script>
+{% endblock %}

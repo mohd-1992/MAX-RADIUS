@@ -1,0 +1,642 @@
+{% extends "user_portal/user_base.html" %}
+
+{% block title %}لوحة تحكم المشترك - {{ user.full_name }}{% endblock %}
+
+{% block content %}
+{% set allow_loan = (settings.get('allow_data_loan', '1') == '1') %}
+{% set loan_amount_mb = settings.get('loan_amount_mb', '1024')|int %}
+{% set loan_amount_str = loan_amount_mb|format_mb %}
+{% set loan_threshold_mb = settings.get('loan_threshold_mb', '100')|int %}
+{% set loan_threshold_str = loan_threshold_mb|format_mb %}
+
+<div class="space-y-6">
+
+    <!-- ========================================================== -->
+    <!-- 1. ترويسة هوية المشترك والرصيد (Subscriber Profile Banner) -->
+    <!-- ========================================================== -->
+    <div class="relative overflow-hidden bg-[#0b0f19] p-5 sm:p-6 rounded-2xl border border-[#1c2840] shadow-sm transition-all duration-300">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+            
+            <!-- Subscriber Info & Status -->
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white text-2xl shadow-md shadow-blue-500/25 flex-shrink-0">
+                    <i class="fa-solid fa-user-circle text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">
+                            {{ user.full_name }}
+                        </h2>
+                        <!-- Online/Offline Live Status Pill -->
+                        {% if user.is_online %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 animate-pulse">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 ml-1.5"></span>متصل الآن (Online)
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-700/40 text-slate-400 border border-slate-700">
+                            <span class="w-2 h-2 rounded-full bg-slate-500 ml-1.5"></span>غير متصل (Offline)
+                        </span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="flex flex-wrap items-center gap-2.5 text-xs text-slate-300 mt-1.5 font-medium">
+                        <span class="font-mono text-blue-400 font-bold bg-[#070b14] px-2.5 py-0.5 rounded-lg border border-[#1c2840]">
+                            @{{ user.username }}
+                        </span>
+                        <span class="text-slate-500">•</span>
+                        <span class="uppercase font-sans font-bold text-purple-400 bg-purple-500/10 px-2.5 py-0.5 rounded-lg border border-purple-500/20">
+                            {{ user.service_type }}
+                        </span>
+                        {% if user.is_online and user.current_ip %}
+                        <span class="text-slate-500">•</span>
+                        <span class="text-emerald-400 font-mono bg-emerald-500/10 px-2.5 py-0.5 rounded-lg border border-emerald-500/20">
+                            IP: {{ user.current_ip }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wallet Balance & Action Launchers -->
+            <div class="flex items-center flex-wrap gap-3 w-full lg:w-auto justify-between lg:justify-end border-t lg:border-t-0 pt-3 lg:pt-0 border-[#1c2840]">
+                <div class="text-right ml-2 bg-[#070b14] px-4 py-2.5 rounded-xl border border-[#1c2840]">
+                    <span class="text-[11px] text-slate-400 font-semibold block mb-0.5">الرصيد المالي في المحفظة</span>
+                    <div class="text-2xl font-black text-emerald-400 font-mono">
+                        {{ "%.2f"|format(user.balance) }} <span class="text-xs font-sans font-bold text-slate-400">{{ currency_symbol }}</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    {% if user.type == 'subscriber' and (allow_loan or (user.loan_status and user.loan_status == 1)) %}
+                    <button type="button" onclick="handleLoanButtonClick()" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-amber-500/10 hover:border-amber-500/40 text-slate-200 hover:text-amber-400 border border-[#1c2840] rounded-xl transition flex items-center gap-1.5 flex-shrink-0 text-xs font-bold shadow-xs active:scale-95">
+                        <i class="fa-solid fa-hand-holding-dollar text-amber-400"></i>
+                        <span>طلب سلفة</span>
+                    </button>
+                    {% endif %}
+                    <a href="{{ url_for('user_recharge') }}" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-sm shadow-blue-600/20 transition flex items-center gap-1.5 flex-shrink-0 active:scale-95">
+                        <i class="fa-solid fa-wand-magic-sparkles text-white"></i>
+                        <span>شحن كرت</span>
+                    </a>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- 2. بطاقات المؤشرات الأساسية (4 Core Metric KPI Cards)      -->
+    <!-- ========================================================== -->
+    <div>
+        <div class="flex items-center justify-between mb-3 px-1">
+            <h3 class="text-sm font-extrabold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-blue-400"></i>
+                بيانات الاشتراك والاستهلاك الحي
+            </h3>
+            <span class="text-xs text-slate-400 font-medium">محدث لحظياً</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <!-- 1. Current Package Info -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">الباقة الحالية</span>
+                        <h3 class="text-lg sm:text-xl font-black text-white tracking-tight">{{ user.package_name }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl border border-blue-500/20 flex-shrink-0">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span>السرعة:</span>
+                    <span class="font-bold text-blue-400 font-mono bg-[#070b14] px-2.5 py-0.5 rounded border border-[#1c2840]">
+                        {{ (user.rate_download, user.rate_upload)|format_speed_pair }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- 2. Validity & Expiry -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">الوقت المتبقي للباقة</span>
+                        <h3 class="text-lg sm:text-xl font-black text-amber-400 font-mono tracking-tight">{{ user.remaining_time }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-xl border border-amber-500/20 flex-shrink-0">
+                        <i class="fa-solid fa-hourglass-half"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span>ينتهي في:</span>
+                    <span class="font-mono text-slate-300 text-[11px]" title="{{ user.expires_at }}">
+                        {{ user.expires_at }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- 3. Total Traffic Used -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي استهلاك البيانات</span>
+                        <h3 class="text-lg sm:text-xl font-black text-purple-400 font-mono tracking-tight">{{ user.total_traffic }}</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-xl border border-purple-500/20 flex-shrink-0">
+                        <i class="fa-solid fa-chart-pie"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-300 font-mono mt-4 pt-3 border-t border-[#1c2840]">
+                    <span class="text-emerald-400">⬇️ {{ user.total_download }}</span>
+                    <span class="text-sky-400">⬆️ {{ user.total_upload }}</span>
+                </div>
+            </div>
+
+            <!-- 4. Remaining Quota -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">الرصيد / السعة المتبقية</span>
+                        <h3 class="text-lg sm:text-xl font-black text-emerald-400 font-mono tracking-tight">
+                            {{ user.quota_rem_str if (user.volume_quota_mb and user.volume_quota_mb > 0) else 'غير محدود' }}
+                        </h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xl border border-emerald-500/20 flex-shrink-0">
+                        <i class="fa-solid fa-database"></i>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
+                    <span>حالة الحصة:</span>
+                    <span class="text-emerald-400 font-bold">
+                        {% if user.volume_quota_mb and user.volume_quota_mb > 0 %}{{ user.quota_percent }}% مستهلك{% else %}سعة مفتوحة{% endif %}
+                    </span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Quota Progress Bar (If Limited) -->
+    {% if user.volume_quota_mb and user.volume_quota_mb > 0 %}
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+        <div class="flex items-center justify-between text-xs">
+            <span class="font-bold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-gauge-simple-high text-blue-400"></i>
+                <span>استهلاك الرصيد من سعة الباقة (Quota Progress)</span>
+            </span>
+            <span class="font-mono text-slate-300">
+                مستهلك <strong class="text-blue-400 font-bold">{{ user.quota_used_str }}</strong> من إجمالي <strong class="text-white font-bold">{{ user.quota_total_str }}</strong>
+            </span>
+        </div>
+        <div class="w-full bg-[#070b14] rounded-full h-3.5 border border-[#162136] overflow-hidden p-0.5">
+            <div class="h-2.5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 shadow-sm" style="width: {{ user.quota_percent }}%"></div>
+        </div>
+        <div class="flex items-center justify-between text-xs text-slate-400">
+            <span>الرصيد المتبقي: <strong class="text-emerald-400 font-mono font-bold">{{ user.quota_rem_str }}</strong></span>
+            <span>نسبة الاستهلاك: <strong class="font-mono text-purple-400 font-bold">{{ user.quota_percent }}%</strong></span>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Data Loan Section (سلفة بيانات الطوارئ) -->
+    {% if user.type == 'subscriber' and user.loan_status and user.loan_status == 1 %}
+    <!-- Active Loan Alert Banner -->
+    <div class="bg-[#0b0f19] border border-amber-500/30 bg-amber-500/5 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center text-xl border border-amber-500/30 flex-shrink-0">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h4 class="text-sm font-bold text-white">لديك سلفة بيانات نشطة ({{ (user.loan_balance_mb if user.loan_balance_mb else loan_amount_mb)|format_mb }})</h4>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">مستحقة السداد</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">
+                    سيتم خصم {{ (user.loan_balance_mb if user.loan_balance_mb else loan_amount_mb)|format_mb }} تلقائياً من سعة بطاقة الشحن القادمة عند تفعيلها.
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 pt-2.5 sm:pt-0 border-[#1c2840]">
+            <span class="text-xs font-bold text-amber-400 font-mono px-3 py-2 rounded-xl bg-[#070b14] border border-[#162136]">
+                {{ user.loan_balance_mb if user.loan_balance_mb else loan_amount_mb }} MB
+            </span>
+            <a href="{{ url_for('user_recharge') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-blue-500/20 flex-shrink-0">
+                <i class="fa-solid fa-circle-plus"></i>
+                <span>شحن وسداد</span>
+            </a>
+        </div>
+    </div>
+    {% elif user.type == 'subscriber' and allow_loan %}
+    <!-- Data Loan Request Card -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-start sm:items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-xl border border-amber-500/20 flex-shrink-0">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h3 class="text-sm font-bold text-white">خدمة سلفة البيانات (Data Loan)</h3>
+                    {% if user.can_request_loan %}
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        {{ loan_amount_str }} جاهزة للتفعيل
+                    </span>
+                    {% else %}
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-[#070b14] text-slate-400 border border-slate-700">
+                        {{ loan_amount_str }} عند اقتراب انتهاء الرصيد (أقل من {{ loan_threshold_str }})
+                    </span>
+                    {% endif %}
+                </div>
+                <p class="text-xs text-slate-400 mt-1">
+                    {% if user.can_request_loan %}
+                    رصيدك أوشك على الانتهاء (أقل من {{ loan_threshold_str }}). يمكنك الآن تفعيل سلفة <strong class="text-slate-200">{{ loan_amount_str }}</strong> صالحة لمدة 24 ساعة.
+                    {% else %}
+                    خدمة طوارئ تتيح لك الحصول على سلفة <strong class="text-slate-200">{{ loan_amount_str }}</strong> لمدة 24 ساعة عند اقتراب انتهاء رصيدك (أقل من {{ loan_threshold_str }}).
+                    {% endif %}
+                </p>
+                <span class="text-[11px] text-slate-500 block mt-0.5">
+                    * ملاحظة: سيتم خصم {{ loan_amount_str }} تلقائياً من سعة بطاقة الشحن القادمة.
+                </span>
+            </div>
+        </div>
+        <div class="w-full md:w-auto flex-shrink-0 flex items-center justify-end">
+            <form id="loanRequestForm" method="POST" action="{{ url_for('user_loan_request_action') }}" class="w-full md:w-auto">
+                {% if user.can_request_loan %}
+                <button type="button" onclick="handleLoanButtonClick()" class="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>تفعيل السلفة الآن ({{ loan_amount_str }})</span>
+                </button>
+                {% else %}
+                <button type="button" onclick="handleLoanButtonClick()" class="w-full md:w-auto px-4 py-2.5 bg-[#070b14] hover:bg-amber-500/10 text-slate-200 hover:text-amber-400 border border-slate-700 hover:border-amber-500/40 text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-hand-holding-dollar text-amber-400"></i>
+                    <span>طلب سلفة ({{ loan_amount_str }})</span>
+                </button>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ========================================================== -->
+    <!-- 3. مركز الخدمات الذاتية السريع (Quick Self-Service Hub)    -->
+    <!-- ========================================================== -->
+    <div>
+        <div class="flex items-center justify-between mb-3 px-1">
+            <h3 class="text-sm font-extrabold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-purple-400"></i>
+                الخدمات الذاتية السريعة
+            </h3>
+        </div>
+
+        {% set show_loan = (user.type == 'subscriber' and (allow_loan or (user.loan_status and user.loan_status == 1))) %}
+        {% set show_pwd = (user.type == 'subscriber' and settings.get('portal_allow_password_change', '1') == '1') %}
+        {% set show_pkg = (settings.get('portal_allow_package_change', '1') == '1') %}
+        {% set total_cards = 2 + (1 if show_loan else 0) + (1 if show_pwd else 0) + (1 if show_pkg else 0) %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-{{ total_cards }} gap-4">
+            
+            <!-- Action 1: Recharge -->
+            <a href="{{ url_for('user_recharge') }}" class="bg-[#0b0f19] border border-[#1c2840] hover:border-blue-500/50 rounded-2xl p-5 shadow-sm transition group">
+                <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl border border-blue-500/20 mb-3 group-hover:scale-110 transition">
+                    <i class="fa-solid fa-ticket"></i>
+                </div>
+                <h4 class="font-bold text-white text-sm mb-1">شحن رصيد بكارت</h4>
+                <p class="text-xs text-slate-400">أدخل كود الكرت لإضافة قيمته لمحفظتك</p>
+            </a>
+
+            <!-- Action 2: Data Loan (If Allowed) -->
+            {% if show_loan %}
+            <div onclick="handleLoanButtonClick()" class="bg-[#0b0f19] border border-[#1c2840] hover:border-amber-500/50 rounded-2xl p-5 shadow-sm transition group cursor-pointer">
+                <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-xl border border-amber-500/20 mb-3 group-hover:scale-110 transition">
+                    <i class="fa-solid fa-hand-holding-dollar"></i>
+                </div>
+                <h4 class="font-bold text-white text-sm mb-1">طلب سلفة ({{ loan_amount_str }})</h4>
+                <p class="text-xs text-slate-400">سلفة بيانات فورية صالحة لمدة 24 ساعة</p>
+            </div>
+            {% endif %}
+
+            <!-- Action 3: Change/Renew Package (If Allowed) -->
+            {% if show_pkg %}
+            <a href="{{ url_for('user_packages') }}" class="bg-[#0b0f19] border border-[#1c2840] hover:border-blue-500/50 rounded-2xl p-5 shadow-sm transition group">
+                <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl border border-blue-500/20 mb-3 group-hover:scale-110 transition">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                </div>
+                <h4 class="font-bold text-white text-sm mb-1">تجديد أو تغيير الباقة</h4>
+                <p class="text-xs text-slate-400">استعرض السرعات المتاحة وقم بالتجديد</p>
+            </a>
+            {% endif %}
+
+            <!-- Action 4: Password Change (If Allowed) -->
+            {% if show_pwd %}
+            <button type="button" onclick="document.getElementById('pwdChangeModal').classList.remove('hidden')" class="bg-[#0b0f19] border border-[#1c2840] hover:border-amber-500/50 rounded-2xl p-5 shadow-sm transition group text-right cursor-pointer">
+                <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-xl border border-amber-500/20 mb-3 group-hover:scale-110 transition">
+                    <i class="fa-solid fa-key"></i>
+                </div>
+                <h4 class="font-bold text-white text-sm mb-1">تغيير كلمة المرور</h4>
+                <p class="text-xs text-slate-400">تحديث كلمة المرور لتعزيز أمان الحساب</p>
+            </button>
+            {% endif %}
+
+            <!-- Action 5: Sessions History -->
+            <a href="{{ url_for('user_sessions') }}" class="bg-[#0b0f19] border border-[#1c2840] hover:border-purple-500/50 rounded-2xl p-5 shadow-sm transition group">
+                <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-xl border border-purple-500/20 mb-3 group-hover:scale-110 transition">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <h4 class="font-bold text-white text-sm mb-1">سجل الجلسات والاستهلاك</h4>
+                <p class="text-xs text-slate-400">كشف حساب تفصيلي بأوقات اتصالك وحجم البيانات</p>
+            </a>
+        </div>
+    </div>
+
+    <!-- Active Live Connection Information (If Online) -->
+    {% if user.is_online %}
+    <div class="bg-[#0b0f19] border border-emerald-500/30 rounded-2xl p-5 shadow-sm bg-emerald-500/5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <h4 class="text-sm font-bold text-emerald-400 flex items-center gap-2">
+                <i class="fa-solid fa-tower-broadcast"></i>
+                <span>تفاصيل الجلسة الحية المتصلة بالشبكة</span>
+            </h4>
+            <button type="button" onclick="disconnectMySession()" class="px-3 py-1.5 bg-rose-600/15 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95">
+                <i class="fa-solid fa-power-off"></i>
+                <span>قطع الاتصال / إعادة تنشيط الجلسة</span>
+            </button>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div class="bg-[#070b14] p-3 rounded-xl border border-[#162136]">
+                <span class="text-slate-400 block mb-1">عنوان IP الخاص بك:</span>
+                <strong class="text-white font-mono">{{ user.current_ip }}</strong>
+            </div>
+            <div class="bg-[#070b14] p-3 rounded-xl border border-[#162136]">
+                <span class="text-slate-400 block mb-1">عنوان الماك (MAC):</span>
+                <strong class="text-white font-mono">{{ user.mac_address }}</strong>
+            </div>
+            <div class="bg-[#070b14] p-3 rounded-xl border border-[#162136]">
+                <span class="text-slate-400 block mb-1">وقت بدء الاتصال:</span>
+                <strong class="text-white font-mono text-[11px]">{{ user.session_start }}</strong>
+            </div>
+            <div class="bg-[#070b14] p-3 rounded-xl border border-[#162136]">
+                <span class="text-slate-400 block mb-1">راوتر البث (NAS):</span>
+                <strong class="text-white font-mono">{{ user.nas_ip }}</strong>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Password Change Modal -->
+    {% if show_pwd %}
+    <div id="pwdChangeModal" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b pb-3 border-[#1c2840]">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-key text-amber-400"></i>
+                    <span>تغيير كلمة المرور</span>
+                </h3>
+                <button type="button" onclick="document.getElementById('pwdChangeModal').classList.add('hidden')" class="text-slate-400 hover:text-white text-sm">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form method="POST" action="{{ url_for('user_change_password_action') }}" class="space-y-3.5">
+                <div>
+                    <label class="block text-xs font-bold text-slate-200 mb-1">كلمة المرور الحالية</label>
+                    <input type="password" name="old_password" required placeholder="••••••••" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-200 mb-1">كلمة المرور الجديدة</label>
+                    <input type="password" name="new_password" required minlength="4" placeholder="••••••••" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-200 mb-1">تأكيد كلمة المرور الجديدة</label>
+                    <input type="password" name="confirm_password" required minlength="4" placeholder="••••••••" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-amber-500 focus:outline-none">
+                </div>
+                <div class="flex items-center justify-end gap-2 pt-2">
+                    <button type="button" onclick="document.getElementById('pwdChangeModal').classList.add('hidden')" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition">
+                        إلغاء
+                    </button>
+                    <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-amber-500/20">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span>حفظ كلمة المرور</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Hidden Loan Form Fallback -->
+<form id="globalLoanForm" method="POST" action="{{ url_for('user_loan_request_action') }}" class="hidden"></form>
+
+<script>
+const ALLOW_DATA_LOAN = {{ 'true' if allow_loan else 'false' }};
+const LOAN_AMOUNT_MB = {{ loan_amount_mb }};
+const LOAN_AMOUNT_STR = "{{ loan_amount_str }}";
+const LOAN_THRESHOLD_MB = {{ loan_threshold_mb }};
+const LOAN_THRESHOLD_STR = "{{ loan_threshold_str }}";
+const USER_LOAN_STATUS = {{ user.loan_status|default(0) }};
+const USER_LOAN_BALANCE_MB = {{ user.loan_balance_mb|default(0) }};
+const USER_CAN_REQUEST_LOAN = {{ 'true' if user.can_request_loan else 'false' }};
+const USER_REMAINING_QUOTA_STR = "{{ user.quota_rem_str|default('غير محدد') }}";
+
+function getSwalTheme() {
+    const isLight = document.documentElement.classList.contains('theme-light');
+    return {
+        isLight: isLight,
+        background: isLight ? '#ffffff' : '#0b0f19',
+        color: isLight ? '#0f172a' : '#f8fafc',
+        popupClass: isLight ? 'border border-slate-200 shadow-2xl rounded-2xl' : 'border border-[#1c2840] shadow-2xl rounded-2xl',
+        titleClass: isLight ? 'text-slate-900 text-base font-bold' : 'text-white text-base font-bold',
+        cancelColor: isLight ? '#64748b' : '#334155',
+        boxBg: isLight ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+        infoBoxBg: isLight ? 'bg-blue-50 border-blue-200 text-blue-900' : 'bg-blue-500/10 border-blue-500/30 text-blue-300',
+        textColor: isLight ? 'text-slate-700' : 'text-slate-200'
+    };
+}
+
+function handleLoanButtonClick() {
+    if (USER_LOAN_STATUS === 1) {
+        showActiveLoanAlert();
+    } else if (!ALLOW_DATA_LOAN) {
+        showLoanDisabledAlert();
+    } else if (USER_CAN_REQUEST_LOAN) {
+        confirmLoanRequest();
+    } else {
+        showLoanNotEligibleAlert(USER_REMAINING_QUOTA_STR);
+    }
+}
+
+function confirmLoanRequest() {
+    const theme = getSwalTheme();
+    Swal.fire({
+        title: 'تأكيد طلب السلفة الفورية',
+        html: `
+            <div class="text-right text-xs space-y-3 leading-relaxed">
+                <p class="${theme.textColor}">هل ترغب في تفعيل سلفة <strong>${LOAN_AMOUNT_STR} (${LOAN_AMOUNT_MB} MB)</strong> صالحة لمدة <strong>24 ساعة</strong> إضافية لحسابك الآن؟</p>
+                <div class="p-3 ${theme.boxBg} rounded-xl text-[11px] flex items-start gap-2">
+                    <i class="fa-solid fa-triangle-exclamation text-amber-400 mt-0.5 flex-shrink-0"></i>
+                    <span><strong>تنبيه السداد:</strong> سيتم خصم ${LOAN_AMOUNT_STR} تلقائياً من سعة بطاقة الشحن القادمة.</span>
+                </div>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fa-solid fa-bolt ml-1"></i> نعم، تفعيل السلفة الآن',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#f59e0b',
+        cancelButtonColor: theme.cancelColor,
+        background: theme.background,
+        color: theme.color,
+        customClass: {
+            popup: theme.popupClass,
+            title: theme.titleClass
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const form = document.getElementById('loanRequestForm') || document.getElementById('globalLoanForm');
+            form.submit();
+        }
+    });
+}
+
+function showActiveLoanAlert() {
+    const theme = getSwalTheme();
+    const activeDebtStr = USER_LOAN_BALANCE_MB > 0 ? `${USER_LOAN_BALANCE_MB} MB` : LOAN_AMOUNT_STR;
+    Swal.fire({
+        title: 'لديك سلفة نشطة مسبقاً',
+        html: `
+            <div class="text-right text-xs space-y-2 leading-relaxed">
+                <p class="${theme.textColor}">يوجد على حسابك حالياً سلفة نشطة بقيمة <strong>${activeDebtStr}</strong> مستحقة السداد.</p>
+                <div class="p-3 ${theme.infoBoxBg} rounded-xl text-[11px]">
+                    <i class="fa-solid fa-circle-info ml-1 text-blue-400"></i>
+                    يمكنك شحن كرت جديد وسيتم سداد السلفة وإضافة الرصيد المتبقي تلقائياً.
+                </div>
+            </div>
+        `,
+        icon: 'info',
+        confirmButtonText: '<i class="fa-solid fa-plus-circle ml-1"></i> شحن كرت الآن',
+        showCancelButton: true,
+        cancelButtonText: 'إغلاق',
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: theme.cancelColor,
+        background: theme.background,
+        color: theme.color,
+        customClass: {
+            popup: theme.popupClass,
+            title: theme.titleClass
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = "{{ url_for('user_recharge') }}";
+        }
+    });
+}
+
+function showLoanNotEligibleAlert(remStr) {
+    const theme = getSwalTheme();
+    Swal.fire({
+        title: 'خدمة سلفة البيانات (Data Loan)',
+        html: `
+            <div class="text-right text-xs space-y-3 leading-relaxed">
+                <p class="${theme.textColor}">رصيدك الحالي ما زال متوفراً (<strong class="text-emerald-400 font-mono">${remStr}</strong>).</p>
+                <div class="p-3 ${theme.boxBg} rounded-xl text-[11px] flex items-start gap-2">
+                    <i class="fa-solid fa-circle-info text-amber-400 mt-0.5 flex-shrink-0"></i>
+                    <span>تصبح خدمة السلفة (${LOAN_AMOUNT_STR}) جاهزة للتفعيل تلقائياً عند اقتراب انتهاء رصيدك (أقل من ${LOAN_THRESHOLD_STR}) أو عند انتهاء الصلاحية لمساعدتك على البقاء متصلاً.</span>
+                </div>
+            </div>
+        `,
+        icon: 'info',
+        confirmButtonText: 'حسناً، فهمت',
+        confirmButtonColor: '#3b82f6',
+        background: theme.background,
+        color: theme.color,
+        customClass: {
+            popup: theme.popupClass,
+            title: theme.titleClass
+        }
+    });
+}
+
+function showLoanDisabledAlert() {
+    const theme = getSwalTheme();
+    Swal.fire({
+        title: 'خدمة السلفة معطلة',
+        text: 'عذراً، خدمة سلفة البيانات معطلة حالياً من قبل إدارة الشبكة.',
+        icon: 'warning',
+        confirmButtonText: 'حسناً',
+        confirmButtonColor: '#3b82f6',
+        background: theme.background,
+        color: theme.color,
+        customClass: {
+            popup: theme.popupClass,
+            title: theme.titleClass
+        }
+    });
+}
+
+function disconnectMySession() {
+    const theme = getSwalTheme();
+    Swal.fire({
+        title: 'تأكيد قطع الاتصال / إعادة التنشيط',
+        html: `
+            <div class="text-right text-xs space-y-2 leading-relaxed">
+                <p class="${theme.textColor}">هل ترغب في فصل جلستك الحالية وإعادة تنشيط اتصال جهازك بالشبكة عبر راوتر البث؟</p>
+                <div class="p-3 ${theme.infoBoxBg} rounded-xl text-[11px]">
+                    <i class="fa-solid fa-circle-info ml-1 text-blue-400"></i>
+                    سيتم قطع الاتصال فوراً لتتمكن من تسجيل الدخول وتجديد الحصة أو حل مشاكل الاتصال العالق.
+                </div>
+            </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fa-solid fa-power-off ml-1"></i> نعم، اقطع الاتصال الآن',
+        cancelButtonText: 'إلغاء',
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: theme.cancelColor,
+        background: theme.background,
+        color: theme.color,
+        customClass: {
+            popup: theme.popupClass,
+            title: theme.titleClass
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'جاري إرسال أمر الفصل...',
+                text: 'يرجى الانتظار لحظات',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+            fetch("{{ url_for('user_disconnect_session_action') }}", {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    Swal.fire({
+                        title: 'تم بنجاح!',
+                        text: res.message,
+                        icon: 'success',
+                        confirmButtonText: 'حسناً'
+                    }).then(() => { window.location.reload(); });
+                } else {
+                    Swal.fire({
+                        title: 'تنبيه',
+                        text: res.message || 'تعذر فصل الجلسة',
+                        icon: 'info',
+                        confirmButtonText: 'حسناً'
+                    });
+                }
+            })
+            .catch(err => {
+                Swal.fire({
+                    title: 'خطأ',
+                    text: 'فشل الاتصال بالخادم: ' + err.message,
+                    icon: 'error',
+                    confirmButtonText: 'حسناً'
+                });
+            });
+        }
+    });
+}
+</script>
+{% endblock %}

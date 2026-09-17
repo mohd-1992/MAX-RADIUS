@@ -1,0 +1,869 @@
+{% extends "base.html" %}
+
+{% block title %}لوحة مراقبة راوترات ميكروتيك (NAS Live Dashboard){% endblock %}
+{% block page_title %}أجهزة الميكروتيك وخوادم البث (NAS){% endblock %}
+
+{% block content %}
+<!-- Top Inline Script to Guarantee Modal and Copy Handlers are Active Immediately -->
+<script>
+    window.copyTextToClipboard = function(text) {
+        return new Promise(function(resolve, reject) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(resolve).catch(function() {
+                        window.fallbackCopy(text) ? resolve() : reject();
+                    });
+                    return;
+                }
+            } catch (e) {}
+
+            if (window.fallbackCopy(text)) {
+                resolve();
+            } else {
+                reject();
+            }
+        });
+    };
+
+    window.fallbackCopy = function(text) {
+        try {
+            var textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            textArea.setAttribute("readonly", "");
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, 99999);
+            var successful = document.execCommand("copy");
+            document.body.removeChild(textArea);
+            return successful;
+        } catch (err) {
+            return false;
+        }
+    };
+
+    window.copyNasFromElement = function(btn) {
+        if (!btn) return;
+        var routerName = btn.getAttribute('data-name') || 'MikroTik';
+        var radiusIp = btn.getAttribute('data-ip') || '192.168.1.100';
+        var secret = btn.getAttribute('data-secret') || '';
+        var coaPort = btn.getAttribute('data-port') || '3799';
+        window.copyNasScript(routerName, radiusIp, secret, coaPort);
+    };
+
+    window.copyNasScript = function(routerName, radiusIp, secret, coaPort) {
+        var port = coaPort || 3799;
+        var ip = radiusIp || '192.168.1.100';
+        var script = '/radius incoming set accept=yes port=' + port + '\n' +
+                     '/radius add address=' + ip + ' secret="' + secret + '" service=hotspot,ppp,login authentication-port=1812 accounting-port=1813 timeout=3000ms comment="MAX_RADIUS"\n' +
+                     '/ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m\n' +
+                     '/ppp aaa set use-radius=yes interim-update=1m';
+
+        window.copyTextToClipboard(script).then(function() {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'تم نسخ الأوامر بنجاح!',
+                    html: '<div class="text-right space-y-2 mt-2">' +
+                          '<div class="flex items-center gap-2 text-xs text-slate-300">' +
+                          '<span class="w-2 h-2 rounded-full bg-emerald-400"></span>' +
+                          '<span>الراوتر: <strong class="text-white">' + routerName + '</strong></span>' +
+                          '<span class="text-slate-500">•</span>' +
+                          '<span>سيرفر RADIUS: <strong class="font-mono text-cyan-400 font-bold">' + ip + '</strong></span>' +
+                          '</div>' +
+                          '<textarea readonly class="w-full bg-[#070b14] text-emerald-400 p-3 rounded-xl text-[11px] font-mono border border-slate-700 leading-relaxed h-28 select-all mt-2">' + script + '</textarea>' +
+                          '<p class="text-[11px] text-slate-400 mt-1">تم حفظ الأوامر في الحافظة. الصقها مباشرة في Terminal راوتر MikroTik.</p>' +
+                          '</div>',
+                    icon: 'success',
+                    confirmButtonText: 'حسناً',
+                    confirmButtonColor: '#2563eb'
+                });
+            } else {
+                alert('تم نسخ أوامر MikroTik إلى الحافظة بنجاح!');
+            }
+        }).catch(function() {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'أوامر تهيئة [' + routerName + ']',
+                    html: '<div class="text-right space-y-2 mt-2">' +
+                          '<p class="text-xs text-slate-300">حدد النص أدناه وانسخه (Ctrl+C):</p>' +
+                          '<textarea readonly class="w-full bg-[#070b14] text-emerald-400 p-3 rounded-xl text-[11px] font-mono border border-slate-700 leading-relaxed h-32 select-all">' + script + '</textarea>' +
+                          '</div>',
+                    icon: 'info',
+                    confirmButtonText: 'إغلاق',
+                    confirmButtonColor: '#2563eb'
+                });
+            } else {
+                prompt('انسخ الأوامر أدناه (Ctrl+C):', script);
+            }
+        });
+    };
+
+    window.testCoaFromElement = function(btn) {
+        if (!btn) return;
+        var nasId = btn.getAttribute('data-id');
+        var nasIp = btn.getAttribute('data-ip') || '';
+        var nasName = btn.getAttribute('data-name') || '';
+        window.testCoa(nasId, nasIp, nasName);
+    };
+
+    window.testCoa = function(nasId, nasIp, nasName) {
+        if (typeof Swal === 'undefined') {
+            if (confirm('هل تريد إرسال فحص CoA تجريبي للراوتر ' + nasIp + '؟')) {
+                fetch('/api/nas/test-coa/' + nasId, {method: 'POST'})
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) { alert(data.message); })
+                    .catch(function(e) { alert('خطأ: ' + e); });
+            }
+            return;
+        }
+
+        var label = nasName ? ('[' + nasName + '] - ' + nasIp) : nasIp;
+        Swal.fire({
+            title: 'اختبار حزمة CoA RFC 5176',
+            html: '<div class="text-right text-xs space-y-2 text-slate-300">' +
+                  '<p>سيتم إرسال حزمة Disconnect-Request تجريبية للراوتر: <strong class="text-cyan-400 font-mono">' + label + '</strong></p>' +
+                  '<p class="text-[11px] text-slate-400">يتحقق هذا الفحص من فتح منفذ CoA وجاهزية الراوتر لاستقبال أوامر فصل المستخدمين وتعديل السرعات فورياً.</p>' +
+                  '</div>',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fa-solid fa-satellite-dish mr-1"></i> إرسال الفحص الآن',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#059669',
+            cancelButtonColor: '#475569'
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ فحص منفذ CoA...',
+                    html: '<p class="text-xs text-slate-400 mt-2">يتم إرسال حزمة UDP واستقبال الرد من الراوتر...</p>',
+                    allowOutsideClick: false,
+                    didOpen: function() { Swal.showLoading(); }
+                });
+
+                fetch('/api/nas/test-coa/' + nasId, {method: 'POST'})
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    var title = data.success ? 'استجاب الراوتر بنجاح!' : 'نتيجة الفحص';
+                    var icon = data.success ? 'success' : (data.status === 'timeout' ? 'warning' : 'error');
+                    if (data.status === 'secret_mismatch') {
+                        title = 'خطأ في المفتاح المشترك (Secret)';
+                    }
+                    Swal.fire({
+                        title: title,
+                        html: '<div class="text-right text-xs space-y-2 mt-2 leading-relaxed text-slate-200">' +
+                              '<p class="font-semibold">' + data.message + '</p>' +
+                              (data.latency_ms ? '<div class="text-[11px] text-emerald-400 font-mono">زمن الاستجابة: ' + data.latency_ms + ' ms</div>' : '') +
+                              '</div>',
+                        icon: icon,
+                        confirmButtonText: 'حسناً',
+                        confirmButtonColor: '#2563eb'
+                    });
+                })
+                .catch(function(err) {
+                    Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                });
+            }
+        });
+    };
+
+    window.openAddNasModal = function(e) {
+        if (e && typeof e.preventDefault === 'function') {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        var m = document.getElementById('addNasModal');
+        if (m) {
+            m.style.removeProperty('display');
+            m.style.setProperty('display', 'flex', 'important');
+            m.classList.remove('hidden');
+            return false;
+        } else {
+            window.location.href = "{{ url_for('add_nas_action') }}";
+            return true;
+        }
+    };
+
+    window.closeModal = function(id) {
+        var m = document.getElementById(id || 'addNasModal');
+        if (m) {
+            m.style.setProperty('display', 'none', 'important');
+            m.classList.add('hidden');
+        }
+    };
+</script>
+
+<div class="space-y-6">
+
+    <!-- Top Header Banner & Controls -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-tower-broadcast"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    لوحة مراقبة راوترات ميكروتيك (MikroTik Live Dashboard)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    مراقبة حية للاستجابة (Ping Latency)، استهلاك المعالج والرام (CPU/RAM)، وإصدار RouterOS، والمستخدمين المتصلين
+                </p>
+            </div>
+        </div>
+        
+        <!-- Action Buttons & Timer -->
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="bg-[#070b14] border border-[#162136] px-3.5 py-2 rounded-xl text-xs flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-slate-400">تحديث تلقائي:</span>
+                <span id="countdownTimer" class="font-mono text-emerald-400 font-bold">30s</span>
+            </div>
+
+            <button onclick="fetchNasLiveStatus(true)" id="btnRefresh" class="px-3.5 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i id="refreshIcon" class="fa-solid fa-arrows-rotate text-blue-400"></i>
+                <span>تحديث فوري</span>
+            </button>
+
+            <a href="{{ url_for('add_nas_action') }}" id="btnAddNasTop" onclick="return openAddNasModal(event);" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-plus"></i>
+                <span>إضافة راوتر جديد</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Overview Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Total Routers -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">إجمالي الراوترات</span>
+                <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-base border border-blue-500/20">
+                    <i class="fa-solid fa-server"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 id="kpiTotalRouters" class="text-2xl font-black text-white font-mono">{{ devices|length }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>النوع:</span>
+                    <span class="text-blue-400 font-bold">MikroTik RouterOS</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Online Routers -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">الراوترات المتصلة</span>
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/20">
+                    <i class="fa-solid fa-signal"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 id="kpiOnlineRouters" class="text-2xl font-black text-emerald-400 font-mono">
+                    {{ devices|selectattr('is_online')|list|length }} / {{ devices|length }}
+                </h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حالة الاتصال:</span>
+                    <span class="text-emerald-400 font-bold">نشط ويستجيب</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Total Active Users on NAS -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">المستخدمون النشطون (Online)</span>
+                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 id="kpiActiveUsers" class="text-2xl font-black text-purple-400 font-mono">
+                    {{ devices|sum(attribute='active_users') }}
+                </h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>الجلسات المفتوحة:</span>
+                    <span class="text-purple-400 font-bold">Hotspot & PPPoE</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. CoA Protocol Status -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">بروتوكول الفصل (CoA)</span>
+                <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-base border border-amber-500/20">
+                    <i class="fa-solid fa-satellite-dish"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-xl font-black text-amber-400 font-mono">RFC 5176</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>المنفذ الافتراضي:</span>
+                    <span class="font-mono text-amber-400 font-bold">3799 UDP</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Routers Live Monitoring Cards Grid -->
+    <div id="routersContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {% for d in devices %}
+        <div id="nas-card-{{ d.id }}" class="bg-[#0b0f19] border {% if d.is_online %}border-[#1c2840] hover:border-blue-500/50{% else %}border-rose-900/30 hover:border-rose-500/50{% endif %} rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between transition-all duration-200">
+            
+            <!-- Card Header -->
+            <div class="space-y-3">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-2xl border border-blue-500/20 flex-shrink-0">
+                            <i class="fa-solid fa-network-wired"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <a href="{{ url_for('nas_details_page', nas_id=d.id) }}" class="font-bold text-white text-base hover:text-blue-400 transition block truncate">
+                                {{ d.name }}
+                            </a>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span class="text-xs font-mono font-bold text-blue-400">{{ d.ip_address }}</span>
+                                <span id="board-badge-{{ d.id }}" class="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 font-mono truncate max-w-[120px]">{{ d.board_name }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Online / Offline & Latency Badge -->
+                    <div id="status-badge-{{ d.id }}">
+                        {% if d.is_online %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-1.5"></span>
+                            <span>متصل (<span id="latency-val-{{ d.id }}">{{ d.latency_ms }}</span>ms)</span>
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                            <span class="w-2 h-2 rounded-full bg-rose-400 ml-1.5"></span>
+                            <span>غير متصل</span>
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Hardware & System Metrics Box -->
+                <div class="bg-[#070b14] rounded-xl p-3.5 space-y-2.5 text-xs border border-[#162136]">
+                    
+                    <!-- 1. RouterOS Version & Uptime -->
+                    <div class="grid grid-cols-2 gap-2 pb-2 border-b border-[#162136]">
+                        <div>
+                            <span class="text-[11px] text-slate-400 block">إصدار النظام (RouterOS)</span>
+                            <span id="ros-ver-{{ d.id }}" class="font-mono font-bold text-sky-400 text-xs">{{ d.ros_version }}</span>
+                        </div>
+                        <div>
+                            <span class="text-[11px] text-slate-400 block">مدة التشغيل (Uptime)</span>
+                            <span id="uptime-val-{{ d.id }}" class="font-mono font-bold text-slate-200 text-xs">{{ d.uptime }}</span>
+                        </div>
+                    </div>
+
+                    <!-- 2. Active Sessions Count -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-user-check text-purple-400"></i>
+                            المستخدمون النشطون:
+                        </span>
+                        <span id="users-val-{{ d.id }}" class="font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
+                            {{ d.active_users }} متصل
+                        </span>
+                    </div>
+
+                    <!-- 3. CPU Load Bar -->
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-microchip text-sky-400"></i>
+                                <span>استهلاك المعالج (CPU):</span>
+                            </span>
+                            <span id="cpu-text-{{ d.id }}" class="font-mono font-bold text-sky-400">{{ d.cpu_load }}%</span>
+                        </div>
+                        <div class="w-full progress-track border rounded-full h-2.5 p-0.5 overflow-hidden shadow-inner">
+                            <div id="cpu-bar-{{ d.id }}" class="{% if d.cpu_load > 85 %}bg-gradient-to-r from-rose-500 to-red-600{% elif d.cpu_load > 60 %}bg-gradient-to-r from-amber-500 to-orange-500{% else %}bg-gradient-to-r from-blue-500 to-sky-400{% endif %} h-full rounded-full transition-all duration-500 shadow-sm" style="width: {{ d.cpu_load }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- 4. RAM Memory Usage Bar -->
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-memory text-emerald-400"></i>
+                                <span>استهلاك الذاكرة (RAM):</span>
+                            </span>
+                            <div class="flex items-center gap-1.5 font-mono">
+                                <span id="ram-text-{{ d.id }}" class="font-bold text-emerald-400">{{ d.ram_usage_pct }}%</span>
+                                {% if d.total_memory_mb %}
+                                <span id="ram-mb-{{ d.id }}" class="text-[10px] text-slate-500">({{ (d.total_memory_mb - d.free_memory_mb)|round(0)|int }}/{{ d.total_memory_mb|round(0)|int }}MB)</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="w-full progress-track border rounded-full h-2.5 p-0.5 overflow-hidden shadow-inner">
+                            <div id="ram-bar-{{ d.id }}" class="{% if d.ram_usage_pct > 85 %}bg-gradient-to-r from-rose-500 to-red-600{% elif d.ram_usage_pct > 60 %}bg-gradient-to-r from-amber-500 to-orange-500{% else %}bg-gradient-to-r from-emerald-500 to-teal-400{% endif %} h-full rounded-full transition-all duration-500 shadow-sm" style="width: {{ d.ram_usage_pct }}%"></div>
+                        </div>
+                    </div>
+
+                    <!-- 5. Ports (CoA & API) -->
+                    <div class="flex items-center justify-between pt-1 text-[11px] text-slate-400 border-t border-[#162136]">
+                        <span>منفذ CoA: <strong class="text-amber-400 font-mono">{{ d.coa_port or 3799 }}</strong></span>
+                        <span>منفذ API: <strong class="text-blue-400 font-mono">{{ d.api_port or 8728 }}</strong></span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Action Buttons Bar (Single Line 1-Row Layout) -->
+            <div class="border-t border-[#1c2840] pt-3 flex items-center justify-between gap-1.5">
+                <div class="grid grid-cols-3 gap-1.5 flex-1 min-w-0">
+                    <!-- 1. الدخول والتفاصيل -->
+                    <a href="{{ url_for('nas_details_page', nas_id=d.id) }}" class="px-2 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 whitespace-nowrap min-w-0" title="عرض وتعديل بيانات الراوتر">
+                        <i class="fa-solid fa-sliders text-[11px]"></i>
+                        <span class="truncate">تعديل</span>
+                    </a>
+
+                    <!-- 2. نسخ أوامر التهيئة -->
+                    <button type="button" 
+                            data-name="{{ d.name }}" 
+                            data-ip="{{ radius_server_ip }}" 
+                            data-secret="{{ d.secret }}" 
+                            data-port="{{ d.coa_port or 3799 }}"
+                            onclick="copyNasFromElement(this)" 
+                            class="px-2 py-1.5 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap min-w-0 cursor-pointer" 
+                            title="نسخ أوامر تهيئة MikroTik CLI">
+                        <i class="fa-solid fa-terminal text-[11px]"></i>
+                        <span class="truncate">الأوامر</span>
+                    </button>
+
+                    <!-- 3. اختبار CoA -->
+                    <button type="button" 
+                            data-id="{{ d.id }}" 
+                            data-ip="{{ d.ip_address }}" 
+                            data-name="{{ d.name }}"
+                            onclick="testCoaFromElement(this)" 
+                            class="px-2 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1 whitespace-nowrap min-w-0 cursor-pointer" 
+                            title="اختبار حزمة CoA RFC 5176">
+                        <i class="fa-solid fa-satellite-dish text-[11px]"></i>
+                        <span class="truncate">اختبار CoA</span>
+                    </button>
+                </div>
+
+                <!-- 4. حذف -->
+                <button type="button" onclick="confirmDeleteNas({{ d.id }}, '{{ d.name|e }}')" class="p-2 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-xl text-xs transition border border-[#162136] flex-shrink-0 cursor-pointer" title="حذف الراوتر">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </div>
+
+        </div>
+        {% else %}
+        <div class="col-span-full py-16 bg-[#0b0f19] rounded-2xl border border-[#1c2840] text-center space-y-4 shadow-sm">
+            <div class="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-3xl mx-auto border border-blue-500/20">
+                <i class="fa-solid fa-server"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-white">لا توجد راوترات ميكروتيك مضافة حالياً</h3>
+                <p class="text-xs text-slate-400 mt-1">أضف راوتر MikroTik الأول لربط التوثيق وسيرفر RADIUS والتحكم بالجلسات</p>
+            </div>
+            <a href="{{ url_for('add_nas_action') }}" id="btnAddNasEmpty" onclick="return openAddNasModal(event);" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition cursor-pointer">
+                <i class="fa-solid fa-plus"></i>إضافة أول راوتر الآن
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<!-- ============================================================== -->
+<!-- Add NAS Modal                                                  -->
+<!-- ============================================================== -->
+<div id="addNasModal" style="display: none;" class="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target===this) closeModal('addNasModal')">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-lg p-6 shadow-2xl space-y-4 relative">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-lg text-white flex items-center gap-2">
+                <i class="fa-solid fa-server text-blue-400"></i>إضافة راوتر MikroTik جديد
+            </h3>
+            <button type="button" onclick="closeModal('addNasModal')" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+        <form method="POST" action="{{ url_for('add_nas_action') }}" class="space-y-3.5 text-xs">
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">اسم الراوتر التعريفي <span class="text-rose-400">*</span></label>
+                <input type="text" name="name" required placeholder="مثال: راوتر البرج الشمالي CCR2004" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">عنوان IP للراوتر <span class="text-rose-400">*</span></label>
+                    <input type="text" name="ip_address" required placeholder="192.168.88.1" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">السر المشترك (Secret) <span class="text-rose-400">*</span></label>
+                    <input type="password" name="secret" required placeholder="radius secret" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">منفذ CoA (RFC 5176)</label>
+                    <input type="number" name="coa_port" value="3799" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">منفذ API</label>
+                    <input type="number" name="api_port" value="8728" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">مستخدم API</label>
+                    <input type="text" name="api_username" value="admin" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">كلمة مرور API</label>
+                    <input type="password" name="api_password" placeholder="اختياري" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+                </div>
+            </div>
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">رابط صفحة الدخول (Hotspot URL للـ QR Code)</label>
+                <input type="text" name="hotspot_login_url" value="http://192.168.88.1/login" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">الوصف والملاحظات</label>
+                <textarea name="description" rows="2" placeholder="وصف موقع الجهاز أو البرج" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-xs text-white focus:border-blue-500"></textarea>
+            </div>
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('addNasModal')" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition">حفظ الراوتر في RADIUS</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openAddNasModal() {
+        const m = document.getElementById('addNasModal');
+        if (m) {
+            m.style.display = 'flex';
+            m.classList.remove('hidden');
+        }
+    }
+    function closeModal(id) {
+        const m = document.getElementById(id || 'addNasModal');
+        if (m) {
+            m.style.display = 'none';
+            m.classList.add('hidden');
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Live Monitoring AJAX Engine (Auto Refresh every 30s)
+    // -------------------------------------------------------------
+    let secondsLeft = 30;
+    let timerInterval = null;
+
+    function startCountdown() {
+        if (timerInterval) clearInterval(timerInterval);
+        secondsLeft = 30;
+        const timerEl = document.getElementById('countdownTimer');
+        if (timerEl) timerEl.innerText = `${secondsLeft}s`;
+
+        timerInterval = setInterval(() => {
+            secondsLeft--;
+            if (timerEl) timerEl.innerText = `${secondsLeft}s`;
+            if (secondsLeft <= 0) {
+                fetchNasLiveStatus(false);
+                secondsLeft = 30;
+            }
+        }, 1000);
+    }
+
+    function fetchNasLiveStatus(isManual = false) {
+        const icon = document.getElementById('refreshIcon');
+        if (icon) icon.classList.add('fa-spin');
+
+        fetch('/api/nas-status')
+            .then(r => r.json())
+            .then(data => {
+                if (icon) icon.classList.remove('fa-spin');
+                if (data.success && data.devices) {
+                    // Update Top KPI Summaries
+                    const kpiTotal = document.getElementById('kpiTotalRouters');
+                    const kpiOnline = document.getElementById('kpiOnlineRouters');
+                    const kpiUsers = document.getElementById('kpiActiveUsers');
+
+                    if (kpiTotal) kpiTotal.innerText = data.total_routers;
+                    if (kpiOnline) kpiOnline.innerText = `${data.online_routers} / ${data.total_routers}`;
+                    
+                    // Synchronize Top Navbar CoA Indicator
+                    const topPill = document.getElementById('topCoaPill');
+                    const topDot = document.getElementById('topCoaDot');
+                    const topBadge = document.getElementById('topCoaNasBadge');
+                    if (topPill && topBadge) {
+                        if (data.total_routers === 0) {
+                            topPill.className = "px-2.5 py-1 rounded-xl bg-slate-500/10 text-slate-400 border border-slate-500/20 text-xs font-semibold hidden md:flex items-center gap-1.5 shadow-sm transition";
+                            if (topDot) topDot.className = "w-2 h-2 rounded-full bg-slate-400";
+                            topBadge.className = "bg-slate-500/20 text-slate-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono";
+                            topBadge.innerText = "0 NAS";
+                        } else if (data.online_routers === data.total_routers) {
+                            topPill.className = "px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold hidden md:flex items-center gap-1.5 shadow-sm transition";
+                            if (topDot) topDot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                            topBadge.className = "bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono";
+                            topBadge.innerText = `${data.online_routers}/${data.total_routers} NAS متصل`;
+                        } else if (data.online_routers > 0) {
+                            topPill.className = "px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold hidden md:flex items-center gap-1.5 shadow-sm transition";
+                            if (topDot) topDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                            topBadge.className = "bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono";
+                            topBadge.innerText = `${data.online_routers}/${data.total_routers} NAS متصل`;
+                        } else {
+                            topPill.className = "px-2.5 py-1 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold hidden md:flex items-center gap-1.5 shadow-sm transition";
+                            if (topDot) topDot.className = "w-2 h-2 rounded-full bg-rose-400";
+                            topBadge.className = "bg-rose-500/20 text-rose-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono";
+                            topBadge.innerText = `0/${data.total_routers} NAS (غير متصل)`;
+                        }
+                    }
+
+                    let totalUsers = 0;
+
+                    // Update each router card
+                    data.devices.forEach(d => {
+                        totalUsers += (d.active_users || 0);
+
+                        const card = document.getElementById(`nas-card-${d.id}`);
+                        const statusBadge = document.getElementById(`status-badge-${d.id}`);
+                        const latencyVal = document.getElementById(`latency-val-${d.id}`);
+                        const boardBadge = document.getElementById(`board-badge-${d.id}`);
+                        const rosVer = document.getElementById(`ros-ver-${d.id}`);
+                        const uptimeVal = document.getElementById(`uptime-val-${d.id}`);
+                        const usersVal = document.getElementById(`users-val-${d.id}`);
+                        const cpuText = document.getElementById(`cpu-text-${d.id}`);
+                        const cpuBar = document.getElementById(`cpu-bar-${d.id}`);
+                        const ramText = document.getElementById(`ram-text-${d.id}`);
+                        const ramBar = document.getElementById(`ram-bar-${d.id}`);
+
+                        if (d.is_online) {
+                            if (card) {
+                                card.className = "bg-[#0b0f19] border border-[#1c2840] hover:border-blue-500/50 rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between transition-all duration-200";
+                            }
+                            if (statusBadge) {
+                                statusBadge.innerHTML = `
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse ml-1.5"></span>
+                                        <span>متصل (<span id="latency-val-${d.id}">${d.latency_ms}</span>ms)</span>
+                                    </span>
+                                `;
+                            }
+                        } else {
+                            if (card) {
+                                card.className = "bg-[#0b0f19] border border-rose-900/30 hover:border-rose-500/50 rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between transition-all duration-200";
+                            }
+                            if (statusBadge) {
+                                statusBadge.innerHTML = `
+                                    <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                        <span class="w-2 h-2 rounded-full bg-rose-400 ml-1.5"></span>
+                                        <span>غير متصل</span>
+                                    </span>
+                                `;
+                            }
+                        }
+
+                        if (boardBadge && d.board_name) boardBadge.innerText = d.board_name;
+                        if (rosVer) rosVer.innerText = d.ros_version;
+                        if (uptimeVal) uptimeVal.innerText = d.uptime;
+                        if (usersVal) usersVal.innerText = `${d.active_users} متصل`;
+
+                        // CPU updates
+                        if (cpuText) cpuText.innerText = `${d.cpu_load}%`;
+                        if (cpuBar) {
+                            cpuBar.style.width = `${d.cpu_load}%`;
+                            cpuBar.className = d.cpu_load > 85
+                                ? "bg-gradient-to-r from-rose-500 to-red-600 h-full rounded-full transition-all duration-500 shadow-sm"
+                                : (d.cpu_load > 60
+                                    ? "bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full transition-all duration-500 shadow-sm"
+                                    : "bg-gradient-to-r from-blue-500 to-sky-400 h-full rounded-full transition-all duration-500 shadow-sm");
+                        }
+
+                        // RAM updates
+                        if (ramText) ramText.innerText = `${d.ram_usage_pct}%`;
+                        const ramMb = document.getElementById(`ram-mb-${d.id}`);
+                        if (ramMb && d.total_memory_mb) {
+                            const usedMb = Math.round(d.total_memory_mb - d.free_memory_mb);
+                            ramMb.innerText = `(${usedMb}/${Math.round(d.total_memory_mb)}MB)`;
+                        }
+                        if (ramBar) {
+                            ramBar.style.width = `${d.ram_usage_pct}%`;
+                            ramBar.className = d.ram_usage_pct > 85
+                                ? "bg-gradient-to-r from-rose-500 to-red-600 h-full rounded-full transition-all duration-500 shadow-sm"
+                                : (d.ram_usage_pct > 60
+                                    ? "bg-gradient-to-r from-amber-500 to-orange-500 h-full rounded-full transition-all duration-500 shadow-sm"
+                                    : "bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500 shadow-sm");
+                        }
+                    });
+
+                    if (kpiUsers) kpiUsers.innerText = totalUsers;
+                    const kpiOnline = document.getElementById('kpiOnlineRouters');
+                    if (kpiOnline) {
+                        kpiOnline.innerText = `${data.online_routers || 0} / ${data.total_routers || 0}`;
+                    }
+                    startCountdown(); // Reset timer
+                }
+            })
+            .catch(err => {
+                if (icon) icon.classList.remove('fa-spin');
+                startCountdown();
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        fetchNasLiveStatus(false);
+        startCountdown();
+    });
+
+    // -------------------------------------------------------------
+    // Universal Clipboard Copy (Supports non-HTTPS IP origins & older browsers)
+    // -------------------------------------------------------------
+    function copyTextToClipboard(text) {
+        return new Promise(function(resolve, reject) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(resolve).catch(function() {
+                        fallbackCopy(text) ? resolve() : reject();
+                    });
+                    return;
+                }
+            } catch (e) {}
+
+            if (fallbackCopy(text)) {
+                resolve();
+            } else {
+                reject();
+            }
+        });
+    }
+
+    function fallbackCopy(text) {
+        try {
+            var textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-999999px";
+            textArea.style.top = "-999999px";
+            textArea.setAttribute("readonly", "");
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            textArea.setSelectionRange(0, 99999);
+            var successful = document.execCommand("copy");
+            document.body.removeChild(textArea);
+            return successful;
+        } catch (err) {
+            return false;
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Copy MikroTik CLI Setup Script
+    // -------------------------------------------------------------
+    function copyNasScript(routerName, radiusIp, secret, coaPort) {
+        const port = coaPort || 3799;
+        const ip = radiusIp || '192.168.1.100';
+        const script = `/radius incoming set accept=yes port=${port}
+/radius add address=${ip} secret="${secret}" service=hotspot,ppp,login authentication-port=1812 accounting-port=1813 timeout=3000ms comment="MAX_RADIUS"
+/ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
+/ppp aaa set use-radius=yes interim-update=1m`;
+
+        copyTextToClipboard(script).then(() => {
+            Swal.fire({
+                title: `تم نسخ الأوامر بنجاح!`,
+                html: `
+                    <div class="text-right space-y-2.5 mt-2">
+                        <div class="flex items-center gap-2 text-xs text-slate-300">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <span>الراوتر: <strong class="text-white">${routerName}</strong></span>
+                            <span class="text-slate-500">•</span>
+                            <span>سيرفر RADIUS: <strong class="font-mono text-cyan-400 font-bold">${ip}</strong></span>
+                        </div>
+                        <div class="bg-[#070b14] text-emerald-400 p-3 rounded-xl text-[11px] font-mono text-left select-all border border-slate-700 leading-relaxed overflow-x-auto whitespace-pre">${script}</div>
+                        <p class="text-[11px] text-slate-400">تم حفظ الأوامر في الحافظة. الصقها مباشرة في Terminal راوتر MikroTik.</p>
+                    </div>
+                `,
+                icon: 'success',
+                confirmButtonText: 'حسناً',
+                confirmButtonColor: '#2563eb'
+            });
+        }).catch(() => {
+            Swal.fire({
+                title: `أوامر تهيئة [${routerName}]`,
+                html: `
+                    <div class="text-right space-y-2 mt-2">
+                        <p class="text-xs text-slate-300">حدد النص أدناه وانسخه (Ctrl+C):</p>
+                        <textarea readonly class="w-full bg-[#070b14] text-emerald-400 p-3 rounded-xl text-[11px] font-mono border border-slate-700 leading-relaxed h-32 select-all">${script}</textarea>
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonText: 'إغلاق',
+                confirmButtonColor: '#2563eb'
+            });
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Test CoA Disconnect Request
+    // -------------------------------------------------------------
+    function testCoa(nasId, nasIp) {
+        Swal.fire({
+            title: 'اختبار حزمة CoA RFC 5176',
+            text: `جارٍ إرسال حزمة PoD/Disconnect تجريبية لعنوان الراوتر: ${nasIp}:3799`,
+            icon: 'info',
+            showCancelButton: true,
+            confirmButtonText: 'إرسال الحزمة الآن',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#10b981'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ الإرسال...',
+                    text: 'يتم تشغيل UDP CoA Socket...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                fetch(`/api/nas/test-coa/${nasId}`, {method: 'POST'})
+                .then(r => r.json())
+                .then(data => {
+                    Swal.fire({
+                        title: data.success ? 'نجح الاتصال' : 'نتيجة الإرسال',
+                        text: data.message,
+                        icon: data.success ? 'success' : (data.status === 'timeout' ? 'warning' : 'info')
+                    });
+                })
+                .catch(err => Swal.fire('خطأ شبكة', err.toString(), 'error'));
+            }
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Confirm Delete Router
+    // -------------------------------------------------------------
+    function confirmDeleteNas(nasId, name) {
+        Swal.fire({
+            title: 'حذف الراوتر من FreeRADIUS',
+            text: `هل أنت متأكد من حذف راوتر [${name}] نهائياً؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، احذف الراوتر',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = `/nas/delete/${nasId}`;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        });
+    }
+</script>
+{% endblock %}
