@@ -127,22 +127,33 @@ def get_active_license_status(force_refresh=False):
     row = query_one("SELECT * FROM wisp_license_info ORDER BY id DESC LIMIT 1")
     if not row:
         res = {
-            "has_license": False,
-            "status": "unlicensed",
-            "status_text": "غير مرخص (نسخة تجريبية أولية)",
-            "client_name": "نسخة غير مفعلة",
-            "plan_tier": "Unlicensed",
-            "days_left": 0,
-            "expires_at": "غير محدد",
-            "is_lifetime": False,
-            "max_subscribers": 500,
-            "max_nas": 2,
+            "has_license": True,
+            "status": "active",
+            "status_text": "نسخة مجتمعية مفتوحة (Community Edition) 🟢",
+            "client_name": "إدارة الشبكة (Community)",
+            "plan_tier": "Community",
+            "days_left": 9999,
+            "expires_at": "دائم (Lifetime)",
+            "is_lifetime": True,
+            "max_subscribers": 50000,
+            "max_nas": 50,
+            "max_managers": 20,
             "current_subscribers": subs_count,
             "current_nas": nas_count,
             "current_machine_id": current_machine_id,
-            "features": {},
-            "valid": False,
-            "message": "يرجى إدخال وتفعيل مفتاح الترخيص المعتمد لتشغيل كافة ميزات وسعات النظام"
+            "features": {
+                "user_portal": True,
+                "automation_rules": True,
+                "gis_map": True,
+                "autoheal": True,
+                "accounting_archiver": True,
+                "radius_simulator": True,
+                "traffic_analytics": True,
+                "api_access": True,
+                "white_label": True
+            },
+            "valid": True,
+            "message": "النظام يعمل بالوضع المجتمعي المفتوح بكافة الميزات"
         }
         _LICENSE_CACHE = {'data': res, 'timestamp': now_t}
         return res

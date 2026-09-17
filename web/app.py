@@ -157,13 +157,13 @@ def enforce_license_guard_interceptor():
 
     try:
         lic = get_active_license_status()
-        if not lic.get('valid'):
+        if lic and lic.get('status') == 'revoked':
             if request.is_json or path.startswith('/api/'):
                 return jsonify({
                     "success": False,
-                    "error": "LICENSE_LOCKED",
-                    "status": lic.get('status'),
-                    "message": lic.get('message', "النظام مقفل: يجب تفعيل أو مزامنة الترخيص مع الخادم")
+                    "error": "LICENSE_REVOKED",
+                    "status": "revoked",
+                    "message": lic.get('message', "النظام مقفل: تم حظر هذا الترخيص من قبل إدارة المطور")
                 }), 403
             return redirect(url_for('license_status_page'))
     except Exception:
@@ -352,18 +352,18 @@ def check_authentication():
             }), 401
         return redirect(url_for('login', next=request.url))
 
-    # 2. Strict License Guard: Intercept and lock system if unlicensed / expired / revoked
+    # 2. Strict License Guard: Intercept and lock system only if explicitly revoked
     try:
         lic_info = get_active_license_status()
-        if not lic_info or not lic_info.get('valid'):
+        if lic_info and lic_info.get('status') == 'revoked':
             if request.is_json or request.path.startswith('/api/'):
                 return jsonify({
                     'success': False,
                     'locked': True,
-                    'message': 'النظام غير مرخص أو انتهت فترة الصلاحية. يرجى تفعيل الترخيص الرقمي لمتابعة العمل.',
-                    'license_status': lic_info.get('status') if lic_info else 'no_license'
+                    'message': 'تم حظر وإلغاء ترخيص هذا السيرفر عن بُعد من قبل إدارة المطور.',
+                    'license_status': 'revoked'
                 }), 403
-            flash('تنبيه: يتطلب النظام تفعيل ترخيص رقمي معتمد للوصول إلى كافة الميزات.', 'warning')
+            flash('تنبيه: تم حظر ترخيص هذا السيرفر. يرجى مراجعة إدارة الدعم الفني.', 'danger')
             return redirect(url_for('license_status_page'))
     except Exception as e:
         pass
@@ -1676,11 +1676,11 @@ def sales_reports():
 
 
     all_vouchers = query_one("SELECT SUM(price) as total, COUNT(*) as count FROM wisp_voucher_sales")
-    vouchers_total = round(all_vouchers['total'] or 0, 2)
-    total_sold_cards = all_vouchers['count'] or 0
+    vouchers_total = round((all_vouchers['total'] if all_vouchers and all_vouchers.get('total') else 0) or 0, 2)
+    total_sold_cards = (all_vouchers['count'] if all_vouchers and all_vouchers.get('count') else 0) or 0
 
     all_invs = query_one("SELECT SUM(amount) as total FROM wisp_invoices WHERE status = 'paid'")
-    subs_total = round(all_invs['total'] or 0, 2)
+    subs_total = round((all_invs['total'] if all_invs and all_invs.get('total') else 0) or 0, 2)
 
     # Package Breakdown
     pkgs = query_all('''

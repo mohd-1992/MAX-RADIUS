@@ -146,6 +146,21 @@ echo -e "${BLUE}[6/6] Pulling images and starting MAX RADIUS services...${NC}"
 docker compose pull
 docker compose up -d
 
+# Verify Database Schema Integrity
+echo -e "${BLUE}[+] Verifying database integrity...${NC}"
+for i in {1..25}; do
+  if docker exec max_radius_db mariadb-admin ping -h 127.0.0.1 -u root -prootpass &>/dev/null; then
+    break
+  fi
+  sleep 1
+done
+
+docker exec max_radius_db mariadb -u root -prootpass radius_wisp -e "
+  SET FOREIGN_KEY_CHECKS=0;
+  SOURCE /docker-entrypoint-initdb.d/01_schema.sql;
+  SET FOREIGN_KEY_CHECKS=1;
+" 2>/dev/null || true
+
 # Get Public Server IP
 SERVER_IP=$(curl -s -m 2 https://api.ipify.org || curl -s -m 2 https://ifconfig.me || hostname -I | awk '{print $1}')
 
@@ -156,7 +171,7 @@ echo -e "${GREEN}${BOLD}========================================================
 echo ""
 echo -e "  🌐 ${BOLD}Web Dashboard:${NC}    http://${SERVER_IP}:5090  or  http://${SERVER_IP}"
 echo -e "  👤 ${BOLD}Default Admin:${NC}    admin"
-echo -e "  🔑 ${BOLD}Default Pass:${NC}     admin123"
+echo -e "  🔑 ${BOLD}Default Pass:${NC}     admin"
 echo ""
 echo -e "  🔒 ${BOLD}FreeRADIUS Auth:${NC}  Port 1812 / UDP (Secret: max123)"
 echo -e "  📊 ${BOLD}FreeRADIUS Acct:${NC}  Port 1813 / UDP (Secret: max123)"

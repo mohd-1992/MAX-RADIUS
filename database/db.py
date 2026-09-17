@@ -193,20 +193,46 @@ def init_database():
         try:
             conn = get_connection()
             if is_mysql_conn(conn):
-                print(f"[DB] Initializing MySQL Database ({DB_HOST}:{DB_PORT}/{DB_NAME})...")
-                with open(schema_file, 'r', encoding='utf-8') as f:
-                    sql_content = f.read()
+                # Check if core tables exist
+                has_subs = False
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("SHOW TABLES LIKE 'wisp_subscribers'")
+                        has_subs = bool(cur.fetchone())
+                except Exception:
+                    pass
+                    
+                if not has_subs:
+                    print(f"[DB] Core tables missing in ({DB_HOST}:{DB_PORT}/{DB_NAME}). Auto-importing full schema...")
+                    with open(schema_file, 'r', encoding='utf-8') as f:
+                        sql_content = f.read()
 
-                commands = [c.strip() for c in sql_content.split(';') if c.strip()]
-                with db_session() as c:
-                    cursor = c.cursor()
+                    clean_lines = []
+                    delim = ';'
+                    for line in sql_content.splitlines():
+                        sline = line.strip()
+                        if sline.upper().startswith('DELIMITER'):
+                            delim = sline.split()[1] if len(sline.split()) > 1 else ';'
+                            continue
+                        if delim != ';' and sline.endswith(delim):
+                            continue
+                        if delim == ';' and not sline.startswith('--'):
+                            clean_lines.append(line)
+                            
+                    full_clean_sql = '\n'.join(clean_lines)
+                    commands = [c.strip() for c in full_clean_sql.split(';') if c.strip()]
+                    
                     for cmd in commands:
-                        if cmd and not cmd.startswith('--') and not cmd.upper().startswith('DELIMITER'):
+                        if cmd and not cmd.startswith('--'):
                             try:
-                                cursor.execute(cmd)
+                                with conn.cursor() as cur:
+                                    cur.execute(cmd)
+                                conn.commit()
                             except Exception:
                                 pass
-                print("[DB] MySQL FreeRADIUS & WISP Tables and Indexes initialized successfully.")
+                    print("[DB] MySQL FreeRADIUS & WISP Tables and Indexes initialized successfully.")
+                conn.close()
+                
                 try:
                     from database.schema_healer import heal_database_schema
                     heal_database_schema()
