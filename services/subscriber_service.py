@@ -222,13 +222,22 @@ def get_subscribers(search=None, service_type=None, status=None):
     ''')
     last_sessions = {r['username'].lower(): r for r in (last_sessions_list or [])}
 
-    # 3. Total data usage per subscriber (Download + Upload)
+    # 3. Total data usage per subscriber in current cycle (Download + Upload)
     usage_list = query_all('''
-        SELECT username,
-               COALESCE(SUM(acctinputoctets), 0) as total_in,
-               COALESCE(SUM(acctoutputoctets), 0) as total_out
-        FROM radacct
-        GROUP BY username
+        SELECT s.id, LOWER(s.username) as username,
+               COALESCE(SUM(t.max_in), 0) as total_in,
+               COALESCE(SUM(t.max_out), 0) as total_out
+        FROM wisp_subscribers s
+        LEFT JOIN (
+            SELECT username, nasipaddress, acctsessionid,
+                   MAX(acctinputoctets) as max_in,
+                   MAX(acctoutputoctets) as max_out,
+                   MIN(COALESCE(acctstarttime, acctupdatetime)) as sess_start
+            FROM radacct
+            GROUP BY username, nasipaddress, acctsessionid
+        ) t ON LOWER(s.username) = LOWER(t.username)
+           AND (s.last_renewed_at IS NULL OR t.sess_start >= s.last_renewed_at)
+        GROUP BY s.id, s.username
     ''')
     usage_map = {r['username'].lower(): r for r in (usage_list or [])}
 

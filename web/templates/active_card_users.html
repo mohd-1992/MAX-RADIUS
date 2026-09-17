@@ -623,8 +623,8 @@
             </div>
             <div class="grid grid-cols-3 gap-2">
                 <div class="col-span-2">
-                    <label class="block text-slate-300 font-semibold mb-1">حجم البيانات الإضافي</label>
-                    <input type="number" step="0.5" id="aq_amount" name="quota_amount" value="5" min="0.1" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                    <label class="block text-slate-300 font-semibold mb-1">حجم البيانات (موجب للإضافة / سالب للخصم)</label>
+                    <input type="number" step="any" id="aq_amount" name="quota_amount" placeholder="مثال: 5 أو -2.5" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
                 </div>
                 <div>
                     <label class="block text-slate-300 font-semibold mb-1">الوحدة</label>
@@ -634,10 +634,10 @@
                     </select>
                 </div>
             </div>
-            <span class="text-[11px] text-slate-500 block">تضاف هذه السعة فوراً إلى رصيد الكرت المتبقي وتنعكس في بوابة المشترك /user</span>
+            <span class="text-[11px] text-slate-500 block">أدخل رقماً موجباً (مثل 5 أو 2.1) للإضافة، أو رقماً سالباً (مثل -2.5) للخصم الفوري من الرصيد.</span>
             <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
                 <button type="button" onclick="closeModal('modalAddQuota')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إلغاء</button>
-                <button type="submit" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold">إضافة السعة</button>
+                <button type="submit" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold">تطبيق العملية</button>
             </div>
         </form>
     </div>
@@ -1348,6 +1348,8 @@
         document.getElementById('aq_type').value = type;
         document.getElementById('aq_id').value = isBulk ? idOrIds.join(',') : idOrIds;
         document.getElementById('aq_username').innerText = username;
+        document.getElementById('aq_amount').value = '';
+        document.getElementById('aq_unit').value = 'GB';
         document.getElementById('modalAddQuota').classList.remove('hidden');
     }
     function submitAddQuota(e) {

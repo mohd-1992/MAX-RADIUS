@@ -686,17 +686,32 @@ def subscriber_details(sub_id):
         sub['nas_name'] = 'غير محدد'
         sub['nas_ip'] = '-'
 
-    traffic = query_one('''
-        SELECT COALESCE(SUM(total_in), 0) as up, COALESCE(SUM(total_out), 0) as down
-        FROM (
-            SELECT nasipaddress, acctsessionid,
-                   MAX(acctinputoctets) as total_in,
-                   MAX(acctoutputoctets) as total_out
-            FROM radacct
-            WHERE LOWER(username) = LOWER(?)
-            GROUP BY nasipaddress, acctsessionid
-        ) AS sub_traffic
-    ''', (sub['username'],))
+    cycle_start = sub.get('last_renewed_at')
+    if cycle_start:
+        traffic = query_one('''
+            SELECT COALESCE(SUM(total_in), 0) as up, COALESCE(SUM(total_out), 0) as down
+            FROM (
+                SELECT nasipaddress, acctsessionid,
+                       MAX(acctinputoctets) as total_in,
+                       MAX(acctoutputoctets) as total_out
+                FROM radacct
+                WHERE LOWER(username) = LOWER(?)
+                  AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
+                GROUP BY nasipaddress, acctsessionid
+            ) AS sub_traffic
+        ''', (sub['username'], str(cycle_start)))
+    else:
+        traffic = query_one('''
+            SELECT COALESCE(SUM(total_in), 0) as up, COALESCE(SUM(total_out), 0) as down
+            FROM (
+                SELECT nasipaddress, acctsessionid,
+                       MAX(acctinputoctets) as total_in,
+                       MAX(acctoutputoctets) as total_out
+                FROM radacct
+                WHERE LOWER(username) = LOWER(?)
+                GROUP BY nasipaddress, acctsessionid
+            ) AS sub_traffic
+        ''', (sub['username'],))
     
     down_bytes = traffic['down'] if traffic else 0
     up_bytes = traffic['up'] if traffic else 0
@@ -1074,6 +1089,7 @@ def active_card_users():
                COALESCE(v.snap_validity_value, p.validity_value) as validity_value, 
                COALESCE(v.snap_validity_unit, p.validity_unit) as validity_unit, 
                COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb) as volume_quota_mb, 
+               COALESCE(v.extra_quota_mb, 0) as extra_quota_mb,
                p.service_type as package_service_type,
                b.name as batch_name, b.batch_number,
                r.name as reseller_name
@@ -1099,21 +1115,25 @@ def active_card_users():
     if usernames:
         placeholders = ','.join(['?'] * len(usernames))
         traffic_rows = query_all(f'''
-            SELECT username,
-                   SUM(max_down) as total_down_bytes,
-                   SUM(max_up) as total_up_bytes,
-                   SUM(max_time) as total_session_sec
-            FROM (
+            SELECT v.id as card_id, LOWER(v.username) as username,
+                   COALESCE(SUM(t.max_down), 0) as total_down_bytes,
+                   COALESCE(SUM(t.max_up), 0) as total_up_bytes,
+                   COALESCE(SUM(t.max_time), 0) as total_session_sec
+            FROM wisp_vouchers v
+            LEFT JOIN (
                 SELECT username, nasipaddress, acctsessionid,
                        MAX(acctoutputoctets) as max_down,
                        MAX(acctinputoctets) as max_up,
-                       MAX(acctsessiontime) as max_time
+                       MAX(acctsessiontime) as max_time,
+                       MIN(COALESCE(acctstarttime, acctupdatetime)) as sess_start
                 FROM radacct
                 WHERE username IN ({placeholders})
                 GROUP BY username, nasipaddress, acctsessionid
-            ) AS inner_radacct
-            GROUP BY username
-        ''', tuple(usernames))
+            ) t ON LOWER(v.username) = LOWER(t.username)
+               AND (v.last_renewed_at IS NULL OR t.sess_start >= v.last_renewed_at)
+            WHERE v.username IN ({placeholders})
+            GROUP BY v.id, v.username
+        ''', tuple(usernames) + tuple(usernames))
         for tr in (traffic_rows or []):
             traffic_map[tr['username'].lower()] = tr
             
@@ -1225,15 +1245,18 @@ def active_card_users():
             c['days_remaining_str'] = 'غير محدد'
             
         # Consumption calculation
-        vol_quota_mb = float(c.get('volume_quota_mb') or 0)
-        c['has_quota'] = vol_quota_mb > 0
+        base_quota_mb = float(c.get('volume_quota_mb') or 0)
+        extra_quota_mb = float(c.get('extra_quota_mb') or 0)
+        is_limited_package = (base_quota_mb > 0)
+        vol_quota_mb = max(0.0, base_quota_mb + extra_quota_mb)
+        c['has_quota'] = (is_limited_package or extra_quota_mb > 0)
         c['used_bytes_str'] = format_bytes(total_used_b)
-        if vol_quota_mb > 0:
+        if c['has_quota']:
             quota_b = vol_quota_mb * 1024 * 1024
             c['quota_bytes_str'] = format_bytes(quota_b)
             rem_b = max(0.0, quota_b - total_used_b)
             c['remaining_bytes_str'] = format_bytes(rem_b)
-            c['consumption_percent'] = min(100.0, round((total_used_b / quota_b) * 100, 1))
+            c['consumption_percent'] = 100.0 if quota_b == 0 else min(100.0, round((total_used_b / quota_b) * 100, 1))
         else:
             c['quota_bytes_str'] = 'غير محدود'
             c['remaining_bytes_str'] = 'غير محدود'
@@ -1432,17 +1455,32 @@ def active_card_user_details(card_id):
         card['nas_name'] = 'غير محدد'
         card['nas_ip'] = '-'
 
-    traffic = query_one('''
-        SELECT COALESCE(SUM(total_in), 0) as up, COALESCE(SUM(total_out), 0) as down
-        FROM (
-            SELECT nasipaddress, acctsessionid,
-                   MAX(acctinputoctets) as total_in,
-                   MAX(acctoutputoctets) as total_out
-            FROM radacct
-            WHERE LOWER(username) = LOWER(?)
-            GROUP BY nasipaddress, acctsessionid
-        ) AS card_traffic
-    ''', (card['username'],))
+    cycle_start = card.get('last_renewed_at')
+    if cycle_start:
+        traffic = query_one('''
+            SELECT COALESCE(SUM(total_in), 0) as up, COALESCE(SUM(total_out), 0) as down
+            FROM (
+                SELECT nasipaddress, acctsessionid,
+                       MAX(acctinputoctets) as total_in,
+                       MAX(acctoutputoctets) as total_out
+                FROM radacct
+                WHERE LOWER(username) = LOWER(?)
+                  AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
+                GROUP BY nasipaddress, acctsessionid
+            ) AS card_traffic
+        ''', (card['username'], str(cycle_start)))
+    else:
+        traffic = query_one('''
+            SELECT COALESCE(SUM(total_in), 0) as up, COALESCE(SUM(total_out), 0) as down
+            FROM (
+                SELECT nasipaddress, acctsessionid,
+                       MAX(acctinputoctets) as total_in,
+                       MAX(acctoutputoctets) as total_out
+                FROM radacct
+                WHERE LOWER(username) = LOWER(?)
+                GROUP BY nasipaddress, acctsessionid
+            ) AS card_traffic
+        ''', (card['username'],))
     
     down_bytes = traffic['down'] if traffic else 0
     up_bytes = traffic['up'] if traffic else 0
@@ -1452,13 +1490,17 @@ def active_card_user_details(card_id):
     total_used_str = format_bytes(total_used_bytes)
 
     # Volume quota calculation
-    pkg_quota_mb = float(card.get('volume_quota_mb') or 0)
-    if pkg_quota_mb > 0:
-        quota_bytes = int(pkg_quota_mb * 1024 * 1024)
+    base_quota_mb = float(card.get('volume_quota_mb') or 0)
+    extra_quota_mb = float(card.get('extra_quota_mb') or 0)
+    is_limited_package = (base_quota_mb > 0)
+    net_quota_mb = max(0.0, base_quota_mb + extra_quota_mb)
+
+    if is_limited_package or extra_quota_mb > 0:
+        quota_bytes = int(net_quota_mb * 1024 * 1024)
         remaining_bytes = max(0, quota_bytes - total_used_bytes)
         quota_str = format_bytes(quota_bytes)
         remaining_str = format_bytes(remaining_bytes)
-        usage_percent = min(100.0, round((total_used_bytes / quota_bytes) * 100, 1))
+        usage_percent = 100.0 if quota_bytes == 0 else min(100.0, round((total_used_bytes / quota_bytes) * 100, 1))
     else:
         quota_str = 'غير محدود'
         remaining_str = 'غير محدود'

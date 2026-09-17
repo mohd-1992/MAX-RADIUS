@@ -400,7 +400,8 @@ def get_portal_user_data(username):
     extra_quota_mb = float(user_info.get('extra_quota_mb') or 0)
     is_limited_package = (base_quota_mb > 0)
 
-    if is_limited_package or extra_quota_mb > 0:
+    user_info['has_quota'] = bool(is_limited_package or extra_quota_mb > 0)
+    if user_info['has_quota']:
         total_allowed_quota_mb = max(0.0, base_quota_mb + extra_quota_mb)
         total_used_mb = float(raw_in + raw_out) / (1024.0 * 1024.0)
         rem_mb = max(0.0, total_allowed_quota_mb - total_used_mb)
@@ -556,19 +557,46 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         else:
             new_exp_dt = now + delta
 
-        new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
-        new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
-        new_extra_quota = float(v_user.get('extra_quota_mb') or 0.0) + add_quota_mb
+        # Check rollover on current voucher or card
+        v_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (v_user.get('package_id'),))
+        card_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (card.get('package_id'),))
+        is_rollover = bool((v_pkg and v_pkg.get('is_rollover_enabled')) or (card_pkg and card_pkg.get('is_rollover_enabled')))
+        
+        rem_data_mb = 0.0
+        if is_rollover:
+            total_allowed_mb = float(v_user.get('snap_volume_quota_mb') or (v_pkg.get('volume_quota_mb') if v_pkg else 0) or 0) + float(v_user.get('extra_quota_mb') or 0)
+            if total_allowed_mb > 0:
+                cycle_start = v_user.get('last_renewed_at') or v_user.get('first_used_at') or v_user.get('created_at')
+                usage_q = query_one("""
+                    SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
+                    FROM (
+                        SELECT nasipaddress, acctsessionid,
+                               MAX(acctinputoctets) as total_in,
+                               MAX(acctoutputoctets) as total_out
+                        FROM radacct
+                        WHERE LOWER(username) = LOWER(?)
+                          AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
+                        GROUP BY nasipaddress, acctsessionid
+                    ) t
+                """, (v_user['username'], str(cycle_start)))
+                used_bytes = float(usage_q['total_bytes'] or 0) if usage_q else 0.0
+                used_mb = used_bytes / (1024.0 * 1024.0)
+                rem_data_mb = max(0.0, total_allowed_mb - used_mb)
+        
+        card_base_mb = float(card.get('volume_quota_mb') or (card_pkg.get('volume_quota_mb') if card_pkg else 0) or 0)
+        new_extra_quota = round(rem_data_mb, 2)
 
         # Update current voucher card
         execute_write("""
             UPDATE wisp_vouchers SET
                 status = 'active',
+                package_id = COALESCE(?, package_id),
+                snap_volume_quota_mb = ?,
                 extra_quota_mb = ?,
                 expires_at = ?,
                 last_renewed_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        """, (new_extra_quota, new_exp_iso, v_user['id']))
+        """, (card.get('package_id'), card_base_mb, new_extra_quota, new_exp_iso, v_user['id']))
 
         # Update radcheck Expiration
         execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", (v_user['username'],))
@@ -668,8 +696,35 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
         new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
         
-        # Update subscriber: activate, extend expiry, set package to card package, reset loan cleanly
-        card_extra_quota = 0.0
+        # Check rollover on current subscriber package or card package
+        curr_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (sub.get('package_id'),))
+        card_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (card.get('package_id'),))
+        is_rollover = bool((curr_pkg and curr_pkg.get('is_rollover_enabled')) or (card_pkg and card_pkg.get('is_rollover_enabled')))
+        
+        rem_data_mb = 0.0
+        if is_rollover:
+            total_allowed_mb = float((curr_pkg.get('volume_quota_mb') if curr_pkg else 0) or 0) + float(sub.get('extra_quota_mb') or 0)
+            if total_allowed_mb > 0:
+                cycle_start = sub.get('last_renewed_at') or sub.get('created_at')
+                usage_q = query_one("""
+                    SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
+                    FROM (
+                        SELECT nasipaddress, acctsessionid,
+                               MAX(acctinputoctets) as total_in,
+                               MAX(acctoutputoctets) as total_out
+                        FROM radacct
+                        WHERE LOWER(username) = LOWER(?)
+                          AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
+                        GROUP BY nasipaddress, acctsessionid
+                    ) t
+                """, (username, str(cycle_start)))
+                used_bytes = float(usage_q['total_bytes'] or 0) if usage_q else 0.0
+                used_mb = used_bytes / (1024.0 * 1024.0)
+                rem_data_mb = max(0.0, total_allowed_mb - used_mb)
+            if has_active_loan and deducted_loan_mb > 0:
+                rem_data_mb = max(0.0, rem_data_mb - deducted_loan_mb)
+        
+        card_extra_quota = round(rem_data_mb, 2)
         
         execute_write("""
             UPDATE wisp_subscribers SET
