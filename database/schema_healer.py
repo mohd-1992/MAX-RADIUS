@@ -361,17 +361,6 @@ def heal_database_schema():
         except Exception as e:
             print(f"[Schema Healer] Snap backfill notice: {e}")
 
-        # 5. Ensure Triggers Exist
-        try:
-            if is_mysql:
-                cur.execute("DROP TRIGGER IF EXISTS trg_radacct_subscriber_activate")
-                cur.execute(TRIGGER_SUB_SQL)
-                cur.execute("DROP TRIGGER IF EXISTS trg_radacct_activate_voucher")
-                cur.execute(TRIGGER_VOUCHER_SQL)
-                conn.commit()
-        except Exception as e:
-            print(f"[Schema Healer] Trigger creation notice: {e}")
-
         conn.close()
         print("[Schema Healer] Database schema verified and healed successfully.")
         return True
