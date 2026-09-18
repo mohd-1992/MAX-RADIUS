@@ -146,7 +146,8 @@ services:
       - "1701:1701/udp"
     networks:
       max-radius-net:
-        ipv4_address: 172.18.0.5
+        ipv4_address: 172.18.0.10
+
 
 
 volumes:
