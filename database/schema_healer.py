@@ -361,6 +361,27 @@ def heal_database_schema():
         except Exception as e:
             print(f"[Schema Healer] Snap backfill notice: {e}")
 
+        # 5. Ensure performance indexes exist
+        try:
+            if is_mysql:
+                perf_indexes = [
+                    ('radacct', 'idx_radacct_user_acct', 'CREATE INDEX idx_radacct_user_acct ON radacct(username, acctstoptime, acctupdatetime, acctstarttime)'),
+                    ('radacct', 'idx_radacct_user_session', 'CREATE INDEX idx_radacct_user_session ON radacct(username, nasipaddress, acctsessionid)'),
+                    ('wisp_vouchers', 'idx_voucher_status_id', 'CREATE INDEX idx_voucher_status_id ON wisp_vouchers(status, id DESC)'),
+                    ('wisp_subscribers', 'idx_sub_status_id', 'CREATE INDEX idx_sub_status_id ON wisp_subscribers(status, id DESC)')
+                ]
+                for tbl, idx_name, sql in perf_indexes:
+                    try:
+                        cur.execute(f"SHOW INDEX FROM `{tbl}` WHERE Key_name = '{idx_name}'")
+                        if not cur.fetchall():
+                            cur.execute(sql)
+                            conn.commit()
+                            print(f"[Schema Healer] Created performance index `{idx_name}` on `{tbl}`.")
+                    except Exception as e:
+                        pass
+        except Exception as e:
+            print(f"[Schema Healer] Performance index notice: {e}")
+
         conn.close()
         print("[Schema Healer] Database schema verified and healed successfully.")
         return True

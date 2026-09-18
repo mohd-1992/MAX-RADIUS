@@ -90,7 +90,7 @@ def get_user_usage_analytics(username, days=30):
 def get_subscriber_status_counts(search=None, service_type=None):
     """
     Returns counts for active, online, expired, all status categories
-    for quick filter tabs.
+    for quick filter tabs using consolidated fast queries.
     """
     base_where = ' WHERE 1=1'
     base_params = []
@@ -105,17 +105,21 @@ def get_subscriber_status_counts(search=None, service_type=None):
     cutoff_str = get_heartbeat_cutoff_str(5)
 
     try:
-        # 1. Total (All)
-        all_row = query_one(f'SELECT COUNT(*) as c FROM wisp_subscribers s {base_where}', tuple(base_params))
-        count_all = all_row['c'] if all_row else 0
+        # Consolidated counts for all, active, and expired in a single query
+        stats_sql = f'''
+            SELECT 
+                COUNT(*) as count_all,
+                SUM(CASE WHEN s.status = 'active' AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP) THEN 1 ELSE 0 END) as count_active,
+                SUM(CASE WHEN s.status = 'expired' OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP) THEN 1 ELSE 0 END) as count_expired
+            FROM wisp_subscribers s
+            {base_where}
+        '''
+        stats_row = query_one(stats_sql, tuple(base_params))
+        count_all = stats_row['count_all'] if stats_row else 0
+        count_active = int(stats_row['count_active'] or 0) if stats_row else 0
+        count_expired = int(stats_row['count_expired'] or 0) if stats_row else 0
 
-        # 2. Active (status = active AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP))
-        active_where = base_where + ' AND s.status = ? AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP)'
-        active_params = list(base_params) + ['active']
-        active_row = query_one(f'SELECT COUNT(*) as c FROM wisp_subscribers s {active_where}', tuple(active_params))
-        count_active = active_row['c'] if active_row else 0
-
-        # 3. Online (Active radacct session)
+        # Online (Active radacct session)
         online_where = base_where + ''' AND s.username IN (
             SELECT username FROM radacct
             WHERE acctstoptime IS NULL
@@ -128,12 +132,6 @@ def get_subscriber_status_counts(search=None, service_type=None):
         online_params = list(base_params) + [cutoff_str, cutoff_str]
         online_row = query_one(f'SELECT COUNT(*) as c FROM wisp_subscribers s {online_where}', tuple(online_params))
         count_online = online_row['c'] if online_row else 0
-
-        # 4. Expired
-        expired_where = base_where + ' AND (s.status = ? OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP))'
-        expired_params = list(base_params) + ['expired']
-        expired_row = query_one(f'SELECT COUNT(*) as c FROM wisp_subscribers s {expired_where}', tuple(expired_params))
-        count_expired = expired_row['c'] if expired_row else 0
 
         return {
             'all': count_all,
@@ -194,52 +192,64 @@ def get_subscribers(search=None, service_type=None, status=None):
     query += ' ORDER BY s.id DESC'
     subs = query_all(query, tuple(params))
     
-    # 1. Active live sessions with Interim-Update Heartbeat
-    cutoff_str = get_heartbeat_cutoff_str(5)
-    active_sessions_list = query_all('''
-        SELECT username, acctsessionid, framedipaddress, nasipaddress, calledstationid,
-               acctstarttime, callingstationid, acctinputoctets, acctoutputoctets
-        FROM radacct
-        WHERE acctstoptime IS NULL
-          AND (
-            (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
-            OR
-            (acctupdatetime IS NULL AND acctstarttime >= ?)
-          )
-    ''', (cutoff_str, cutoff_str))
-    active_sessions = {r['username'].lower(): r for r in (active_sessions_list or [])}
-    
-    # 2. Last known closed session per subscriber
-    last_sessions_list = query_all('''
-        SELECT a.username, a.acctstoptime, a.framedipaddress, a.calledstationid, a.nasipaddress,
-               a.acctinputoctets, a.acctoutputoctets
-        FROM radacct a
-        INNER JOIN (
-            SELECT username, MAX(radacctid) as max_id
-            FROM radacct
-            GROUP BY username
-        ) m ON a.radacctid = m.max_id
-    ''')
-    last_sessions = {r['username'].lower(): r for r in (last_sessions_list or [])}
+    usernames = [s['username'] for s in subs if s.get('username')]
+    active_sessions = {}
+    last_sessions = {}
+    usage_map = {}
 
-    # 3. Total data usage per subscriber in current cycle (Download + Upload)
-    usage_list = query_all('''
-        SELECT s.id, LOWER(s.username) as username,
-               COALESCE(SUM(t.max_in), 0) as total_in,
-               COALESCE(SUM(t.max_out), 0) as total_out
-        FROM wisp_subscribers s
-        LEFT JOIN (
-            SELECT username, nasipaddress, acctsessionid,
-                   MAX(acctinputoctets) as max_in,
-                   MAX(acctoutputoctets) as max_out,
-                   MIN(COALESCE(acctstarttime, acctupdatetime)) as sess_start
+    if usernames:
+        placeholders = ','.join(['?'] * len(usernames))
+
+        # 1. Active live sessions with Interim-Update Heartbeat (scoped to loaded subscribers)
+        cutoff_str = get_heartbeat_cutoff_str(5)
+        active_sessions_list = query_all(f'''
+            SELECT username, acctsessionid, framedipaddress, nasipaddress, calledstationid,
+                   acctstarttime, callingstationid, acctinputoctets, acctoutputoctets
             FROM radacct
-            GROUP BY username, nasipaddress, acctsessionid
-        ) t ON LOWER(s.username) = LOWER(t.username)
-           AND (s.last_renewed_at IS NULL OR t.sess_start >= s.last_renewed_at)
-        GROUP BY s.id, s.username
-    ''')
-    usage_map = {r['username'].lower(): r for r in (usage_list or [])}
+            WHERE username IN ({placeholders})
+              AND acctstoptime IS NULL
+              AND (
+                (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
+                OR
+                (acctupdatetime IS NULL AND acctstarttime >= ?)
+              )
+        ''', tuple(usernames) + (cutoff_str, cutoff_str))
+        active_sessions = {r['username'].lower(): r for r in (active_sessions_list or [])}
+        
+        # 2. Last known closed session per subscriber (scoped to loaded subscribers)
+        last_sessions_list = query_all(f'''
+            SELECT a.username, a.acctstoptime, a.framedipaddress, a.calledstationid, a.nasipaddress,
+                   a.acctinputoctets, a.acctoutputoctets
+            FROM radacct a
+            INNER JOIN (
+                SELECT username, MAX(radacctid) as max_id
+                FROM radacct
+                WHERE username IN ({placeholders})
+                GROUP BY username
+            ) m ON a.radacctid = m.max_id
+        ''', tuple(usernames))
+        last_sessions = {r['username'].lower(): r for r in (last_sessions_list or [])}
+
+        # 3. Total data usage per subscriber in current cycle (Download + Upload) (scoped to loaded subscribers)
+        usage_list = query_all(f'''
+            SELECT s.id, LOWER(s.username) as username,
+                   COALESCE(SUM(t.max_in), 0) as total_in,
+                   COALESCE(SUM(t.max_out), 0) as total_out
+            FROM wisp_subscribers s
+            LEFT JOIN (
+                SELECT username, nasipaddress, acctsessionid,
+                       MAX(acctinputoctets) as max_in,
+                       MAX(acctoutputoctets) as max_out,
+                       MIN(COALESCE(acctstarttime, acctupdatetime)) as sess_start
+                FROM radacct
+                WHERE username IN ({placeholders})
+                GROUP BY username, nasipaddress, acctsessionid
+            ) t ON LOWER(s.username) = LOWER(t.username)
+               AND (s.last_renewed_at IS NULL OR t.sess_start >= s.last_renewed_at)
+            WHERE s.username IN ({placeholders})
+            GROUP BY s.id, s.username
+        ''', tuple(usernames) + tuple(usernames))
+        usage_map = {r['username'].lower(): r for r in (usage_list or [])}
 
     now = datetime.datetime.now()
 

@@ -1093,13 +1093,17 @@ def active_card_users():
                p.service_type as package_service_type,
                b.name as batch_name, b.batch_number,
                r.name as reseller_name
-        FROM wisp_vouchers v
+        FROM (
+            SELECT v.id FROM wisp_vouchers v
+            WHERE {where_sql}
+            ORDER BY v.id DESC
+            LIMIT ? OFFSET ?
+        ) page
+        JOIN wisp_vouchers v ON page.id = v.id
         JOIN wisp_packages p ON v.package_id = p.id
         JOIN wisp_voucher_batches b ON v.batch_id = b.id
         LEFT JOIN wisp_resellers r ON v.reseller_id = r.id
-        WHERE {where_sql}
         ORDER BY v.id DESC
-        LIMIT ? OFFSET ?
     '''
     page_params = list(params) + [per_page, offset]
     cards = query_all(cards_query, tuple(page_params))

@@ -844,6 +844,7 @@ def execute_database_migration(file_input, options=None):
         user_id_to_card_user = {}
         user_id_to_exp = {}
         user_id_to_state = {}
+        subscriber_usernames_set = set()
 
         try:
             pre_stream = _open_backup_stream(file_input)
@@ -866,12 +867,14 @@ def execute_database_migration(file_input, options=None):
                             vals = _parse_sql_tuple(rc)
                             if len(vals) >= 14:
                                 u_id = str(vals[1])
+                                start_d = vals[12]
                                 exp_d = vals[13]
                                 tot_tr = vals[10]
                                 up_bytes = vals[7] or '0'
                                 down_bytes = vals[8] or '0'
                                 uptime_sec = vals[9] or '0'
                                 user_quotas[u_id] = {
+                                    'start_date': start_d,
                                     'expire_date': exp_d,
                                     'total_traffic': tot_tr,
                                     'upload': int(up_bytes) if str(up_bytes).isdigit() else 0,
@@ -894,6 +897,8 @@ def execute_database_migration(file_input, options=None):
                                         user_id_to_state[u_id] = u_state
                                         if u_exp:
                                             user_id_to_exp[u_id] = u_exp
+                                    else:
+                                        subscriber_usernames_set.add(u_name)
             pre_stream.close()
 
             # Cross-link all card users with accurate expiration dates and states
@@ -950,12 +955,14 @@ def execute_database_migration(file_input, options=None):
                         vals = _parse_sql_tuple(rc)
                         if len(vals) >= 14:
                             u_id = str(vals[1])
+                            start_d = vals[12]
                             exp_d = vals[13]
                             tot_tr = vals[10]
                             up_bytes = vals[7] or '0'
                             down_bytes = vals[8] or '0'
                             uptime_sec = vals[9] or '0'
                             user_quotas[u_id] = {
+                                'start_date': start_d,
                                 'expire_date': exp_d,
                                 'total_traffic': tot_tr,
                                 'upload': int(up_bytes) if str(up_bytes).isdigit() else 0,
@@ -1006,6 +1013,8 @@ def execute_database_migration(file_input, options=None):
                         status = 'active'
                         if str(u_enabled) == '0' or str(u_state) == '0':
                             status = 'disabled'
+                        elif str(u_state) == '2':
+                            status = 'expired'
                         elif u_exp:
                             try:
                                 exp_dt = datetime.datetime.strptime(str(u_exp)[:19], '%Y-%m-%d %H:%M:%S')
@@ -1041,7 +1050,9 @@ def execute_database_migration(file_input, options=None):
                         # Calculate start of current billing cycle (last_renewed_at)
                         val_days = int(matched_pkg.get('validity_days') or matched_pkg.get('validity_value') or 30)
                         u_last_renewed = None
-                        if u_exp:
+                        if u_id in user_quotas and user_quotas[u_id].get('start_date'):
+                            u_last_renewed = str(user_quotas[u_id]['start_date'])[:19]
+                        elif u_exp:
                             try:
                                 exp_dt_obj = datetime.datetime.strptime(str(u_exp)[:19], '%Y-%m-%d %H:%M:%S')
                                 cycle_start = exp_dt_obj - datetime.timedelta(days=val_days)
@@ -1106,7 +1117,7 @@ def execute_database_migration(file_input, options=None):
                         c_aid = str(vals[17]) if len(vals) > 17 else '1'
                         c_created = vals[22] if len(vals) > 22 else datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-                        if not c_user or c_user == '_invalid':
+                        if not c_user or c_user == '_invalid' or c_user in subscriber_usernames_set:
                             continue
 
                         matched_pkg = resolved_pkg_map.get(c_pid, default_pkg)
