@@ -4,20 +4,11 @@
 
 {% block content %}
 <style>
-    /* Theme Light Overrides for Sales Page */
+    /* Theme-adaptive overrides for light mode */
     html.theme-light .sales-panel {
         background-color: #ffffff !important;
         border-color: #e2e8f0 !important;
         box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-    }
-    html.theme-light .sales-input {
-        background-color: #f8fafc !important;
-        border-color: #cbd5e1 !important;
-        color: #0f172a !important;
-    }
-    html.theme-light .sales-input:focus {
-        background-color: #ffffff !important;
-        border-color: #10b981 !important;
     }
     html.theme-light .sales-pill-inactive {
         background-color: #f1f5f9 !important;
@@ -27,6 +18,15 @@
     html.theme-light .sales-pill-inactive:hover {
         background-color: #e2e8f0 !important;
         color: #0f172a !important;
+    }
+    html.theme-light .sales-input {
+        background-color: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .sales-input:focus {
+        background-color: #ffffff !important;
+        border-color: #10b981 !important;
     }
     html.theme-light .sales-stat-card {
         background-color: #ffffff !important;
@@ -39,26 +39,21 @@
     html.theme-light .sales-isp-val {
         color: #047857 !important;
     }
-    html.theme-light .sales-text-dark {
-        color: #0f172a !important;
-    }
-    html.theme-light .sales-text-muted {
-        color: #64748b !important;
-    }
-    html.theme-light .sales-table-header {
+    html.theme-light .sales-table-th {
         background-color: #f8fafc !important;
         color: #475569 !important;
-        border-bottom-color: #e2e8f0 !important;
+        border-color: #e2e8f0 !important;
     }
-    html.theme-light .sales-table-row {
-        border-bottom-color: #f1f5f9 !important;
+    html.theme-light .sales-table-tr {
+        border-color: #f1f5f9 !important;
+        color: #1e293b !important;
     }
-    html.theme-light .sales-table-row:hover {
+    html.theme-light .sales-table-tr:hover {
         background-color: #f8fafc !important;
     }
-    html.theme-light .sales-pagination-bg {
+    html.theme-light .sales-pagination {
         background-color: #f8fafc !important;
-        border-top-color: #e2e8f0 !important;
+        border-color: #e2e8f0 !important;
     }
     html.theme-light .sales-page-btn {
         background-color: #ffffff !important;
@@ -69,73 +64,65 @@
         background-color: #f1f5f9 !important;
         color: #0f172a !important;
     }
+    html.theme-light .sales-text-muted {
+        color: #64748b !important;
+    }
+    html.theme-light .sales-text-dark {
+        color: #0f172a !important;
+    }
 </style>
 
 <div class="space-y-6">
-
-    <!-- Header Banner -->
-    <div class="sales-panel relative overflow-hidden bg-[#0b0f19] p-5 sm:p-6 rounded-2xl border border-[#1c2840] shadow-sm transition-all duration-300">
-        <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-5">
-            <!-- Title & Info -->
-            <div class="flex items-center gap-4">
-                <div class="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-emerald-500 flex items-center justify-center text-white text-2xl shadow-md shadow-emerald-500/20 flex-shrink-0">
-                    <i class="fa-solid fa-chart-line text-white"></i>
+    <!-- Header Section -->
+    <div class="sales-panel flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-[#0b0f19] border border-[#1c2840] p-5 sm:p-6 rounded-2xl shadow-sm">
+        <div>
+            <h2 class="sales-text-dark text-xl sm:text-2xl font-black text-white flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                    <i class="fa-solid fa-chart-line text-lg"></i>
                 </div>
-                <div>
-                    <div class="flex items-center gap-2.5 flex-wrap">
-                        <h2 class="sales-text-dark text-xl sm:text-2xl font-black text-white tracking-tight">
-                            المبيعات والتقارير المالية
-                        </h2>
-                        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>مباشر • Live
-                        </span>
-                    </div>
-                    <p class="sales-text-muted text-xs text-slate-400 mt-1 font-medium">
-                        متابعة إيرادات المشتركين، حصة صاحب الشبكة الفعلية، عمولات وأرباح الموزعين، وتفاصيل العمليات لحظياً
-                    </p>
-                </div>
-            </div>
-
-            <!-- Quick Action Buttons -->
-            <div class="flex items-center gap-2.5 flex-wrap w-full xl:w-auto">
-                <a href="{{ url_for('sales_export_csv', period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q) }}" 
-                   class="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm shadow-emerald-600/20 active:scale-95">
-                    <i class="fa-solid fa-file-excel"></i>
-                    <span>تصدير كشف Excel</span>
-                </a>
-                <a href="{{ url_for('sales_export_csv', period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q) }}" 
-                   class="sales-page-btn px-3 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700/70 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
-                    <i class="fa-solid fa-file-csv text-sky-400"></i>
-                    <span>CSV</span>
-                </a>
-                <button type="button" onclick="window.print()" 
-                        class="sales-page-btn px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700/70 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer">
-                    <i class="fa-solid fa-print text-amber-400"></i>
-                    <span>طباعة</span>
-                </button>
-            </div>
+                <span>المبيعات والتقارير المالية</span>
+                <span class="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">مباشر • Live</span>
+            </h2>
+            <p class="sales-text-muted text-xs text-slate-400 mt-1.5 font-medium">متابعة إيرادات المشتركين، حصة صاحب الشبكة الفعلية، عمولات وأرباح الموزعين، وتفاصيل العمليات لحظياً</p>
+        </div>
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <!-- Export Excel -->
+            <a href="{{ url_for('export_sales', period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, format='excel') }}" 
+               class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95">
+                <i class="fa-solid fa-file-excel text-sm"></i>
+                <span>تصدير كشف Excel</span>
+            </a>
+            <!-- Export CSV -->
+            <a href="{{ url_for('export_sales', period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, format='csv') }}" 
+               class="sales-page-btn px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-file-csv text-sky-400"></i>
+                <span>CSV</span>
+            </a>
+            <!-- Print Report -->
+            <button type="button" onclick="window.print()" class="sales-page-btn px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer">
+                <i class="fa-solid fa-print text-amber-400"></i>
+                <span>طباعة</span>
+            </button>
         </div>
     </div>
 
-    <!-- Filter Control Bar -->
-    <div class="sales-panel bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+    <!-- Advanced Filtering Panel -->
+    <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
         <form method="GET" action="{{ url_for('sales_reports') }}" id="salesFilterForm" class="space-y-4">
-            
-            <!-- Quick Periods Bar -->
-            <div class="flex items-center gap-2 flex-wrap pb-3 border-b border-[#1c2840]/70">
-                <span class="sales-text-muted text-xs font-bold text-slate-400 flex items-center gap-1.5 ml-1">
+            <!-- Quick Periods Pills -->
+            <div class="flex items-center gap-2 flex-wrap border-b border-[#1c2840]/70 pb-4">
+                <span class="sales-text-muted text-xs font-bold text-slate-400 ml-2 flex items-center gap-1.5">
                     <i class="fa-solid fa-calendar-days text-emerald-400"></i>
                     الفترة:
                 </span>
-                
                 {% set periods = [
                     ('all', 'كامل المدة'),
                     ('today', 'اليوم'),
                     ('yesterday', 'الأمس'),
-                    ('week', 'هذا الأسبوع'),
-                    ('month', 'هذا الشهر'),
+                    ('this_week', 'هذا الأسبوع'),
+                    ('this_month', 'هذا الشهر'),
                     ('last_month', 'الشهر السابق'),
-                    ('year', 'هذا العام'),
+                    ('this_year', 'هذا العام'),
                     ('custom', 'نطاق مخصص')
                 ] %}
                 {% for p_key, p_label in periods %}
@@ -215,7 +202,7 @@
                 {{ "{:,.2f}".format(gross_sales) }} <span class="text-xs font-bold text-sky-400">{{ settings.get('currency_symbol', 'ر.س') }}</span>
             </div>
             <div class="sales-text-muted text-[11px] text-slate-400 mt-2 flex items-center gap-1.5">
-                <span class="font-bold text-slate-300">{{ total_items_count }}</span> عملية بيع وتفعيل مسجلة
+                <span class="sales-text-dark font-bold text-slate-300">{{ total_items_count }}</span> عملية بيع وتفعيل مسجلة
             </div>
         </div>
 
@@ -232,12 +219,12 @@
                 {{ "{:,.2f}".format(net_isp_revenue) }} <span class="text-xs font-bold text-emerald-300">{{ settings.get('currency_symbol', 'ر.س') }}</span>
             </div>
             <div class="text-[11px] text-emerald-400/80 mt-2 flex items-center justify-between">
-                <span>حصة الشبكة: <strong>{{ "{:.1f}%".format((net_isp_revenue / gross_sales * 100) if gross_sales > 0 else 100.0) }}</strong></span>
-                <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">دخل الشبكة الفعلي</span>
+                <span>حصة الشبكة: <strong>{{ isp_share_pct }}%</strong></span>
+                <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">دخل الشبكة الفعلي</span>
             </div>
         </div>
 
-        <!-- 3. Reseller Commissions (عمولات وأرباح الموزعين) -->
+        <!-- 3. Total Resellers Profit (عمولات وأرباح الموزعين) -->
         <div class="sales-stat-card bg-[#0b0f19] border border-[#1c2840] p-5 rounded-2xl shadow-sm relative overflow-hidden">
             <div class="absolute top-0 right-0 w-1.5 h-full bg-amber-500"></div>
             <div class="flex items-center justify-between text-slate-400 mb-2">
@@ -247,195 +234,197 @@
                 </div>
             </div>
             <div class="sales-text-dark text-2xl font-black text-white font-mono tracking-tight">
-                {{ "{:,.2f}".format(reseller_profit) }} <span class="text-xs font-bold text-amber-400">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                {{ "{:,.2f}".format(total_reseller_commissions) }} <span class="text-xs font-bold text-amber-400">{{ settings.get('currency_symbol', 'ر.س') }}</span>
             </div>
-            <div class="text-[11px] text-amber-400/80 mt-2 flex items-center justify-between">
-                <span>نسبة الموزعين: <strong>{{ "{:.1f}%".format((reseller_profit / gross_sales * 100) if gross_sales > 0 else 0.0) }}</strong></span>
-                <span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-bold">فائدة الوكلاء</span>
+            <div class="sales-text-muted text-[11px] text-slate-400 mt-2 flex items-center justify-between">
+                <span>نسبة الموزعين: <strong class="text-amber-400 font-bold">{{ reseller_share_pct }}%</strong></span>
+                <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold text-[10px]">فائدة الوكلاء</span>
             </div>
         </div>
 
-        <!-- 4. Today vs Current Month Benchmark -->
+        <!-- 4. Today and Month Overview (حصة الشبكة) -->
         <div class="sales-stat-card bg-[#0b0f19] border border-[#1c2840] p-5 rounded-2xl shadow-sm relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-1.5 h-full bg-purple-500"></div>
+            <div class="absolute top-0 right-0 w-1.5 h-full bg-indigo-500"></div>
             <div class="flex items-center justify-between text-slate-400 mb-2">
                 <span class="sales-text-muted text-xs font-bold">دخل الشبكة (اليوم والشهر)</span>
-                <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-sm">
+                <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-sm">
                     <i class="fa-solid fa-calendar-check"></i>
                 </div>
             </div>
-            <div class="flex items-baseline gap-2">
-                <span class="sales-text-muted text-xs font-bold text-slate-400">اليوم:</span>
-                <span class="text-xl font-black text-purple-400 font-mono tracking-tight">
-                    {{ "{:,.2f}".format(today_net_revenue) }} <span class="text-[11px] font-bold">{{ settings.get('currency_symbol', 'ر.س') }}</span>
-                </span>
+            <div class="text-lg font-black text-white font-mono flex items-center justify-between">
+                <span>اليوم: <strong class="text-indigo-400">{{ "{:,.2f}".format(today_isp_sales) }}</strong></span>
             </div>
-            <div class="sales-text-muted text-[11px] text-slate-400 mt-2.5 pt-2 border-t border-[#1c2840]/60 flex items-center justify-between">
-                <span>الشهر الجاري:</span>
-                <span class="font-bold text-slate-300 font-mono">{{ "{:,.2f}".format(month_net_revenue) }} {{ settings.get('currency_symbol', 'ر.س') }}</span>
+            <div class="sales-text-muted text-[11px] text-slate-400 mt-2 flex items-center justify-between border-t border-[#1c2840]/70 pt-2">
+                <span>الشهر الجاري: <strong class="sales-text-dark text-slate-200 font-mono">{{ "{:,.2f}".format(month_isp_sales) }}</strong> {{ settings.get('currency_symbol', 'ر.س') }}</span>
             </div>
         </div>
     </div>
 
-    <!-- Charts & Analytics Section (Side-by-Side on Desktop) -->
+    <!-- Interactive Charts Section -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Monthly Sales Bar Chart -->
+        <!-- Comparison Chart -->
         <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] p-5 rounded-2xl shadow-sm">
-            <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#1c2840]/60">
-                <h3 class="sales-text-dark text-sm font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-chart-column text-emerald-400"></i>
+            <div class="flex items-center justify-between mb-4 border-b border-[#1c2840]/70 pb-3">
+                <h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-chart-column text-amber-400"></i>
                     توزيع المبيعات والإيرادات (آخر 6 أشهر)
-                </h3>
+                </h4>
             </div>
-            <div class="h-64 relative">
+            <div class="h-64">
                 <canvas id="salesCompareChart"></canvas>
             </div>
         </div>
 
-        <!-- Real radacct Network Traffic Chart -->
+        <!-- General Traffic Chart -->
         <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] p-5 rounded-2xl shadow-sm">
-            <div class="flex items-center justify-between pb-3 mb-3 border-b border-[#1c2840]/60">
-                <h3 class="sales-text-dark text-sm font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-network-wired text-sky-400"></i>
+            <div class="flex items-center justify-between mb-4 border-b border-[#1c2840]/70 pb-3">
+                <h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-network-wired text-emerald-400"></i>
                     استهلاك ترافيك الشبكة الفعلي (Traffic Usage)
-                </h3>
+                </h4>
             </div>
-            <div class="h-64 relative">
+            <div class="h-64">
                 <canvas id="generalTrafficChart"></canvas>
             </div>
         </div>
     </div>
 
-    <!-- Detailed Ledger & Operations Table -->
-    <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-sm overflow-hidden">
-        <!-- Table Header & Actions -->
-        <div class="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-[#1c2840]">
+    <!-- 1. Breakdown Table by Package / Voucher Category -->
+    <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-4 sm:p-5 border-b border-[#1c2840] flex items-center justify-between">
+            <h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2">
+                <i class="fa-solid fa-table-list text-sky-400"></i>
+                تفصيل دخل الشبكة وعمولات الموزعين حسب فئات الباقات
+            </h4>
+        </div>
+        <div class="overflow-x-auto table-responsive">
+            <table class="w-full text-right text-sm">
+                <thead class="sales-table-th bg-[#070b14] text-slate-400 text-xs uppercase font-semibold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3 px-5">اسم الباقة / الفئة</th>
+                        <th class="py-3 px-5">نوع الخدمة</th>
+                        <th class="py-3 px-5">سعر المشترك</th>
+                        <th class="py-3 px-5">سعر الموزع (الجملة)</th>
+                        <th class="py-3 px-5">الكمية المباعة</th>
+                        <th class="py-3 px-5">إجمالي مبيعات المشتركين</th>
+                        <th class="py-3 px-5 text-emerald-400">إجمالي دخل الشبكة</th>
+                        <th class="py-3 px-5 text-amber-400">إجمالي عمولات الموزعين</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]/60">
+                    {% for p in package_breakdown %}
+                    <tr class="sales-table-tr hover:bg-[#11192b] transition">
+                        <td class="py-3.5 px-5 font-bold sales-text-dark text-white">{{ p.name }}</td>
+                        <td class="py-3.5 px-5">
+                            <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase {% if p.service_type == 'pppoe' %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
+                                {{ p.service_type }}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-5 font-mono sales-text-muted text-slate-300">{{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                        <td class="py-3.5 px-5 font-mono sales-text-muted text-slate-300">{{ p.cost }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                        <td class="py-3.5 px-5 font-bold sales-text-dark text-slate-200 font-mono">{{ p.sold_count }}</td>
+                        <td class="py-3.5 px-5 font-black sales-text-dark text-white font-mono">{{ p.total_gross_revenue }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                        <td class="py-3.5 px-5 font-black text-emerald-400 font-mono">{{ p.total_isp_revenue }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                        <td class="py-3.5 px-5 font-black text-amber-400 font-mono">+{{ p.total_reseller_profit }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 2. Paginated Sales Log Table (Detailed Log) -->
+    <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-4 sm:p-5 border-b border-[#1c2840] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-                <h3 class="sales-text-dark text-sm font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-list-check text-emerald-400"></i>
-                    سجل العمليات والمبيعات المفصل (Sales Ledger)
-                </h3>
-                <p class="sales-text-muted text-xs text-slate-400 mt-0.5">
-                    عرض كافة الحركات المالية للكروت وباقات الإنترنت بحسب الفلترة المحددة
-                </p>
+                <h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2">
+                    <i class="fa-solid fa-receipt text-emerald-400"></i>
+                    سجل عمليات البيع والتفعيل المفصل (Sales & Activations Log)
+                </h4>
+                <p class="sales-text-muted text-xs text-slate-400 mt-0.5">عرض تفصيلي لكل كرت مبيوع مع توضيح سعر المشترك وحصة الشبكة وفائدة الموزع (إجمالي المطابق: <strong class="text-emerald-400 font-mono">{{ total_items_count }}</strong>)</p>
             </div>
-            <div class="flex items-center gap-2">
-                <span class="sales-text-muted text-xs text-slate-400 bg-[#070b14] px-3 py-1.5 rounded-xl border border-[#1c2840]">
-                    النتائج: <strong class="sales-text-dark text-white font-mono font-bold">{{ total_items_count }}</strong> عملية
-                </span>
+            <div class="sales-text-muted text-xs text-slate-400 font-bold">
+                صفحة <span class="sales-text-dark text-white font-mono">{{ page }}</span> من <span class="sales-text-dark text-white font-mono">{{ total_pages }}</span>
             </div>
         </div>
 
-        <!-- Responsive Table Container -->
-        <div class="overflow-x-auto">
-            <table class="w-full text-right border-collapse">
-                <thead>
-                    <tr class="sales-table-header bg-[#070b14] text-[11px] font-bold text-slate-400 border-b border-[#1c2840]">
+        <div class="overflow-x-auto table-responsive">
+            <table class="w-full text-right text-sm">
+                <thead class="sales-table-th bg-[#070b14] text-slate-400 text-xs uppercase font-semibold border-b border-[#1c2840]">
+                    <tr>
                         <th class="py-3 px-4">#</th>
-                        <th class="py-3 px-4">النوع / الصنف</th>
-                        <th class="py-3 px-4">كود الكرت / المشترك</th>
-                        <th class="py-3 px-4">الباقة / الفئة</th>
-                        <th class="py-3 px-4">نقطة البيع / الموزع</th>
+                        <th class="py-3 px-4">اسم الكرت / المستخدم</th>
+                        <th class="py-3 px-4">الرقم التسلسلي</th>
+                        <th class="py-3 px-4">الحزمة / الدفعة</th>
+                        <th class="py-3 px-4">الباقة</th>
                         <th class="py-3 px-4">سعر المشترك</th>
-                        <th class="py-3 px-4 text-emerald-400">حصة الشبكة (الصافي)</th>
-                        <th class="py-3 px-4 text-amber-400">فائدة الموزع</th>
-                        <th class="py-3 px-4">التاريخ والوقت</th>
+                        <th class="py-3 px-4 text-emerald-400">حصة الشبكة</th>
+                        <th class="py-3 px-4 text-amber-400">عمولة الموزع</th>
+                        <th class="py-3 px-4">نقطة البيع / الموزع</th>
+                        <th class="py-3 px-4">تاريخ ووقت التفعيل</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-[#1c2840]/60 text-xs">
-                    {% if sales_records and sales_records|length > 0 %}
-                        {% for r in sales_records %}
-                        <tr class="sales-table-row hover:bg-[#11192b] transition duration-150">
-                            <!-- Index -->
-                            <td class="py-3 px-4 sales-text-muted text-slate-500 font-mono text-[11px]">
-                                {{ (page - 1) * per_page + loop.index }}
-                            </td>
-
-                            <!-- Record Type -->
-                            <td class="py-3 px-4">
-                                {% if r.type == 'voucher' %}
-                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-sky-500/15 text-sky-400 border border-sky-500/25">
-                                    <i class="fa-solid fa-ticket"></i> كرت إنترنت
-                                </span>
-                                {% else %}
-                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-purple-500/15 text-purple-400 border border-purple-500/25">
-                                    <i class="fa-solid fa-box-open"></i> باقة اشتراك
-                                </span>
-                                {% endif %}
-                            </td>
-
-                            <!-- Identifier / Code -->
-                            <td class="py-3 px-4">
-                                <span class="font-mono font-bold sales-text-dark text-white text-[12px] bg-[#070b14] px-2 py-0.5 rounded border border-[#1c2840]">
-                                    {{ r.identifier }}
-                                </span>
-                            </td>
-
-                            <!-- Package Name -->
-                            <td class="py-3 px-4 font-bold sales-text-dark text-slate-300">
-                                {{ r.package_name }}
-                            </td>
-
-                            <!-- Reseller / Point of Sale -->
-                            <td class="py-3 px-4">
-                                {% if r.reseller_name == 'مباشر' or not r.reseller_name %}
-                                <span class="text-[11px] font-bold text-slate-400 bg-slate-800/50 px-2 py-0.5 rounded">
-                                    <i class="fa-solid fa-building-columns ml-1 text-slate-500"></i>مباشر (الإدارة)
-                                </span>
-                                {% else %}
-                                <span class="text-[11px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
-                                    <i class="fa-solid fa-store ml-1"></i>{{ r.reseller_name }}
-                                </span>
-                                {% endif %}
-                            </td>
-
-                            <!-- Gross Price (سعر الكرت للمشترك) -->
-                            <td class="py-3 px-4 font-mono font-bold sales-text-dark text-white">
-                                {{ "{:,.2f}".format(r.price) }} <span class="text-[10px] text-slate-400">{{ settings.get('currency_symbol', 'ر.س') }}</span>
-                            </td>
-
-                            <!-- Net ISP Share (حصة صاحب الشبكة) -->
-                            <td class="py-3 px-4 font-mono font-bold text-emerald-400">
-                                {{ "{:,.2f}".format(r.network_share) }} <span class="text-[10px] text-emerald-400/70">{{ settings.get('currency_symbol', 'ر.س') }}</span>
-                            </td>
-
-                            <!-- Reseller Profit (عمولة الموزع) -->
-                            <td class="py-3 px-4 font-mono font-bold text-amber-400">
-                                {{ "{:,.2f}".format(r.reseller_profit) }} <span class="text-[10px] text-amber-400/70">{{ settings.get('currency_symbol', 'ر.س') }}</span>
-                            </td>
-
-                            <!-- Date / Time -->
-                            <td class="py-3 px-4 sales-text-muted text-slate-400 font-mono text-[11px] whitespace-nowrap">
-                                {{ r.sold_at }}
-                            </td>
-                        </tr>
-                        {% endfor %}
+                <tbody class="divide-y divide-[#1c2840]/60">
+                    {% for s in recent_sales %}
+                    <tr class="sales-table-tr hover:bg-[#11192b] transition">
+                        <td class="py-3 px-4 text-xs font-mono text-slate-500">{{ s.id }}</td>
+                        <td class="py-3 px-4 font-mono font-bold sales-text-dark text-white flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <a href="{{ url_for('card_inspect', q=s.username) }}" class="hover:text-emerald-400 transition" title="فحص الكرت">
+                                {{ s.username }}
+                            </a>
+                        </td>
+                        <td class="py-3 px-4 font-mono text-xs sales-text-muted text-slate-300">{{ s.serial_number or '-' }}</td>
+                        <td class="py-3 px-4 text-xs font-medium">
+                            <span class="px-2 py-0.5 rounded bg-[#070b14] border border-[#1c2840] sales-text-muted text-slate-300 font-mono">
+                                {{ s.batch_name or '-' }}
+                            </span>
+                        </td>
+                        <td class="py-3 px-4 text-xs font-bold text-sky-400">{{ s.package_name }}</td>
+                        <td class="py-3 px-4 font-mono font-bold sales-text-dark text-white">{{ s.price }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                        <td class="py-3 px-4 font-mono font-bold text-emerald-400">
+                            {{ "{:,.2f}".format(s.isp_share) }} {{ settings.get('currency_symbol', 'ر.س') }}
+                        </td>
+                        <td class="py-3 px-4 font-mono text-xs font-bold {% if s.reseller_margin > 0 %}text-amber-400{% else %}text-slate-500{% endif %}">
+                            {% if s.reseller_margin > 0 %}
+                            +{{ "{:,.2f}".format(s.reseller_margin) }} {{ settings.get('currency_symbol', 'ر.س') }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-xs font-medium">
+                            {% if s.reseller_name and s.reseller_id %}
+                            <span class="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-bold">
+                                {{ s.reseller_name }}
+                            </span>
+                            {% else %}
+                            <span class="px-2.5 py-1 rounded-lg bg-[#070b14] border border-[#1c2840] text-slate-400 font-bold">
+                                مباشر (الإدارة)
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-4 text-xs sales-text-muted text-slate-400 font-mono">{{ s.activated_at }}</td>
+                    </tr>
                     {% else %}
-                        <tr>
-                            <td colspan="9" class="py-12 text-center text-slate-400">
-                                <div class="flex flex-col items-center justify-center gap-2">
-                                    <div class="w-12 h-12 rounded-full bg-slate-800/50 flex items-center justify-center text-slate-500 text-xl">
-                                        <i class="fa-solid fa-folder-open"></i>
-                                    </div>
-                                    <p class="font-bold text-sm">لا توجد عمليات بيع أو فواتير مطابقة لخيارات الفلترة</p>
-                                    <span class="text-xs text-slate-500">جرب تغيير نطاق التاريخ أو اختيار باقة أو موزع آخر</span>
-                                </div>
-                            </td>
-                        </tr>
-                    {% endif %}
+                    <tr>
+                        <td colspan="10" class="text-center py-10 text-slate-400">
+                            <i class="fa-solid fa-inbox text-3xl mb-2 text-slate-600"></i>
+                            <p class="font-bold text-sm">لا توجد عمليات بيع أو تفعيل مطابقة لشروط الفلتر المحددة</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <!-- Pagination Controls -->
+        <!-- Server-side Pagination Navigation -->
         {% if total_pages > 1 %}
-        <div class="sales-pagination-bg p-4 bg-[#070b14] border-t border-[#1c2840] flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div class="sales-pagination p-4 border-t border-[#1c2840] flex items-center justify-between flex-wrap gap-3 bg-[#070b14]">
             <div class="sales-text-muted text-xs text-slate-400">
-                صفحة <strong class="sales-text-dark text-white">{{ page }}</strong> من إجمالي <strong class="sales-text-dark text-white">{{ total_pages }}</strong> صفحات
+                عرض السجلات من <strong class="sales-text-dark text-white">{{ (page - 1) * per_page + 1 }}</strong> إلى <strong class="sales-text-dark text-white">{{ [page * per_page, total_items_count]|min }}</strong> من إجمالي <strong class="sales-text-dark text-white">{{ total_items_count }}</strong>
             </div>
-
-            <div class="flex items-center gap-1.5 flex-wrap">
-                <!-- Prev Page -->
+            <div class="flex items-center gap-1">
+                <!-- First Page -->
                 {% if page > 1 %}
                 <a href="{{ url_for('sales_reports', page=1, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q) }}" 
                    class="sales-page-btn px-2.5 py-1.5 rounded-lg bg-[#11192b] hover:bg-slate-800 text-slate-300 text-xs font-bold transition border border-[#1c2840]">
