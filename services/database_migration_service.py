@@ -645,6 +645,60 @@ def execute_database_migration(file_input, options=None):
     # 0. Boost session performance: disable constraints, foreign keys and autocommit
     if is_mysql_conn(db):
         try:
+            # Ensure all schema tables and columns are up to date
+            try:
+                from database.schema_healer import heal_database_schema
+                heal_database_schema(db)
+            except Exception as he_err:
+                print(f"[WARN] Schema healer call: {he_err}")
+
+            v_cols = [
+                ('global_seq_id', 'BIGINT NULL AFTER id'),
+                ('first_used_at', 'DATETIME NULL'),
+                ('last_renewed_at', 'DATETIME NULL'),
+                ('expires_at', 'DATETIME NULL'),
+                ('bound_mac', 'VARCHAR(50) DEFAULT NULL'),
+                ('extra_quota_mb', 'BIGINT DEFAULT 0'),
+                ('expire_reason', "VARCHAR(60) DEFAULT ''"),
+                ('snap_price', 'DECIMAL(10,2) DEFAULT 0.00'),
+                ('snap_cost', 'DECIMAL(10,2) DEFAULT 0.00'),
+                ('snap_volume_quota_mb', 'BIGINT DEFAULT 0'),
+                ('snap_uptime_limit_mins', 'INT DEFAULT 0'),
+                ('snap_validity_value', 'INT DEFAULT 30'),
+                ('snap_validity_unit', "VARCHAR(20) DEFAULT 'days'"),
+                ('snap_validity_days', 'INT DEFAULT 30'),
+                ('snap_rate_download', "VARCHAR(50) DEFAULT '0'"),
+                ('snap_rate_upload', "VARCHAR(50) DEFAULT '0'"),
+                ('snap_rate_limit_str', "VARCHAR(100) DEFAULT '0/0'"),
+                ('snap_simultaneous_sessions', 'INT DEFAULT 1'),
+                ('snap_mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'")
+            ]
+            for col, c_type in v_cols:
+                try:
+                    cur.execute(f"ALTER TABLE wisp_vouchers ADD COLUMN IF NOT EXISTS `{col}` {c_type};")
+                except Exception:
+                    try:
+                        cur.execute(f"ALTER TABLE wisp_vouchers ADD COLUMN `{col}` {c_type};")
+                    except Exception:
+                        pass
+
+            s_cols = [
+                ('global_seq_id', 'BIGINT NULL AFTER id'),
+                ('first_used_at', 'DATETIME NULL'),
+                ('last_renewed_at', 'DATETIME NULL'),
+                ('expires_at', 'DATETIME NULL'),
+                ('email', "VARCHAR(120) DEFAULT '' AFTER phone"),
+                ('notes', 'TEXT NULL')
+            ]
+            for col, c_type in s_cols:
+                try:
+                    cur.execute(f"ALTER TABLE wisp_subscribers ADD COLUMN IF NOT EXISTS `{col}` {c_type};")
+                except Exception:
+                    try:
+                        cur.execute(f"ALTER TABLE wisp_subscribers ADD COLUMN `{col}` {c_type};")
+                    except Exception:
+                        pass
+
             cur.execute("SET unique_checks = 0;")
             cur.execute("SET foreign_key_checks = 0;")
             cur.execute("DROP TRIGGER IF EXISTS trg_radacct_subscriber_activate;")
