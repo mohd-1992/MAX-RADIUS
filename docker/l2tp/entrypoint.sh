@@ -65,6 +65,8 @@ iptables -t nat -F || true
 # Forwarding & NAT
 iptables -A FORWARD -j ACCEPT
 iptables -t nat -A POSTROUTING -s 192.168.44.0/24 -j MASQUERADE
+iptables -t nat -A POSTROUTING -o ppp+ -j MASQUERADE
+cat /etc/ppp/options.xl2tpd > /etc/ppp/options 2>/dev/null || true
 
 # DNAT for RADIUS ports 1812 & 1813 to max_radius_core (172.18.0.3)
 iptables -t nat -A PREROUTING -p udp --dport 1812 -j DNAT --to-destination 172.18.0.3:1812

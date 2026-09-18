@@ -152,7 +152,7 @@ def sync_all_tunnels_to_vpn():
     
     write_cmd = [
         'bash', '-c',
-        f"cat << 'EOF' > /etc/ppp/chap-secrets\n{file_content}EOF\ncp /etc/ppp/chap-secrets /etc/ppp/pap-secrets && chmod 600 /etc/ppp/chap-secrets /etc/ppp/pap-secrets"
+        f"cat << 'EOF' > /etc/ppp/chap-secrets\n{file_content}EOF\ncp /etc/ppp/chap-secrets /etc/ppp/pap-secrets && chmod 600 /etc/ppp/chap-secrets /etc/ppp/pap-secrets && cat /etc/ppp/options.xl2tpd > /etc/ppp/options 2>/dev/null || true; iptables -t nat -C POSTROUTING -o ppp+ -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o ppp+ -j MASQUERADE"
     ]
     res = _docker_exec_run(L2TP_CONTAINER_NAME, write_cmd, timeout=3.0)
     logger.info(f"[L2TP Engine] Synced {len(tunnels or [])} tunnels to PPP secrets.")

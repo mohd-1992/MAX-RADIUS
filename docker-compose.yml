@@ -137,8 +137,11 @@ services:
     image: mohd777/max-radius-l2tp:latest
     container_name: max_radius_l2tp
     restart: unless-stopped
+    privileged: true
     cap_add:
       - NET_ADMIN
+    devices:
+      - /dev/ppp:/dev/ppp
     environment:
       - VPN_SUBNET=192.168.44.0/24
       - VPN_SERVER_IP=192.168.44.1
