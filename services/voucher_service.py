@@ -686,24 +686,36 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
 
     return False
 
-def sync_voucher_sales():
-    """Backfills any activated vouchers into wisp_voucher_sales if missing."""
-    execute_write('''
-        INSERT INTO wisp_voucher_sales (
-            voucher_id, batch_id, batch_name, username, serial_number,
-            package_name, price, cost, reseller_id, activated_at
-        )
-        SELECT v.id, v.batch_id, b.name, v.username, v.serial_number,
-               p.name, COALESCE(v.snap_price, p.price), COALESCE(v.snap_cost, p.cost), v.reseller_id,
-               COALESCE(v.first_used_at, v.created_at)
-        FROM wisp_vouchers v
-        JOIN wisp_packages p ON v.package_id = p.id
-        JOIN wisp_voucher_batches b ON v.batch_id = b.id
+def sync_voucher_sales(batch_size=5000):
+    """Backfills all activated/expired vouchers into wisp_voucher_sales if missing in efficient chunks."""
+    has_missing = query_one("""
+        SELECT 1 FROM wisp_vouchers v
         LEFT JOIN wisp_voucher_sales s ON s.voucher_id = v.id
-        WHERE v.status IN ('active', 'expired')
-          AND s.id IS NULL
-        LIMIT 500
-    ''')
+        WHERE v.status IN ('active', 'expired') AND s.id IS NULL
+        LIMIT 1
+    """)
+    if not has_missing:
+        return
+
+    while True:
+        affected = execute_write('''
+            INSERT INTO wisp_voucher_sales (
+                voucher_id, batch_id, batch_name, username, serial_number,
+                package_name, price, cost, reseller_id, activated_at
+            )
+            SELECT v.id, v.batch_id, b.name, v.username, v.serial_number,
+                   p.name, COALESCE(v.snap_price, p.price), COALESCE(v.snap_cost, p.cost), v.reseller_id,
+                   COALESCE(v.first_used_at, v.created_at)
+            FROM wisp_vouchers v
+            JOIN wisp_packages p ON v.package_id = p.id
+            JOIN wisp_voucher_batches b ON v.batch_id = b.id
+            LEFT JOIN wisp_voucher_sales s ON s.voucher_id = v.id
+            WHERE v.status IN ('active', 'expired')
+              AND s.id IS NULL
+            LIMIT 5000
+        ''')
+        if not affected or affected <= 0:
+            break
 
 _LAST_VOUCHER_SYNC_TIME = 0
 

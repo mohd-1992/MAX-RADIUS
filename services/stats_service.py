@@ -476,6 +476,7 @@ def get_traffic_chart_data():
 def get_sales_chart_data():
     """
     Returns real monthly sales for the last 6 months from wisp_voucher_sales and wisp_invoices.
+    Optimized with grouped single queries for zero CPU overhead.
     """
     arabic_months = {
         1: 'يناير', 2: 'فبراير', 3: 'مارس', 4: 'أبريل',
@@ -489,7 +490,6 @@ def get_sales_chart_data():
     voucher_sales_arr = []
     package_sales_arr = []
     
-    # Generate the last 6 months list (y, m)
     year = today.year
     month = today.month
     
@@ -502,33 +502,37 @@ def get_sales_chart_data():
             y -= 1
         months_list.append((y, m))
         
+    earliest_month_str = f"{months_list[0][0]:04d}-{months_list[0][1]:02d}-01 00:00:00"
+    
+    v_rows = query_all('''
+        SELECT SUBSTRING(activated_at, 1, 7) as ym, COALESCE(SUM(price), 0) as total
+        FROM wisp_voucher_sales
+        WHERE activated_at >= ?
+        GROUP BY SUBSTRING(activated_at, 1, 7)
+    ''', (earliest_month_str,))
+    v_map = {r['ym']: float(r['total']) for r in (v_rows or []) if r.get('ym')}
+    
+    i_rows = query_all('''
+        SELECT SUBSTRING(paid_at, 1, 7) as ym, COALESCE(SUM(amount), 0) as total
+        FROM wisp_invoices
+        WHERE status = 'paid' AND paid_at >= ?
+        GROUP BY SUBSTRING(paid_at, 1, 7)
+    ''', (earliest_month_str,))
+    i_map = {r['ym']: float(r['total']) for r in (i_rows or []) if r.get('ym')}
+    
     for y, m in months_list:
         month_str = f"{y:04d}-{m:02d}"
-        month_pattern = f"{month_str}%"
         month_label = f"{arabic_months.get(m, str(m))} {y}" if y != today.year else arabic_months.get(m, str(m))
         labels.append(month_label)
         
-        v_sales = query_one("""
-            SELECT COALESCE(SUM(price), 0) as total
-            FROM wisp_voucher_sales
-            WHERE activated_at LIKE ?
-        """, (month_pattern,))
-        
-        i_sales = query_one("""
-            SELECT COALESCE(SUM(amount), 0) as total
-            FROM wisp_invoices
-            WHERE status = 'paid' AND paid_at LIKE ?
-        """, (month_pattern,))
-
-        
-        v_tot = round(v_sales['total'] if v_sales else 0, 2)
-        i_tot = round(i_sales['total'] if i_sales else 0, 2)
+        v_tot = round(v_map.get(month_str, 0.0), 2)
+        i_tot = round(i_map.get(month_str, 0.0), 2)
         tot = round(v_tot + i_tot, 2)
         
         voucher_sales_arr.append(v_tot)
         package_sales_arr.append(i_tot)
         sales_arr.append(tot)
-        
+
     return {
         'labels': labels,
         'sales': sales_arr,

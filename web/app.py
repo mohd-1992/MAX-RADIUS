@@ -1701,70 +1701,480 @@ def card_inspect():
 
     return render_template('card_inspect.html', query=query, card=card, sessions=sessions, total_down=total_down, total_up=total_up, is_online=is_online)
 
+@app.route('/sales')
 @app.route('/reports/sales')
 @app.route('/vouchers/sales')
 def sales_reports():
+    import math
     sync_voucher_activations()
     sync_voucher_sales()
 
     today_str = datetime.date.today().strftime('%Y-%m-%d')
+    yesterday_str = (datetime.date.today() - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
     month_str = datetime.date.today().strftime('%Y-%m')
-    month_pattern = f"{month_str}%"
+    year_str = datetime.date.today().strftime('%Y')
 
-    # Metrics calculated from wisp_voucher_sales and wisp_invoices
-    today_vouchers = query_one("SELECT SUM(price) as total FROM wisp_voucher_sales WHERE activated_at LIKE ?", (f"{today_str}%",))
-    today_invs = query_one("SELECT SUM(amount) as total FROM wisp_invoices WHERE status = 'paid' AND paid_at LIKE ?", (f"{today_str}%",))
-    today_sales = round(((today_vouchers['total'] if today_vouchers else 0) or 0) + ((today_invs['total'] if today_invs else 0) or 0), 2)
+    # Get Filter parameters
+    period = request.args.get('period', 'all').strip()
+    custom_date_from = request.args.get('date_from', '').strip()
+    custom_date_to = request.args.get('date_to', '').strip()
+    reseller_id = request.args.get('reseller_id', '').strip()
+    package_name = request.args.get('package_name', '').strip()
+    search_q = request.args.get('q', '').strip()
+    try:
+        page = max(1, int(request.args.get('page', 1)))
+    except (ValueError, TypeError):
+        page = 1
+    per_page = 50
 
-    month_vouchers = query_one("SELECT SUM(price) as total FROM wisp_voucher_sales WHERE activated_at LIKE ?", (month_pattern,))
-    month_invs = query_one("SELECT SUM(amount) as total FROM wisp_invoices WHERE status = 'paid' AND paid_at LIKE ?", (month_pattern,))
-    month_sales = round(((month_vouchers['total'] if month_vouchers else 0) or 0) + ((month_invs['total'] if month_invs else 0) or 0), 2)
+    # Determine date range boundaries
+    start_date = None
+    end_date = None
 
+    if period == 'today':
+        start_date = f"{today_str} 00:00:00"
+        end_date = f"{today_str} 23:59:59"
+    elif period == 'yesterday':
+        start_date = f"{yesterday_str} 00:00:00"
+        end_date = f"{yesterday_str} 23:59:59"
+    elif period == 'this_week':
+        start_of_week = (datetime.date.today() - datetime.timedelta(days=datetime.date.today().weekday())).strftime('%Y-%m-%d')
+        start_date = f"{start_of_week} 00:00:00"
+        end_date = f"{today_str} 23:59:59"
+    elif period == 'this_month':
+        start_date = f"{month_str}-01 00:00:00"
+        end_date = f"{today_str} 23:59:59"
+    elif period == 'last_month':
+        first_day_this_month = datetime.date.today().replace(day=1)
+        last_day_prev_month = first_day_this_month - datetime.timedelta(days=1)
+        first_day_prev_month = last_day_prev_month.replace(day=1)
+        start_date = f"{first_day_prev_month.strftime('%Y-%m-%d')} 00:00:00"
+        end_date = f"{last_day_prev_month.strftime('%Y-%m-%d')} 23:59:59"
+    elif period == 'this_year':
+        start_date = f"{year_str}-01-01 00:00:00"
+        end_date = f"{today_str} 23:59:59"
+    elif period == 'custom' and (custom_date_from or custom_date_to):
+        if custom_date_from:
+            start_date = f"{custom_date_from} 00:00:00"
+        if custom_date_to:
+            end_date = f"{custom_date_to} 23:59:59"
 
-    all_vouchers = query_one("SELECT SUM(price) as total, COUNT(*) as count FROM wisp_voucher_sales")
-    vouchers_total = round((all_vouchers['total'] if all_vouchers and all_vouchers.get('total') else 0) or 0, 2)
-    total_sold_cards = (all_vouchers['count'] if all_vouchers and all_vouchers.get('count') else 0) or 0
+    # Build SQL Where Clauses
+    where_clauses = ["1=1"]
+    params = []
 
-    all_invs = query_one("SELECT SUM(amount) as total FROM wisp_invoices WHERE status = 'paid'")
-    subs_total = round((all_invs['total'] if all_invs and all_invs.get('total') else 0) or 0, 2)
+    if start_date:
+        where_clauses.append("s.activated_at >= ?")
+        params.append(start_date)
+    if end_date:
+        where_clauses.append("s.activated_at <= ?")
+        params.append(end_date)
+    if reseller_id and reseller_id != 'all':
+        if reseller_id == 'direct':
+            where_clauses.append("s.reseller_id IS NULL")
+        else:
+            where_clauses.append("s.reseller_id = ?")
+            params.append(int(reseller_id))
+    if package_name and package_name != 'all':
+        where_clauses.append("s.package_name = ?")
+        params.append(package_name)
+    if search_q:
+        where_clauses.append("(s.username LIKE ? OR s.serial_number LIKE ? OR s.batch_name LIKE ?)")
+        wildcard = f"%{search_q}%"
+        params.extend([wildcard, wildcard, wildcard])
 
-    # Package Breakdown
-    pkgs = query_all('''
-        SELECT p.name, p.service_type, p.price,
-               (SELECT COUNT(*) FROM wisp_voucher_sales WHERE package_name COLLATE utf8mb4_unicode_ci = p.name COLLATE utf8mb4_unicode_ci) +
-               (SELECT COUNT(*) FROM wisp_invoices WHERE package_name COLLATE utf8mb4_unicode_ci = p.name COLLATE utf8mb4_unicode_ci AND status = 'paid') as sold_count
-        FROM wisp_packages p
-    ''')
-    for p in (pkgs or []):
-        p['total_revenue'] = round((p.get('sold_count') or 0) * float(p.get('price') or 0), 2)
+    where_sql = " AND ".join(where_clauses)
 
-    # Recent 20 Voucher Sales Log
-    recent_sales = query_all('''
-        SELECT s.*, r.name as reseller_name
+    # 1. Period Metrics from filtered wisp_voucher_sales
+    # ISP Logic:
+    # - gross_sales = SUM(price) (سعر المشترك)
+    # - net_isp_revenue = SUM(CASE WHEN reseller_id IS NOT NULL AND cost > 0 THEN cost ELSE price END) (حصة صاحب الشبكة)
+    # - total_reseller_commissions = SUM(CASE WHEN reseller_id IS NOT NULL AND cost > 0 THEN (price - cost) ELSE 0 END) (عمولات الموزعين)
+    metrics_query = f"""
+        SELECT 
+            COUNT(*) as total_count,
+            COALESCE(SUM(price), 0) as gross_sales,
+            COALESCE(SUM(CASE WHEN reseller_id IS NOT NULL AND cost > 0 THEN cost ELSE price END), 0) as net_isp_revenue,
+            COALESCE(SUM(CASE WHEN reseller_id IS NOT NULL AND cost > 0 THEN (price - cost) ELSE 0 END), 0) as total_reseller_commissions
         FROM wisp_voucher_sales s
-        LEFT JOIN wisp_resellers r ON s.reseller_id = r.id
-        ORDER BY s.id DESC LIMIT 20
-    ''')
+        WHERE {where_sql}
+    """
+    period_metrics = query_one(metrics_query, tuple(params)) or {}
+    gross_sales = round(float(period_metrics.get('gross_sales') or 0), 2)
+    net_isp_revenue = round(float(period_metrics.get('net_isp_revenue') or 0), 2)
+    total_reseller_commissions = round(float(period_metrics.get('total_reseller_commissions') or 0), 2)
+    total_items_count = int(period_metrics.get('total_count') or 0)
+    
+    isp_share_pct = round((net_isp_revenue / gross_sales * 100), 1) if gross_sales > 0 else 0
+    reseller_share_pct = round((total_reseller_commissions / gross_sales * 100), 1) if gross_sales > 0 else 0
+
+    # 2. Lifetime & Today's Net ISP Overview (Optimized Single Combined Query)
+    today_start = f"{today_str} 00:00:00"
+    today_end = f"{today_str} 23:59:59"
+    month_start = f"{month_str}-01 00:00:00"
+    month_end = f"{month_str}-31 23:59:59"
+
+    overview_vouchers = query_one("""
+        SELECT 
+            COUNT(*) as total_sold_cards,
+            COALESCE(SUM(CASE WHEN reseller_id IS NOT NULL AND cost > 0 THEN cost ELSE price END), 0) as lifetime_isp_sales,
+            COALESCE(SUM(price), 0) as lifetime_gross_sales,
+            
+            COALESCE(SUM(CASE WHEN activated_at >= ? AND activated_at <= ? AND reseller_id IS NOT NULL AND cost > 0 THEN cost 
+                              WHEN activated_at >= ? AND activated_at <= ? THEN price ELSE 0 END), 0) as month_isp_sales,
+            
+            COALESCE(SUM(CASE WHEN activated_at >= ? AND activated_at <= ? AND reseller_id IS NOT NULL AND cost > 0 THEN cost 
+                              WHEN activated_at >= ? AND activated_at <= ? THEN price ELSE 0 END), 0) as today_isp_sales,
+            COALESCE(SUM(CASE WHEN activated_at >= ? AND activated_at <= ? THEN price ELSE 0 END), 0) as today_gross_sales,
+            COALESCE(SUM(CASE WHEN activated_at >= ? AND activated_at <= ? THEN 1 ELSE 0 END), 0) as today_cards_count
+        FROM wisp_voucher_sales
+    """, (month_start, month_end, month_start, month_end,
+          today_start, today_end, today_start, today_end,
+          today_start, today_end,
+          today_start, today_end)) or {}
+
+    inv_stats = query_one("""
+        SELECT 
+            COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as subs_total,
+            COALESCE(SUM(CASE WHEN status = 'paid' AND paid_at >= ? AND paid_at <= ? THEN amount ELSE 0 END), 0) as month_inv_sales,
+            COALESCE(SUM(CASE WHEN status = 'paid' AND paid_at >= ? AND paid_at <= ? THEN amount ELSE 0 END), 0) as today_inv_sales
+        FROM wisp_invoices
+    """, (month_start, month_end, today_start, today_end)) or {}
+
+    lifetime_isp_sales = round(float(overview_vouchers.get('lifetime_isp_sales') or 0), 2)
+    lifetime_gross_sales = round(float(overview_vouchers.get('lifetime_gross_sales') or 0), 2)
+    total_sold_cards = int(overview_vouchers.get('total_sold_cards') or 0)
+
+    month_isp_sales = round(float(overview_vouchers.get('month_isp_sales') or 0) + float(inv_stats.get('month_inv_sales') or 0), 2)
+    today_isp_sales = round(float(overview_vouchers.get('today_isp_sales') or 0) + float(inv_stats.get('today_inv_sales') or 0), 2)
+    today_gross_sales = round(float(overview_vouchers.get('today_gross_sales') or 0) + float(inv_stats.get('today_inv_sales') or 0), 2)
+    today_cards_count = int(overview_vouchers.get('today_cards_count') or 0)
+    subs_total = round(float(inv_stats.get('subs_total') or 0), 2)
+
+    # 3. Pagination calculation
+    total_pages = max(1, math.ceil(total_items_count / per_page))
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * per_page
+
+    # 4. Filtered Sales Records
+    list_query = f"""
+        SELECT s.*, 
+               COALESCE(NULLIF(m.full_name, ''), m.username, 'مبيعات مباشرة (الإدارة)') as reseller_name,
+               m.username as reseller_username,
+               CASE WHEN s.reseller_id IS NOT NULL AND s.cost > 0 THEN s.cost ELSE s.price END as isp_share,
+               CASE WHEN s.reseller_id IS NOT NULL AND s.cost > 0 THEN (s.price - s.cost) ELSE 0 END as reseller_margin
+        FROM wisp_voucher_sales s
+        LEFT JOIN wisp_managers m ON s.reseller_id = m.id
+        WHERE {where_sql}
+        ORDER BY s.id DESC
+        LIMIT {per_page} OFFSET {offset}
+    """
+    sales_list = query_all(list_query, tuple(params)) or []
+
+    # 5. Package Breakdown (Optimized GROUP BY queries with zero CPU scan)
+    voucher_counts = {r['package_name']: r['c'] for r in query_all("SELECT package_name, COUNT(*) as c FROM wisp_voucher_sales GROUP BY package_name") if r.get('package_name')}
+    invoice_counts = {r['package_name']: r['c'] for r in query_all("SELECT package_name, COUNT(*) as c FROM wisp_invoices WHERE status = 'paid' GROUP BY package_name") if r.get('package_name')}
+
+    pkgs = query_all("SELECT name, service_type, price, cost FROM wisp_packages ORDER BY name ASC") or []
+    for p in pkgs:
+        p_name = p.get('name') or ''
+        count = voucher_counts.get(p_name, 0) + invoice_counts.get(p_name, 0)
+        p['sold_count'] = count
+        p_price = float(p.get('price') or 0)
+        p_cost = float(p.get('cost') or 0)
+        p['isp_unit_price'] = p_cost if p_cost > 0 else p_price
+        p['reseller_unit_commission'] = max(0, p_price - p_cost) if p_cost > 0 else 0
+        p['total_gross_revenue'] = round(count * p_price, 2)
+        p['total_isp_revenue'] = round(count * p['isp_unit_price'], 2)
+        p['total_reseller_profit'] = round(count * p['reseller_unit_commission'], 2)
+
+    # 6. Filter Options (Resellers & Packages)
+    resellers_list = query_all("""
+        SELECT id, username, full_name,
+               COALESCE(NULLIF(full_name, ''), username) as name
+        FROM wisp_managers 
+        WHERE is_active = 1 
+        ORDER BY id ASC
+    """) or []
+    all_packages_list = query_all("SELECT DISTINCT name FROM wisp_packages ORDER BY name ASC") or []
 
     sales_chart = get_sales_chart_data()
     traffic_chart = get_traffic_chart_data()
 
     return render_template('sales_reports.html',
-                           today_sales=today_sales,
-                           month_sales=month_sales,
-                           vouchers_total=vouchers_total,
+                           period=period,
+                           custom_date_from=custom_date_from,
+                           custom_date_to=custom_date_to,
+                           selected_reseller=reseller_id,
+                           selected_package=package_name,
+                           search_q=search_q,
+                           page=page,
+                           total_pages=total_pages,
+                           total_items_count=total_items_count,
+                           per_page=per_page,
+                           gross_sales=gross_sales,
+                           net_isp_revenue=net_isp_revenue,
+                           total_reseller_commissions=total_reseller_commissions,
+                           isp_share_pct=isp_share_pct,
+                           reseller_share_pct=reseller_share_pct,
+                           today_isp_sales=today_isp_sales,
+                           today_gross_sales=today_gross_sales,
+                           today_cards_count=today_cards_count,
+                           month_isp_sales=month_isp_sales,
+                           lifetime_isp_sales=lifetime_isp_sales,
+                           lifetime_gross_sales=lifetime_gross_sales,
                            subs_total=subs_total,
                            total_sold_cards=total_sold_cards,
                            package_breakdown=pkgs,
-                           recent_sales=recent_sales,
+                           recent_sales=sales_list,
+                           resellers_list=resellers_list,
+                           all_packages_list=all_packages_list,
                            sales_chart=sales_chart,
                            traffic_chart=traffic_chart)
 
 
+@app.route('/sales/export')
+@app.route('/reports/sales/export')
+def export_sales():
+    import io
+    import csv
+    from flask import Response
+
+    period = request.args.get('period', 'all').strip()
+    custom_date_from = request.args.get('date_from', '').strip()
+    custom_date_to = request.args.get('date_to', '').strip()
+    reseller_id = request.args.get('reseller_id', '').strip()
+    package_name = request.args.get('package_name', '').strip()
+    search_q = request.args.get('q', '').strip()
+    export_format = request.args.get('format', 'excel').lower().strip()
+
+    today_str = datetime.date.today().strftime('%Y-%m-%d')
+    yesterday_str = (datetime.date.today() - datetime.timedelta(days=1)).strftime('%Y-%m-%d')
+    month_str = datetime.date.today().strftime('%Y-%m')
+    year_str = datetime.date.today().strftime('%Y')
+
+    start_date = None
+    end_date = None
+
+    if period == 'today':
+        start_date = f"{today_str} 00:00:00"
+        end_date = f"{today_str} 23:59:59"
+    elif period == 'yesterday':
+        start_date = f"{yesterday_str} 00:00:00"
+        end_date = f"{yesterday_str} 23:59:59"
+    elif period == 'this_week':
+        start_of_week = (datetime.date.today() - datetime.timedelta(days=datetime.date.today().weekday())).strftime('%Y-%m-%d')
+        start_date = f"{start_of_week} 00:00:00"
+        end_date = f"{today_str} 23:59:59"
+    elif period == 'this_month':
+        start_date = f"{month_str}-01 00:00:00"
+        end_date = f"{today_str} 23:59:59"
+    elif period == 'last_month':
+        first_day_this_month = datetime.date.today().replace(day=1)
+        last_day_prev_month = first_day_this_month - datetime.timedelta(days=1)
+        first_day_prev_month = last_day_prev_month.replace(day=1)
+        start_date = f"{first_day_prev_month.strftime('%Y-%m-%d')} 00:00:00"
+        end_date = f"{last_day_prev_month.strftime('%Y-%m-%d')} 23:59:59"
+    elif period == 'this_year':
+        start_date = f"{year_str}-01-01 00:00:00"
+        end_date = f"{today_str} 23:59:59"
+    elif period == 'custom' and (custom_date_from or custom_date_to):
+        if custom_date_from:
+            start_date = f"{custom_date_from} 00:00:00"
+        if custom_date_to:
+            end_date = f"{custom_date_to} 23:59:59"
+
+    where_clauses = ["1=1"]
+    params = []
+
+    if start_date:
+        where_clauses.append("s.activated_at >= ?")
+        params.append(start_date)
+    if end_date:
+        where_clauses.append("s.activated_at <= ?")
+        params.append(end_date)
+    if reseller_id and reseller_id != 'all':
+        if reseller_id == 'direct':
+            where_clauses.append("s.reseller_id IS NULL")
+        else:
+            where_clauses.append("s.reseller_id = ?")
+            params.append(int(reseller_id))
+    if package_name and package_name != 'all':
+        where_clauses.append("s.package_name = ?")
+        params.append(package_name)
+    if search_q:
+        where_clauses.append("(s.username LIKE ? OR s.serial_number LIKE ? OR s.batch_name LIKE ?)")
+        wildcard = f"%{search_q}%"
+        params.extend([wildcard, wildcard, wildcard])
+
+    where_sql = " AND ".join(where_clauses)
+
+    records = query_all(f"""
+        SELECT s.*, 
+               COALESCE(NULLIF(m.full_name, ''), m.username, 'مبيعات مباشرة (الإدارة)') as reseller_name,
+               m.username as reseller_username,
+               CASE WHEN s.reseller_id IS NOT NULL AND s.cost > 0 THEN s.cost ELSE s.price END as isp_share,
+               CASE WHEN s.reseller_id IS NOT NULL AND s.cost > 0 THEN (s.price - s.cost) ELSE 0 END as reseller_margin
+        FROM wisp_voucher_sales s
+        LEFT JOIN wisp_managers m ON s.reseller_id = m.id
+        WHERE {where_sql}
+        ORDER BY s.id DESC
+        LIMIT 10000
+    """, tuple(params)) or []
+
+    file_timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+
+    if export_format == 'csv':
+        output = io.StringIO()
+        output.write('\ufeff')  # UTF-8 BOM
+        writer = csv.writer(output)
+        writer.writerow(['م', 'اسم المستخدم / الكرت', 'الرقم التسلسلي', 'الحزمة / الدفعة', 'الباقة', 'سعر المشترك', 'حصة الشبكة', 'عمولة الموزع', 'نقطة البيع / الموزع', 'تاريخ ووقت التفعيل'])
+        for idx, r in enumerate(records, 1):
+            writer.writerow([
+                idx,
+                r.get('username') or '',
+                r.get('serial_number') or '',
+                r.get('batch_name') or '',
+                r.get('package_name') or '',
+                float(r.get('price') or 0),
+                float(r.get('isp_share') or 0),
+                float(r.get('reseller_margin') or 0),
+                r.get('reseller_name') or 'مباشر (الإدارة)',
+                str(r.get('activated_at') or '')
+            ])
+        return Response(output.getvalue(), mimetype='text/csv; charset=utf-8', headers={
+            'Content-Disposition': f'attachment; filename=MAX_RADIUS_Sales_{file_timestamp}.csv'
+        })
+
+    # Excel export via openpyxl
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "كشف المبيعات والإيرادات"
+        ws.views.sheetView[0].rightToLeft = True
+
+        # Header Title
+        ws.merge_cells('A1:J1')
+        title_cell = ws['A1']
+        title_cell.value = "📊 MAX RADIUS 2.0 - كشف مبيعات الكروت وحصة الشبكة وعمولات الموزعين"
+        title_cell.font = Font(name='Arial', size=15, bold=True, color='FFFFFF')
+        title_cell.fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid')
+        title_cell.alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[1].height = 40
+
+        # Sub-header with export info
+        ws.merge_cells('A2:J2')
+        sub_cell = ws['A2']
+        sub_cell.value = f"تاريخ التصدير: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')} | الفترة: {period} | إجمالي السجلات: {len(records)}"
+        sub_cell.font = Font(name='Arial', size=10, italic=True, color='64748B')
+        sub_cell.alignment = Alignment(horizontal='center', vertical='center')
+        ws.row_dimensions[2].height = 24
+
+        headers = ['#', 'اسم الكرت / المستخدم', 'الرقم التسلسلي', 'الحزمة / الدفعة', 'الباقة', 'سعر المشترك', 'حصة الشبكة', 'عمولة الموزع', 'نقطة البيع / الموزع', 'تاريخ ووقت التفعيل']
+        ws.append([])  # Row 3 empty spacer
+        ws.append(headers)  # Row 4
+        ws.row_dimensions[4].height = 28
+
+        header_fill = PatternFill(start_color='059669', end_color='059669', fill_type='solid')
+        header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+        thin_border = Border(
+            left=Side(style='thin', color='CBD5E1'),
+            right=Side(style='thin', color='CBD5E1'),
+            top=Side(style='thin', color='CBD5E1'),
+            bottom=Side(style='thin', color='CBD5E1')
+        )
+
+        for col_idx in range(1, len(headers) + 1):
+            cell = ws.cell(row=4, column=col_idx)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.border = thin_border
+
+        total_gross = 0
+        total_isp = 0
+        total_comm = 0
+
+        for idx, r in enumerate(records, 1):
+            p = float(r.get('price') or 0)
+            isp_s = float(r.get('isp_share') or 0)
+            res_m = float(r.get('reseller_margin') or 0)
+            total_gross += p
+            total_isp += isp_s
+            total_comm += res_m
+
+            row_data = [
+                idx,
+                r.get('username') or '',
+                r.get('serial_number') or '',
+                r.get('batch_name') or '',
+                r.get('package_name') or '',
+                p,
+                isp_s,
+                res_m,
+                r.get('reseller_name') or 'مباشر (الإدارة)',
+                str(r.get('activated_at') or '')
+            ]
+            ws.append(row_data)
+            curr_row = ws.max_row
+            ws.row_dimensions[curr_row].height = 22
+            for col_idx in range(1, len(headers) + 1):
+                cell = ws.cell(row=curr_row, column=col_idx)
+                cell.border = thin_border
+                cell.font = Font(name='Arial', size=10)
+                if col_idx in [1, 6, 7, 8, 10]:
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                else:
+                    cell.alignment = Alignment(horizontal='right', vertical='center')
+
+        # Totals Row
+        tot_row_idx = ws.max_row + 1
+        ws.row_dimensions[tot_row_idx].height = 28
+        ws.merge_cells(f'A{tot_row_idx}:E{tot_row_idx}')
+        tot_label = ws[f'A{tot_row_idx}']
+        tot_label.value = "الإجمالي العام المحقق"
+        tot_label.font = Font(name='Arial', size=11, bold=True, color='0F172A')
+        tot_label.alignment = Alignment(horizontal='center', vertical='center')
+        tot_label.fill = PatternFill(start_color='E2E8F0', end_color='E2E8F0', fill_type='solid')
+
+        tot_gross_cell = ws.cell(row=tot_row_idx, column=6, value=total_gross)
+        tot_isp_cell = ws.cell(row=tot_row_idx, column=7, value=total_isp)
+        tot_comm_cell = ws.cell(row=tot_row_idx, column=8, value=total_comm)
+
+        for cell in [tot_gross_cell, tot_isp_cell, tot_comm_cell]:
+            cell.font = Font(name='Arial', size=11, bold=True, color='047857')
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+            cell.fill = PatternFill(start_color='D1FAE5', end_color='D1FAE5', fill_type='solid')
+
+        for col_idx in range(1, len(headers) + 1):
+            ws.cell(row=tot_row_idx, column=col_idx).border = thin_border
+
+        # Auto-fit columns
+        for col in ws.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(max_len + 4, 14)
+
+        out_stream = io.BytesIO()
+        wb.save(out_stream)
+        out_stream.seek(0)
+
+        return Response(
+            out_stream.getvalue(),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            headers={'Content-Disposition': f'attachment; filename=MAX_RADIUS_Sales_Report_{file_timestamp}.xlsx'}
+        )
+    except Exception as e:
+        logger.error(f"[Export Sales] Excel error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 # ==========================================
 # Voucher Designs & Card Designer Subsystem
-# ==========================================
-
 @app.route('/vouchers/designs', endpoint='voucher_designs_list')
 @app.route('/vouchers/designer', endpoint='card_designer')
 @login_required
@@ -2665,7 +3075,6 @@ def update_settings_action():
             'portal_allow_registration': '1' if f.get('portal_allow_registration') in ('1', 'on', 'true', True, 1) else '0',
             'portal_allow_package_change': '1' if f.get('portal_allow_package_change') in ('1', 'on', 'true', True, 1) else '0',
             'portal_allow_password_change': '1' if f.get('portal_allow_password_change') in ('1', 'on', 'true', True, 1) else '0',
-            'portal_login_username_only': '1' if f.get('portal_login_username_only') in ('1', 'on', 'true', True, 1) else '0',
             'allow_data_loan': '1' if f.get('allow_data_loan') in ('1', 'on', 'true', True, 1) else '0',
             'loan_amount_mb': str(max(10, int(f.get('loan_amount_mb', '1024').strip()))) if f.get('loan_amount_mb', '').strip().isdigit() else '1024',
             'loan_threshold_mb': str(max(1, int(f.get('loan_threshold_mb', '100').strip()))) if f.get('loan_threshold_mb', '').strip().isdigit() else '100'
@@ -2904,21 +3313,6 @@ def api_optimize_tables():
         log_audit(1, 'admin', 'DB_OPTIMIZE_TABLES', 'tools', f'Optimized database tables. Freed {res.get("freed_mb", 0)} MB')
     return jsonify(res)
 
-@app.route('/api/tools/database-maintenance/factory-reset', methods=['POST'])
-def api_factory_reset_database():
-    data = request.json if request.is_json else request.form.to_dict()
-    confirm_code = str(data.get('confirm_code', '')).strip().upper()
-    keep_packages = bool(data.get('keep_packages', True))
-    keep_resellers = bool(data.get('keep_resellers', False))
-    
-    if confirm_code not in ('RESET', 'تصفير', 'CONFIRM'):
-        return jsonify({'success': False, 'message': 'رمز التأكيد غير صحيح. يرجى كتابة RESET أو تصفير لإتمام العملية.'}), 400
-        
-    from services.db_maintenance_service import factory_reset_database
-    res = factory_reset_database(keep_packages=keep_packages, keep_resellers=keep_resellers, admin_user='admin')
-    return jsonify(res)
-
-
 
 # =========================================================================
 # 5 Enterprise Tools Suite (الأدوات التخصصية الخمس المتقدمة)
@@ -3126,7 +3520,7 @@ def api_migration_analyze():
 
 @app.route('/api/tools/database-migration/execute', methods=['POST'])
 def api_migration_execute():
-    from services.database_migration_service import start_async_migration
+    from services.database_migration_service import execute_database_migration
     try:
         data = request.get_json(silent=True) or {}
         server_path = data.get('server_path') or data.get('temp_server_path')
@@ -3139,29 +3533,10 @@ def api_migration_execute():
         if not server_path or not os.path.exists(server_path):
             return jsonify({'success': False, 'error': 'مسار ملف النسخة الاحتياطية غير موجود أو غير صالح على السيرفر.'}), 400
 
-        res = start_async_migration(server_path, options=data)
+        res = execute_database_migration(server_path, options=data)
         return jsonify(res)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/tools/database-migration/progress', methods=['GET'])
-def api_migration_progress():
-    from services.database_migration_service import get_migration_progress
-    try:
-        progress = get_migration_progress()
-        return jsonify(progress)
-    except Exception as e:
-        return jsonify({'status': 'error', 'error': str(e)}), 500
-
-@app.route('/api/tools/database-migration/cancel', methods=['POST'])
-def api_migration_cancel():
-    from services.database_migration_service import cancel_migration
-    try:
-        res = cancel_migration()
-        return jsonify(res)
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 
 
 
@@ -3798,27 +4173,6 @@ def user_sessions():
     sessions = get_user_sessions_history(username, limit=50)
     return render_template('user_portal/sessions.html', user=user_data, sessions=sessions)
 
-@app.route('/user/disconnect-session', methods=['POST'])
-def user_disconnect_session_action():
-    username = session.get('portal_user')
-    if not username:
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'message': 'يرجى تسجيل الدخول أولاً'}), 401
-        return redirect(url_for('user_login'))
-    
-    from services.user_portal_service import disconnect_my_active_session
-    success, msg = disconnect_my_active_session(username)
-    
-    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return jsonify({'success': success, 'message': msg})
-        
-    if success:
-        flash(msg, 'success')
-    else:
-        flash(msg, 'warning')
-        
-    return redirect(url_for('user_dashboard'))
-
 # ==========================================================
 # Client Licensing & System Security Routes
 # ==========================================================
@@ -3863,4 +4217,3 @@ def sync_license_heartbeat_action():
 
 if __name__ == '__main__':
     init_database()
-    app.run(host='0.0.0.0', port=5000, debug=True)

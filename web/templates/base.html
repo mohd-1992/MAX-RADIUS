@@ -1471,7 +1471,7 @@
                 </div>
 
                 <!-- 3. نظام الكروت (Vouchers) -> [قائمة منسدلة] -->
-                {% set voucher_active = request.endpoint in ['vouchers', 'view_batch_details', 'active_card_users', 'active_card_user_details', 'sales_reports', 'card_inspect', 'card_designer'] %}
+                {% set voucher_active = request.endpoint in ['vouchers', 'view_batch_details', 'active_card_users', 'active_card_user_details', 'card_inspect', 'card_designer'] %}
                 <div class="space-y-1">
                     <button onclick="toggleMenu('vouchersMenu', 'vouchersArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if voucher_active %}text-amber-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
@@ -1499,14 +1499,6 @@
                             </div>
                             <i class="fa-solid fa-id-card text-[9px] text-slate-600"></i>
                         </a>
-                        <!-- مبيعات الكروت -->
-                        <a href="{{ url_for('sales_reports') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'sales_reports' %}subnav-active{% endif %}">
-                            <div class="flex items-center gap-2">
-                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'sales_reports' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
-                                <span>مبيعات الكروت والإيرادات</span>
-                            </div>
-                            <i class="fa-solid fa-receipt text-[9px] text-slate-600"></i>
-                        </a>
                         <!-- فحص كارت -->
                         <a href="{{ url_for('card_inspect') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'card_inspect' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
@@ -1526,7 +1518,7 @@
                     </div>
                 </div>
 
-                <!-- 4. الباقات والسرعات (Packages) -->
+                                <!-- 4. الباقات والسرعات (Packages) -->
                 <a href="{{ url_for('packages') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint in ['packages', 'package_details'] %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint in ['packages', 'package_details'] %}bg-amber-500 text-white{% else %}bg-amber-500/10 text-amber-400{% endif %}">
@@ -1534,6 +1526,19 @@
                         </div>
                         <span>الباقات والسرعات</span>
                     </div>
+                </a>
+
+                <!-- 5. المبيعات والتقارير المالية (Sales & Financial Reports) -->
+                <a href="{{ url_for('sales_reports') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'sales_reports' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'sales_reports' %}bg-emerald-500 text-white shadow-sm shadow-emerald-500/20{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                        <span>المبيعات والتقارير المالية</span>
+                    </div>
+                    {% if request.endpoint == 'sales_reports' %}
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    {% endif %}
                 </a>
             </div>
 
