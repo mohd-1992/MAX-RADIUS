@@ -147,6 +147,11 @@ services:
       - VPN_SERVER_IP=192.168.44.1
     ports:
       - "1701:1701/udp"
+    volumes:
+      - ./storage/l2tp/chap-secrets:/etc/ppp/chap-secrets
+      - ./storage/l2tp/pap-secrets:/etc/ppp/pap-secrets
+      - ./docker/l2tp/options.xl2tpd:/etc/ppp/options.xl2tpd:ro
+      - ./docker/l2tp/entrypoint.sh:/entrypoint.sh
     networks:
       max-radius-net:
         ipv4_address: 172.18.0.10

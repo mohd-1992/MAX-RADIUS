@@ -188,6 +188,13 @@ def run_watchdog_cycle():
         except Exception:
             pass
 
+        # Ensure L2TP VPN host route
+        try:
+            from services.l2tp_service import ensure_l2tp_host_route
+            ensure_l2tp_host_route()
+        except Exception:
+            pass
+
         return {
             'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'db_healthy': db_ok,

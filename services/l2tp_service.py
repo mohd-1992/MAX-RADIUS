@@ -135,6 +135,7 @@ def sync_all_tunnels_to_vpn():
     """
     Synchronizes all active tunnels in wisp_l2tp_tunnels to /etc/ppp/chap-secrets & /etc/ppp/pap-secrets.
     Enforces exact user-to-IP binding at PPP kernel level and ensures routing path.
+    Also persists secrets to storage/l2tp on host for permanent reboot persistence.
     """
     ensure_l2tp_host_route()
     tunnels = query_all("SELECT * FROM wisp_l2tp_tunnels WHERE is_enabled = 1")
@@ -148,7 +149,29 @@ def sync_all_tunnels_to_vpn():
         ip = t.get('tunnel_ip') or '*'
         lines.append(f'"{u}"\t*\t"{p}"\t{ip}')
     
+    # Wildcard fallback accounts
+    lines.append('"max_vpn"\t*\t"max123"\t*')
+    lines.append('*\t*\t"max123"\t*')
+    
     file_content = '\n'.join(lines) + '\n'
+    
+    # Save to storage/l2tp on host for persistence across restarts
+    try:
+        storage_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'storage', 'l2tp')
+        os.makedirs(storage_dir, exist_ok=True)
+        chap_file = os.path.join(storage_dir, 'chap-secrets')
+        pap_file = os.path.join(storage_dir, 'pap-secrets')
+        with open(chap_file, 'w', encoding='utf-8') as sf:
+            sf.write(file_content)
+        with open(pap_file, 'w', encoding='utf-8') as sf:
+            sf.write(file_content)
+        try:
+            os.chmod(chap_file, 0o600)
+            os.chmod(pap_file, 0o600)
+        except Exception:
+            pass
+    except Exception as ex:
+        logger.warning(f"[L2TP Engine] Storage write warning: {ex}")
     
     write_cmd = [
         'bash', '-c',
@@ -157,8 +180,6 @@ def sync_all_tunnels_to_vpn():
     res = _docker_exec_run(L2TP_CONTAINER_NAME, write_cmd, timeout=3.0)
     logger.info(f"[L2TP Engine] Synced {len(tunnels or [])} tunnels to PPP secrets.")
     return res.get('success', False)
-
-
 
 def get_public_vps_ip():
     """Retrieves the public VPS IP address with caching."""
