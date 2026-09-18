@@ -130,6 +130,25 @@ services:
       max-radius-net:
         ipv4_address: 172.18.0.6
 
+  # ============================================================
+  # 5. L2TP / VPN Server
+  # ============================================================
+  l2tp:
+    image: mohd777/max-radius-l2tp:latest
+    container_name: max_radius_l2tp
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - VPN_SUBNET=192.168.44.0/24
+      - VPN_SERVER_IP=192.168.44.1
+    ports:
+      - "1701:1701/udp"
+    networks:
+      max-radius-net:
+        ipv4_address: 172.18.0.5
+
+
 volumes:
   mariadb_data:
     driver: local

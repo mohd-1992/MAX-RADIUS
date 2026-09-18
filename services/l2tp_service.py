@@ -120,11 +120,23 @@ def _docker_exec_run(container_name, cmd, timeout=3.0):
             return {"success": False, "stdout": "", "stderr": str(e)}
 
 
+def ensure_l2tp_host_route():
+    """
+    Ensures that the L2TP VPN client subnet (192.168.44.0/24) is routed to the L2TP container gateway (172.18.0.5).
+    """
+    try:
+        subprocess.run(['ip', 'route', 'replace', '192.168.44.0/24', 'via', '172.18.0.5'], 
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+    except Exception:
+        pass
+
+
 def sync_all_tunnels_to_vpn():
     """
     Synchronizes all active tunnels in wisp_l2tp_tunnels to /etc/ppp/chap-secrets & /etc/ppp/pap-secrets.
-    Enforces exact user-to-IP binding at PPP kernel level.
+    Enforces exact user-to-IP binding at PPP kernel level and ensures routing path.
     """
+    ensure_l2tp_host_route()
     tunnels = query_all("SELECT * FROM wisp_l2tp_tunnels WHERE is_enabled = 1")
     lines = [
         '# Secrets for authentication using CHAP & PAP',
@@ -145,6 +157,7 @@ def sync_all_tunnels_to_vpn():
     res = _docker_exec_run(L2TP_CONTAINER_NAME, write_cmd, timeout=3.0)
     logger.info(f"[L2TP Engine] Synced {len(tunnels or [])} tunnels to PPP secrets.")
     return res.get('success', False)
+
 
 
 def get_public_vps_ip():
