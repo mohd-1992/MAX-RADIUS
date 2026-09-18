@@ -455,6 +455,7 @@ def check_and_update_expired_vouchers():
                 FROM radacct a
                 JOIN wisp_vouchers v2 ON a.username = v2.username AND v2.status IN ('active', 'used')
                 JOIN wisp_packages p ON v2.package_id = p.id AND p.volume_quota_mb > 0
+                WHERE (v2.last_renewed_at IS NULL OR COALESCE(a.acctstarttime, a.acctupdatetime) >= v2.last_renewed_at)
                 GROUP BY a.username, p.volume_quota_mb, v2.extra_quota_mb
                 HAVING SUM(COALESCE(a.acctinputoctets, 0) + COALESCE(a.acctoutputoctets, 0)) >= ((p.volume_quota_mb + v2.extra_quota_mb) * 1048576)
             ) over_limit ON v.username = over_limit.username
@@ -470,6 +471,7 @@ def check_and_update_expired_vouchers():
                 FROM radacct a
                 JOIN wisp_subscribers s2 ON a.username = s2.username AND s2.status = 'active'
                 JOIN wisp_packages p ON s2.package_id = p.id AND p.volume_quota_mb > 0
+                WHERE (s2.last_renewed_at IS NULL OR COALESCE(a.acctstarttime, a.acctupdatetime) >= s2.last_renewed_at)
                 GROUP BY a.username, p.volume_quota_mb, s2.extra_quota_mb
                 HAVING SUM(COALESCE(a.acctinputoctets, 0) + COALESCE(a.acctoutputoctets, 0)) >= ((p.volume_quota_mb + s2.extra_quota_mb) * 1048576)
             ) over_limit ON s.username = over_limit.username
