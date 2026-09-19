@@ -3607,11 +3607,15 @@ def api_migration_cancel():
     return jsonify(res)
 
 
-# --- MikroTik User Manager v6 Isolated Importer (أداة استيراد يوزر مانجر المعزولة) ---
 @app.route('/tools/mikrotik-import')
 @login_required
 def mikrotik_userman_import_page():
-    return render_template('tools/mikrotik_userman_import.html')
+    try:
+        from services.nas_service import get_nas_devices
+        nas_devices = get_nas_devices(skip_live_probe=True)
+    except Exception:
+        nas_devices = []
+    return render_template('tools/mikrotik_userman_import.html', nas_devices=nas_devices)
 
 @app.route('/api/tools/mikrotik-import/analyze-rsc', methods=['POST'])
 @login_required

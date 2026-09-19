@@ -230,27 +230,55 @@
 
         <!-- 2. Live API Connect Panel -->
         <div id="panelApi" class="hidden space-y-4">
-            <h3 class="mikrotik-text-title text-sm font-bold text-slate-200 flex items-center gap-2">
-                <i class="fa-solid fa-server text-purple-400"></i>
-                بيانات الاتصال براوتر الميكروتك (MikroTik RouterOS API)
-            </h3>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <h3 class="mikrotik-text-title text-sm font-bold text-slate-200 flex items-center gap-2">
+                    <i class="fa-solid fa-server text-purple-400"></i>
+                    بيانات الاتصال براوتر الميكروتك (MikroTik RouterOS API)
+                </h3>
+                <div id="nasStatusBadge" class="hidden text-xs px-3 py-1 rounded-full font-bold"></div>
+            </div>
+
+            <!-- Quick Router Selector from System Database -->
+            <div class="bg-[#0b1020] border border-purple-500/30 rounded-2xl p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-purple-300 flex items-center gap-2">
+                        <i class="fa-solid fa-network-wired text-purple-400"></i>
+                        <span>اختر راوتر من قائمة أجهزة النظام (تعبئة تلقائية فورية):</span>
+                    </label>
+                    <span class="text-[11px] text-slate-400">أو يمكنك إدخال البيانات يدوياً</span>
+                </div>
+                <select id="nasSelector" onchange="onNasSelected(this)" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 hover:border-purple-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 transition cursor-pointer font-bold">
+                    <option value="">-- اختر راوتر من أجهزة النظام لتعبئة البيانات تلقائياً --</option>
+                    {% for nas in nas_devices %}
+                    <option value="{{ nas.id }}" 
+                        data-ip="{{ nas.ip_address }}" 
+                        data-port="{{ nas.api_port or 8728 }}" 
+                        data-user="{{ nas.api_username or 'admin' }}" 
+                        data-pass="{{ nas.api_password or '' }}" 
+                        data-name="{{ nas.name }}"
+                        data-status="{{ nas.status or 'online' }}">
+                        {{ nas.name }} (IP: {{ nas.ip_address }}) {% if nas.status == 'online' %}🟢 متصل{% else %}⚪ مسجل{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="space-y-1.5">
                     <label class="text-xs font-semibold text-slate-400">عنوان IP للراوتر</label>
-                    <input type="text" id="apiHost" placeholder="192.168.88.1" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500">
+                    <input type="text" id="apiHost" placeholder="192.168.88.1" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-mono font-bold">
                 </div>
                 <div class="space-y-1.5">
                     <label class="text-xs font-semibold text-slate-400">منفذ API Port</label>
-                    <input type="number" id="apiPort" value="8728" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500">
+                    <input type="number" id="apiPort" value="8728" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono font-bold">
                 </div>
                 <div class="space-y-1.5">
                     <label class="text-xs font-semibold text-slate-400">اسم المستخدم (Username)</label>
-                    <input type="text" id="apiUser" value="admin" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500">
+                    <input type="text" id="apiUser" value="admin" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono font-bold">
                 </div>
                 <div class="space-y-1.5">
                     <label class="text-xs font-semibold text-slate-400">كلمة المرور (Password)</label>
-                    <input type="password" id="apiPass" placeholder="••••••••" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500">
+                    <input type="password" id="apiPass" placeholder="••••••••" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-mono font-bold">
                 </div>
             </div>
 
@@ -259,7 +287,7 @@
                     <input type="checkbox" id="apiSsl" class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
                     <span>استخدام اتصال مشفر SSL (منفذ 8729)</span>
                 </label>
-                <button type="button" id="btnTestApi" onclick="fetchFromApi()" class="px-6 py-2.5 rounded-xl font-bold text-xs bg-purple-500 hover:bg-purple-400 text-white transition flex items-center gap-2 shadow-lg shadow-purple-500/20 cursor-pointer">
+                <button type="button" id="btnTestApi" onclick="fetchFromApi()" class="px-6 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white transition flex items-center gap-2 shadow-lg shadow-purple-500/20 cursor-pointer transform active:scale-95">
                     <i class="fa-solid fa-plug"></i>
                     <span>اتصال وسحب البيانات حياً</span>
                 </button>
@@ -451,7 +479,55 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Auto-restore last selected router from localStorage if available
+    const lastNasId = localStorage.getItem('max_last_imported_nas_id');
+    const nasSelect = document.getElementById('nasSelector');
+    if (lastNasId && nasSelect) {
+        for (let i = 0; i < nasSelect.options.length; i++) {
+            if (nasSelect.options[i].value === lastNasId) {
+                nasSelect.selectedIndex = i;
+                onNasSelected(nasSelect);
+                break;
+            }
+        }
+    }
 });
+
+function onNasSelected(selectEl) {
+    if (!selectEl) return;
+    const opt = selectEl.options[selectEl.selectedIndex];
+    if (!opt || !opt.value) {
+        document.getElementById('nasStatusBadge').classList.add('hidden');
+        return;
+    }
+
+    const ip = opt.getAttribute('data-ip') || '';
+    const port = opt.getAttribute('data-port') || '8728';
+    const user = opt.getAttribute('data-user') || 'admin';
+    const pass = opt.getAttribute('data-pass') || '';
+    const status = opt.getAttribute('data-status') || 'online';
+    const name = opt.getAttribute('data-name') || 'MikroTik';
+
+    if (ip) document.getElementById('apiHost').value = ip;
+    if (port) document.getElementById('apiPort').value = port;
+    if (user) document.getElementById('apiUser').value = user;
+    if (pass) document.getElementById('apiPass').value = pass;
+
+    localStorage.setItem('max_last_imported_nas_id', opt.value);
+
+    const badge = document.getElementById('nasStatusBadge');
+    if (badge) {
+        badge.classList.remove('hidden');
+        if (status === 'online') {
+            badge.className = 'text-xs px-3 py-1 rounded-full font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span><span>الراوتر متصل: ' + name + '</span>';
+        } else {
+            badge.className = 'text-xs px-3 py-1 rounded-full font-bold bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5';
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-500"></span><span>الراوتر: ' + name + '</span>';
+        }
+    }
+}
 
 function switchMode(mode) {
     currentMode = mode;
