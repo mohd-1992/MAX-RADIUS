@@ -127,33 +127,34 @@ def get_active_license_status(force_refresh=False):
     row = query_one("SELECT * FROM wisp_license_info ORDER BY id DESC LIMIT 1")
     if not row:
         res = {
-            "has_license": True,
-            "status": "active",
-            "status_text": "نسخة مجتمعية مفتوحة (Community Edition) 🟢",
-            "client_name": "إدارة الشبكة (Community)",
-            "plan_tier": "Community",
-            "days_left": 9999,
-            "expires_at": "دائم (Lifetime)",
-            "is_lifetime": True,
-            "max_subscribers": 50000,
-            "max_nas": 50,
-            "max_managers": 20,
+            "has_license": False,
+            "status": "unlicensed",
+            "status_text": "النظام مقفل: بانتظار إدخال وتفعيل الترخيص الرسمي 🔴",
+            "client_name": "غير مرخص (Unlicensed)",
+            "plan_tier": "Unlicensed",
+            "days_left": 0,
+            "expires_at": "غير مفعل",
+            "is_lifetime": False,
+            "max_subscribers": 0,
+            "max_nas": 0,
+            "max_managers": 0,
             "current_subscribers": subs_count,
             "current_nas": nas_count,
             "current_machine_id": current_machine_id,
+            "licensed_machine_id": "NONE",
             "features": {
-                "user_portal": True,
-                "automation_rules": True,
-                "gis_map": True,
-                "autoheal": True,
-                "accounting_archiver": True,
-                "radius_simulator": True,
-                "traffic_analytics": True,
-                "api_access": True,
-                "white_label": True
+                "user_portal": False,
+                "automation_rules": False,
+                "gis_map": False,
+                "autoheal": False,
+                "accounting_archiver": False,
+                "radius_simulator": False,
+                "traffic_analytics": False,
+                "api_access": False,
+                "white_label": False
             },
-            "valid": True,
-            "message": "النظام يعمل بالوضع المجتمعي المفتوح بكافة الميزات"
+            "valid": False,
+            "message": "النظام مقفل بالكامل وغير مرخص. يرجى تزويد المطور ببصمة الجهاز وتفعيل مفتاح الترخيص الرسمي للبدء."
         }
         _LICENSE_CACHE = {'data': res, 'timestamp': now_t}
         return res
@@ -176,7 +177,7 @@ def get_active_license_status(force_refresh=False):
             msg = "تم حظر وإلغاء هذا الترخيص عن بُعد من قِبل إدارة المطور"
             
         status_code = "active" if valid else ("revoked" if db_status == 'revoked' else "expired")
-        status_text = "مرخص ومفعل بالكامل 🟢" if valid else ("الترخيص محظور 🔴" if db_status == 'revoked' else "الترخيص منتهي 🔴")
+        status_text = "مرخص ومفعل بالكامل 🟢" if valid else ("الترخيص محظور 🔴" if db_status == 'revoked' else "الترخيص منتهي أو غير صالح 🔴")
         
         res = {
             "has_license": True,
@@ -221,6 +222,8 @@ def check_subscriber_quota(additional_count=1):
     Returns (allowed: bool, err_msg: str, current_count: int, max_limit: int).
     """
     status = get_active_license_status()
+    if not status.get('valid'):
+        return False, status.get('message', "النظام مقفل وغير مرخص. لا يمكن إضافة مشتركين جدد."), status.get('current_subscribers', 0), 0
     if status.get('status') == 'revoked':
         return False, "الترخيص محظور من قِبل المطور. لا يمكن إضافة مشتركين جدد.", status.get('current_subscribers', 0), status.get('max_subscribers', 0)
     
@@ -238,6 +241,8 @@ def check_nas_quota(additional_count=1):
     Returns (allowed: bool, err_msg: str, current_count: int, max_limit: int).
     """
     status = get_active_license_status()
+    if not status.get('valid'):
+        return False, status.get('message', "النظام مقفل وغير مرخص. لا يمكن إضافة أجهزة راوتر جديدة."), status.get('current_nas', 0), 0
     if status.get('status') == 'revoked':
         return False, "الترخيص محظور من قِبل المطور. لا يمكن إضافة أجهزة بث جديدة.", status.get('current_nas', 0), status.get('max_nas', 0)
         
@@ -255,6 +260,8 @@ def check_manager_quota(additional_count=1):
     Returns (allowed: bool, err_msg: str, current_count: int, max_limit: int).
     """
     status = get_active_license_status()
+    if not status.get('valid'):
+        return False, status.get('message', "النظام مقفل وغير مرخص. لا يمكن إنشاء حسابات مدراء جديدة."), 0, 0
     if status.get('status') == 'revoked':
         return False, "الترخيص محظور من قِبل المطور. لا يمكن إضافة حسابات مدراء جديدة.", 0, 0
         
