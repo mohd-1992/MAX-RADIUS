@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تفعيل ترخيص النظام والأمان الرقمي | MAX RADIUS</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        tajawal: ['Tajawal', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            500: '#06b6d4',
+                            600: '#0891b2',
+                            dark: '#070b14',
+                            card: '#0e1626',
+                            border: '#1c2840'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- FontAwesome 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background-color: #070b14;
+            color: #f1f5f9;
+        }
+        .cyber-grid {
+            background-image: 
+                radial-gradient(circle at 50% 30%, rgba(6, 182, 212, 0.08) 0%, transparent 60%),
+                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+            background-size: 100% 100%, 30px 30px, 30px 30px;
+        }
+        .glass-panel {
+            background: rgba(14, 22, 38, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+    </style>
+</head>
+<body class="cyber-grid min-h-screen flex flex-col justify-between selection:bg-cyan-500 selection:text-black">
+
+    <!-- Top Header -->
+    <header class="border-b border-white/5 bg-[#0a0f1d]/80 backdrop-blur-md">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white text-lg shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-satellite-dish"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl font-black tracking-wider text-white">MAX<span class="text-cyan-400">RADIUS</span></span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">v2.0</span>
+                    </div>
+                    <span class="text-[9px] text-slate-400 font-medium tracking-widest uppercase block">Next-Gen ISP Security Core</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold {% if license.valid %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/30{% else %}bg-rose-500/10 text-rose-400 border border-rose-500/30 animate-pulse{% endif %}">
+                    <span class="w-2 h-2 rounded-full {% if license.valid %}bg-emerald-400{% else %}bg-rose-400{% endif %}"></span>
+                    <span>{{ license.status_text }}</span>
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-4xl mx-auto px-4 sm:px-6 py-10 w-full">
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="space-y-3 mb-8">
+                    {% for category, message in messages %}
+                        <div class="p-4 rounded-xl text-xs font-bold border flex items-center justify-between
+                            {% if category == 'success' %}
+                                bg-emerald-500/10 border-emerald-500/30 text-emerald-400
+                            {% elif category == 'danger' or category == 'error' %}
+                                bg-rose-500/10 border-rose-500/30 text-rose-400
+                            {% else %}
+                                bg-blue-500/10 border-blue-500/30 text-blue-400
+                            {% endif %}">
+                            <div class="flex items-center gap-2.5">
+                                <i class="fa-solid {% if category == 'success' %}fa-circle-check{% elif category == 'danger' or category == 'error' %}fa-triangle-exclamation{% else %}fa-circle-info{% endif %} text-base"></i>
+                                <span>{{ message }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- System Lock Hero Banner -->
+        {% if not license.valid %}
+        <div class="p-6 rounded-2xl glass-panel border border-rose-500/30 shadow-2xl mb-8 relative overflow-hidden">
+            <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 relative z-10">
+                <div class="flex items-center gap-4">
+                    <div class="w-14 h-14 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-2xl flex-shrink-0 shadow-inner">
+                        <i class="fa-solid fa-lock"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-lg font-black text-white flex items-center gap-2">
+                            <span>النظام مقفل: يتطلب إدخال ترخيص رسمي معتمد</span>
+                        </h2>
+                        <p class="text-xs text-slate-300 mt-1 leading-relaxed">
+                            {{ license.message or 'لا يمكن تشغيل ميزات إدارة المشتركين والراوترات أو الدخول للوحة التحكم حتى يتم تفعيل ترخيص معتمد.' }}
+                        </p>
+                    </div>
+                </div>
+
+                <a href="https://wa.me/967777000000?text={{ ('طلب ترخيص لنظام MAX RADIUS - بصمة السيرفر: ' ~ license.current_machine_id) | urlencode }}" target="_blank" class="w-full sm:w-auto px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 flex-shrink-0">
+                    <i class="fa-brands fa-whatsapp text-base"></i>
+                    <span>طلب ترخيص عبر واتساب</span>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Grid Cards -->
+        <div class="space-y-6">
+
+            <!-- 1. Hardware Fingerprint Card -->
+            <div class="glass-panel p-6 rounded-2xl border border-slate-800 shadow-xl">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-2">
+                        <i class="fa-solid fa-fingerprint"></i>
+                        <span>بصمة العتاد الثابتة للسيرفر (Hardware Machine ID)</span>
+                    </h3>
+                    <span class="text-[11px] text-slate-400">مربوطة باللوحة الأم والمعالج</span>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center gap-3">
+                    <div class="w-full flex-1 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between font-mono text-sm sm:text-base font-bold text-cyan-300">
+                        <span id="machineIdText" class="select-all tracking-wider">{{ license.current_machine_id }}</span>
+                        <span class="text-xs text-slate-500 font-sans font-normal">بصمة ثابتة</span>
+                    </div>
+                    <button onclick="copyHwId()" id="copyHwBtn" class="w-full sm:w-auto px-5 py-3.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-bold text-xs transition flex items-center justify-center gap-2 flex-shrink-0 cursor-pointer">
+                        <i class="fa-regular fa-copy"></i>
+                        <span id="copyHwText">نسخ البصمة</span>
+                    </button>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2">
+                    انسخ هذه البصمة وزود المطور بها لإصدار ملف الترخيص المشفر والمخصص لسيرفرك.
+                </p>
+            </div>
+
+            <!-- 2. License Activation Form Card -->
+            <div class="glass-panel p-6 rounded-2xl border border-slate-800 shadow-xl" id="activationBox">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                        <i class="fa-solid fa-key"></i>
+                        <span>تفعيل وتوثيق الترخيص الرقمي (Ed25519)</span>
+                    </h3>
+                    <span class="text-[11px] text-slate-400">تشفير رقمي عالي الأمان</span>
+                </div>
+
+                <form method="POST" action="/settings/license/activate" enctype="multipart/form-data" class="space-y-4 text-xs font-bold">
+                    <div>
+                        <label class="block text-slate-300 mb-1.5">1. لصق كود الترخيص المشفر (Base64 Token):</label>
+                        <textarea name="license_token" rows="5" class="w-full bg-slate-950/90 border border-slate-800 rounded-xl p-3 text-emerald-400 font-mono text-[11px] focus:border-cyan-500 focus:outline-none placeholder-slate-600 transition" placeholder="الصق كود الترخيص المشفر هنا..."></textarea>
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="block text-slate-300 mb-1.5">2. أو رفع ملف الترخيص الرقمي (.lic أو .json):</label>
+                        <input type="file" name="license_file" accept=".lic,.json" class="w-full bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-cyan-600 file:text-white hover:file:bg-cyan-500 cursor-pointer">
+                    </div>
+
+                    <div class="pt-2">
+                        <label class="block text-slate-300 mb-1.5">عنوان خادم التراخيص المركزي (اختياري للمزامنة):</label>
+                        <input type="text" name="master_server_url" value="{{ license.master_server_url or 'http://136.244.95.245:3030' }}" class="w-full bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono text-xs focus:border-cyan-500 focus:outline-none">
+                    </div>
+
+                    <div class="pt-3">
+                        <button type="submit" class="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-600/25 transition flex items-center justify-center gap-2 cursor-pointer transform active:scale-[0.99]">
+                            <i class="fa-solid fa-circle-check text-base"></i>
+                            <span>تفعيل وتوثيق الترخيص الرقمي وفتح النظام</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- 3. If already licensed, show back to dashboard button -->
+            {% if license.valid %}
+            <div class="text-center pt-2">
+                <a href="/dashboard" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg transition">
+                    <i class="fa-solid fa-gauge-high"></i>
+                    <span>الدخول إلى لوحة التحكم الرئيسية</span>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/5 bg-[#0a0f1d] py-6 text-center text-xs text-slate-500">
+        MAX RADIUS 2.0 • جميع الحقوق محفوظة © 2026
+    </footer>
+
+    <!-- Copy Helper Script -->
+    <script>
+        function copyHwId() {
+            const hwid = document.getElementById('machineIdText').innerText.trim();
+            navigator.clipboard.writeText(hwid).then(() => {
+                const btnText = document.getElementById('copyHwText');
+                const btn = document.getElementById('copyHwBtn');
+                btnText.innerText = 'تم النسخ بنجاح!';
+                btn.classList.add('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/40');
+                setTimeout(() => {
+                    btnText.innerText = 'نسخ البصمة';
+                    btn.classList.remove('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/40');
+                }, 2500);
+            });
+        }
+    </script>
+</body>
+</html>
