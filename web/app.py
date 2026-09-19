@@ -4320,16 +4320,21 @@ def user_disconnect_session_action():
 # ==========================================================
 
 @app.route('/settings/license', methods=['GET'])
-@login_required
 def license_status_page():
     lic_info = get_active_license_status()
+    manager = get_current_manager()
+    if not lic_info.get('valid') or not manager:
+        return render_template('license_standalone.html', license=lic_info)
     return render_template('license_status.html', license=lic_info)
 
 @app.route('/settings/license/activate', methods=['POST'])
-@login_required
 def activate_license_action():
-    require_permission('settings_manage')
-    master_url = request.form.get('master_server_url', 'http://127.0.0.1:5095').strip()
+    lic_info = get_active_license_status()
+    manager = get_current_manager()
+    if lic_info.get('valid') and manager:
+        require_permission('settings_manage')
+        
+    master_url = request.form.get('master_server_url', 'http://136.244.95.245:3030').strip()
     
     lic_file = request.files.get('license_file')
     lic_token = request.form.get('license_token', '').strip()
@@ -4349,6 +4354,10 @@ def activate_license_action():
         
     success, msg = install_and_activate_license(content, master_url)
     flash(msg, "success" if success else "danger")
+    if success:
+        if get_current_manager():
+            return redirect(url_for('dashboard'))
+        return redirect(url_for('login'))
     return redirect(url_for('license_status_page'))
 
 @app.route('/settings/license/sync-heartbeat', methods=['POST'])
