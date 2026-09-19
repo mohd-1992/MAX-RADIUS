@@ -30,54 +30,47 @@
         </div>
     </div>
 
-    <!-- Filters & Search Bar -->
-    <div class="bg-[#0b0f19] p-4 rounded-2xl border border-[#1c2840]">
-        <form method="GET" action="{{ url_for('active_card_users') }}" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-center">
-            <!-- Search Query -->
-            <div class="relative">
-                <input type="text" name="q" value="{{ q or '' }}" placeholder="بحث بالرمز، الرقم التسلسلي، أو الـ PIN..." class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition pl-8">
-                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
-            </div>
-            <!-- Batch Filter -->
-            <div>
-                <select name="batch_id" onchange="this.form.submit()" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-slate-300 focus:border-blue-500">
-                    <option value="">جميع الحزم والدفعات (All Batches)</option>
-                    {% for b in batches %}
-                    <option value="{{ b.id }}" {% if batch_id == b.id|string %}selected{% endif %}>{{ b.name }} ({{ b.batch_number }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <!-- Package Filter -->
-            <div>
-                <select name="package_id" onchange="this.form.submit()" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-slate-300 focus:border-blue-500">
-                    <option value="">جميع الباقات (All Packages)</option>
-                    {% for p in packages %}
-                    <option value="{{ p.id }}" {% if package_id == p.id|string %}selected{% endif %}>{{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <!-- Status & Actions -->
-            <div class="flex items-center gap-2">
-                <select name="status" onchange="this.form.submit()" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-slate-300 focus:border-blue-500">
-                    <option value="">جميع الحالات (All)</option>
-                    <option value="active" {% if status == 'active' %}selected{% endif %}>نشط (Active)</option>
-                    <option value="recharged" {% if status == 'recharged' %}selected{% endif %}>مشحون / معطل (Recharged)</option>
-                    <option value="expired" {% if status == 'expired' %}selected{% endif %}>منتهي (Expired)</option>
-                </select>
-                <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
-                    <i class="fa-solid fa-filter"></i>
-                    <span>تصفية</span>
-                </button>
-                {% if q or batch_id or package_id or status %}
-                <a href="{{ url_for('active_card_users') }}" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs transition shrink-0" title="إعادة ضبط">
-                    <i class="fa-solid fa-xmark"></i>
-                </a>
-                {% endif %}
-            </div>
-        </form>
-    </div>
-
 <style>
+    /* Theme-adaptive overrides for Active Card Users Page */
+    html.theme-light .sales-panel {
+        background-color: #ffffff !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }
+    html.theme-light .sales-pill-inactive {
+        background-color: #f1f5f9 !important;
+        color: #334155 !important;
+        border-color: #cbd5e1 !important;
+    }
+    html.theme-light .sales-pill-inactive:hover {
+        background-color: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .sales-input {
+        background-color: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .sales-input:focus {
+        background-color: #ffffff !important;
+        border-color: #10b981 !important;
+    }
+    html.theme-light .sales-page-btn {
+        background-color: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #334155 !important;
+    }
+    html.theme-light .sales-page-btn:hover {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .sales-text-muted {
+        color: #64748b !important;
+    }
+    html.theme-light .sales-text-dark {
+        color: #0f172a !important;
+    }
+
     /* ========================================================== */
     /* Bulk Action Bar (Light & Dark Compatible)                  */
     /* ========================================================== */
@@ -117,6 +110,120 @@
         color: #e11d48 !important;
     }
 </style>
+
+    <!-- Advanced Filter & Search Panel (Sales Style Design) -->
+    <div class="sales-panel bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm space-y-4">
+        <form method="GET" action="{{ url_for('active_card_users') }}" id="activeCardsFilterForm" class="space-y-4">
+            
+            <!-- Quick Status Pills Bar -->
+            <div class="flex items-center gap-2 flex-wrap pb-3 border-b border-[#1c2840]/70">
+                <span class="sales-text-muted text-xs font-bold text-slate-400 flex items-center gap-1.5 ml-1">
+                    <i class="fa-solid fa-id-card text-emerald-400"></i>
+                    حالة الكروت:
+                </span>
+                
+                <!-- 1. Active (Emerald) -->
+                <button type="submit" name="status" value="active" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'active' or not status %}bg-emerald-600 text-white shadow-md shadow-emerald-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span>النشطين</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'active' or not status %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.active if status_counts else 0 }}
+                    </span>
+                </button>
+
+                <!-- 2. Online (Cyan with pulse) -->
+                <button type="submit" name="status" value="online" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'online' %}bg-cyan-600 text-white shadow-md shadow-cyan-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
+                    </span>
+                    <span>المتصلين الآن</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'online' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.online if status_counts else 0 }}
+                    </span>
+                </button>
+
+                <!-- 3. Expired (Rose) -->
+                <button type="submit" name="status" value="expired" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'expired' %}bg-rose-600 text-white shadow-md shadow-rose-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                    <span>المنتهين</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'expired' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.expired if status_counts else 0 }}
+                    </span>
+                </button>
+
+                <!-- 4. Recharged / Disabled (Amber) -->
+                <button type="submit" name="status" value="recharged" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'recharged' %}bg-amber-600 text-white shadow-md shadow-amber-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span>مشحون / معطل</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'recharged' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.recharged if status_counts else 0 }}
+                    </span>
+                </button>
+
+                <!-- 5. All (Blue) -->
+                <button type="submit" name="status" value="all" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'all' %}bg-blue-600 text-white shadow-md shadow-blue-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <i class="fa-solid fa-layer-group text-[11px]"></i>
+                    <span>الكل</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'all' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.all if status_counts else 0 }}
+                    </span>
+                </button>
+            </div>
+
+            <!-- Detailed Filters Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+                <!-- Batch Filter -->
+                <div>
+                    <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">الحزمة / الدفعة:</label>
+                    <select name="batch_id" onchange="this.form.submit()" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition">
+                        <option value="">جميع الحزم والدفعات (All)</option>
+                        {% for b in batches %}
+                        <option value="{{ b.id }}" {% if batch_id == b.id|string %}selected{% endif %}>{{ b.name }} ({{ b.batch_number }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Package Filter -->
+                <div>
+                    <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">الباقة / الخطة:</label>
+                    <select name="package_id" onchange="this.form.submit()" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition">
+                        <option value="">جميع الباقات (All)</option>
+                        {% for p in packages %}
+                        <option value="{{ p.id }}" {% if package_id == p.id|string %}selected{% endif %}>{{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Search Input & Actions (Span 2) -->
+                <div class="sm:col-span-2">
+                    <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">بحث سريع:</label>
+                    <div class="flex items-center gap-2">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                            <input type="text" name="q" value="{{ q or '' }}" placeholder="بحث بالرمز، الرقم التسلسلي، أو الـ PIN..." 
+                                   class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl pr-9 pl-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition">
+                        </div>
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5 shrink-0 cursor-pointer">
+                            <i class="fa-solid fa-filter text-xs"></i>
+                            <span>تصفية</span>
+                        </button>
+                        {% if q or batch_id or package_id or (status and status != 'active') %}
+                        <a href="{{ url_for('active_card_users') }}" class="sales-pill-inactive px-3 py-2 bg-[#11192b] hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-bold border border-[#1c2840] transition flex items-center gap-1 shrink-0" title="إلغاء التصفية">
+                            <i class="fa-solid fa-rotate-left text-xs"></i>
+                            <span class="hidden sm:inline">إعادة ضبط</span>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
 
     <!-- Top Bulk Action Bar (Visible when 1 or more checkboxes are checked) -->
     <div id="bulkActionBar" class="bulk-action-bar bulk-action-bar-container-emerald hidden p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-4 transition-all duration-300">

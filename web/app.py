@@ -37,7 +37,7 @@ from services.card_design_service import (
 from services.voucher_service import (
     generate_voucher_batch, get_batches, get_vouchers, get_batch_cards_for_print, delete_batch,
     update_voucher_batch, update_voucher_card, activate_voucher_card, sync_voucher_sales,
-    sync_voucher_activations
+    sync_voucher_activations, get_voucher_summary_counts
 )
 from services.reseller_service import (
     get_resellers, create_reseller, topup_reseller, get_reseller_transactions
@@ -587,16 +587,17 @@ def api_system_ping():
 
 @app.route('/subscribers')
 def subscribers():
-    search = request.args.get('q', '')
-    stype = request.args.get('type', '')
+    search = request.args.get('q', '').strip()
+    stype = request.args.get('type', '').strip()
+    package_id = request.args.get('package_id', '').strip()
     # Default to 'active' if not explicitly passed in query params
     status = request.args.get('status')
     if status is None:
         status = 'active'
-    subs = get_subscribers(search=search, service_type=stype, status=status)
-    status_counts = get_subscriber_status_counts(search=search, service_type=stype)
-    packages = query_all('SELECT id, name, service_type, price FROM wisp_packages WHERE is_active = 1')
-    return render_template('subscribers.html', subscribers=subs, packages=packages, q=search, type=stype, status=status, status_counts=status_counts)
+    subs = get_subscribers(search=search, service_type=stype, status=status, package_id=package_id if package_id else None)
+    status_counts = get_subscriber_status_counts(search=search, service_type=stype, package_id=package_id if package_id else None)
+    packages = query_all('SELECT id, name, service_type, price FROM wisp_packages WHERE is_active = 1 ORDER BY service_type, price ASC')
+    return render_template('subscribers.html', subscribers=subs, packages=packages, q=search, type=stype, status=status, status_counts=status_counts, package_id=package_id)
 
 @app.route('/subscribers/create', methods=['GET', 'POST'])
 def subscriber_create_page():
@@ -893,8 +894,12 @@ def vouchers():
     sync_voucher_activations()
     batch_id = request.args.get('batch_id')
     status = request.args.get('status')
-    search = request.args.get('q')
-    batches = get_batches()
+    search = request.args.get('q', '').strip()
+    package_id = request.args.get('package_id', '').strip()
+    reseller_id = request.args.get('reseller_id', '').strip()
+    
+    batches = get_batches(search=search, package_id=package_id, reseller_id=reseller_id)
+    batch_stats = get_voucher_summary_counts()
     
     selected_batch = None
     batch_cards = []
@@ -929,7 +934,12 @@ def vouchers():
                            packages=packages,
                            resellers=resellers,
                            selected_batch=selected_batch,
-                           batch_cards=batch_cards)
+                           batch_cards=batch_cards,
+                           batch_stats=batch_stats,
+                           q=search,
+                           package_id=package_id,
+                           reseller_id=reseller_id,
+                           status=status)
 
 @app.route('/vouchers/generate', methods=['POST'])
 def generate_vouchers_action():
@@ -1027,7 +1037,13 @@ def active_card_users():
     search = request.args.get('q', '').strip()
     batch_filter = request.args.get('batch_id', '').strip()
     pkg_filter = request.args.get('package_id', '').strip()
-    status_filter = request.args.get('status', '').strip()
+    raw_status = request.args.get('status')
+    
+    # Default status to 'active' if not provided
+    if raw_status is None or raw_status == '':
+        status_filter = 'active'
+    else:
+        status_filter = raw_status.strip()
     
     try:
         page = max(1, int(request.args.get('page', 1)))
@@ -1036,43 +1052,70 @@ def active_card_users():
     per_page = 50
     offset = (page - 1) * per_page
     
-    where_clauses = ["v.status IN ('active', 'used', 'expired', 'recharged', 'disabled')"]
-    params = []
+    base_where = ["v.status IN ('active', 'used', 'expired', 'recharged', 'disabled')"]
+    base_params = []
     
     if search:
-        where_clauses.append("(v.username LIKE ? OR v.serial_number LIKE ? OR v.pin_code LIKE ?)")
+        base_where.append("(v.username LIKE ? OR v.serial_number LIKE ? OR v.pin_code LIKE ?)")
         s_pat = f"%{search}%"
-        params.extend([s_pat, s_pat, s_pat])
+        base_params.extend([s_pat, s_pat, s_pat])
         
     if batch_filter:
         try:
-            where_clauses.append("v.batch_id = ?")
-            params.append(int(batch_filter))
+            base_where.append("v.batch_id = ?")
+            base_params.append(int(batch_filter))
         except (ValueError, TypeError):
             pass
             
     if pkg_filter:
         try:
-            where_clauses.append("v.package_id = ?")
-            params.append(int(pkg_filter))
+            base_where.append("v.package_id = ?")
+            base_params.append(int(pkg_filter))
         except (ValueError, TypeError):
             pass
+
+    # Base filters for status counts pills
+    base_sql = " AND ".join(base_where)
+    from services.subscriber_service import get_heartbeat_cutoff_str
+    cutoff_s = get_heartbeat_cutoff_str(5)
+    
+    count_query = f'''
+        SELECT 
+            COUNT(*) as total_all,
+            COALESCE(SUM(CASE WHEN v.status IN ('active', 'used') AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP) THEN 1 ELSE 0 END), 0) as total_active,
+            COALESCE(SUM(CASE WHEN (v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled') THEN 1 ELSE 0 END), 0) as total_expired,
+            COALESCE(SUM(CASE WHEN v.status IN ('recharged', 'disabled') THEN 1 ELSE 0 END), 0) as total_recharged,
+            COALESCE(SUM(CASE WHEN v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR acctstarttime >= ?)) THEN 1 ELSE 0 END), 0) as total_online
+        FROM wisp_vouchers v
+        WHERE {base_sql}
+    '''
+    status_row = query_one(count_query, (cutoff_s, cutoff_s, *base_params)) or {}
+    status_counts = {
+        'all': int(status_row.get('total_all') or 0),
+        'active': int(status_row.get('total_active') or 0),
+        'online': int(status_row.get('total_online') or 0),
+        'expired': int(status_row.get('total_expired') or 0),
+        'recharged': int(status_row.get('total_recharged') or 0)
+    }
+
+    where_clauses = list(base_where)
+    params = list(base_params)
             
-    if status_filter:
-        if status_filter == 'recharged':
-            where_clauses.append("v.status IN ('recharged', 'disabled')")
-        elif status_filter in ('active', 'used'):
-            where_clauses.append("v.status IN ('active', 'used') AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP)")
-        elif status_filter == 'expired':
-            where_clauses.append("(v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled')")
-        elif status_filter == 'online':
-            from services.subscriber_service import get_heartbeat_cutoff_str
-            cutoff_s = get_heartbeat_cutoff_str(5)
-            where_clauses.append("v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR acctstarttime >= ?))")
-            params.extend([cutoff_s, cutoff_s])
-        else:
-            where_clauses.append("v.status = ?")
-            params.append(status_filter)
+    if status_filter == 'active':
+        where_clauses.append("v.status IN ('active', 'used') AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP)")
+    elif status_filter == 'online':
+        where_clauses.append("v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR acctstarttime >= ?))")
+        params.extend([cutoff_s, cutoff_s])
+    elif status_filter == 'expired':
+        where_clauses.append("(v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled')")
+    elif status_filter == 'recharged':
+        where_clauses.append("v.status IN ('recharged', 'disabled')")
+    elif status_filter == 'all':
+        # All statuses already in base_where
+        pass
+    elif status_filter:
+        where_clauses.append("v.status = ?")
+        params.append(status_filter)
         
     where_sql = " AND ".join(where_clauses)
     
@@ -1311,7 +1354,8 @@ def active_card_users():
                            q=search,
                            batch_id=batch_filter,
                            package_id=pkg_filter,
-                           status=status_filter)
+                           status=status_filter,
+                           status_counts=status_counts)
 
 # ----------------- Quick Actions AJAX API Endpoints -----------------
 def _get_target_params():
@@ -3313,6 +3357,19 @@ def api_optimize_tables():
         log_audit(1, 'admin', 'DB_OPTIMIZE_TABLES', 'tools', f'Optimized database tables. Freed {res.get("freed_mb", 0)} MB')
     return jsonify(res)
 
+@app.route('/api/tools/database-maintenance/factory-reset', methods=['POST'])
+def api_factory_reset_database():
+    data = request.json if request.is_json else request.form.to_dict()
+    confirm_code = data.get('confirm_code')
+    keep_packages = bool(data.get('keep_packages', True))
+    keep_resellers = bool(data.get('keep_resellers', False))
+    from services.db_maintenance_service import factory_reset_database
+    res = factory_reset_database(keep_packages=keep_packages, keep_resellers=keep_resellers)
+    if res.get('success'):
+        log_audit(1, 'admin', 'DB_FACTORY_RESET', 'tools', f'Factory reset performed: {res.get("message")}')
+    return jsonify(res)
+
+
 
 # =========================================================================
 # 5 Enterprise Tools Suite (الأدوات التخصصية الخمس المتقدمة)
@@ -3537,6 +3594,80 @@ def api_migration_execute():
         return jsonify(res)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tools/database-migration/progress')
+def api_migration_progress():
+    from services.database_migration_service import get_migration_progress
+    return jsonify(get_migration_progress())
+
+@app.route('/api/tools/database-migration/cancel', methods=['POST'])
+def api_migration_cancel():
+    from services.database_migration_service import cancel_migration
+    res = cancel_migration()
+    return jsonify(res)
+
+
+# --- MikroTik User Manager v6 Isolated Importer (أداة استيراد يوزر مانجر المعزولة) ---
+@app.route('/tools/mikrotik-import')
+@login_required
+def mikrotik_userman_import_page():
+    return render_template('tools/mikrotik_userman_import.html')
+
+@app.route('/api/tools/mikrotik-import/analyze-rsc', methods=['POST'])
+@login_required
+def api_mikrotik_userman_analyze_rsc():
+    from services.mikrotik_userman_importer import parse_rsc_content
+    if 'rsc_file' not in request.files or not request.files['rsc_file'].filename:
+        return jsonify({'success': False, 'error': 'لم يتم تحديد ملف السكربت'}), 400
+    try:
+        f = request.files['rsc_file']
+        raw_text = f.read().decode('utf-8', errors='ignore')
+        parsed = parse_rsc_content(raw_text)
+        return jsonify({'success': True, 'data': parsed})
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'فشل قراءة الملف: {str(e)}'}), 500
+
+@app.route('/api/tools/mikrotik-import/test-api', methods=['POST'])
+@login_required
+def api_mikrotik_userman_test_api():
+    from services.mikrotik_userman_importer import fetch_userman_via_api
+    data = request.json or {}
+    host = data.get('host', '').strip()
+    port = int(data.get('port', 8728) or 8728)
+    user = data.get('username', '').strip()
+    pwd = data.get('password', '')
+    use_ssl = bool(data.get('use_ssl', False))
+
+    if not host or not user:
+        return jsonify({'success': False, 'error': 'يرجى تزويد عنوان IP واسم المستخدم'}), 400
+
+    try:
+        parsed = fetch_userman_via_api(host=host, username=user, password=pwd, port=port, use_ssl=use_ssl)
+        return jsonify({'success': True, 'data': parsed})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tools/mikrotik-import/execute', methods=['POST'])
+@login_required
+def api_mikrotik_userman_execute():
+    from services.mikrotik_userman_importer import execute_userman_import
+    req_data = request.json or {}
+    parsed_data = req_data.get('data') or {}
+    target_type = req_data.get('target_type', 'subscribers')
+    fallback_package = req_data.get('fallback_package')
+    duplicate_action = req_data.get('duplicate_action', 'skip')
+    admin_user = session.get('username', 'admin')
+
+    res = execute_userman_import(
+        parsed_data=parsed_data,
+        target_type=target_type,
+        fallback_package=fallback_package,
+        duplicate_action=duplicate_action,
+        admin_user=admin_user
+    )
+    return jsonify(res)
+
+
 
 
 
@@ -4172,6 +4303,17 @@ def user_sessions():
     user_data = get_portal_user_data(username)
     sessions = get_user_sessions_history(username, limit=50)
     return render_template('user_portal/sessions.html', user=user_data, sessions=sessions)
+
+@app.route('/user/disconnect-session', methods=['POST'])
+def user_disconnect_session_action():
+    username = session.get('portal_user')
+    if not username:
+        return jsonify({'success': False, 'message': 'غير مصرح'}), 401
+    
+    from services.quick_action_service import action_disconnect_user
+    res = action_disconnect_user(username)
+    return jsonify(res)
+
 
 # ==========================================================
 # Client Licensing & System Security Routes

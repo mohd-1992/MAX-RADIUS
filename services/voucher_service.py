@@ -159,8 +159,8 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
     log_audit(1, created_by, 'GENERATE_BATCH', 'vouchers', f'Generated batch {batch_num} with {count} cards for package {pkg_name}')
     return batch_id, batch_num
 
-def get_batches():
-    return query_all('''
+def get_batches(search=None, package_id=None, reseller_id=None):
+    query = '''
         SELECT b.*, p.name as package_name, 
                COALESCE(p.price, b.price) as package_price, 
                COALESCE(p.rate_download, b.rate_download) as rate_download, 
@@ -189,8 +189,40 @@ def get_batches():
             FROM wisp_vouchers
             GROUP BY batch_id
         ) st ON b.id = st.batch_id
-        ORDER BY b.id DESC
+        WHERE 1=1
+    '''
+    params = []
+    if search:
+        query += ' AND (b.name LIKE ? OR b.batch_number LIKE ?)'
+        params.extend([f'%{search}%', f'%{search}%'])
+    if package_id:
+        try:
+            query += ' AND b.package_id = ?'
+            params.append(int(package_id))
+        except (ValueError, TypeError):
+            pass
+    if reseller_id:
+        try:
+            query += ' AND b.reseller_id = ?'
+            params.append(int(reseller_id))
+        except (ValueError, TypeError):
+            pass
+    query += ' ORDER BY b.id DESC'
+    return query_all(query, tuple(params))
+
+def get_voucher_summary_counts():
+    row = query_one('''
+        SELECT 
+            (SELECT COUNT(*) FROM wisp_voucher_batches) as total_batches,
+            (SELECT COUNT(*) FROM wisp_vouchers) as total_cards,
+            (SELECT COUNT(*) FROM wisp_vouchers WHERE status = 'unused') as unused_cards,
+            (SELECT COUNT(*) FROM wisp_vouchers WHERE status = 'active') as active_cards,
+            (SELECT COUNT(*) FROM wisp_vouchers WHERE status = 'expired') as expired_cards,
+            (SELECT COUNT(*) FROM wisp_vouchers WHERE status IN ('recharged', 'disabled')) as recharged_cards
     ''')
+    if not row:
+        return {'total_batches': 0, 'total_cards': 0, 'unused_cards': 0, 'active_cards': 0, 'expired_cards': 0, 'recharged_cards': 0}
+    return row
 
 def get_vouchers(batch_id=None, status=None, search=None, limit=100):
     query = '''

@@ -29,270 +29,47 @@
     </div>
 
 <style>
-    /* ========================================================== */
-    /* Quick Filter Tabs Styling (Dark & Light Theme Compatible)   */
-    /* ========================================================== */
-    .filter-tab-btn {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.875rem 1rem;
-        border-radius: 1rem;
-        border-width: 1.5px;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        text-decoration: none !important;
-        position: relative;
-        cursor: pointer;
-    }
-
-    /* INACTIVE TABS (Default State) */
-    .filter-tab-inactive {
-        background-color: #0b0f19;
-        border-color: #1c2840;
-    }
-    .filter-tab-inactive:hover {
-        background-color: #111726;
-        border-color: #334155;
-        transform: translateY(-1px);
-    }
-    .filter-tab-inactive .tab-title {
-        color: #e2e8f0;
-        font-weight: 700;
-        font-size: 0.8125rem;
-    }
-    .filter-tab-inactive .tab-subtitle {
-        color: #64748b;
-        font-size: 0.6875rem;
-    }
-    .filter-tab-inactive .tab-badge {
-        background-color: #1e293b;
-        color: #94a3b8;
-        border: 1px solid #334155;
-    }
-    .filter-tab-inactive .tab-icon {
-        background-color: rgba(30, 41, 59, 0.8);
-        color: #94a3b8;
-        border: 1px solid #334155;
-    }
-
-    /* Light mode inactive */
-    html.theme-light .filter-tab-inactive {
+    /* Theme-adaptive overrides for Subscribers Page */
+    html.theme-light .sales-panel {
         background-color: #ffffff !important;
         border-color: #e2e8f0 !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
-    html.theme-light .filter-tab-inactive:hover {
+    html.theme-light .sales-pill-inactive {
+        background-color: #f1f5f9 !important;
+        color: #334155 !important;
+        border-color: #cbd5e1 !important;
+    }
+    html.theme-light .sales-pill-inactive:hover {
+        background-color: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .sales-input {
         background-color: #f8fafc !important;
         border-color: #cbd5e1 !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07) !important;
+        color: #0f172a !important;
     }
-    html.theme-light .filter-tab-inactive .tab-title {
-        color: #1e293b !important;
-    }
-    html.theme-light .filter-tab-inactive .tab-subtitle {
-        color: #64748b !important;
-    }
-    html.theme-light .filter-tab-inactive .tab-badge {
-        background-color: #f1f5f9 !important;
-        color: #475569 !important;
-        border: 1px solid #cbd5e1 !important;
-    }
-    html.theme-light .filter-tab-inactive .tab-icon {
-        background-color: #f1f5f9 !important;
-        color: #64748b !important;
-        border: 1px solid #e2e8f0 !important;
-    }
-
-    /* 1. ACTIVE / SELECTED: Emerald (النشطين) */
-    .filter-tab-active-emerald {
-        background: linear-gradient(135deg, rgba(6, 78, 59, 0.4) 0%, #0b0f19 100%);
-        border-color: #10b981;
-        box-shadow: 0 4px 20px -2px rgba(16, 185, 129, 0.25);
-    }
-    .filter-tab-active-emerald .tab-title {
-        color: #ffffff;
-        font-weight: 800;
-        font-size: 0.8125rem;
-    }
-    .filter-tab-active-emerald .tab-subtitle {
-        color: #34d399;
-        font-size: 0.6875rem;
-    }
-    .filter-tab-active-emerald .tab-badge {
-        background-color: rgba(16, 185, 129, 0.25);
-        color: #6ee7b7;
-        border: 1px solid rgba(16, 185, 129, 0.5);
-    }
-    .filter-tab-active-emerald .tab-icon {
-        background-color: rgba(16, 185, 129, 0.2);
-        color: #34d399;
-        border: 1px solid rgba(16, 185, 129, 0.4);
-    }
-    html.theme-light .filter-tab-active-emerald {
-        background: #ecfdf5 !important;
-        border-color: #10b981 !important;
-        box-shadow: 0 4px 14px -2px rgba(16, 185, 129, 0.25) !important;
-    }
-    html.theme-light .filter-tab-active-emerald .tab-title {
-        color: #064e3b !important;
-    }
-    html.theme-light .filter-tab-active-emerald .tab-subtitle {
-        color: #059669 !important;
-    }
-    html.theme-light .filter-tab-active-emerald .tab-badge {
-        background-color: #10b981 !important;
-        color: #ffffff !important;
-        border: 1px solid #059669 !important;
-    }
-    html.theme-light .filter-tab-active-emerald .tab-icon {
-        background-color: #d1fae5 !important;
-        color: #047857 !important;
-        border: 1px solid #a7f3d0 !important;
-    }
-
-    /* 2. ACTIVE / SELECTED: Cyan (المتصلين الآن) */
-    .filter-tab-active-cyan {
-        background: linear-gradient(135deg, rgba(8, 51, 68, 0.45) 0%, #0b0f19 100%);
-        border-color: #06b6d4;
-        box-shadow: 0 4px 20px -2px rgba(6, 182, 212, 0.25);
-    }
-    .filter-tab-active-cyan .tab-title {
-        color: #ffffff;
-        font-weight: 800;
-        font-size: 0.8125rem;
-    }
-    .filter-tab-active-cyan .tab-subtitle {
-        color: #22d3ee;
-        font-size: 0.6875rem;
-    }
-    .filter-tab-active-cyan .tab-badge {
-        background-color: rgba(6, 182, 212, 0.25);
-        color: #67e8f9;
-        border: 1px solid rgba(6, 182, 212, 0.5);
-    }
-    .filter-tab-active-cyan .tab-icon {
-        background-color: rgba(6, 182, 212, 0.2);
-        color: #22d3ee;
-        border: 1px solid rgba(6, 182, 212, 0.4);
-    }
-    html.theme-light .filter-tab-active-cyan {
-        background: #ecfeff !important;
-        border-color: #06b6d4 !important;
-        box-shadow: 0 4px 14px -2px rgba(6, 182, 212, 0.25) !important;
-    }
-    html.theme-light .filter-tab-active-cyan .tab-title {
-        color: #083344 !important;
-    }
-    html.theme-light .filter-tab-active-cyan .tab-subtitle {
-        color: #0891b2 !important;
-    }
-    html.theme-light .filter-tab-active-cyan .tab-badge {
-        background-color: #06b6d4 !important;
-        color: #ffffff !important;
-        border: 1px solid #0891b2 !important;
-    }
-    html.theme-light .filter-tab-active-cyan .tab-icon {
-        background-color: #cffafe !important;
-        color: #0e7490 !important;
-        border: 1px solid #a5f3fc !important;
-    }
-
-    /* 3. ACTIVE / SELECTED: Rose (المنتهين) */
-    .filter-tab-active-rose {
-        background: linear-gradient(135deg, rgba(76, 5, 25, 0.4) 0%, #0b0f19 100%);
-        border-color: #f43f5e;
-        box-shadow: 0 4px 20px -2px rgba(244, 63, 94, 0.25);
-    }
-    .filter-tab-active-rose .tab-title {
-        color: #ffffff;
-        font-weight: 800;
-        font-size: 0.8125rem;
-    }
-    .filter-tab-active-rose .tab-subtitle {
-        color: #fb7185;
-        font-size: 0.6875rem;
-    }
-    .filter-tab-active-rose .tab-badge {
-        background-color: rgba(244, 63, 94, 0.25);
-        color: #fda4af;
-        border: 1px solid rgba(244, 63, 94, 0.5);
-    }
-    .filter-tab-active-rose .tab-icon {
-        background-color: rgba(244, 63, 94, 0.2);
-        color: #fb7185;
-        border: 1px solid rgba(244, 63, 94, 0.4);
-    }
-    html.theme-light .filter-tab-active-rose {
-        background: #fff1f2 !important;
-        border-color: #f43f5e !important;
-        box-shadow: 0 4px 14px -2px rgba(244, 63, 94, 0.25) !important;
-    }
-    html.theme-light .filter-tab-active-rose .tab-title {
-        color: #881337 !important;
-    }
-    html.theme-light .filter-tab-active-rose .tab-subtitle {
-        color: #e11d48 !important;
-    }
-    html.theme-light .filter-tab-active-rose .tab-badge {
-        background-color: #f43f5e !important;
-        color: #ffffff !important;
-        border: 1px solid #e11d48 !important;
-    }
-    html.theme-light .filter-tab-active-rose .tab-icon {
-        background-color: #ffe4e6 !important;
-        color: #be123c !important;
-        border: 1px solid #fecdd3 !important;
-    }
-
-    /* 4. ACTIVE / SELECTED: Blue (الكل) */
-    .filter-tab-active-blue {
-        background: linear-gradient(135deg, rgba(23, 37, 84, 0.45) 0%, #0b0f19 100%);
-        border-color: #3b82f6;
-        box-shadow: 0 4px 20px -2px rgba(59, 130, 246, 0.25);
-    }
-    .filter-tab-active-blue .tab-title {
-        color: #ffffff;
-        font-weight: 800;
-        font-size: 0.8125rem;
-    }
-    .filter-tab-active-blue .tab-subtitle {
-        color: #60a5fa;
-        font-size: 0.6875rem;
-    }
-    .filter-tab-active-blue .tab-badge {
-        background-color: rgba(59, 130, 246, 0.25);
-        color: #93c5fd;
-        border: 1px solid rgba(59, 130, 246, 0.5);
-    }
-    .filter-tab-active-blue .tab-icon {
-        background-color: rgba(59, 130, 246, 0.2);
-        color: #60a5fa;
-        border: 1px solid rgba(59, 130, 246, 0.4);
-    }
-    html.theme-light .filter-tab-active-blue {
-        background: #eff6ff !important;
+    html.theme-light .sales-input:focus {
+        background-color: #ffffff !important;
         border-color: #3b82f6 !important;
-        box-shadow: 0 4px 14px -2px rgba(59, 130, 246, 0.25) !important;
     }
-    html.theme-light .filter-tab-active-blue .tab-title {
-        color: #1e3a8a !important;
+    html.theme-light .sales-page-btn {
+        background-color: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #334155 !important;
     }
-    html.theme-light .filter-tab-active-blue .tab-subtitle {
-        color: #2563eb !important;
+    html.theme-light .sales-page-btn:hover {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
     }
-    html.theme-light .filter-tab-active-blue .tab-badge {
-        background-color: #3b82f6 !important;
-        color: #ffffff !important;
-        border: 1px solid #2563eb !important;
+    html.theme-light .sales-text-muted {
+        color: #64748b !important;
     }
-    html.theme-light .filter-tab-active-blue .tab-icon {
-        background-color: #dbeafe !important;
-        color: #1d4ed8 !important;
-        border: 1px solid #bfdbfe !important;
+    html.theme-light .sales-text-dark {
+        color: #0f172a !important;
     }
-    /* ========================================================== */
-    /* Bulk Action Bar (Light & Dark Compatible)                  */
-    /* ========================================================== */
+
+    /* Bulk Action Bar (Light & Dark Compatible) */
     .bulk-action-bar-container {
         background: linear-gradient(135deg, rgba(30, 58, 138, 0.45) 0%, #0b0f19 50%, #070b14 100%);
         border: 1px solid rgba(59, 130, 246, 0.4);
@@ -308,8 +85,6 @@
     .bulk-clear-btn:hover {
         color: #f43f5e;
     }
-
-    /* Light Theme Bulk Action Bar */
     html.theme-light .bulk-action-bar-container {
         background: #ffffff !important;
         border: 1px solid #bfdbfe !important;
@@ -330,117 +105,113 @@
     }
 </style>
 
-    <!-- Quick Filter Tabs -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <!-- 1. Active Tab (Default) -->
-        <a href="{{ url_for('subscribers', status='active', q=q if q else None, type=type if type else None) }}" 
-           class="filter-tab-btn {% if status == 'active' or not status %}filter-tab-active-emerald{% else %}filter-tab-inactive{% endif %}">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl tab-icon flex items-center justify-center text-base font-bold transition flex-shrink-0">
-                    <i class="fa-solid fa-circle-check"></i>
-                </div>
-                <div>
-                    <div class="tab-title flex items-center gap-1.5">
-                        <span>المشتركين النشطين</span>
-                        {% if status == 'active' or not status %}<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>{% endif %}
-                    </div>
-                    <div class="tab-subtitle mt-0.5">ساري الصلاحية (متصل / غير متصل)</div>
-                </div>
-            </div>
-            <span class="px-2.5 py-1 rounded-xl text-xs font-mono font-bold tab-badge">
-                {{ status_counts.active if status_counts else 0 }}
-            </span>
-        </a>
+    <!-- Advanced Filter & Search Panel (Sales Style Design) -->
+    <div class="sales-panel bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm space-y-4">
+        <form method="GET" action="{{ url_for('subscribers') }}" id="subscribersFilterForm" class="space-y-4">
+            
+            <!-- Quick Status Pills Bar -->
+            <div class="flex items-center gap-2 flex-wrap pb-3 border-b border-[#1c2840]/70">
+                <span class="sales-text-muted text-xs font-bold text-slate-400 flex items-center gap-1.5 ml-1">
+                    <i class="fa-solid fa-users text-blue-400"></i>
+                    حالة المشترك:
+                </span>
+                
+                <!-- 1. Active (Emerald) -->
+                <button type="submit" name="status" value="active" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'active' or not status %}bg-emerald-600 text-white shadow-md shadow-emerald-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span>المشتركين النشطين</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'active' or not status %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.active if status_counts else 0 }}
+                    </span>
+                </button>
 
-        <!-- 2. Online Tab -->
-        <a href="{{ url_for('subscribers', status='online', q=q if q else None, type=type if type else None) }}" 
-           class="filter-tab-btn {% if status == 'online' %}filter-tab-active-cyan{% else %}filter-tab-inactive{% endif %}">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl tab-icon flex items-center justify-center text-base font-bold relative transition flex-shrink-0">
-                    <i class="fa-solid fa-wifi"></i>
-                    <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                </div>
-                <div>
-                    <div class="tab-title flex items-center gap-1.5">
-                        <span>المتصلين الآن</span>
-                        {% if status == 'online' %}<span class="w-2 h-2 rounded-full bg-cyan-500 inline-block"></span>{% endif %}
-                    </div>
-                    <div class="tab-subtitle mt-0.5">جلسات نشطة حالياً</div>
-                </div>
-            </div>
-            <span class="px-2.5 py-1 rounded-xl text-xs font-mono font-bold tab-badge">
-                {{ status_counts.online if status_counts else 0 }}
-            </span>
-        </a>
+                <!-- 2. Online (Cyan with pulse) -->
+                <button type="submit" name="status" value="online" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'online' %}bg-cyan-600 text-white shadow-md shadow-cyan-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
+                    </span>
+                    <span>المتصلين الآن</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'online' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.online if status_counts else 0 }}
+                    </span>
+                </button>
 
-        <!-- 3. Expired Tab -->
-        <a href="{{ url_for('subscribers', status='expired', q=q if q else None, type=type if type else None) }}" 
-           class="filter-tab-btn {% if status == 'expired' %}filter-tab-active-rose{% else %}filter-tab-inactive{% endif %}">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl tab-icon flex items-center justify-center text-base font-bold transition flex-shrink-0">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                </div>
-                <div>
-                    <div class="tab-title flex items-center gap-1.5">
-                        <span>المنتهين</span>
-                        {% if status == 'expired' %}<span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>{% endif %}
-                    </div>
-                    <div class="tab-subtitle mt-0.5">انتهت صلاحية اشتراكهم</div>
-                </div>
-            </div>
-            <span class="px-2.5 py-1 rounded-xl text-xs font-mono font-bold tab-badge">
-                {{ status_counts.expired if status_counts else 0 }}
-            </span>
-        </a>
+                <!-- 3. Expired (Rose) -->
+                <button type="submit" name="status" value="expired" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'expired' %}bg-rose-600 text-white shadow-md shadow-rose-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+                    <span>المنتهين</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'expired' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.expired if status_counts else 0 }}
+                    </span>
+                </button>
 
-        <!-- 4. All Tab -->
-        <a href="{{ url_for('subscribers', status='all', q=q if q else None, type=type if type else None) }}" 
-           class="filter-tab-btn {% if status == 'all' %}filter-tab-active-blue{% else %}filter-tab-inactive{% endif %}">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl tab-icon flex items-center justify-center text-base font-bold transition flex-shrink-0">
-                    <i class="fa-solid fa-layer-group"></i>
-                </div>
+                <!-- 4. Suspended (Amber) -->
+                <button type="submit" name="status" value="suspended" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'suspended' %}bg-amber-600 text-white shadow-md shadow-amber-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                    <span>موقوف</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'suspended' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.suspended if status_counts and 'suspended' in status_counts else 0 }}
+                    </span>
+                </button>
+
+                <!-- 5. All (Blue) -->
+                <button type="submit" name="status" value="all" 
+                        class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'all' %}bg-blue-600 text-white shadow-md shadow-blue-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
+                    <i class="fa-solid fa-layer-group text-[11px]"></i>
+                    <span>الكل</span>
+                    <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'all' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
+                        {{ status_counts.all if status_counts else 0 }}
+                    </span>
+                </button>
+            </div>
+
+            <!-- Detailed Filters Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+                <!-- Service Type Filter -->
                 <div>
-                    <div class="tab-title flex items-center gap-1.5">
-                        <span>الكل</span>
-                        {% if status == 'all' %}<span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>{% endif %}
+                    <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">نوع الخدمة:</label>
+                    <select name="type" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition">
+                        <option value="">جميع أنواع الخدمة</option>
+                        <option value="pppoe" {% if type == 'pppoe' %}selected{% endif %}>PPPoE المنزلي (الفايبر)</option>
+                        <option value="hotspot" {% if type == 'hotspot' %}selected{% endif %}>Hotspot الوايفاي</option>
+                    </select>
+                </div>
+
+                <!-- Package Filter -->
+                <div>
+                    <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">الباقة / الخطة:</label>
+                    <select name="package_id" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 transition">
+                        <option value="">جميع الباقات</option>
+                        {% for pkg in packages %}
+                        <option value="{{ pkg.id }}" {% if package_id == pkg.id|string %}selected{% endif %}>{{ pkg.name }} ({{ pkg.price }} {{ settings.get('currency_symbol', 'ر.س') }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Search Input & Actions -->
+                <div class="lg:col-span-2 flex items-end gap-2">
+                    <div class="flex-1">
+                        <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">بحث سريع:</label>
+                        <div class="relative">
+                            <input type="text" name="q" value="{{ q or '' }}" placeholder="بحث بالاسم، اسم المستخدم، الماك، أو رقم الهاتف..." class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl pr-3.5 pl-9 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                        </div>
                     </div>
-                    <div class="tab-subtitle mt-0.5">جميع المشتركين بالقائمة</div>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition h-[35px] flex items-center justify-center shadow-md shadow-blue-500/20 cursor-pointer" title="تطبيق الفلتر">
+                        <i class="fa-solid fa-filter"></i>
+                    </button>
+                    <a href="{{ url_for('subscribers') }}" class="sales-page-btn px-3 py-2 bg-[#11192b] hover:bg-slate-800 text-slate-400 hover:text-white border border-[#1c2840] rounded-xl text-xs font-bold transition h-[35px] flex items-center justify-center" title="إعادة تعيين">
+                        <i class="fa-solid fa-rotate-left"></i>
+                    </a>
                 </div>
             </div>
-            <span class="px-2.5 py-1 rounded-xl text-xs font-mono font-bold tab-badge">
-                {{ status_counts.all if status_counts else 0 }}
-            </span>
-        </a>
+        </form>
     </div>
-
-    <!-- Search & Filter Controls -->
-    <form method="GET" action="{{ url_for('subscribers') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#0b0f19] p-4 rounded-xl border border-[#1c2840]">
-        <div class="relative sm:col-span-2">
-            <i class="fa-solid fa-magnifying-glass absolute right-3 top-3.5 text-slate-500 text-sm"></i>
-            <input type="text" name="q" value="{{ q }}" placeholder="بحث بالاسم، اسم المستخدم، الماك، أو الهاتف..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-9 pl-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
-        </div>
-        <div>
-            <select name="type" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-                <option value="">جميع أنواع الخدمة</option>
-                <option value="pppoe" {% if type == 'pppoe' %}selected{% endif %}>PPPoE المنزلي</option>
-                <option value="hotspot" {% if type == 'hotspot' %}selected{% endif %}>Hotspot الوايفاي</option>
-            </select>
-        </div>
-        <div class="flex gap-2">
-            <select name="status" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
-                <option value="active" {% if status == 'active' or not status %}selected{% endif %}>المشتركين النشطين (Active)</option>
-                <option value="online" {% if status == 'online' %}selected{% endif %}>المتصلين الآن (Online)</option>
-                <option value="expired" {% if status == 'expired' %}selected{% endif %}>المنتهين (Expired)</option>
-                <option value="suspended" {% if status == 'suspended' %}selected{% endif %}>موقوف (Suspended)</option>
-                <option value="all" {% if status == 'all' %}selected{% endif %}>الكل (All)</option>
-            </select>
-            <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold transition border border-slate-700">
-                فلترة
-            </button>
-        </div>
-    </form>
 
     <!-- Top Bulk Action Bar (Visible when 1 or more checkboxes are checked) -->
     <div id="bulkActionBar" class="bulk-action-bar bulk-action-bar-container hidden p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-4 transition-all duration-300">

@@ -8,7 +8,7 @@
     <!-- Instant Theme Loader to prevent white/dark flashes -->
     <script>
         (function() {
-            const savedTheme = localStorage.getItem('wisp_theme') || 'light';
+            const savedTheme = localStorage.getItem('wisp_theme') || 'dark';
             if (savedTheme === 'light') {
                 document.documentElement.classList.add('theme-light');
             }
@@ -1664,7 +1664,7 @@
                 </a>
 
                 <!-- 9. الأدوات (Tools) -> [قائمة منسدلة] -->
-                {% set tools_active = request.endpoint in ['backups_page', 'system_services_page', 'import_data_page', 'database_maintenance_page', 'autoheal_page', 'radius_simulator_page', 'traffic_analytics_page', 'accounting_archiver_page', 'database_migration_studio'] %}
+                {% set tools_active = request.endpoint in ['backups_page', 'system_services_page', 'import_data_page', 'database_maintenance_page', 'autoheal_page', 'radius_simulator_page', 'traffic_analytics_page', 'accounting_archiver_page', 'database_migration_studio', 'mikrotik_userman_import_page'] %}
                 <div class="space-y-1">
                     <button onclick="toggleMenu('toolsMenu', 'toolsArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if tools_active %}text-cyan-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
@@ -1723,6 +1723,14 @@
                                 <span>استيراد قاعدة بيانات (SAS4)</span>
                             </div>
                             <i class="fa-solid fa-database text-[10px] text-cyan-400"></i>
+                        </a>
+                        <!-- استيراد ميكروتك يوزر مانجر v6 -->
+                        <a href="{{ url_for('mikrotik_userman_import_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'mikrotik_userman_import_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'mikrotik_userman_import_page' %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>استيراد يوزر مانجر (MikroTik)</span>
+                            </div>
+                            <i class="fa-solid fa-network-wired text-[10px] text-cyan-400"></i>
                         </a>
                         <!-- 7. استيراد الكروت والمشتركين -->
                         <a href="{{ url_for('import_data_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'import_data_page' %}subnav-active{% endif %}">
@@ -1968,7 +1976,7 @@
         }
 
         function toggleTheme() {
-            const currentTheme = localStorage.getItem('wisp_theme') || 'light';
+            const currentTheme = localStorage.getItem('wisp_theme') || 'dark';
             const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
             localStorage.setItem('wisp_theme', newTheme);
             applyThemeUI(newTheme);
@@ -1976,7 +1984,7 @@
 
         // Initialize UI state on DOM ready
         document.addEventListener('DOMContentLoaded', function() {
-            const saved = localStorage.getItem('wisp_theme') || 'light';
+            const saved = localStorage.getItem('wisp_theme') || 'dark';
             applyThemeUI(saved);
         });
 

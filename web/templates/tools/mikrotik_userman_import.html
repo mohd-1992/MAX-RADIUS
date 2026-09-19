@@ -1,0 +1,701 @@
+{% extends "base.html" %}
+
+{% block title %}استيراد يوزر مانجر MikroTik User Manager v6 | MAX RADIUS{% endblock %}
+
+{% block content %}
+<style>
+    /* ========================================================= */
+    /* Dedicated Light & Dark Theme Adaptations                  */
+    /* ========================================================= */
+    html.theme-light .mikrotik-header-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+    }
+    html.theme-light .mikrotik-header-card h1 {
+        color: #0f172a !important;
+    }
+    html.theme-light .mikrotik-header-card p {
+        color: #475569 !important;
+    }
+    html.theme-light .mikrotik-card {
+        background-color: #ffffff !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+    }
+    html.theme-light .mikrotik-subcard {
+        background-color: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .mikrotik-subcard p.font-semibold {
+        color: #64748b !important;
+    }
+    html.theme-light .mikrotik-tab-rsc.active {
+        background-color: #f0fdfa !important;
+        border-color: #06b6d4 !important;
+        box-shadow: 0 4px 12px rgba(6, 182, 212, 0.12) !important;
+    }
+    html.theme-light .mikrotik-tab-rsc.active h3 {
+        color: #0e7490 !important;
+    }
+    html.theme-light .mikrotik-tab-api.active {
+        background-color: #faf5ff !important;
+        border-color: #a855f7 !important;
+        box-shadow: 0 4px 12px rgba(168, 85, 247, 0.12) !important;
+    }
+    html.theme-light .mikrotik-tab-api.active h3 {
+        color: #6b21a8 !important;
+    }
+    html.theme-light .mikrotik-tab-inactive {
+        background-color: #ffffff !important;
+        border-color: #e2e8f0 !important;
+    }
+    html.theme-light .mikrotik-tab-inactive h3 {
+        color: #334155 !important;
+    }
+    html.theme-light .mikrotik-tab-inactive p {
+        color: #64748b !important;
+    }
+    html.theme-light .mikrotik-dropzone {
+        background-color: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+    }
+    html.theme-light .mikrotik-dropzone:hover {
+        background-color: #f0fdfa !important;
+        border-color: #06b6d4 !important;
+    }
+    html.theme-light .mikrotik-dropzone p.text-white {
+        color: #0f172a !important;
+    }
+    html.theme-light .mikrotik-hint-box {
+        background-color: #f0fdfa !important;
+        border-color: #ccfbf1 !important;
+    }
+    html.theme-light .mikrotik-hint-box p.font-bold {
+        color: #0f766e !important;
+    }
+    html.theme-light .mikrotik-hint-box p {
+        color: #115e59 !important;
+    }
+    html.theme-light .mikrotik-hint-box code {
+        background-color: #ccfbf1 !important;
+        color: #0f766e !important;
+        border-color: #99f6e4 !important;
+    }
+    html.theme-light .mikrotik-input,
+    html.theme-light .mikrotik-select {
+        background-color: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .mikrotik-input:focus,
+    html.theme-light .mikrotik-select:focus {
+        border-color: #06b6d4 !important;
+        background-color: #ffffff !important;
+    }
+    html.theme-light .mikrotik-input::placeholder {
+        color: #94a3b8 !important;
+    }
+    html.theme-light .mikrotik-select option {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .mikrotik-table-head {
+        background-color: #f1f5f9 !important;
+        color: #334155 !important;
+        border-color: #e2e8f0 !important;
+    }
+    html.theme-light .mikrotik-table-head th {
+        color: #334155 !important;
+    }
+    html.theme-light .mikrotik-table-body td {
+        color: #1e293b !important;
+        border-color: #f1f5f9 !important;
+    }
+    html.theme-light .mikrotik-table-body tr:hover {
+        background-color: #f8fafc !important;
+    }
+    html.theme-light .mikrotik-exec-box {
+        background-color: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+    }
+    html.theme-light .mikrotik-exec-box h4 {
+        color: #0f172a !important;
+    }
+    html.theme-light .mikrotik-exec-box label {
+        color: #475569 !important;
+    }
+    html.theme-light .mikrotik-exec-box .border-t {
+        border-color: #e2e8f0 !important;
+    }
+    html.theme-light .mikrotik-text-title {
+        color: #0f172a !important;
+    }
+</style>
+
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- Header Card -->
+    <div class="mikrotik-header-card flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#0c1322] to-[#111c30] p-6 rounded-2xl border border-slate-800 shadow-xl transition-colors duration-200">
+        <div>
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-2xl shadow-inner shrink-0">
+                    <i class="fa-solid fa-network-wired"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black text-white tracking-wide flex items-center gap-2">
+                        استيراد يوزر مانجر MikroTik User Manager v6
+                        <span class="text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">معزول وآمن 100%</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 mt-1">ترحيل ونقل كافة المشتركين، الكروت، البروفايلات، السرعات والحصص من ميكروتك إلى منظومة MAX RADIUS بكل سلاسة وبشكل معزول.</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('database_migration_studio') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-2 border border-slate-700">
+                <i class="fa-solid fa-arrow-right"></i>
+                <span>استوديو الترحيل العام</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Mode Selector Tabs -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <button type="button" onclick="switchMode('rsc')" id="tabBtnRsc" class="mikrotik-tab-rsc active p-5 rounded-2xl border transition-all duration-300 flex items-start gap-4 text-right bg-[#0f172a] border-cyan-500 shadow-lg shadow-cyan-500/10 cursor-pointer">
+            <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xl shrink-0">
+                <i class="fa-solid fa-file-code"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    1. استيراد عبر ملف سكربت (.rsc)
+                    <span class="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-md font-semibold border border-emerald-500/30">موصى به أوفلاين</span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-1">رفع ملف السكربت الناتج من أمر <code>/tool user-manager export file=...</code> مباشرة وتحليله في ثوانٍ.</p>
+            </div>
+        </button>
+
+        <button type="button" onclick="switchMode('api')" id="tabBtnApi" class="mikrotik-tab-inactive p-5 rounded-2xl border transition-all duration-300 flex items-start gap-4 text-right bg-[#0b0f19] border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100 cursor-pointer">
+            <div class="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center text-xl shrink-0">
+                <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    2. سحب مباشر حي عبر RouterOS API
+                    <span class="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-md font-semibold border border-purple-500/30">أونلاين عبر الشبكة</span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-1">الاتصال المباشر براوتر الميكروتك عبر المنفذ 8728 وسحب البيانات حياً مع ربط البروفايلات الفعلي دون الحاجة لتصدير ملفات.</p>
+            </div>
+        </button>
+    </div>
+
+    <!-- Main Container -->
+    <div class="mikrotik-card bg-[#0b0f19] border border-slate-800/80 rounded-2xl p-6 shadow-2xl space-y-6">
+
+        <!-- 1. RSC File Upload Panel -->
+        <div id="panelRsc" class="space-y-4">
+            <h3 class="mikrotik-text-title text-sm font-bold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i>
+                اختر أو اسحب ملف السكربت (.rsc)
+            </h3>
+            
+            <div id="dropZoneRsc" class="mikrotik-dropzone border-2 border-dashed border-slate-700 hover:border-cyan-500 bg-[#070b14]/60 hover:bg-cyan-950/10 transition-all duration-200 rounded-2xl p-8 text-center cursor-pointer space-y-3">
+                <input type="file" id="fileInputRsc" accept=".rsc,.txt,.script" class="hidden" onchange="handleRscFileSelect(event)">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-3xl">
+                    <i class="fa-solid fa-file-arrow-up"></i>
+                </div>
+                <div class="space-y-1">
+                    <p class="text-sm font-bold text-white" id="rscFileNameLabel">اضغط لاختيار ملف السكربت أو اسحبه إلى هنا</p>
+                    <p class="text-xs text-slate-500">يدعم ملفات <code>.rsc</code> أو <code>.txt</code> الناتجة من User Manager v6</p>
+                </div>
+            </div>
+
+            <!-- How to export hint -->
+            <div class="mikrotik-hint-box bg-[#080d1a] border border-cyan-500/20 rounded-xl p-4 flex items-start gap-3">
+                <i class="fa-solid fa-circle-info text-cyan-400 text-base mt-0.5 shrink-0"></i>
+                <div class="text-xs text-slate-300 space-y-1">
+                    <p class="font-bold text-cyan-300">كيف تحصل على ملف السكربت من الميكروتك؟</p>
+                    <p class="text-slate-400">افتح الـ Terminal في راوتر الميكروتك واكتب الأمر التالي، ثم اسحب الملف من قائمة Files:</p>
+                    <code class="inline-block bg-black/50 text-cyan-300 px-3 py-1 rounded border border-slate-700 font-mono text-xs mt-1 select-all">/tool user-manager export file=userman_backup</code>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button type="button" id="btnAnalyzeRsc" onclick="analyzeRscFile()" disabled class="px-6 py-2.5 rounded-xl font-bold text-xs bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <span>فحص وتحليل ملف السكربت</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. Live API Connect Panel -->
+        <div id="panelApi" class="hidden space-y-4">
+            <h3 class="mikrotik-text-title text-sm font-bold text-slate-200 flex items-center gap-2">
+                <i class="fa-solid fa-server text-purple-400"></i>
+                بيانات الاتصال براوتر الميكروتك (MikroTik RouterOS API)
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="space-y-1.5">
+                    <label class="text-xs font-semibold text-slate-400">عنوان IP للراوتر</label>
+                    <input type="text" id="apiHost" placeholder="192.168.88.1" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-xs font-semibold text-slate-400">منفذ API Port</label>
+                    <input type="number" id="apiPort" value="8728" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-xs font-semibold text-slate-400">اسم المستخدم (Username)</label>
+                    <input type="text" id="apiUser" value="admin" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-xs font-semibold text-slate-400">كلمة المرور (Password)</label>
+                    <input type="password" id="apiPass" placeholder="••••••••" class="mikrotik-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500">
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+                <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-400">
+                    <input type="checkbox" id="apiSsl" class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                    <span>استخدام اتصال مشفر SSL (منفذ 8729)</span>
+                </label>
+                <button type="button" id="btnTestApi" onclick="fetchFromApi()" class="px-6 py-2.5 rounded-xl font-bold text-xs bg-purple-500 hover:bg-purple-400 text-white transition flex items-center gap-2 shadow-lg shadow-purple-500/20 cursor-pointer">
+                    <i class="fa-solid fa-plug"></i>
+                    <span>اتصال وسحب البيانات حياً</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. Preview & Analysis Result (Hidden until analyzed) -->
+        <div id="panelPreview" class="hidden space-y-6 pt-6 border-t border-slate-800/80">
+            
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h3 class="mikrotik-text-title text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-check text-emerald-400"></i>
+                    تقرير المعاينة والفحص الأولي للبيانات المكتشفة
+                </h3>
+                <span class="text-xs text-slate-400 font-mono" id="previewSourceLabel"></span>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="mikrotik-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                    <p class="text-[11px] font-semibold text-slate-400">إجمالي المشتركين</p>
+                    <p class="text-2xl font-black text-cyan-400" id="statTotalUsers">0</p>
+                </div>
+                <div class="mikrotik-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                    <p class="text-[11px] font-semibold text-slate-400">حسابات نشطة</p>
+                    <p class="text-2xl font-black text-emerald-400" id="statActiveUsers">0</p>
+                </div>
+                <div class="mikrotik-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                    <p class="text-[11px] font-semibold text-slate-400">حسابات معطلة</p>
+                    <p class="text-2xl font-black text-amber-400" id="statDisabledUsers">0</p>
+                </div>
+                <div class="mikrotik-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                    <p class="text-[11px] font-semibold text-slate-400">الباقات والبروفايلات</p>
+                    <p class="text-2xl font-black text-purple-400" id="statTotalProfiles">0</p>
+                </div>
+            </div>
+
+            <!-- Profiles Preview Table -->
+            <div class="space-y-2">
+                <h4 class="mikrotik-text-title text-xs font-bold text-slate-300 flex items-center gap-2">
+                    <i class="fa-solid fa-box text-purple-400"></i>
+                    الباقات والبروفايلات المكتشفة (ستُنشأ في MAX RADIUS تلقائياً)
+                </h4>
+                <div class="overflow-x-auto rounded-xl border border-slate-800 bg-[#070b14]/70">
+                    <table class="w-full text-xs text-right">
+                        <thead class="mikrotik-table-head bg-[#0c1322] text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="p-3">اسم البروفايل</th>
+                                <th class="p-3">السرعة (تحميل / رفع)</th>
+                                <th class="p-3">الصلاحية</th>
+                                <th class="p-3">الحصة (GB / MB)</th>
+                                <th class="p-3">حد الوقت</th>
+                                <th class="p-3">السعر</th>
+                            </tr>
+                        </thead>
+                        <tbody id="profilesTableBody" class="mikrotik-table-body divide-y divide-slate-800/60 text-slate-300">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Users Sample Table -->
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <h4 class="mikrotik-text-title text-xs font-bold text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-users text-cyan-400"></i>
+                        عينة من المشتركين المكتشفين
+                    </h4>
+                    <span class="text-[11px] text-slate-500" id="usersSampleCount"></span>
+                </div>
+                <div class="overflow-x-auto rounded-xl border border-slate-800 bg-[#070b14]/70 max-h-64 overflow-y-auto">
+                    <table class="w-full text-xs text-right">
+                        <thead class="mikrotik-table-head bg-[#0c1322] text-slate-400 border-b border-slate-800 sticky top-0 z-10">
+                            <tr>
+                                <th class="p-3">اسم المستخدم</th>
+                                <th class="p-3">كلمة المرور</th>
+                                <th class="p-3">البروفايل المرتبط</th>
+                                <th class="p-3">الماك أدرس (Caller-ID)</th>
+                                <th class="p-3">ملاحظات / تعليق</th>
+                                <th class="p-3">الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody" class="mikrotik-table-body divide-y divide-slate-800/60 text-slate-300">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Import Settings & Execution -->
+            <div class="mikrotik-exec-box bg-[#0c1322] border border-slate-800 p-5 rounded-2xl space-y-4">
+                <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-cyan-400"></i>
+                    خيارات ترحيل وزرع البيانات
+                </h4>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400">نوع الحسابات المستوردة في MAX RADIUS</label>
+                        <select id="importTargetType" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                            <option value="vouchers" selected>كروت شبكة وهوتسبوت (Vouchers / Cards)</option>
+                            <option value="subscribers">مشتركون دائمون (Subscribers)</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400">الباقة الافتراضية للكروت غير المربوطة</label>
+                        <select id="importFallbackPackage" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                            <option value="">-- احتفظ بالباقة الأصلية أو تلقائي --</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400">في حال وجود اسم مستخدم مطابق مسبقاً</label>
+                        <select id="importDuplicateAction" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                            <option value="skip">تخطي المشترك وعدم التعديل (Skip)</option>
+                            <option value="overwrite">تحديث كلمة المرور والبيانات (Overwrite)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-slate-800">
+                    <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                        <span>العملية تتم داخل Transaction آمنة بنسبة 100% مع دعم التراجع التلقائي في حال الخطأ.</span>
+                    </div>
+                    <button type="button" id="btnExecuteImport" onclick="executeImportAction()" class="px-8 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 transition flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 cursor-pointer">
+                        <i class="fa-solid fa-check-double"></i>
+                        <span>بدء الاستيراد والزرع الفوري</span>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div class="mikrotik-card bg-[#0b0f19] border border-slate-800 p-8 rounded-2xl max-w-md w-full text-center space-y-4 shadow-2xl">
+        <div class="w-16 h-16 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 text-3xl">
+            <i class="fa-solid fa-spinner fa-spin"></i>
+        </div>
+        <div class="space-y-1">
+            <h3 class="mikrotik-text-title text-base font-bold text-white" id="loadingTitle">جاري المعالجة...</h3>
+            <p class="text-xs text-slate-400" id="loadingSubtitle">يرجى الانتظار لحظات</p>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentMode = 'rsc';
+let selectedRscFile = null;
+let parsedDataStore = null;
+
+// Initialize drag and drop events on DOM load
+document.addEventListener('DOMContentLoaded', function() {
+    const dropZone = document.getElementById('dropZoneRsc');
+    const fileInput = document.getElementById('fileInputRsc');
+
+    if (dropZone) {
+        dropZone.addEventListener('click', function(e) {
+            if (e.target !== fileInput) {
+                fileInput.click();
+            }
+        });
+
+        ['dragenter', 'dragover'].forEach(function(eventName) {
+            dropZone.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.add('border-cyan-500', 'bg-cyan-950/20');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(function(eventName) {
+            dropZone.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.classList.remove('border-cyan-500', 'bg-cyan-950/20');
+            });
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleRscFileSelect({ target: { files: e.dataTransfer.files } });
+            }
+        });
+    }
+});
+
+function switchMode(mode) {
+    currentMode = mode;
+    const tabRsc = document.getElementById('tabBtnRsc');
+    const tabApi = document.getElementById('tabBtnApi');
+    const panelRsc = document.getElementById('panelRsc');
+    const panelApi = document.getElementById('panelApi');
+
+    if (mode === 'rsc') {
+        tabRsc.className = 'mikrotik-tab-rsc active p-5 rounded-2xl border transition-all duration-300 flex items-start gap-4 text-right bg-[#0f172a] border-cyan-500 shadow-lg shadow-cyan-500/10 cursor-pointer';
+        tabApi.className = 'mikrotik-tab-inactive p-5 rounded-2xl border transition-all duration-300 flex items-start gap-4 text-right bg-[#0b0f19] border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100 cursor-pointer';
+        panelRsc.classList.remove('hidden');
+        panelApi.classList.add('hidden');
+    } else {
+        tabApi.className = 'mikrotik-tab-api active p-5 rounded-2xl border transition-all duration-300 flex items-start gap-4 text-right bg-[#0f172a] border-purple-500 shadow-lg shadow-purple-500/10 cursor-pointer';
+        tabRsc.className = 'mikrotik-tab-inactive p-5 rounded-2xl border transition-all duration-300 flex items-start gap-4 text-right bg-[#0b0f19] border-slate-800 hover:border-slate-700 opacity-70 hover:opacity-100 cursor-pointer';
+        panelApi.classList.remove('hidden');
+        panelRsc.classList.add('hidden');
+    }
+}
+
+function handleRscFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    selectedRscFile = file;
+    const sizeKb = (file.size / 1024).toFixed(1);
+    document.getElementById('rscFileNameLabel').innerHTML = '<span class="text-cyan-400 font-bold">' + file.name + '</span> (' + sizeKb + ' KB)';
+    document.getElementById('btnAnalyzeRsc').disabled = false;
+}
+
+function showLoading(title, subtitle) {
+    document.getElementById('loadingTitle').innerText = title;
+    document.getElementById('loadingSubtitle').innerText = subtitle || 'يرجى الانتظار لحظات';
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+}
+
+function hideLoading() {
+    document.getElementById('loadingOverlay').classList.add('hidden');
+}
+
+function analyzeRscFile() {
+    if (!selectedRscFile) return;
+    showLoading('جاري قراءة وتحليل ملف السكربت...', 'استخراج البروفايلات والمشتركين والسرعات');
+
+    const formData = new FormData();
+    formData.append('rsc_file', selectedRscFile);
+
+    fetch('{{ url_for("api_mikrotik_userman_analyze_rsc") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+        hideLoading();
+        if (res.success) {
+            renderPreview(res.data, 'ملف السكربت: ' + selectedRscFile.name);
+        } else {
+            Swal.fire('خطأ في التحليل', res.error || res.message, 'error');
+        }
+    })
+    .catch(err => {
+        hideLoading();
+        Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+    });
+}
+
+function fetchFromApi() {
+    const host = document.getElementById('apiHost').value.trim();
+    const port = document.getElementById('apiPort').value.trim() || 8728;
+    const user = document.getElementById('apiUser').value.trim();
+    const pass = document.getElementById('apiPass').value;
+    const useSsl = document.getElementById('apiSsl').checked;
+
+    if (!host || !user) {
+        Swal.fire('تنبيه', 'يرجى إدخال عنوان IP واسم المستخدم للراوتر', 'warning');
+        return;
+    }
+
+    showLoading('جاري الاتصال براوتر الميكروتك...', 'سحب بيانات User Manager v6 حياً عبر المنفذ ' + port);
+
+    fetch('{{ url_for("api_mikrotik_userman_test_api") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: host, port: port, username: user, password: pass, use_ssl: useSsl })
+    })
+    .then(r => r.json())
+    .then(res => {
+        hideLoading();
+        if (res.success) {
+            renderPreview(res.data, 'اتصال حي بالراوتر: ' + host);
+        } else {
+            Swal.fire('فشل الاتصال', res.error || res.message, 'error');
+        }
+    })
+    .catch(err => {
+        hideLoading();
+        Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+    });
+}
+
+function renderPreview(data, sourceLabel) {
+    parsedDataStore = data;
+    document.getElementById('panelPreview').classList.remove('hidden');
+    document.getElementById('previewSourceLabel').innerText = sourceLabel || '';
+
+    // Stats
+    document.getElementById('statTotalUsers').innerText = Number(data.total_users || 0).toLocaleString();
+    document.getElementById('statActiveUsers').innerText = Number(data.active_users || 0).toLocaleString();
+    document.getElementById('statDisabledUsers').innerText = Number(data.disabled_users || 0).toLocaleString();
+    document.getElementById('statTotalProfiles').innerText = Number(data.total_profiles || 0).toLocaleString();
+
+    // Populate fallback packages dropdown
+    const pkgSelect = document.getElementById('importFallbackPackage');
+    pkgSelect.innerHTML = '<option value="">-- احتفظ بالباقة الأصلية أو تلقائي --</option>';
+    (data.profiles || []).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.innerText = p.name + ' (' + (p.price || 0) + ' ريال)';
+        pkgSelect.appendChild(opt);
+    });
+
+    // Profiles Table
+    const pBody = document.getElementById('profilesTableBody');
+    pBody.innerHTML = '';
+    (data.profiles || []).forEach(p => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition';
+        const quotaText = p.quota_mb > 0 ? (p.quota_mb >= 1024 ? (p.quota_mb / 1024).toFixed(1) + ' GB' : p.quota_mb + ' MB') : 'غير محدود';
+        const uptimeText = p.uptime_mins > 0 ? p.uptime_mins + ' دقيقة' : 'غير محدود';
+        
+        tr.innerHTML = 
+            '<td class="p-3 font-bold text-white flex items-center gap-1.5">' +
+                '<span class="w-2 h-2 rounded-full bg-purple-400"></span>' +
+                '<span>' + (p.name || '') + '</span>' +
+                (p.name_for_users && p.name_for_users !== p.name ? '<span class="text-[10px] text-slate-500">(' + p.name_for_users + ')</span>' : '') +
+            '</td>' +
+            '<td class="p-3 text-cyan-300 font-mono">' + (p.rate_down || '10M') + ' / ' + (p.rate_up || '5M') + '</td>' +
+            '<td class="p-3">' + (p.validity_value || 30) + ' ' + (p.validity_unit === 'days' ? 'أيام' : (p.validity_unit === 'hours' ? 'ساعات' : p.validity_unit)) + '</td>' +
+            '<td class="p-3 font-mono">' + quotaText + '</td>' +
+            '<td class="p-3 font-mono">' + uptimeText + '</td>' +
+            '<td class="p-3 text-emerald-400 font-bold font-mono">' + (p.price || 0) + '</td>';
+        pBody.appendChild(tr);
+    });
+
+    if ((data.profiles || []).length === 0) {
+        pBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">لم يتم العثور على بروفايلات صريحة، سيتم تطبيق الباقة الافتراضية للنظام.</td></tr>';
+    }
+
+    // Users Table Sample
+    const uBody = document.getElementById('usersTableBody');
+    uBody.innerHTML = '';
+    const sampleUsers = (data.users || []).slice(0, 100);
+    document.getElementById('usersSampleCount').innerText = 'عرض أول ' + sampleUsers.length + ' من أصل ' + Number(data.total_users || 0).toLocaleString() + ' مشترك';
+
+    sampleUsers.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition';
+        const statusBadge = u.disabled ? '<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-semibold">معطل</span>' : '<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-semibold">نشط</span>';
+
+        tr.innerHTML = 
+            '<td class="p-3 font-mono font-bold text-white">' + (u.username || '') + '</td>' +
+            '<td class="p-3 font-mono text-slate-400">' + (u.password || '— (رقم الكرت)') + '</td>' +
+            '<td class="p-3"><span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 font-semibold">' + (u.actual_profile || 'بدون باقة (تلقائي)') + '</span></td>' +
+            '<td class="p-3 font-mono text-slate-400">' + (u.caller_id || '—') + '</td>' +
+            '<td class="p-3 text-slate-400">' + (u.comment || '—') + '</td>' +
+            '<td class="p-3">' + statusBadge + '</td>';
+        uBody.appendChild(tr);
+    });
+
+    // Scroll smoothly to preview
+    document.getElementById('panelPreview').scrollIntoView({ behavior: 'smooth' });
+}
+
+function executeImportAction() {
+    if (!parsedDataStore || !parsedDataStore.users || parsedDataStore.users.length === 0) {
+        Swal.fire('تنبيه', 'لا توجد بيانات مستخدمين صالحة للاستيراد', 'warning');
+        return;
+    }
+
+    const targetType = document.getElementById('importTargetType').value;
+    const fallbackPkg = document.getElementById('importFallbackPackage').value;
+    const dupAction = document.getElementById('importDuplicateAction').value;
+    const totalUsers = parsedDataStore.users.length;
+    const totalProfiles = (parsedDataStore.profiles || []).length;
+
+    Swal.fire({
+        title: 'تأكيد ترحيل وزرع البيانات',
+        text: 'هل تريد استيراد (' + totalUsers.toLocaleString() + ') مستخدم و (' + totalProfiles + ') باقة إلى MAX RADIUS؟',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#334155',
+        confirmButtonText: 'نعم، ابدأ الاستيراد الآن',
+        cancelButtonText: 'إلغاء'
+    }).then((res) => {
+        if (res.isConfirmed) {
+            showLoading('جاري ترحيل وزرع البيانات...', 'إنشاء الباقات وحسابات المشتركين وسجلات FreeRADIUS');
+
+            fetch('{{ url_for("api_mikrotik_userman_execute") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    data: parsedDataStore,
+                    target_type: targetType,
+                    fallback_package: fallbackPkg,
+                    duplicate_action: dupAction
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                hideLoading();
+                if (data.success) {
+                    const st = data.stats || {};
+                    Swal.fire({
+                        title: 'اكتمل الاستيراد بنجاح! 🎉',
+                        html: 
+                            '<div class="text-right space-y-2 text-xs text-slate-300">' +
+                                '<p class="text-sm font-bold text-emerald-400">' + (data.message || 'تم الترحيل بنجاح') + '</p>' +
+                                '<div class="bg-black/30 p-3 rounded-xl border border-slate-700 space-y-1 mt-2">' +
+                                    '<p>✅ تم إنشاء: <b>' + (st.created_users || 0) + '</b> مستخدم جديد</p>' +
+                                    '<p>📦 تم إنشاء: <b>' + (st.created_packages || 0) + '</b> باقة جديدة</p>' +
+                                    '<p>🔄 تم تحديث: <b>' + (st.updated_users || 0) + '</b> مستخدم</p>' +
+                                    '<p>⏭️ تم تخطي: <b>' + (st.skipped_users || 0) + '</b> مستخدم موجود مسبقاً</p>' +
+                                '</div>' +
+                            '</div>',
+                        icon: 'success',
+                        confirmButtonText: (targetType === 'vouchers' ? 'انتقال إلى إدارة الكروت' : 'انتقال إلى صفحة المشتركين'),
+                        showCancelButton: true,
+                        cancelButtonText: 'البقاء هنا'
+                    }).then((nav) => {
+                        if (nav.isConfirmed) {
+                            window.location.href = (targetType === 'vouchers' ? '{{ url_for("vouchers") }}' : '{{ url_for("subscribers") }}');
+                        }
+                    });
+                } else {
+                    Swal.fire('فشل الاستيراد', data.error || data.message, 'error');
+                }
+            })
+            .catch(err => {
+                hideLoading();
+                Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+            });
+        }
+    });
+}
+</script>
+{% endblock %}

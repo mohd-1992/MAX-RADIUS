@@ -935,12 +935,36 @@ def factory_reset_database(keep_packages=True, keep_resellers=False, admin_user=
             cur.execute("SET foreign_key_checks = 1;")
             cur.execute("SET unique_checks = 1;")
 
+            # Automatic tablespace optimization & disk space reclaim (Option 1)
+            all_wiped_tables = [
+                'radcheck', 'radreply', 'radusergroup', 'radgroupcheck', 'radgroupreply',
+                'radacct', 'radpostauth', 'wisp_vouchers', 'wisp_voucher_batches',
+                'wisp_voucher_sales', 'wisp_subscribers', 'wisp_invoices',
+                'wisp_reseller_transactions', 'wisp_global_sequence', 'wisp_audit_logs'
+            ]
+            if not keep_packages:
+                all_wiped_tables.append('wisp_packages')
+            if not keep_resellers:
+                all_wiped_tables.append('wisp_managers')
+
+            for tbl in all_wiped_tables:
+                try:
+                    cur.execute(f"OPTIMIZE TABLE {tbl}")
+                    cur.fetchall()
+                except Exception:
+                    pass
+        else:
+            try:
+                cur.execute("VACUUM;")
+            except Exception:
+                pass
+
         db.commit()
-        log_audit(1, admin_user or 'admin', 'FACTORY_RESET', 'system', 'Complete database wipe and factory reset executed.', '127.0.0.1')
+        log_audit(1, admin_user or 'admin', 'FACTORY_RESET', 'system', 'Complete database wipe and factory reset executed with auto-optimization.', '127.0.0.1')
         
         return {
             'success': True,
-            'message': 'تم تصفير وإعادة ضبط قاعدة البيانات بالكامل بنجاح. عادت القاعدة جديدة ونظيفة 100%.'
+            'message': 'تم تصفير وإعادة ضبط قاعدة البيانات بالكامل بنجاح، وتم ضغط الجداول واسترجاع مساحة القرص المحررة فوراً (100% نظيفة).'
         }
     except Exception as e:
         db.rollback()

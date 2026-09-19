@@ -87,9 +87,9 @@ def get_user_usage_analytics(username, days=30):
         'has_data': len(chart_labels) > 0
     }
 
-def get_subscriber_status_counts(search=None, service_type=None):
+def get_subscriber_status_counts(search=None, service_type=None, package_id=None):
     """
-    Returns counts for active, online, expired, all status categories
+    Returns counts for active, online, expired, suspended, and all status categories
     for quick filter tabs using consolidated fast queries.
     """
     base_where = ' WHERE 1=1'
@@ -101,16 +101,20 @@ def get_subscriber_status_counts(search=None, service_type=None):
     if service_type:
         base_where += ' AND s.service_type = ?'
         base_params.append(service_type)
+    if package_id:
+        base_where += ' AND s.package_id = ?'
+        base_params.append(package_id)
 
     cutoff_str = get_heartbeat_cutoff_str(5)
 
     try:
-        # Consolidated counts for all, active, and expired in a single query
+        # Consolidated counts for all, active, expired, and suspended in a single query
         stats_sql = f'''
             SELECT 
                 COUNT(*) as count_all,
                 SUM(CASE WHEN s.status = 'active' AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP) THEN 1 ELSE 0 END) as count_active,
-                SUM(CASE WHEN s.status = 'expired' OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP) THEN 1 ELSE 0 END) as count_expired
+                SUM(CASE WHEN s.status = 'expired' OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP) THEN 1 ELSE 0 END) as count_expired,
+                SUM(CASE WHEN s.status = 'suspended' THEN 1 ELSE 0 END) as count_suspended
             FROM wisp_subscribers s
             {base_where}
         '''
@@ -118,6 +122,7 @@ def get_subscriber_status_counts(search=None, service_type=None):
         count_all = stats_row['count_all'] if stats_row else 0
         count_active = int(stats_row['count_active'] or 0) if stats_row else 0
         count_expired = int(stats_row['count_expired'] or 0) if stats_row else 0
+        count_suspended = int(stats_row['count_suspended'] or 0) if stats_row else 0
 
         # Online (Active radacct session)
         online_where = base_where + ''' AND s.username IN (
@@ -137,13 +142,14 @@ def get_subscriber_status_counts(search=None, service_type=None):
             'all': count_all,
             'active': count_active,
             'online': count_online,
-            'expired': count_expired
+            'expired': count_expired,
+            'suspended': count_suspended
         }
     except Exception as e:
         print(f"Error fetching subscriber status counts: {e}")
-        return {'all': 0, 'active': 0, 'online': 0, 'expired': 0}
+        return {'all': 0, 'active': 0, 'online': 0, 'expired': 0, 'suspended': 0}
 
-def get_subscribers(search=None, service_type=None, status=None):
+def get_subscribers(search=None, service_type=None, status=None, package_id=None):
     query = '''
         SELECT COALESCE(s.global_seq_id, s.id) as seq_id,
                s.*, p.name as package_name, p.price, p.rate_download, p.rate_upload,
@@ -160,6 +166,9 @@ def get_subscribers(search=None, service_type=None, status=None):
     if service_type:
         query += ' AND s.service_type = ?'
         params.append(service_type)
+    if package_id:
+        query += ' AND s.package_id = ?'
+        params.append(package_id)
 
     cutoff_str = get_heartbeat_cutoff_str(5)
 
