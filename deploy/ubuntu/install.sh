@@ -89,6 +89,11 @@ if [ -d "${PROJECT_ROOT}/core" ]; then
     cp -r "${PROJECT_ROOT}"/* "${INSTALL_DIR}/" 2>/dev/null || true
 fi
 
+mkdir -p "${INSTALL_DIR}/storage/l2tp" "${INSTALL_DIR}/storage/keys" "${INSTALL_DIR}/storage/backups" "${INSTALL_DIR}/storage/uploads"
+touch "${INSTALL_DIR}/storage/l2tp/chap-secrets" "${INSTALL_DIR}/storage/l2tp/pap-secrets" 2>/dev/null || true
+chmod 600 "${INSTALL_DIR}/storage/l2tp/"*-secrets 2>/dev/null || true
+chmod -R 777 "${INSTALL_DIR}/storage" 2>/dev/null || true
+
 cd "${INSTALL_DIR}"
 
 # 5. ضبط Nginx Reverse Proxy لفتح النظام مباشرة على المنفذ 80 (بدون بورت)

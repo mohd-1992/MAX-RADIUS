@@ -21,7 +21,12 @@ app_backup/
 database/full_db.sql
 
 # Runtime Storage & Data
-storage/
+storage/*
+!storage/l2tp/
+!storage/l2tp/chap-secrets
+!storage/l2tp/pap-secrets
+!storage/keys/
+!storage/keys/master_public_key.pem
 data/
 tmp/
 .tmp/

@@ -118,7 +118,9 @@ else
 fi
 
 # Ensure storage directories exist with proper permissions
-mkdir -p "$INSTALL_DIR/storage/backups" "$INSTALL_DIR/storage/keys" "$INSTALL_DIR/storage/uploads" "$INSTALL_DIR/storage/logs" "$INSTALL_DIR/storage/archive" "$INSTALL_DIR/data"
+mkdir -p "$INSTALL_DIR/storage/backups" "$INSTALL_DIR/storage/keys" "$INSTALL_DIR/storage/uploads" "$INSTALL_DIR/storage/logs" "$INSTALL_DIR/storage/archive" "$INSTALL_DIR/storage/l2tp" "$INSTALL_DIR/data"
+touch "$INSTALL_DIR/storage/l2tp/chap-secrets" "$INSTALL_DIR/storage/l2tp/pap-secrets" 2>/dev/null || true
+chmod 600 "$INSTALL_DIR/storage/l2tp/"*-secrets 2>/dev/null || true
 chmod -R 777 "$INSTALL_DIR/storage"
 
 # Create .env if not present
