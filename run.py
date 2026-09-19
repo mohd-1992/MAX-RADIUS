@@ -78,6 +78,14 @@ def main():
     except Exception as e:
         print(f"  [!] تنبيه في تشغيل مراقب نبضات الترخيص: {e}")
 
+    # 7. Synchronize L2TP VPN Tunnels and PPP Secrets from Database on Startup
+    try:
+        from services.l2tp_service import sync_all_tunnels_to_vpn
+        sync_all_tunnels_to_vpn()
+        print("  [✓] تمت مزامنة أنفاق ومفاتيح L2TP VPN بنجاح من قاعدة البيانات.")
+    except Exception as e:
+        print(f"  [!] تنبيه في مزامنة أنفاق L2TP: {e}")
+
     
     port = APP_PORT
     host = APP_HOST
