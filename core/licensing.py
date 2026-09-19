@@ -16,7 +16,7 @@ from cryptography.exceptions import InvalidSignature
 from core.hardware_fingerprint import get_machine_id
 
 EMBEDDED_PUBLIC_KEY = """-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAHhLAkyKgH8/pcF8IlH9rchgLl4IgqNZTxDEqY90xHh8=
+MCowBQYDK2VwAyEADT6MJTY7bmDdw6nrAzsUyZ1nGrAxTwNKgE1MQYqAgNE=
 -----END PUBLIC KEY-----"""
 
 def get_master_public_key_pem():
