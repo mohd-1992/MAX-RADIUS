@@ -129,6 +129,21 @@
     html.theme-light .mikrotik-exec-box .border-t {
         border-color: #e2e8f0 !important;
     }
+    html.theme-light .mikrotik-router-selector-card {
+        background-color: #faf5ff !important;
+        border-color: #d8b4fe !important;
+    }
+    html.theme-light .mikrotik-router-selector-card label {
+        color: #6b21a8 !important;
+    }
+    html.theme-light .mikrotik-router-selector-card span.text-slate-400 {
+        color: #7e22ce !important;
+    }
+    html.theme-light .mikrotik-router-selector-card select {
+        background-color: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
     html.theme-light .mikrotik-text-title {
         color: #0f172a !important;
     }
@@ -239,7 +254,7 @@
             </div>
 
             <!-- Quick Router Selector from System Database -->
-            <div class="bg-[#0b1020] border border-purple-500/30 rounded-2xl p-4 space-y-2">
+            <div class="mikrotik-router-selector-card bg-[#0b1020] border border-purple-500/30 rounded-2xl p-4 space-y-2">
                 <div class="flex items-center justify-between">
                     <label class="text-xs font-bold text-purple-300 flex items-center gap-2">
                         <i class="fa-solid fa-network-wired text-purple-400"></i>
@@ -256,8 +271,9 @@
                         data-user="{{ nas.api_username or 'admin' }}" 
                         data-pass="{{ nas.api_password or '' }}" 
                         data-name="{{ nas.name }}"
-                        data-status="{{ nas.status or 'online' }}">
-                        {{ nas.name }} (IP: {{ nas.ip_address }}) {% if nas.status == 'online' %}🟢 متصل{% else %}⚪ مسجل{% endif %}
+                        data-online="{{ 'true' if nas.is_online else 'false' }}"
+                        data-latency="{{ nas.latency_ms or 0 }}">
+                        {{ nas.name }} (IP: {{ nas.ip_address }}) {% if nas.is_online %}🟢 متصل ({{ nas.latency_ms }}ms){% else %}⚪ غير متصل{% endif %}
                     </option>
                     {% endfor %}
                 </select>
@@ -506,7 +522,8 @@ function onNasSelected(selectEl) {
     const port = opt.getAttribute('data-port') || '8728';
     const user = opt.getAttribute('data-user') || 'admin';
     const pass = opt.getAttribute('data-pass') || '';
-    const status = opt.getAttribute('data-status') || 'online';
+    const isOnline = opt.getAttribute('data-online') === 'true';
+    const latency = parseInt(opt.getAttribute('data-latency') || '0', 10);
     const name = opt.getAttribute('data-name') || 'MikroTik';
 
     if (ip) document.getElementById('apiHost').value = ip;
@@ -519,12 +536,13 @@ function onNasSelected(selectEl) {
     const badge = document.getElementById('nasStatusBadge');
     if (badge) {
         badge.classList.remove('hidden');
-        if (status === 'online') {
+        if (isOnline) {
             badge.className = 'text-xs px-3 py-1 rounded-full font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5';
-            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span><span>الراوتر متصل: ' + name + '</span>';
+            const latencyText = latency > 0 ? ' (' + latency + 'ms)' : '';
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span>الراوتر متصل: ' + name + latencyText + '</span>';
         } else {
             badge.className = 'text-xs px-3 py-1 rounded-full font-bold bg-slate-800 text-slate-300 border border-slate-700 flex items-center gap-1.5';
-            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-500"></span><span>الراوتر: ' + name + '</span>';
+            badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-500"></span><span>الراوتر غير متصل: ' + name + '</span>';
         }
     }
 }

@@ -23,16 +23,36 @@ _nas_cache_lock = threading.Lock()
 class RouterOSApiProtocol:
     """Implements MikroTik RouterOS API binary word-based protocol (Port 8728/8729)."""
     
-    def __init__(self, host, port=8728, timeout=1.5):
-        self.host = host
+    def __init__(self, host, port=8728, timeout=1.5, use_ssl=False):
+        self.host = str(host)
         self.port = int(port)
         self.timeout = float(timeout)
+        self.use_ssl = bool(use_ssl)
         self.sock = None
 
     def connect(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(self.timeout)
-        self.sock.connect((self.host, self.port))
+        raw_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        raw_sock.settimeout(self.timeout)
+        raw_sock.connect((self.host, self.port))
+        if self.use_ssl:
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            self.sock = ctx.wrap_socket(raw_sock, server_hostname=self.host)
+        else:
+            self.sock = raw_sock
+
+    def execute_command(self, cmd, words=None):
+        """Convenience method to execute a command sentence, e.g. '/tool/user-manager/profile/print'."""
+        sentence = [cmd]
+        if words:
+            if isinstance(words, (list, tuple)):
+                sentence.extend(words)
+            elif isinstance(words, dict):
+                for k, v in words.items():
+                    sentence.append(f'={k}={v}')
+        return self.talk(sentence)
 
     def close(self):
         if self.sock:

@@ -3612,7 +3612,7 @@ def api_migration_cancel():
 def mikrotik_userman_import_page():
     try:
         from services.nas_service import get_nas_devices
-        nas_devices = get_nas_devices(skip_live_probe=True)
+        nas_devices = get_nas_devices(skip_live_probe=False)
     except Exception:
         nas_devices = []
     return render_template('tools/mikrotik_userman_import.html', nas_devices=nas_devices)
