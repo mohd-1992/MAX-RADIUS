@@ -157,13 +157,13 @@ def enforce_license_guard_interceptor():
 
     try:
         lic = get_active_license_status()
-        if lic and lic.get('status') == 'revoked':
+        if not lic or not lic.get('valid'):
             if request.is_json or path.startswith('/api/'):
                 return jsonify({
                     "success": False,
-                    "error": "LICENSE_REVOKED",
-                    "status": "revoked",
-                    "message": lic.get('message', "النظام مقفل: تم حظر هذا الترخيص من قبل إدارة المطور")
+                    "error": "LICENSE_REQUIRED",
+                    "status": lic.get('status', 'unlicensed') if lic else 'unlicensed',
+                    "message": lic.get('message', "النظام مقفل: يجب إدخال وتفعيل ترخيص رسمي صالح للمتابعة.") if lic else "النظام غير مرخص"
                 }), 403
             return redirect(url_for('license_status_page'))
     except Exception:
