@@ -4368,3 +4368,10 @@ def sync_license_heartbeat_action():
 
 if __name__ == '__main__':
     init_database()
+    try:
+        from services.l2tp_service import sync_all_tunnels_to_vpn
+        sync_all_tunnels_to_vpn()
+    except Exception as e:
+        print(f"[Startup] L2TP Sync Notice: {e}")
+    port = int(os.environ.get('PORT', 5090))
+    app.run(host='0.0.0.0', port=port, debug=False)
