@@ -124,8 +124,8 @@ def check_for_updates(force_refresh=False, force=False):
         }
     else:
         # Fallback local release metadata / simulated latest release version
-        # If running v2.0, latest is v2.1.0 (with new Unified Import Hub)
-        latest_ver = "2.1.0"
+        # System running 2.4.0 -> New update available: v2.5.0
+        latest_ver = "2.5.0"
         has_update = is_newer_version(current_version, latest_ver)
         result = {
             'success': True,
@@ -134,12 +134,12 @@ def check_for_updates(force_refresh=False, force=False):
             'latest_version': latest_ver if has_update else current_version,
             'release_date': datetime.date.today().strftime('%Y-%m-%d'),
             'is_critical': False,
-            'title': f"تحديث MAX RADIUS الإصدار {latest_ver}",
+            'title': f"تحديث MAX RADIUS الإصدار v{latest_ver}",
             'changelog': [
+                "🔧 إصلاح مشكلة زر نسخ بصمة الجهاز (Hardware ID) في صفحة الترخيص ودعم النسخ في كافة بيئات HTTP و HTTPS.",
                 "✨ إضافة مركز استيراد وترحيل البيانات الموحد (Unified Import Hub) مع 3 تبويبات.",
                 "📡 استيراد مباشر وسريع لكروت وبروفايلات MikroTik User Manager v6 عبر RouterOS API.",
-                "🗄️ استوديو ترحيل متقدم لقواعد البيانات السابقة (SAS4 / SQL Dumps) مع اللقطات الثابتة.",
-                "🚀 مركز التحديثات والترقية الآلية بنقرة زر واحدة دون الحاجة لأوامر الطرفية.",
+                "🚀 مركز التحديثات والترقية الآلية بنقرة زر واحدة مع إشعار دائم في لوحة التحكم.",
                 "🛡️ تحسينات على استقرار مزامنة FreeRADIUS والنسخ الاحتياطي التلقائي."
             ],
             'docker_image': DOCKER_IMAGE_NAME,
