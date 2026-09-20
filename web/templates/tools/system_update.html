@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+
+{% block title %}تحديث وترقية النظام | MAX RADIUS{% endblock %}
+
+{% block content %}
+<style>
+    /* Light & Dark Theme Dedicated Styles */
+    html.theme-light .update-header-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+    }
+    html.theme-light .update-header-card h1,
+    html.theme-light .update-header-card h2 {
+        color: #0f172a !important;
+    }
+    html.theme-light .update-header-card p {
+        color: #475569 !important;
+    }
+    html.theme-light .update-card {
+        background-color: #ffffff !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+    }
+    html.theme-light .update-subcard {
+        background-color: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .update-subcard p.font-semibold {
+        color: #64748b !important;
+    }
+    html.theme-light .update-text-title {
+        color: #0f172a !important;
+    }
+    html.theme-light .update-changelog-box {
+        background-color: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+    }
+</style>
+
+<div class="space-y-6 max-w-7xl mx-auto pb-10">
+
+    <!-- Header Card -->
+    <div class="update-header-card flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#0b0f19] p-5 md:p-6 rounded-2xl border border-[#1c2840] shadow-xl">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600/20 via-indigo-600/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 text-2xl shadow-inner shrink-0">
+                <i class="fa-solid fa-cloud-arrow-down"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-black text-white tracking-wide flex items-center gap-2">
+                    تحديث وترقية النظام
+                    <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">System Update Center</span>
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">الترقية السحابية المباشرة بنقرة زر واحدة (1-Click Online Update) مع النسخ الاحتياطي التلقائي وضمان استمرارية خدمة الراديوس.</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2.5 shrink-0">
+            <button type="button" onclick="checkUpdates(true)" id="btnManualCheck" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-2 cursor-pointer shadow-sm active:scale-95">
+                <i class="fa-solid fa-rotate text-cyan-400" id="checkSpinner"></i>
+                <span>فحص التحديثات الآن</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- Left: Current System Status (4 Cols) -->
+        <div class="lg:col-span-4 space-y-5">
+            <div class="update-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 shadow-sm">
+                <h3 class="update-text-title text-sm font-bold text-white flex items-center gap-2 border-b border-[#1c2840] pb-3">
+                    <i class="fa-solid fa-circle-info text-cyan-400"></i>
+                    معلومات الإصدار المثبت
+                </h3>
+
+                <div class="space-y-3">
+                    <div class="update-subcard bg-[#070b14] p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <span class="text-xs text-slate-400">الإصدار الحالي:</span>
+                        <span class="text-sm font-black text-white font-mono" id="currVerDisplay">v{{ current_version|default('2.0.0') }}</span>
+                    </div>
+
+                    <div class="update-subcard bg-[#070b14] p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <span class="text-xs text-slate-400">نوع الترخيص:</span>
+                        <span class="text-xs font-bold text-purple-400 font-mono">{{ app_edition|default('Enterprise Edition') }}</span>
+                    </div>
+
+                    <div class="update-subcard bg-[#070b14] p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <span class="text-xs text-slate-400">حالة التحديث:</span>
+                        <span id="updateStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400">
+                            <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                            <span>جاري الفحص...</span>
+                        </span>
+                    </div>
+
+                    <div class="update-subcard bg-[#070b14] p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <span class="text-xs text-slate-400">آخر فحص:</span>
+                        <span class="text-[11px] text-slate-400 font-mono" id="lastCheckedDisplay">—</span>
+                    </div>
+                </div>
+
+                <!-- Security & Safety Guarantee -->
+                <div class="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/20 space-y-1.5">
+                    <div class="flex items-center gap-2 text-xs font-bold text-emerald-400">
+                        <i class="fa-solid fa-shield-check"></i>
+                        <span>ترقية آمنة 100% بدون مخاطر</span>
+                    </div>
+                    <p class="text-[11px] text-slate-300 leading-relaxed">
+                        يتم أخذ نسخة احتياطية كاملة من قاعدة البيانات والإعدادات آلياً قبل تطبيق أي تحديث لضمان سلامة بيانات الكروت والمشتركين.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Available Update & Changelog Details (8 Cols) -->
+        <div class="lg:col-span-8 space-y-5">
+            
+            <!-- Update Available Box (Visible when update found) -->
+            <div id="updateAvailableBox" class="hidden update-card bg-[#0b0f19] border border-purple-500/40 rounded-2xl p-6 space-y-5 shadow-xl relative overflow-hidden">
+                <div class="absolute -top-12 -left-12 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold text-xs border border-purple-500/30">إصدار جديد متاح 🎉</span>
+                            <span class="text-xs text-slate-400" id="releaseDateDisplay">—</span>
+                        </div>
+                        <h2 class="text-lg font-bold text-white mt-1" id="newVerTitle">تحديث MAX RADIUS v2.1.0</h2>
+                    </div>
+                    <div class="text-left sm:text-right">
+                        <span class="text-2xl font-black text-emerald-400 font-mono" id="newVerBadge">v2.1.0</span>
+                    </div>
+                </div>
+
+                <!-- Changelog Section -->
+                <div class="space-y-3">
+                    <h4 class="update-text-title text-xs font-bold text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-purple-400"></i>
+                        ما الجديد في هذا التحديث (Release Notes):
+                    </h4>
+                    <div class="update-changelog-box bg-[#070b14] border border-slate-800 rounded-xl p-4 max-h-72 overflow-y-auto">
+                        <ul id="changelogList" class="space-y-2.5 text-xs text-slate-300">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Action Button -->
+                <div class="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-800">
+                    <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-bolt text-amber-400"></i>
+                        <span>تستغرق الترقية عادة أقل من دقيقة واحدة ويتم تفعيلها فورياً.</span>
+                    </div>
+                    <button type="button" onclick="startSystemUpdate()" id="btnStartUpdate" class="px-8 py-3.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold shadow-xl shadow-purple-900/30 transition flex items-center justify-center gap-2 cursor-pointer transform active:scale-95 shrink-0">
+                        <i class="fa-solid fa-cloud-arrow-down"></i>
+                        <span>تحديث وترقية النظام الآن (1-Click Update)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Up-To-Date Box (Visible when already up to date) -->
+            <div id="upToDateBox" class="hidden update-card bg-[#0b0f19] border border-emerald-500/30 rounded-2xl p-8 text-center space-y-4 shadow-sm">
+                <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-3xl mx-auto shadow-inner">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-white mb-1">نظامك محدث بالكامل بأحدث إصدار!</h3>
+                    <p class="text-xs text-slate-400">أنت تستخدم أحدث إصدار معتمد من MAX RADIUS، وجميع الخدمات تعمل بأعلى كفاءة وأمان.</p>
+                </div>
+                <div class="pt-2">
+                    <button type="button" onclick="checkUpdates(true)" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl text-xs font-semibold transition cursor-pointer">
+                        <i class="fa-solid fa-rotate me-1 text-slate-400"></i>إعادة التحقق من التحديثات
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal: Real-Time Live Update Progress -->
+<div id="updateProgressModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="update-card bg-[#0b0f19] border border-purple-500/40 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center space-y-6 shadow-2xl animate-fade-in relative">
+        
+        <div class="relative w-20 h-20 mx-auto">
+            <div class="w-20 h-20 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center text-purple-400 font-bold text-sm" id="progressPctText">0%</div>
+        </div>
+
+        <div>
+            <h3 class="text-lg font-bold text-white mb-1" id="progressStageTitle">جاري تحديث وترقية النظام...</h3>
+            <p class="text-xs text-slate-400" id="progressStageDesc">يرجى الانتظار وعدم إغلاق المتصفح حتى تكتمل الترقية.</p>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="space-y-2">
+            <div class="flex justify-between items-center text-xs text-slate-400 px-1">
+                <span id="progressLiveLabel" class="text-purple-400 font-bold">جاري التهيئة...</span>
+                <span id="progressLivePct" class="font-mono text-purple-300 font-bold">0%</span>
+            </div>
+            <div class="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
+                <div id="progressBarFill" class="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-300 shadow-sm shadow-purple-500/50" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Steps Checklist -->
+        <div class="text-right space-y-2 text-xs bg-[#070b14] p-3.5 rounded-xl border border-slate-800">
+            <div class="flex items-center gap-2 text-slate-400" id="stepCheck-1">
+                <i class="fa-solid fa-circle-notch fa-spin text-purple-400 text-[10px]"></i>
+                <span>1. تهيئة النظام وفحص المتطلبات</span>
+            </div>
+            <div class="flex items-center gap-2 text-slate-500" id="stepCheck-2">
+                <i class="fa-regular fa-circle text-[10px]"></i>
+                <span>2. أخذ نسخة احتياطية تلقائية (Pre-Update Backup)</span>
+            </div>
+            <div class="flex items-center gap-2 text-slate-500" id="stepCheck-3">
+                <i class="fa-regular fa-circle text-[10px]"></i>
+                <span>3. سحب وتنزيل طبقات Docker المحدثة</span>
+            </div>
+            <div class="flex items-center gap-2 text-slate-500" id="stepCheck-4">
+                <i class="fa-regular fa-circle text-[10px]"></i>
+                <span>4. تطبيق تحديثات قاعدة البيانات (DB Migrations)</span>
+            </div>
+            <div class="flex items-center gap-2 text-slate-500" id="stepCheck-5">
+                <i class="fa-regular fa-circle text-[10px]"></i>
+                <span>5. إعادة تشغيل وتفعيل النظام المحدث</span>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- SweetAlert2 Vendor -->
+<script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
+
+<script>
+let g_updatePollTimer = null;
+let g_latestVersion = null;
+
+function checkUpdates(force = false) {
+    const spinner = document.getElementById('checkSpinner');
+    if (spinner) spinner.classList.add('fa-spin');
+
+    const url = '{{ url_for("api_system_update_check") }}' + (force ? '?force=1' : '');
+
+    fetch(url)
+    .then(r => r.json())
+    .then(data => {
+        if (spinner) spinner.classList.remove('fa-spin');
+        if (data.success) {
+            renderUpdateData(data);
+        }
+    })
+    .catch(err => {
+        if (spinner) spinner.classList.remove('fa-spin');
+        console.error("Update check error:", err);
+    });
+}
+
+function renderUpdateData(data) {
+    const badge = document.getElementById('updateStatusBadge');
+    const currVer = document.getElementById('currVerDisplay');
+    const lastChecked = document.getElementById('lastCheckedDisplay');
+    const availBox = document.getElementById('updateAvailableBox');
+    const upToDateBox = document.getElementById('upToDateBox');
+
+    if (currVer) currVer.innerText = `v${data.current_version || '2.0.0'}`;
+    if (lastChecked) lastChecked.innerText = data.checked_at || 'الآن';
+
+    g_latestVersion = data.latest_version;
+
+    if (data.has_update) {
+        if (badge) {
+            badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30';
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span><span>يتوفر تحديث جديد (v${data.latest_version})</span>`;
+        }
+
+        if (availBox) availBox.classList.remove('hidden');
+        if (upToDateBox) upToDateBox.classList.add('hidden');
+
+        document.getElementById('newVerTitle').innerText = data.title || `تحديث MAX RADIUS v${data.latest_version}`;
+        document.getElementById('newVerBadge').innerText = `v${data.latest_version}`;
+        document.getElementById('releaseDateDisplay').innerText = `تاريخ الإصدار: ${data.release_date || 'اليوم'}`;
+
+        const clList = document.getElementById('changelogList');
+        clList.innerHTML = '';
+        (data.changelog || []).forEach(item => {
+            const li = document.createElement('li');
+            li.className = 'flex items-start gap-2';
+            li.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-xs mt-0.5 shrink-0"></i><span>${item}</span>`;
+            clList.appendChild(li);
+        });
+
+    } else {
+        if (badge) {
+            badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>النظام محدث بالكامل</span>`;
+        }
+
+        if (availBox) availBox.classList.add('hidden');
+        if (upToDateBox) upToDateBox.classList.remove('hidden');
+    }
+}
+
+function startSystemUpdate() {
+    Swal.fire({
+        title: 'تأكيد ترقية وتحديث النظام',
+        html: `
+            <div class="text-right text-xs space-y-2 text-slate-300">
+                <p>هل أنت متأكد من رغبتك في ترقية MAX RADIUS إلى الإصدار <b>v${g_latestVersion || 'الجديد'}</b> الآن؟</p>
+                <p class="text-emerald-400">🛡️ سيتم أخذ نسخة احتياطية كاملة لقاعدة البيانات تلقائياً قبل البدء.</p>
+                <p class="text-slate-400">⚡ تستغرق العملية بضع ثوانٍ ولن تنقطع جلسات المشتركين النشطة على الراديوس.</p>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#9333ea',
+        cancelButtonColor: '#334155',
+        confirmButtonText: 'نعم، ابدأ التحديث الآن 🚀',
+        cancelButtonText: 'إلغاء',
+        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+    }).then(res => {
+        if (res.isConfirmed) {
+            triggerUpdateExecution();
+        }
+    });
+}
+
+function triggerUpdateExecution() {
+    const modal = document.getElementById('updateProgressModal');
+    if (modal) modal.classList.remove('hidden');
+
+    fetch('{{ url_for("api_system_update_apply") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: g_latestVersion })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            startPollingProgress();
+        } else {
+            if (modal) modal.classList.add('hidden');
+            Swal.fire('خطأ', data.message || 'تعذر بدء التحديث', 'error');
+        }
+    })
+    .catch(err => {
+        if (modal) modal.classList.add('hidden');
+        Swal.fire('خطأ في الاتصال', err.message, 'error');
+    });
+}
+
+function startPollingProgress() {
+    if (g_updatePollTimer) clearInterval(g_updatePollTimer);
+
+    g_updatePollTimer = setInterval(() => {
+        fetch('{{ url_for("api_system_update_progress") }}')
+        .then(r => r.json())
+        .then(data => {
+            const pct = data.percent || 0;
+            const stage = data.stage || 'جاري التحديث...';
+
+            document.getElementById('progressBarFill').style.width = pct + '%';
+            document.getElementById('progressPctText').innerText = pct + '%';
+            document.getElementById('progressLivePct').innerText = pct + '%';
+            document.getElementById('progressLiveLabel').innerText = stage;
+
+            // Highlight checklist steps
+            updateChecklistUI(pct);
+
+            if (data.status === 'completed' || pct >= 100) {
+                clearInterval(g_updatePollTimer);
+                g_updatePollTimer = null;
+                setTimeout(() => {
+                    Swal.fire({
+                        title: 'اكتمل التحديث بنجاح! 🎉',
+                        text: `تمت ترقية النظام بنجاح إلى الإصدار الجديد. سيتم تحديث الصفحة الآن.`,
+                        icon: 'success',
+                        confirmButtonText: 'رائع!',
+                        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+                    }).then(() => {
+                        window.location.reload();
+                    });
+                }, 1000);
+            } else if (data.status === 'error') {
+                clearInterval(g_updatePollTimer);
+                g_updatePollTimer = null;
+                document.getElementById('updateProgressModal').classList.add('hidden');
+                Swal.fire('فشل التحديث', data.error || data.message || 'حدث خطأ أثناء التحديث', 'error');
+            }
+        })
+        .catch(err => {
+            console.log("Polling update progress notice:", err);
+        });
+    }, 600);
+}
+
+function updateChecklistUI(pct) {
+    const markDone = (idx) => {
+        const el = document.getElementById(`stepCheck-${idx}`);
+        if (el) {
+            el.className = 'flex items-center gap-2 text-emerald-400 font-bold';
+            el.querySelector('i').className = 'fa-solid fa-check text-[10px]';
+        }
+    };
+    const markActive = (idx) => {
+        const el = document.getElementById(`stepCheck-${idx}`);
+        if (el) {
+            el.className = 'flex items-center gap-2 text-purple-400 font-bold';
+            el.querySelector('i').className = 'fa-solid fa-circle-notch fa-spin text-[10px]';
+        }
+    };
+
+    if (pct >= 10) markDone(1); else markActive(1);
+    if (pct >= 25) { markDone(1); markDone(2); } else if (pct > 10) markActive(2);
+    if (pct >= 50) { markDone(2); markDone(3); } else if (pct > 25) markActive(3);
+    if (pct >= 75) { markDone(3); markDone(4); } else if (pct > 50) markActive(4);
+    if (pct >= 90) { markDone(4); markDone(5); } else if (pct > 75) markActive(5);
+    if (pct >= 100) markDone(5);
+}
+
+// Initial Auto-check on load
+document.addEventListener('DOMContentLoaded', function() {
+    checkUpdates(false);
+});
+</script>
+{% endblock %}

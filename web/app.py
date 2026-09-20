@@ -103,6 +103,9 @@ from services.license_guard_service import (
     sync_license_heartbeat_with_server, ensure_license_tables,
     start_license_heartbeat_daemon
 )
+from services.system_update_service import (
+    check_for_updates, get_update_progress, trigger_system_update, get_current_system_version
+)
 
 
 
@@ -4379,6 +4382,62 @@ def activate_license_action():
 def sync_license_heartbeat_action():
     success, msg = sync_license_heartbeat_with_server()
     return jsonify({"success": success, "message": msg})
+
+
+# ==========================================================
+# Automated Online System Updates Routes
+# ==========================================================
+
+@app.route('/tools/system-update', methods=['GET'])
+@login_required
+def system_update_page():
+    require_permission('settings_manage')
+    current_version = get_current_system_version()
+    update_info = check_for_updates(force_refresh=False)
+    progress_info = get_update_progress()
+    return render_template(
+        'tools/system_update.html',
+        current_version=current_version,
+        update_info=update_info,
+        progress_info=progress_info
+    )
+
+@app.route('/api/tools/system-update/check', methods=['GET'])
+@login_required
+def api_check_system_update():
+    force = request.args.get('force', 'false').lower() in ['true', '1']
+    res = check_for_updates(force_refresh=force)
+    return jsonify(res)
+
+@app.route('/api/tools/system-update/apply', methods=['POST'])
+@login_required
+def api_apply_system_update():
+    require_permission('settings_manage')
+    manager = get_current_manager()
+    operator_name = manager.get('username') if manager else 'Admin'
+    
+    data = request.get_json(silent=True) or {}
+    backup_first = data.get('backup_first', True)
+    
+    res = trigger_system_update(backup_first=backup_first, triggered_by=operator_name)
+    if res.get('success'):
+        try:
+            log_audit(
+                operator=operator_name,
+                action_type='system_update_triggered',
+                target_type='system',
+                target_id=res.get('target_version', 'latest'),
+                details=f"بدء ترقية النظام إلى الإصدار {res.get('target_version')}"
+            )
+        except Exception:
+            pass
+    return jsonify(res)
+
+@app.route('/api/tools/system-update/progress', methods=['GET'])
+@login_required
+def api_get_system_update_progress():
+    res = get_update_progress()
+    return jsonify(res)
 
 if __name__ == '__main__':
     init_database()
