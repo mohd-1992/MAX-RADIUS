@@ -30,12 +30,6 @@
                 <span class="font-mono text-cyan-400 font-bold">{{ l2tp_gateway_ip or '10.10.0.1' }}</span>
             </div>
 
-            <div class="bg-[#070b14] border border-[#162136] px-3.5 py-2 rounded-xl text-xs flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="text-slate-400">تحديث تلقائي:</span>
-                <span id="l2tpCountdown" class="font-mono text-emerald-400 font-bold">25s</span>
-            </div>
-
             <button onclick="fetchL2tpLiveStatus(true)" id="btnRefreshL2tp" class="px-3.5 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer">
                 <i id="l2tpRefreshIcon" class="fa-solid fa-arrows-rotate text-blue-400"></i>
                 <span>تحديث فوري</span>
@@ -718,23 +712,15 @@ function setTunnelFilter(filter) {
 }
 
 // -------------------------------------------------------------
-// Live Status Polling & Real-time Auto Refresh
+// Live Status Polling & Real-time Silent Auto Refresh (every 25s)
 // -------------------------------------------------------------
-let countdownVal = 25;
 let countdownInterval = null;
 
 function startL2tpCountdown() {
     if (countdownInterval) clearInterval(countdownInterval);
-    countdownVal = 25;
-    const el = document.getElementById('l2tpCountdown');
-    if (el) el.innerText = countdownVal + 's';
     countdownInterval = setInterval(() => {
-        countdownVal--;
-        if (el) el.innerText = countdownVal + 's';
-        if (countdownVal <= 0) {
-            fetchL2tpLiveStatus(false);
-        }
-    }, 1000);
+        fetchL2tpLiveStatus(false);
+    }, 25000);
 }
 
 function fetchL2tpLiveStatus(manual = false) {
