@@ -3545,8 +3545,9 @@ def api_automation_run():
 
 # --- Database Migration Studio ---
 @app.route('/tools/database-migration')
+@login_required
 def database_migration_studio():
-    return render_template('tools/database_migration.html')
+    return redirect(url_for('import_data_page', tab='database'))
 
 @app.route('/api/tools/database-migration/analyze', methods=['POST'])
 def api_migration_analyze():
@@ -3610,12 +3611,7 @@ def api_migration_cancel():
 @app.route('/tools/mikrotik-import')
 @login_required
 def mikrotik_userman_import_page():
-    try:
-        from services.nas_service import get_nas_devices
-        nas_devices = get_nas_devices(skip_live_probe=False)
-    except Exception:
-        nas_devices = []
-    return render_template('tools/mikrotik_userman_import.html', nas_devices=nas_devices)
+    return redirect(url_for('import_data_page', tab='mikrotik'))
 
 @app.route('/api/tools/mikrotik-import/analyze-rsc', methods=['POST'])
 @login_required
@@ -3996,13 +3992,23 @@ def download_backup():
     return redirect(url_for('backups_page'))
 
 
-# ----------------- 8. Excel Import Tool (الأدوات -> استيراد الكروت والمشتركين) -----------------
+# ----------------- 8. Unified Import & Migration Hub (الأدوات -> مركز استيراد وترحيل البيانات) -----------------
 @app.route('/tools/import')
 @app.route('/tools/import-data')
+@app.route('/import-data')
+@login_required
 def import_data_page():
+    tab = request.args.get('tab', 'database').strip().lower()
+    if tab not in ['database', 'mikrotik', 'excel']:
+        tab = 'database'
     resellers = query_all("SELECT id, name, phone FROM wisp_resellers WHERE status = 'active' ORDER BY name ASC")
     packages = query_all("SELECT id, name, price, service_type FROM wisp_packages WHERE is_active = 1 ORDER BY name ASC")
-    return render_template('import_data.html', resellers=resellers, packages=packages)
+    try:
+        from services.nas_service import get_nas_devices
+        nas_devices = get_nas_devices(skip_live_probe=False)
+    except Exception:
+        nas_devices = []
+    return render_template('tools/unified_import.html', resellers=resellers, packages=packages, nas_devices=nas_devices, active_tab=tab)
 
 @app.route('/tools/import/sample')
 def download_sample_template():

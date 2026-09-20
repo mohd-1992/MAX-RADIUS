@@ -1,0 +1,1960 @@
+{% extends "base.html" %}
+
+{% block title %}مركز استيراد وترحيل البيانات | MAX RADIUS{% endblock %}
+
+{% block content %}
+<style>
+    /* ========================================================= */
+    /* Dedicated Light & Dark Theme Adaptations                  */
+    /* ========================================================= */
+    html.theme-light .hub-header-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+    }
+    html.theme-light .hub-header-card h1,
+    html.theme-light .hub-header-card h2 {
+        color: #0f172a !important;
+    }
+    html.theme-light .hub-header-card p {
+        color: #475569 !important;
+    }
+    html.theme-light .hub-card {
+        background-color: #ffffff !important;
+        border-color: #e2e8f0 !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04) !important;
+    }
+    html.theme-light .hub-subcard {
+        background-color: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .hub-subcard p.font-semibold {
+        color: #64748b !important;
+    }
+    html.theme-light .hub-input,
+    html.theme-light .hub-select {
+        background-color: #ffffff !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .hub-input:focus,
+    html.theme-light .hub-select:focus {
+        border-color: #06b6d4 !important;
+        background-color: #ffffff !important;
+    }
+    html.theme-light .hub-input::placeholder {
+        color: #94a3b8 !important;
+    }
+    html.theme-light .hub-select option {
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+    }
+    html.theme-light .hub-table-head {
+        background-color: #f1f5f9 !important;
+        color: #334155 !important;
+        border-color: #e2e8f0 !important;
+    }
+    html.theme-light .hub-table-head th {
+        color: #334155 !important;
+    }
+    html.theme-light .hub-table-body td {
+        color: #1e293b !important;
+        border-color: #f1f5f9 !important;
+    }
+    html.theme-light .hub-table-body tr:hover {
+        background-color: #f8fafc !important;
+    }
+    html.theme-light .hub-dropzone {
+        background-color: #f8fafc !important;
+        border-color: #cbd5e1 !important;
+    }
+    html.theme-light .hub-dropzone:hover {
+        background-color: #f0fdfa !important;
+        border-color: #06b6d4 !important;
+    }
+    html.theme-light .hub-dropzone p.text-white,
+    html.theme-light .hub-dropzone h4.text-white {
+        color: #0f172a !important;
+    }
+    html.theme-light .hub-text-title {
+        color: #0f172a !important;
+    }
+    html.theme-light .hub-hint-box {
+        background-color: #f0fdfa !important;
+        border-color: #ccfbf1 !important;
+    }
+    html.theme-light .hub-hint-box p.font-bold {
+        color: #0f766e !important;
+    }
+    html.theme-light .hub-hint-box p {
+        color: #115e59 !important;
+    }
+
+    /* Tab active indicator styling */
+    .tab-btn-active {
+        background: linear-gradient(135deg, rgba(147, 51, 234, 0.15), rgba(6, 182, 212, 0.15)) !important;
+        border-color: #a855f7 !important;
+        box-shadow: 0 4px 15px rgba(168, 85, 247, 0.15) !important;
+    }
+    .tab-btn-active .tab-indicator {
+        opacity: 1 !important;
+        transform: scale(1) !important;
+    }
+    .tab-btn-inactive {
+        background-color: #070b14 !important;
+        border-color: #1c2840 !important;
+        opacity: 0.75;
+    }
+    .tab-btn-inactive:hover {
+        opacity: 1;
+        border-color: #334155 !important;
+        background-color: #0b0f19 !important;
+    }
+    html.theme-light .tab-btn-inactive {
+        background-color: #f8fafc !important;
+        border-color: #e2e8f0 !important;
+    }
+    html.theme-light .tab-btn-inactive:hover {
+        background-color: #ffffff !important;
+        border-color: #cbd5e1 !important;
+    }
+</style>
+
+<div class="space-y-6 max-w-7xl mx-auto pb-10">
+
+    <!-- Header Card -->
+    <div class="hub-header-card flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#0b0f19] p-5 md:p-6 rounded-2xl border border-[#1c2840] shadow-xl">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-500/20 via-cyan-500/20 to-emerald-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400 text-2xl shadow-inner shrink-0">
+                <i class="fa-solid fa-file-import"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-black text-white tracking-wide flex items-center gap-2">
+                    مركز استيراد وترحيل البيانات
+                    <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">Unified Import Hub</span>
+                </h1>
+                <p class="text-xs text-slate-400 mt-1">بوابة مركزية موحدة لترحيل قواعد البيانات الخارجية (SAS4/SQL)، سحب بيانات MikroTik User Manager v6 المباشر، واستيراد الكروت والمشتركين من ملفات Excel.</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2.5 shrink-0">
+            <a href="{{ url_for('vouchers') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-layer-group text-blue-400"></i>
+                <span>حزم الكروت</span>
+            </a>
+            <a href="{{ url_for('subscribers') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-users text-purple-400"></i>
+                <span>المشتركون</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Segmented Hub Tabs (Ordered: 1. Database -> 2. MikroTik -> 3. Excel) -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+        
+        <!-- Tab 1: Database Migration Studio (SAS4 / SQL) -->
+        <button type="button" onclick="switchImportTab('database')" id="hubTabBtn-database" class="tab-btn-active relative p-4 rounded-2xl border transition-all duration-300 flex items-center gap-3.5 text-right cursor-pointer group">
+            <div class="w-11 h-11 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
+                <i class="fa-solid fa-database"></i>
+            </div>
+            <div class="flex-grow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-white group-hover:text-purple-300 transition">1. استيراد قاعدة بيانات</h3>
+                    <span class="text-[10px] px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">SAS4 / SQL Dump</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">ترحيل الأرشيف والبيانات الشاملة مع اللقطات الثابتة</p>
+            </div>
+            <div class="tab-indicator absolute -bottom-1.5 right-1/2 translate-x-1/2 w-8 h-1 bg-purple-400 rounded-full transition-all duration-300"></div>
+        </button>
+
+        <!-- Tab 2: MikroTik User Manager v6 (Live API) -->
+        <button type="button" onclick="switchImportTab('mikrotik')" id="hubTabBtn-mikrotik" class="tab-btn-inactive relative p-4 rounded-2xl border transition-all duration-300 flex items-center gap-3.5 text-right cursor-pointer group">
+            <div class="w-11 h-11 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
+                <i class="fa-solid fa-network-wired"></i>
+            </div>
+            <div class="flex-grow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-white group-hover:text-cyan-300 transition">2. استيراد من الميكروتيك</h3>
+                    <span class="text-[10px] px-2 py-0.5 rounded-md bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">User Manager v6 API</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">سحب حي فوري للكروت والبروفايلات والاستهلاك عبر API</p>
+            </div>
+            <div class="tab-indicator absolute -bottom-1.5 right-1/2 translate-x-1/2 w-8 h-1 bg-cyan-400 rounded-full transition-all duration-300 opacity-0 scale-50"></div>
+        </button>
+
+        <!-- Tab 3: Excel & CSV -->
+        <button type="button" onclick="switchImportTab('excel')" id="hubTabBtn-excel" class="tab-btn-inactive relative p-4 rounded-2xl border transition-all duration-300 flex items-center gap-3.5 text-right cursor-pointer group">
+            <div class="w-11 h-11 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-xl shrink-0 group-hover:scale-105 transition">
+                <i class="fa-solid fa-file-excel"></i>
+            </div>
+            <div class="flex-grow">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-bold text-white group-hover:text-emerald-300 transition">3. استيراد من الإكسل</h3>
+                    <span class="text-[10px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">Excel & CSV</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5">استيراد جماعي آمن من قوالب إكسل (.xlsx / .xls)</p>
+            </div>
+            <div class="tab-indicator absolute -bottom-1.5 right-1/2 translate-x-1/2 w-8 h-1 bg-emerald-400 rounded-full transition-all duration-300 opacity-0 scale-50"></div>
+        </button>
+
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- PANEL 1: DATABASE MIGRATION STUDIO (SAS4 / SQL)                           -->
+    <!-- ========================================================================= -->
+    <div id="panel-database" class="space-y-6">
+
+        <!-- Stepper Navigation -->
+        <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <!-- Step 1 Nav -->
+                <div id="step-nav-1" onclick="goToDbStep(1)" class="flex items-center gap-3 p-3 rounded-xl border border-purple-500/40 bg-purple-500/10 transition cursor-pointer">
+                    <div id="step-badge-1" class="w-7 h-7 rounded-lg bg-purple-500 text-slate-950 flex items-center justify-center font-bold text-xs">1</div>
+                    <div>
+                        <div id="step-title-1" class="text-xs font-bold text-purple-300">رفع / تحديد الملف</div>
+                        <div class="text-[10px] text-slate-400">ملف .gz أو .sql</div>
+                    </div>
+                </div>
+
+                <!-- Step 2 Nav -->
+                <div id="step-nav-2" onclick="goToDbStep(2)" class="flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-[#070b14] transition opacity-50 cursor-not-allowed">
+                    <div id="step-badge-2" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs">2</div>
+                    <div>
+                        <div id="step-title-2" class="text-xs font-bold text-slate-400">تقرير الفحص والتحليل</div>
+                        <div class="text-[10px] text-slate-500">حصر الكيانات والباقات</div>
+                    </div>
+                </div>
+
+                <!-- Step 3 Nav -->
+                <div id="step-nav-3" onclick="goToDbStep(3)" class="flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-[#070b14] transition opacity-50 cursor-not-allowed">
+                    <div id="step-badge-3" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs">3</div>
+                    <div>
+                        <div id="step-title-3" class="text-xs font-bold text-slate-400">مطابقة وتخصيص الباقات</div>
+                        <div class="text-[10px] text-slate-500">Package Mapping</div>
+                    </div>
+                </div>
+
+                <!-- Step 4 Nav -->
+                <div id="step-nav-4" onclick="goToDbStep(4)" class="flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-[#070b14] transition opacity-50 cursor-not-allowed">
+                    <div id="step-badge-4" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs">4</div>
+                    <div>
+                        <div id="step-title-4" class="text-xs font-bold text-slate-400">خيارات الترحيل والتأكيد</div>
+                        <div class="text-[10px] text-slate-500">تطبيق واستيراد البيانات</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 1: Upload & Input Panel -->
+        <div id="step-panel-1" class="space-y-6">
+            <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6">
+                <h3 class="text-base font-bold text-white mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-purple-400"></i>
+                    1. تحديد ملف النسخة الاحتياطية (Backup Archive)
+                </h3>
+                <p class="text-xs text-slate-400 mb-6">قم باختيار ملف النسخة الاحتياطية من جهازك بصيغة GZIP MySQL Dump (.gz) أو SQL (.sql) لبدء الفحص والتحليل الفوري.</p>
+
+                <!-- File Upload Full-Width -->
+                <div class="space-y-3 max-w-2xl mx-auto">
+                    <div id="dropZoneDb" class="hub-dropzone border-2 border-dashed border-slate-700 hover:border-purple-500 rounded-2xl p-8 text-center cursor-pointer transition bg-[#070b14]/50 group" onclick="document.getElementById('backupFileInput').click()">
+                        <input type="file" id="backupFileInput" class="hidden" accept=".gz,.sql,.sql.gz,.tar.gz" onchange="handleDbFileSelected(this.files[0])">
+                        <div class="w-16 h-16 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-3xl mx-auto mb-3 group-hover:scale-110 transition">
+                            <i class="fa-solid fa-file-zipper"></i>
+                        </div>
+                        <div id="fileSelectedLabel" class="text-sm font-bold text-white mb-1">اضغط لاختيار الملف أو اسحبه إلى هنا</div>
+                        <div class="text-xs text-slate-500">يدعم صيغ GZIP MySQL Dump (.gz) و SQL حتى 500MB+</div>
+                    </div>
+                </div>
+
+                <!-- Action Trigger -->
+                <div class="mt-6 pt-6 border-t border-slate-800 flex justify-end gap-3">
+                    <button type="button" id="btnStartAnalysis" onclick="startBackupAnalysis()" class="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-900/30 transition flex items-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-magnifying-glass-chart"></i>
+                        بدء الفحص والتحليل الأولي (Pre-flight Inspection)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Progress & Cancellation Overlay -->
+        <div id="loadingOverlayDb" class="hidden bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-8 md:p-12 text-center max-w-2xl mx-auto shadow-2xl space-y-6">
+            <div class="relative w-20 h-20 mx-auto">
+                <div class="w-20 h-20 border-4 border-purple-500/20 border-t-purple-500 rounded-full animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center text-purple-400 font-bold text-sm" id="progressPercentBadge">0%</div>
+            </div>
+
+            <div>
+                <h4 id="loadingTitleDb" class="text-lg font-bold text-white mb-1.5">جاري ترحيل وحقن البيانات في MAX RADIUS...</h4>
+                <p id="loadingDescDb" class="text-xs text-slate-400">يتم معالجة السجلات بدفعات فائقة السرعة مع المزامنة اللحظية للراديوس.</p>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-center text-xs text-slate-300 font-medium px-1">
+                    <span id="progressStageText" class="text-purple-400 font-bold flex items-center gap-1.5">
+                        <i class="fa-solid fa-spinner fa-spin"></i> جاري التهيئة...
+                    </span>
+                    <span id="progressPercentText" class="font-mono text-purple-300 font-bold">0%</span>
+                </div>
+                <div class="w-full h-3.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5 shadow-inner">
+                    <div id="progressBarFill" class="h-full bg-gradient-to-r from-purple-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-300 shadow-md shadow-purple-500/50" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between items-center text-[11px] text-slate-500 px-1">
+                    <span>السرعة: فائقة (Ultra-Fast Engine)</span>
+                    <span id="progressProcessedText" class="font-mono text-slate-400">0 سجل</span>
+                </div>
+            </div>
+
+            <!-- Cancellation Button -->
+            <div class="pt-4 border-t border-slate-800 flex justify-center gap-3">
+                <button type="button" id="btnCancelMigration" onclick="cancelMigrationAction()" class="px-5 py-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-600/40 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-rose-950/30 cursor-pointer">
+                    <i class="fa-solid fa-ban"></i>
+                    إلغاء العملية والتراجع (Cancel & Rollback)
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Inspection & Metrics Report -->
+        <div id="step-panel-2" class="hidden space-y-6">
+            <div class="bg-gradient-to-r from-purple-950/40 via-indigo-950/20 to-slate-900/40 border border-purple-500/30 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/30 flex items-center justify-center text-2xl shrink-0">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-purple-400 uppercase tracking-wider">تم فحص الأرشيف والتعرف على البيانات بنجاح</div>
+                        <div id="resSystemType" class="text-lg font-bold text-white mt-0.5">SAS4 (Smart Authentication System)</div>
+                        <div id="resDbName" class="text-xs text-slate-400">قاعدة البيانات: ram_license_22265 | إجمالي الجداول: 69</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="goToDbStep(1)" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer">
+                        <i class="fa-solid fa-rotate-left me-1"></i>اختيار ملف آخر
+                    </button>
+                </div>
+            </div>
+
+            <!-- Metric Stat Cards -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                        <span>باقات وخطط الخدمة</span>
+                        <i class="fa-solid fa-box text-cyan-400"></i>
+                    </div>
+                    <div id="statProfilesCount" class="text-2xl font-black text-white">0</div>
+                    <div class="text-[11px] text-cyan-400/80 mt-1">جاهزة للمطابقة والإنشاء</div>
+                </div>
+
+                <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                        <span>المشتركون الثابتون</span>
+                        <i class="fa-solid fa-users text-purple-400"></i>
+                    </div>
+                    <div id="statUsersCount" class="text-2xl font-black text-white">0</div>
+                    <div id="statUsersHint" class="text-[11px] text-purple-400/80 mt-1">حسابات PPPoE / Wireless فعلية</div>
+                </div>
+
+                <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                        <span>كروت الشحن والـ Vouchers</span>
+                        <i class="fa-solid fa-id-card text-emerald-400"></i>
+                    </div>
+                    <div id="statCardsCount" class="text-2xl font-black text-white">0</div>
+                    <div class="text-[11px] text-emerald-400/80 mt-1">مع اللقطات الثابتة Snapshots</div>
+                </div>
+
+                <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+                    <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                        <span>المدراء والموزعون</span>
+                        <i class="fa-solid fa-user-tie text-amber-400"></i>
+                    </div>
+                    <div id="statAdminsCount" class="text-2xl font-black text-white">0</div>
+                    <div class="text-[11px] text-amber-400/80 mt-1">مع محافظ الأرصدة المالية</div>
+                </div>
+            </div>
+
+            <!-- Discovered Breakdown Info -->
+            <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6">
+                <h3 class="text-base font-bold text-white mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-check text-purple-400"></i>
+                    ملخص سلامة ومطابقة الأرشيف
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300">
+                    <div class="p-3.5 rounded-xl bg-[#070b14] border border-slate-800 space-y-1">
+                        <div class="font-bold text-cyan-400">هيكل المصادقة</div>
+                        <p class="text-[11px] text-slate-400">يدعم جدول radcheck وكلمات المرور الواضحة وتحديد الجلسات المتزامنة.</p>
+                    </div>
+                    <div class="p-3.5 rounded-xl bg-[#070b14] border border-slate-800 space-y-1">
+                        <div class="font-bold text-emerald-400">معمارية الكروت</div>
+                        <p class="text-[11px] text-slate-400">جاهزة لحقن اللقطات الثابتة (Snapshots) مع الأرقام التسلسلية وتواريخ الصلاحية.</p>
+                    </div>
+                    <div class="p-3.5 rounded-xl bg-[#070b14] border border-slate-800 space-y-1">
+                        <div class="font-bold text-purple-400">الحماية والاستقرار</div>
+                        <p class="text-[11px] text-slate-400">تجاهل الجداول الخدمية غير القياسية لتفادي تلويث قاعدة البيانات الحالية.</p>
+                    </div>
+                </div>
+
+                <!-- Step 2 Navigation Actions -->
+                <div class="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
+                    <button type="button" onclick="goToDbStep(1)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer">
+                        <i class="fa-solid fa-arrow-right me-1"></i>السابق: تغيير الملف
+                    </button>
+                    <button type="button" onclick="goToDbStep(3)" class="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-900/30 transition flex items-center gap-2 cursor-pointer">
+                        التالي: مطابقة وتخصيص الباقات
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Package Mapping Studio -->
+        <div id="step-panel-3" class="hidden space-y-6">
+            <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-network-wired text-purple-400"></i>
+                            3. مصفوفة مطابقة وتخصيص الباقات (Package Mapping Matrix)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">حدد لكل باقة مكتشفة في النسخة القديمة: هل تريد إنشاء باقة جديدة في MAX RADIUS أم ربطها بباقة موجودة مسبقاً؟</p>
+                    </div>
+                    <button type="button" onclick="autoSetAllPackages('auto_create')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition shrink-0 cursor-pointer">
+                        <i class="fa-solid fa-wand-magic-sparkles text-purple-400 me-1"></i>إنشاء الكل كباقات جديدة تلقائياً
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto rounded-xl border border-slate-800 bg-[#070b14]/70">
+                    <table class="w-full text-xs text-right">
+                        <thead class="hub-table-head bg-[#0c1322] text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-3">#</th>
+                                <th class="py-3 px-3">اسم الباقة المكتشفة</th>
+                                <th class="py-3 px-3">السعر</th>
+                                <th class="py-3 px-3">البيانات / التحميل</th>
+                                <th class="py-3 px-3">الصلاحية</th>
+                                <th class="py-3 px-3">الإجراء في MAX RADIUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="packageMappingTableBody" class="hub-table-body divide-y divide-slate-800/60 text-slate-300">
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Step 3 Navigation Actions -->
+                <div class="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
+                    <button type="button" onclick="goToDbStep(2)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer">
+                        <i class="fa-solid fa-arrow-right me-1"></i>السابق: تقرير الفحص
+                    </button>
+                    <button type="button" onclick="goToDbStep(4)" class="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-900/30 transition flex items-center gap-2 cursor-pointer">
+                        التالي: خيارات الترحيل والتأكيد
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Migration Execution Options -->
+        <div id="step-panel-4" class="hidden space-y-6">
+            <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 space-y-6">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-purple-400"></i>
+                    4. تخصيص خيارات الترحيل والحقن الذكي
+                </h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Column 1: Entities Selection -->
+                    <div class="p-4 rounded-xl bg-[#070b14] border border-slate-800 space-y-3">
+                        <div class="text-xs font-bold text-white mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-check-double text-emerald-400"></i>
+                            الكيانات المطلوب استيرادها:
+                        </div>
+
+                        <label class="flex items-center gap-2.5 cursor-pointer text-xs text-slate-300">
+                            <input type="checkbox" id="optSubscribers" checked class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                            <span>المشتركون الثابتون (PPPoE / Static / Wireless)</span>
+                        </label>
+
+                        <label class="flex items-center gap-2.5 cursor-pointer text-xs text-slate-300">
+                            <input type="checkbox" id="optCards" checked class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                            <span>كروت الشحن وحزم الـ Vouchers (مع Snapshots الصلاحية)</span>
+                        </label>
+
+                        <label class="flex items-center gap-2.5 cursor-pointer text-xs text-slate-300">
+                            <input type="checkbox" id="optResellers" checked class="rounded bg-slate-800 border-slate-700 text-purple-500 focus:ring-0">
+                            <span>الوكلاء والموزعون وحسابات الإدارة (مع الأرصدة)</span>
+                        </label>
+                    </div>
+
+                    <!-- Column 2: Collision & Strategy Options -->
+                    <div class="p-4 rounded-xl bg-[#070b14] border border-slate-800 space-y-3">
+                        <div class="text-xs font-bold text-white mb-2 flex items-center gap-1.5">
+                            <i class="fa-solid fa-shield-halved text-amber-400"></i>
+                            إستراتيجية معالجة الحسابات المتطابقة:
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <select id="optCollisionStrategy" class="hub-select w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                                <option value="skip" selected>تخطي وتجاهل الحساب المكرر (Skip - آمن جداً)</option>
+                                <option value="overwrite">تحديث البيانات وكلمات المرور للحساب الموجود (Overwrite)</option>
+                            </select>
+                        </div>
+
+                        <div class="text-xs font-bold text-white pt-2 mb-1 flex items-center gap-1.5">
+                            <i class="fa-solid fa-timeline text-cyan-400"></i>
+                            سجلات الجلسات والمحاسبة (radacct):
+                        </div>
+
+                        <div class="space-y-1 text-xs text-slate-300">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="session_mode" value="consolidated" checked class="text-purple-500 bg-slate-800 border-slate-700 focus:ring-0">
+                                <span>ضغط وتجميع الجلسات السابقة (Consolidated Summary)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="session_mode" value="none" class="text-purple-500 bg-slate-800 border-slate-700 focus:ring-0">
+                                <span>تجاهل سجلات الجلسات القديمة تماماً</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Final Action Trigger -->
+                <div class="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
+                    <button type="button" onclick="goToDbStep(3)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer">
+                        <i class="fa-solid fa-arrow-right me-1"></i>السابق: مطابقة الباقات
+                    </button>
+                    <button type="button" id="btnExecuteDbMigration" onclick="executeMigrationAction()" class="px-8 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold shadow-xl shadow-purple-900/40 transition flex items-center gap-2 cursor-pointer transform active:scale-95">
+                        <i class="fa-solid fa-rocket"></i>
+                        <span>بدء الترحيل واستيراد البيانات إلى MAX RADIUS</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Execution Result Card (Shown after completion) -->
+        <div id="executionResultCard" class="hidden hub-card bg-[#0b0f19] border border-emerald-500/30 rounded-2xl p-6 md:p-8 text-center max-w-2xl mx-auto shadow-2xl space-y-5">
+            <div class="w-16 h-16 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-3xl mx-auto shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-check-double"></i>
+            </div>
+
+            <div>
+                <h3 class="text-xl font-bold text-white mb-1">اكتمل ترحيل واستيراد البيانات بنجاح! 🎉</h3>
+                <p id="executionResultMessage" class="text-xs text-slate-300"></p>
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-right" id="executionStatsGrid">
+            </div>
+
+            <div class="pt-4 border-t border-slate-800 flex justify-center gap-3">
+                <a href="{{ url_for('vouchers') }}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-700">
+                    <i class="fa-solid fa-layer-group text-cyan-400"></i>
+                    <span>استعراض الكروت</span>
+                </a>
+                <a href="{{ url_for('subscribers') }}" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-900/30">
+                    <i class="fa-solid fa-users"></i>
+                    <span>استعراض المشتركين</span>
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- PANEL 2: MIKROTIK USER MANAGER V6 (API ONLY)                              -->
+    <!-- ========================================================================= -->
+    <div id="panel-mikrotik" class="hidden space-y-6">
+        <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-2xl space-y-6">
+
+            <!-- Top Notice Banner -->
+            <div class="hub-hint-box bg-[#080d1a] border border-cyan-500/20 rounded-2xl p-4 flex items-start gap-3.5">
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg shrink-0 mt-0.5 border border-cyan-500/20">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div class="text-xs text-slate-300 space-y-1">
+                    <h4 class="font-bold text-cyan-300 text-sm">سحب مباشر وحي عبر RouterOS API (User Manager v6)</h4>
+                    <p class="text-slate-400 leading-relaxed">اتصال مباشر بـ MikroTik RouterOS API عبر المنفذ 8728 لسحب الكروت، المشتركين، البروفايلات، سجلات الاستهلاك، والسرعات مع العزل التام وتوزيع الكروت آلياً على حزم مستقلة.</p>
+                </div>
+            </div>
+
+            <!-- API Connection Parameters Box -->
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <h3 class="hub-text-title text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-server text-cyan-400"></i>
+                        بيانات الاتصال براوتر الميكروتك (MikroTik RouterOS API)
+                    </h3>
+                    <div id="nasStatusBadge" class="hidden text-xs px-3 py-1 rounded-full font-bold"></div>
+                </div>
+
+                <!-- Quick Router Selector from System Database -->
+                <div class="hub-subcard bg-[#0b1020] border border-cyan-500/30 rounded-2xl p-4 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-cyan-300 flex items-center gap-2">
+                            <i class="fa-solid fa-network-wired text-cyan-400"></i>
+                            <span>اختر راوتر من قائمة أجهزة النظام (تعبئة تلقائية فورية):</span>
+                        </label>
+                        <span class="text-[11px] text-slate-400">أو يمكنك إدخال البيانات يدوياً</span>
+                    </div>
+                    <select id="nasSelector" onchange="onNasSelected(this)" class="hub-select w-full bg-[#070b14] border border-slate-700 hover:border-cyan-500 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 transition cursor-pointer font-bold">
+                        <option value="">-- اختر راوتر من أجهزة النظام لتعبئة البيانات تلقائياً --</option>
+                        {% for nas in nas_devices %}
+                        <option value="{{ nas.id }}" 
+                            data-ip="{{ nas.ip_address }}" 
+                            data-port="{{ nas.api_port or 8728 }}" 
+                            data-user="{{ nas.api_username or 'admin' }}" 
+                            data-pass="{{ nas.api_password or '' }}" 
+                            data-name="{{ nas.name }}"
+                            data-online="{{ 'true' if nas.is_online else 'false' }}"
+                            data-latency="{{ nas.latency_ms or 0 }}">
+                            {{ nas.name }} (IP: {{ nas.ip_address }}) {% if nas.is_online %}🟢 متصل ({{ nas.latency_ms }}ms){% else %}⚪ غير متصل{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Credential Inputs -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400">عنوان IP للراوتر</label>
+                        <input type="text" id="apiHost" placeholder="192.168.88.1" class="hub-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500 font-mono font-bold">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400">منفذ API Port</label>
+                        <input type="number" id="apiPort" value="8728" class="hub-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono font-bold">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400">اسم المستخدم (Username)</label>
+                        <input type="text" id="apiUser" value="admin" class="hub-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono font-bold">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400">كلمة المرور (Password)</label>
+                        <input type="password" id="apiPass" placeholder="••••••••" class="hub-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono font-bold">
+                    </div>
+                </div>
+
+                <!-- SSL & Fetch Button -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-400">
+                        <input type="checkbox" id="apiSsl" class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
+                        <span>استخدام اتصال مشفر SSL (منفذ 8729)</span>
+                    </label>
+                    <button type="button" id="btnTestApi" onclick="fetchFromApi()" class="px-6 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white transition flex items-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer transform active:scale-95">
+                        <i class="fa-solid fa-plug"></i>
+                        <span>اتصال وسحب البيانات حياً (Fetch Live Data)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Preview & Analysis Result (Hidden until analyzed) -->
+            <div id="panelPreviewMikrotik" class="hidden space-y-6 pt-6 border-t border-slate-800/80">
+                
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <h3 class="hub-text-title text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-clipboard-check text-emerald-400"></i>
+                        تقرير المعاينة والفحص الأولي للبيانات المكتشفة من MikroTik
+                    </h3>
+                    <span class="text-xs text-slate-400 font-mono" id="previewSourceLabel"></span>
+                </div>
+
+                <!-- Stats Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div class="hub-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                        <p class="text-[11px] font-semibold text-slate-400">إجمالي الحسابات</p>
+                        <p class="text-2xl font-black text-cyan-400" id="statTotalUsers">0</p>
+                    </div>
+                    <div class="hub-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                        <p class="text-[11px] font-semibold text-slate-400">حسابات صالحة ونشطة</p>
+                        <p class="text-2xl font-black text-emerald-400" id="statActiveUsers">0</p>
+                    </div>
+                    <div class="hub-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                        <p class="text-[11px] font-semibold text-slate-400">كروت منتهية (بدون باقة)</p>
+                        <p class="text-2xl font-black text-rose-400" id="statExpiredUsers">0</p>
+                    </div>
+                    <div class="hub-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                        <p class="text-[11px] font-semibold text-slate-400">حسابات معطلة</p>
+                        <p class="text-2xl font-black text-amber-400" id="statDisabledUsers">0</p>
+                    </div>
+                    <div class="hub-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                        <p class="text-[11px] font-semibold text-slate-400">الباقات والبروفايلات</p>
+                        <p class="text-2xl font-black text-purple-400" id="statTotalProfiles">0</p>
+                    </div>
+                </div>
+
+                <!-- Profiles Preview Table -->
+                <div class="space-y-2">
+                    <h4 class="hub-text-title text-xs font-bold text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-box text-purple-400"></i>
+                        الباقات والبروفايلات المكتشفة (ستُنشأ لكل باقة حزمة مستقلة في MAX RADIUS)
+                    </h4>
+                    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-[#070b14]/70">
+                        <table class="w-full text-xs text-right">
+                            <thead class="hub-table-head bg-[#0c1322] text-slate-400 border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3">اسم البروفايل</th>
+                                    <th class="p-3">السرعة (تحميل / رفع)</th>
+                                    <th class="p-3">الصلاحية</th>
+                                    <th class="p-3">الحصة (GB / MB)</th>
+                                    <th class="p-3">حد الوقت</th>
+                                    <th class="p-3">السعر</th>
+                                </tr>
+                            </thead>
+                            <tbody id="profilesTableBody" class="hub-table-body divide-y divide-slate-800/60 text-slate-300">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Users Sample Table -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <h4 class="hub-text-title text-xs font-bold text-slate-300 flex items-center gap-2">
+                            <i class="fa-solid fa-users text-cyan-400"></i>
+                            عينة من الكروت والمشتركين المكتشفين
+                        </h4>
+                        <span class="text-[11px] text-slate-500" id="usersSampleCount"></span>
+                    </div>
+                    <div class="overflow-x-auto rounded-xl border border-slate-800 bg-[#070b14]/70 max-h-64 overflow-y-auto">
+                        <table class="w-full text-xs text-right">
+                            <thead class="hub-table-head bg-[#0c1322] text-slate-400 border-b border-slate-800 sticky top-0 z-10">
+                                <tr>
+                                    <th class="p-3">اسم المستخدم</th>
+                                    <th class="p-3">كلمة المرور</th>
+                                    <th class="p-3">البروفايل المرتبط</th>
+                                    <th class="p-3">الاستهلاك السابق</th>
+                                    <th class="p-3">الماك أدرس</th>
+                                    <th class="p-3">الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody" class="hub-table-body divide-y divide-slate-800/60 text-slate-300">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Import Settings & Execution -->
+                <div class="hub-subcard bg-[#0c1322] border border-slate-800 p-5 rounded-2xl space-y-4">
+                    <h4 class="text-xs font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-cyan-400"></i>
+                        خيارات ترحيل وزرع البيانات وتخصيص الحزم
+                    </h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-400">نوع الحسابات المستوردة</label>
+                            <select id="importTargetType" class="hub-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                                <option value="vouchers" selected>كروت شبكة وهوتسبوت (Vouchers / Cards)</option>
+                                <option value="subscribers">مشتركون دائمون (Subscribers)</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-400">معالجة الكروت المنتهية (بدون باقة)</label>
+                            <select id="importIgnoreExpired" class="hub-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold">
+                                <option value="yes" selected>استبعاد وتخطي المنتهية تلقائياً (موصى به)</option>
+                                <option value="no">استيراد الكل وتطبيق الباقة الافتراضية</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-400">استهلاك وسجلات الكروت السابقة</label>
+                            <select id="importConsumption" class="hub-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold">
+                                <option value="no" selected>كروت جديدة برصيد كامل (Unused)</option>
+                                <option value="yes">ترحيل وسحب رصيد الاستهلاك والوقت السابق</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-400">عند وجود كرت مطابق مسبقاً</label>
+                            <select id="importDuplicateAction" class="hub-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                                <option value="skip">تخطي وعدم التعديل (Skip)</option>
+                                <option value="overwrite">تحديث كلمة المرور والبيانات (Overwrite)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1.5 pt-1">
+                        <label class="text-xs font-semibold text-slate-400">الباقة الاحتياطية (في حال تفعيل استيراد الكروت المنتهية غير المربوطة):</label>
+                        <select id="importFallbackPackage" class="hub-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                            <option value="">-- احتفظ بالباقة الأصلية أو تلقائي --</option>
+                        </select>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-slate-800">
+                        <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-layer-group text-purple-400"></i>
+                            <span>سيتم تلقائياً إنشاء حزمة مستقلة لكل باقة وتوزيع الكروت عليها في قائمة الحزم.</span>
+                        </div>
+                        <button type="button" id="btnExecuteMikrotik" onclick="executeMikrotikImportAction()" class="px-8 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-xl shadow-emerald-500/20 transition flex items-center gap-2 cursor-pointer transform active:scale-95">
+                            <i class="fa-solid fa-cloud-arrow-down"></i>
+                            <span>تنفيذ استيراد وتوزيع الكروت في الحزم</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ========================================================================= -->
+    <!-- PANEL 3: EXCEL & CSV DATA IMPORT                                          -->
+    <!-- ========================================================================= -->
+    <div id="panel-excel" class="hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Left: Upload Form (8 Cols) -->
+            <div class="lg:col-span-8 space-y-6">
+                <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                    <form id="importForm" method="POST" action="{{ url_for('process_import_action') }}" enctype="multipart/form-data" class="space-y-6">
+                        
+                        <!-- 1. Import Type Selector (Segmented Tabs) -->
+                        <div class="space-y-2">
+                            <label class="block text-xs font-bold text-slate-300">1. حدد نوع البيانات المراد استيرادها:</label>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="import_type" value="vouchers" checked class="peer hidden" onchange="handleTypeChange('vouchers')">
+                                    <div class="p-4 rounded-xl border border-slate-800 bg-[#070b14] peer-checked:border-emerald-500 peer-checked:bg-emerald-950/20 transition flex items-center gap-3.5">
+                                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-lg flex-shrink-0">
+                                            <i class="fa-solid fa-id-card"></i>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-bold text-white peer-checked:text-emerald-300">كروت هوتسبوت (Vouchers)</div>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">توليد حزمة كروت جديدة وإدخالها ككروت غير مستخدمة</p>
+                                        </div>
+                                    </div>
+                                </label>
+
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="import_type" value="subscribers" class="peer hidden" onchange="handleTypeChange('subscribers')">
+                                    <div class="p-4 rounded-xl border border-slate-800 bg-[#070b14] peer-checked:border-purple-500 peer-checked:bg-purple-950/20 transition flex items-center gap-3.5">
+                                        <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-lg flex-shrink-0">
+                                            <i class="fa-solid fa-users"></i>
+                                        </div>
+                                        <div>
+                                            <div class="text-sm font-bold text-white peer-checked:text-purple-300">مشتركون ثابتون (Subscribers)</div>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">إدخال حسابات PPPoE / Static مباشرة ومزامنتها</p>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 2. Configuration Options (Owner & Batch Name) -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                            <!-- Default Owner -->
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                                    <i class="fa-solid fa-user-shield text-amber-400 ml-1"></i>المالك الافتراضي للحسابات:
+                                </label>
+                                <select name="default_reseller_id" class="hub-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-emerald-500 focus:outline-none transition">
+                                    <option value="0">المدير العام (Super Admin)</option>
+                                    {% for r in resellers %}
+                                    <option value="{{ r.id }}">موزع: {{ r.name }} ({{ r.phone or 'بدون هاتف' }})</option>
+                                    {% endfor %}
+                                </select>
+                                <span class="text-[10px] text-slate-500 mt-1 block">يُعتمد إذا كان حقل المالك (owner) فارغاً في ملف الإكسل</span>
+                            </div>
+
+                            <!-- Custom Batch Name (For vouchers) -->
+                            <div id="batchNameGroup">
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                                    <i class="fa-solid fa-tag text-blue-400 ml-1"></i>اسم الحزمة المستوردة:
+                                </label>
+                                <input type="text" name="batch_name" placeholder="مثال: استيراد كروت دفعة الأمل" class="hub-input w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none transition">
+                                <span class="text-[10px] text-slate-500 mt-1 block">اختياري - سيتم توليد اسم تلقائي بالتاريخ إذا تُرك فارغاً</span>
+                            </div>
+                        </div>
+
+                        <!-- 3. Drag & Drop File Zone -->
+                        <div class="space-y-2 pt-2">
+                            <label class="block text-xs font-bold text-slate-300">2. رفع ملف الإكسل (.xlsx / .xls):</label>
+                            <div id="dropZoneExcel" class="hub-dropzone relative border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-[#070b14] rounded-2xl p-8 text-center transition cursor-pointer group">
+                                <input type="file" id="excelFileInput" name="excel_file" accept=".xlsx, .xls" required class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="handleFileSelected(this)">
+                                
+                                <!-- Default State -->
+                                <div id="dropZonePrompt" class="space-y-3">
+                                    <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-2xl mx-auto group-hover:scale-110 transition duration-300">
+                                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-bold text-white group-hover:text-emerald-300 transition">اسحب ملف الإكسل هنا، أو انقر للتصفح</h4>
+                                        <p class="text-xs text-slate-400 mt-1">الملفات المدعومة: Microsoft Excel (.xlsx, .xls) بحد أقصى 15 MB</p>
+                                    </div>
+                                </div>
+
+                                <!-- Selected File State -->
+                                <div id="fileInfoBox" class="hidden space-y-2">
+                                    <div class="inline-flex items-center gap-3 px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs font-mono font-bold">
+                                        <i class="fa-solid fa-file-excel text-emerald-400 text-base"></i>
+                                        <span id="fileNameDisplay">file.xlsx</span>
+                                        <span id="fileSizeDisplay" class="text-slate-400 text-[11px]">(0 KB)</span>
+                                    </div>
+                                    <div>
+                                        <button type="button" onclick="clearSelectedFile(event)" class="text-xs text-rose-400 hover:text-rose-300 transition font-semibold">
+                                            <i class="fa-solid fa-trash ml-1"></i>إلغاء واختيار ملف آخر
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="pt-3">
+                            <button type="submit" id="submitBtnExcel" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-500/25 transition flex items-center justify-center gap-2 cursor-pointer">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <span>فحص الملف وبدء الاستيراد الآمن</span>
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+
+            <!-- Right: Sample Templates & Instructions (4 Cols) -->
+            <div class="lg:col-span-4 space-y-5">
+                <!-- Download Samples Card -->
+                <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4">
+                    <h3 class="hub-text-title text-sm font-bold text-white flex items-center gap-2 border-b border-[#1c2840] pb-3">
+                        <i class="fa-solid fa-download text-emerald-400"></i>
+                        تحميل النماذج الجاهزة (Templates)
+                    </h3>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        قم بتحميل النموذج المنسق مسبقاً، وافتحه في Excel لملء بياناتك مباشرة دون أخطاء في أسماء الأعمدة:
+                    </p>
+
+                    <div class="space-y-2.5">
+                        <a href="{{ url_for('download_sample_template', type='vouchers') }}" class="w-full px-4 py-3 bg-[#070b14] hover:bg-emerald-950/30 text-slate-200 hover:text-emerald-300 border border-slate-800 hover:border-emerald-500/40 rounded-xl text-xs font-bold transition flex items-center justify-between group">
+                            <div class="flex items-center gap-2.5">
+                                <i class="fa-solid fa-file-excel text-emerald-400 text-base"></i>
+                                <span>قالب كروت الهوتسبوت (.xlsx)</span>
+                            </div>
+                            <i class="fa-solid fa-arrow-down text-slate-500 group-hover:text-emerald-400 transition text-xs"></i>
+                        </a>
+
+                        <a href="{{ url_for('download_sample_template', type='subscribers') }}" class="w-full px-4 py-3 bg-[#070b14] hover:bg-purple-950/30 text-slate-200 hover:text-purple-300 border border-slate-800 hover:border-purple-500/40 rounded-xl text-xs font-bold transition flex items-center justify-between group">
+                            <div class="flex items-center gap-2.5">
+                                <i class="fa-solid fa-file-excel text-purple-400 text-base"></i>
+                                <span>قالب المشتركين الثابتين (.xlsx)</span>
+                            </div>
+                            <i class="fa-solid fa-arrow-down text-slate-500 group-hover:text-purple-400 transition text-xs"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Rules & Validation Card -->
+                <div class="hub-card bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-3.5">
+                    <h3 class="hub-text-title text-sm font-bold text-white flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                        <i class="fa-solid fa-circle-check text-amber-400"></i>
+                        قواعد التحقق الصارم (Strict Rules)
+                    </h3>
+                    <ul class="text-xs text-slate-300 space-y-2.5 leading-relaxed">
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px] mt-1"></i>
+                            <span><strong>الأعمدة الإجبارية:</strong> (username, password, package).</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px] mt-1"></i>
+                            <span><strong>صحة الباقة:</strong> يجب أن تكون الباقة موجودة مسبقاً بنفس الاسم في باقات النظام.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-check text-emerald-400 text-[10px] mt-1"></i>
+                            <span><strong>منع التكرار:</strong> يتم فحص كل مستخدم لمنع التكرار مع قاعدة بيانات FreeRADIUS.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fa-solid fa-shield-halved text-sky-400 text-[10px] mt-1"></i>
+                            <span><strong>مبدأ الكل أو لا شيء:</strong> إذا احتوى صف واحد على خطأ يتوقف الاستيراد لضمان سلامة البيانات.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- SweetAlert2 Vendor -->
+<script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
+
+<script>
+/* ========================================================================= */
+/* GLOBAL HUB TAB SWITCHER                                                  */
+/* ========================================================================= */
+function switchImportTab(tabName) {
+    const tabs = ['database', 'mikrotik', 'excel'];
+    tabs.forEach(t => {
+        const btn = document.getElementById(`hubTabBtn-${t}`);
+        const panel = document.getElementById(`panel-${t}`);
+        const indicator = btn ? btn.querySelector('.tab-indicator') : null;
+
+        if (t === tabName) {
+            if (btn) {
+                btn.className = 'tab-btn-active relative p-4 rounded-2xl border transition-all duration-300 flex items-center gap-3.5 text-right cursor-pointer group';
+            }
+            if (panel) panel.classList.remove('hidden');
+            if (indicator) {
+                indicator.classList.remove('opacity-0', 'scale-50');
+                indicator.classList.add('opacity-100', 'scale-100');
+            }
+        } else {
+            if (btn) {
+                btn.className = 'tab-btn-inactive relative p-4 rounded-2xl border transition-all duration-300 flex items-center gap-3.5 text-right cursor-pointer group';
+            }
+            if (panel) panel.classList.add('hidden');
+            if (indicator) {
+                indicator.classList.remove('opacity-100', 'scale-100');
+                indicator.classList.add('opacity-0', 'scale-50');
+            }
+        }
+    });
+
+    // Update browser URL query without reload
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tabName);
+    window.history.replaceState({}, '', url);
+}
+
+// Initialize active tab from context / query param (Default: database)
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialTab = urlParams.get('tab') || '{{ active_tab|default("database") }}';
+    if (['database', 'mikrotik', 'excel'].includes(initialTab)) {
+        switchImportTab(initialTab);
+    } else {
+        switchImportTab('database');
+    }
+});
+
+
+/* ========================================================================= */
+/* TAB 1: DATABASE MIGRATION STUDIO (SAS4 / SQL) SCRIPTS                     */
+/* ========================================================================= */
+let g_currentDbStep = 1;
+let g_maxUnlockedDbStep = 1;
+let g_dbAnalysisData = null;
+let g_dbSelectedFile = null;
+let g_dbMigrationPollInterval = null;
+
+function updateDbStepperUI(step) {
+    g_currentDbStep = step;
+    for (let i = 1; i <= 4; i++) {
+        const nav = document.getElementById(`step-nav-${i}`);
+        const badge = document.getElementById(`step-badge-${i}`);
+        const title = document.getElementById(`step-title-${i}`);
+        if (!nav || !badge || !title) continue;
+
+        if (i < step) {
+            nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 transition cursor-pointer';
+            badge.className = 'w-7 h-7 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs';
+            badge.innerHTML = '<i class="fa-solid fa-check"></i>';
+            title.className = 'text-xs font-bold text-emerald-300';
+        } else if (i === step) {
+            nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-purple-500/40 bg-purple-500/10 transition cursor-pointer';
+            badge.className = 'w-7 h-7 rounded-lg bg-purple-500 text-slate-950 flex items-center justify-center font-bold text-xs';
+            badge.innerHTML = `${i}`;
+            title.className = 'text-xs font-bold text-purple-300';
+        } else if (i <= g_maxUnlockedDbStep) {
+            nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-slate-700 bg-[#0b0f19] transition cursor-pointer hover:border-slate-600';
+            badge.className = 'w-7 h-7 rounded-lg bg-slate-700 text-slate-200 flex items-center justify-center font-bold text-xs';
+            badge.innerHTML = `${i}`;
+            title.className = 'text-xs font-bold text-slate-200';
+        } else {
+            nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-[#070b14] transition opacity-50 cursor-not-allowed';
+            badge.className = 'w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs';
+            badge.innerHTML = `${i}`;
+            title.className = 'text-xs font-bold text-slate-400';
+        }
+    }
+}
+
+function goToDbStep(step) {
+    if (step > 1 && !g_dbAnalysisData) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'تنبيه',
+            text: 'يرجى اختيار ملف وبدء الفحص والتحليل أولاً.',
+            confirmButtonText: 'حسناً',
+            customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+        });
+        return;
+    }
+    if (step > g_maxUnlockedDbStep) {
+        return;
+    }
+
+    for (let i = 1; i <= 4; i++) {
+        const p = document.getElementById(`step-panel-${i}`);
+        if (p) p.classList.add('hidden');
+    }
+    const resCard = document.getElementById('executionResultCard');
+    if (resCard) resCard.classList.add('hidden');
+    const overlay = document.getElementById('loadingOverlayDb');
+    if (overlay) overlay.classList.add('hidden');
+
+    const targetPanel = document.getElementById(`step-panel-${step}`);
+    if (targetPanel) targetPanel.classList.remove('hidden');
+
+    updateDbStepperUI(step);
+}
+
+function handleDbFileSelected(file) {
+    if (!file) return;
+    g_dbSelectedFile = file;
+    const label = document.getElementById('fileSelectedLabel');
+    if (label) {
+        label.innerHTML = `<span class="text-purple-400 font-bold">${file.name}</span> (${(file.size / (1024*1024)).toFixed(2)} MB)`;
+    }
+}
+
+function startBackupAnalysis() {
+    if (!g_dbSelectedFile) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'تنبيه',
+            text: 'يرجى اختيار ملف النسخة الاحتياطية (.gz أو .sql) أولاً.',
+            confirmButtonText: 'حسناً',
+            customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+        });
+        return;
+    }
+
+    document.getElementById('step-panel-1').classList.add('hidden');
+    document.getElementById('loadingOverlayDb').classList.remove('hidden');
+
+    const formData = new FormData();
+    formData.append('backup_file', g_dbSelectedFile);
+
+    fetch('{{ url_for("api_migration_analyze") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+        document.getElementById('loadingOverlayDb').classList.add('hidden');
+        if (res.success) {
+            g_dbAnalysisData = res;
+            renderDbAnalysisResults(res);
+            g_maxUnlockedDbStep = 4;
+            goToDbStep(2);
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'فشل الفحص والتحليل',
+                text: res.error || 'ملف غير صالح',
+                confirmButtonText: 'حسناً',
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            });
+            document.getElementById('step-panel-1').classList.remove('hidden');
+            updateDbStepperUI(1);
+        }
+    })
+    .catch(err => {
+        document.getElementById('loadingOverlayDb').classList.add('hidden');
+        Swal.fire({
+            icon: 'error',
+            title: 'خطأ في الاتصال',
+            text: err.message,
+            confirmButtonText: 'حسناً',
+            customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+        });
+        document.getElementById('step-panel-1').classList.remove('hidden');
+        updateDbStepperUI(1);
+    });
+}
+
+function renderDbAnalysisResults(data) {
+    const stats = data.stats || data;
+    const dbName = data.database_name || stats.database_name || 'ram_license_22265';
+    const totalTables = data.total_tables || stats.total_tables || 69;
+    const profilesCount = stats.profiles_count !== undefined ? stats.profiles_count : (data.profiles ? data.profiles.length : 0);
+    const fixedSubscribers = stats.fixed_subscribers_count !== undefined ? stats.fixed_subscribers_count : (stats.users_count || 0);
+    const cardUsersCount = stats.card_users_count || 0;
+    const cardsCount = stats.cards_count || 0;
+    const adminsCount = stats.admins_count !== undefined ? stats.admins_count : (data.admins ? data.admins.length : 0);
+
+    document.getElementById('resSystemType').innerText = data.system_type || 'نظام خارجي';
+    document.getElementById('resDbName').innerText = `قاعدة البيانات: ${dbName} | إجمالي الجداول: ${totalTables}`;
+    document.getElementById('statProfilesCount').innerText = profilesCount;
+    document.getElementById('statUsersCount').innerText = Number(fixedSubscribers).toLocaleString();
+    if (cardUsersCount > 0) {
+        document.getElementById('statUsersHint').innerText = `${fixedSubscribers} مشترك ثابت (تم فرز ${Number(cardUsersCount).toLocaleString()} كرت مفعل للكروت)`;
+    }
+    document.getElementById('statCardsCount').innerText = Number(cardsCount).toLocaleString();
+    document.getElementById('statAdminsCount').innerText = adminsCount;
+
+    const tbody = document.getElementById('packageMappingTableBody');
+    tbody.innerHTML = '';
+
+    const existingPkgs = data.existing_packages || [];
+
+    (data.profiles || []).forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/30 transition';
+
+        let optionsHtml = `<option value="auto_create" selected>✨ إنشاء باقة جديدة بنفس الاسم والمواصفات</option>`;
+        existingPkgs.forEach(ep => {
+            optionsHtml += `<option value="${ep.id}">ربط مع [${ep.name}] (${ep.price} YER - ${ep.volume_quota_mb}MB)</option>`;
+        });
+
+        let unitLabel = 'يوم';
+        if (p.validity_unit === 'hours' || p.validity_unit === 'hour' || p.validity_unit === '0') unitLabel = 'ساعة';
+        else if (p.validity_unit === 'months' || p.validity_unit === 'month' || p.validity_unit === '2') unitLabel = 'شهر';
+        else if (p.validity_unit === 'minutes' || p.validity_unit === 'minute') unitLabel = 'دقيقة';
+
+        let trafficDisplay = '<span class="text-slate-500">غير محدود</span>';
+        if (p.traffic_mb > 0) {
+            if (p.traffic_mb >= 1024) {
+                const gbVal = (p.traffic_mb / 1024);
+                trafficDisplay = `${Number(gbVal % 1 === 0 ? gbVal : gbVal.toFixed(1))} GB`;
+            } else {
+                trafficDisplay = `${p.traffic_mb} MB`;
+            }
+        }
+
+        tr.innerHTML = `
+            <td class="py-3 px-3 font-mono text-slate-500">${idx + 1}</td>
+            <td class="py-3 px-3 font-bold text-white">${p.name}</td>
+            <td class="py-3 px-3 text-cyan-300 font-mono">${p.price} YER</td>
+            <td class="py-3 px-3">${trafficDisplay}</td>
+            <td class="py-3 px-3">${p.validity_value} ${unitLabel}</td>
+            <td class="py-3 px-3">
+                <select id="pkg_map_${p.id}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-xs focus:border-purple-500 focus:outline-none">
+                    ${optionsHtml}
+                </select>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function autoSetAllPackages(val) {
+    if (!g_dbAnalysisData) return;
+    (g_dbAnalysisData.profiles || []).forEach(p => {
+        const select = document.getElementById(`pkg_map_${p.id}`);
+        if (select) select.value = val;
+    });
+}
+
+function executeMigrationAction() {
+    Swal.fire({
+        title: 'تأكيد ترحيل قاعدة البيانات',
+        text: 'هل أنت متأكد من رغبتك في بدء ترحيل واستيراد هذه البيانات إلى نظام MAX RADIUS الآن؟',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#9333ea',
+        cancelButtonColor: '#334155',
+        confirmButtonText: 'نعم، ابدأ الترحيل الآن',
+        cancelButtonText: 'إلغاء',
+        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+    }).then((res) => {
+        if (res.isConfirmed) {
+            const packageMapping = {};
+            if (g_dbAnalysisData && g_dbAnalysisData.profiles) {
+                g_dbAnalysisData.profiles.forEach(p => {
+                    const select = document.getElementById(`pkg_map_${p.id}`);
+                    if (select) packageMapping[p.id] = select.value;
+                });
+            }
+
+            const selectedSessionMode = document.querySelector('input[name="session_mode"]:checked') ? document.querySelector('input[name="session_mode"]:checked').value : 'consolidated';
+
+            const payload = {
+                server_path: (g_dbAnalysisData && g_dbAnalysisData.temp_server_path) ? g_dbAnalysisData.temp_server_path : '',
+                temp_server_path: (g_dbAnalysisData && g_dbAnalysisData.temp_server_path) ? g_dbAnalysisData.temp_server_path : '',
+                import_subscribers: document.getElementById('optSubscribers').checked,
+                import_cards: document.getElementById('optCards').checked,
+                import_resellers: document.getElementById('optResellers').checked,
+                session_mode: selectedSessionMode,
+                import_sessions: selectedSessionMode !== 'none',
+                collision_strategy: document.getElementById('optCollisionStrategy').value,
+                package_mapping: packageMapping
+            };
+
+            document.getElementById('step-panel-4').classList.add('hidden');
+            document.getElementById('loadingOverlayDb').classList.remove('hidden');
+            document.getElementById('loadingTitleDb').innerText = 'جاري ترحيل وحقن البيانات في MAX RADIUS...';
+            document.getElementById('loadingDescDb').innerText = 'يتم معالجة السجلات بدفعات فائقة السرعة مع المزامنة اللحظية للراديوس.';
+            
+            updateDbProgressUI(0, 'جاري بدء الاستيراد...', '0 سجل');
+            const btnCancel = document.getElementById('btnCancelMigration');
+            if (btnCancel) {
+                btnCancel.disabled = false;
+                btnCancel.classList.remove('opacity-50', 'cursor-not-allowed');
+                btnCancel.innerHTML = '<i class="fa-solid fa-ban"></i> إلغاء العملية والتراجع (Cancel & Rollback)';
+            }
+
+            fetch('{{ url_for("api_migration_execute") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    startPollingDbMigrationProgress();
+                } else {
+                    document.getElementById('loadingOverlayDb').classList.add('hidden');
+                    Swal.fire('خطأ', res.error || 'خطأ غير معروف', 'error');
+                    goToDbStep(4);
+                }
+            })
+            .catch(err => {
+                document.getElementById('loadingOverlayDb').classList.add('hidden');
+                Swal.fire('خطأ في الاتصال', err.message, 'error');
+                goToDbStep(4);
+            });
+        }
+    });
+}
+
+function updateDbProgressUI(pct, stage, processedStr) {
+    const pFill = document.getElementById('progressBarFill');
+    const pText = document.getElementById('progressPercentText');
+    const pBadge = document.getElementById('progressPercentBadge');
+    const pStage = document.getElementById('progressStageText');
+    const pProc = document.getElementById('progressProcessedText');
+
+    if (pFill) pFill.style.width = pct + '%';
+    if (pText) pText.innerText = pct + '%';
+    if (pBadge) pBadge.innerText = pct + '%';
+    if (pStage) pStage.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${stage}`;
+    if (pProc && processedStr) pProc.innerText = processedStr;
+}
+
+function startPollingDbMigrationProgress() {
+    if (g_dbMigrationPollInterval) clearInterval(g_dbMigrationPollInterval);
+    
+    g_dbMigrationPollInterval = setInterval(() => {
+        fetch('{{ url_for("api_migration_progress") }}')
+        .then(r => r.json())
+        .then(data => {
+            const pct = data.percent || 0;
+            const stage = data.stage || 'جاري المعالجة...';
+            const procCount = Number(data.processed || 0).toLocaleString();
+            const totalCount = Number(data.total || 0).toLocaleString();
+            const procStr = totalCount !== '0' ? `${procCount} / ${totalCount} سجل` : `${procCount} سجل`;
+
+            updateDbProgressUI(pct, stage, procStr);
+
+            if (data.unauthenticated) {
+                clearInterval(g_dbMigrationPollInterval);
+                g_dbMigrationPollInterval = null;
+                document.getElementById('loadingOverlayDb').classList.add('hidden');
+                window.location.href = '{{ url_for("login") }}';
+                return;
+            }
+
+            if (data.status === 'completed') {
+                clearInterval(g_dbMigrationPollInterval);
+                g_dbMigrationPollInterval = null;
+                setTimeout(() => {
+                    document.getElementById('loadingOverlayDb').classList.add('hidden');
+                    showDbExecutionResult({
+                        success: true,
+                        stats: data.stats || {},
+                        message: data.message || 'اكتمل ترحيل البيانات بنجاح.'
+                    });
+                }, 400);
+            } else if (data.status === 'cancelled') {
+                clearInterval(g_dbMigrationPollInterval);
+                g_dbMigrationPollInterval = null;
+                document.getElementById('loadingOverlayDb').classList.add('hidden');
+                Swal.fire('تم الإلغاء', 'تم إلغاء عملية الاستيراد والتراجع عن كافة التغييرات بأمان.', 'info');
+                goToDbStep(1);
+            } else if (data.status === 'error') {
+                clearInterval(g_dbMigrationPollInterval);
+                g_dbMigrationPollInterval = null;
+                document.getElementById('loadingOverlayDb').classList.add('hidden');
+                Swal.fire('خطأ في الاستيراد', data.error || data.message || 'خطأ غير معروف', 'error');
+                goToDbStep(4);
+            } else if (data.status === 'idle' && pct === 0) {
+                clearInterval(g_dbMigrationPollInterval);
+                g_dbMigrationPollInterval = null;
+                document.getElementById('loadingOverlayDb').classList.add('hidden');
+            }
+        })
+        .catch(err => {
+            console.error('Polling error:', err);
+        });
+    }, 450);
+}
+
+function cancelMigrationAction() {
+    Swal.fire({
+        title: 'تأكيد الإلغاء والتراجع',
+        text: 'هل أنت متأكد من رغبتك في إلغاء عملية الاستيراد الآن والتراجع عن كافة البيانات؟',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e11d48',
+        cancelButtonColor: '#334155',
+        confirmButtonText: 'نعم، إلغاء وتراجع فوراً',
+        cancelButtonText: 'استمرار',
+        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+    }).then((res) => {
+        if (res.isConfirmed) {
+            const btnCancel = document.getElementById('btnCancelMigration');
+            if (btnCancel) {
+                btnCancel.disabled = true;
+                btnCancel.classList.add('opacity-50', 'cursor-not-allowed');
+                btnCancel.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التراجع والإلغاء...';
+            }
+
+            fetch('{{ url_for("api_migration_cancel") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .catch(err => {
+                alert('فشل إرسال طلب الإلغاء: ' + err.message);
+            });
+        }
+    });
+}
+
+function showDbExecutionResult(res) {
+    for (let i = 1; i <= 4; i++) {
+        const p = document.getElementById(`step-panel-${i}`);
+        if (p) p.classList.add('hidden');
+        const nav = document.getElementById(`step-nav-${i}`);
+        const badge = document.getElementById(`step-badge-${i}`);
+        const title = document.getElementById(`step-title-${i}`);
+        if (nav && badge && title) {
+            nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 transition';
+            badge.className = 'w-7 h-7 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs';
+            badge.innerHTML = '<i class="fa-solid fa-check"></i>';
+            title.className = 'text-xs font-bold text-emerald-300';
+        }
+    }
+
+    document.getElementById('executionResultCard').classList.remove('hidden');
+    document.getElementById('executionResultMessage').innerText = res.message || 'تمت العملية بنجاح.';
+
+    const stats = res.stats || {};
+    const grid = document.getElementById('executionStatsGrid');
+    grid.innerHTML = `
+        <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl">
+            <div class="text-[11px] text-slate-400">باقات جديدة</div>
+            <div class="text-base font-bold text-cyan-400">${stats.packages_created || 0}</div>
+        </div>
+        <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl">
+            <div class="text-[11px] text-slate-400">مشتركون مستوردون</div>
+            <div class="text-base font-bold text-purple-400">${Number(stats.subscribers_imported || 0).toLocaleString()}</div>
+        </div>
+        <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl">
+            <div class="text-[11px] text-slate-400">كروت مع Snapshots</div>
+            <div class="text-base font-bold text-emerald-400">${Number(stats.cards_imported || 0).toLocaleString()}</div>
+        </div>
+        <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl">
+            <div class="text-[11px] text-slate-400">مزامنة FreeRADIUS</div>
+            <div class="text-base font-bold text-blue-400">${Number(stats.radius_synced || 0).toLocaleString()}</div>
+        </div>
+    `;
+}
+
+// Check ongoing DB migration on page load
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('{{ url_for("api_migration_progress") }}')
+    .then(r => r.json())
+    .then(data => {
+        if (data && (data.status === 'running' || data.status === 'cancelling')) {
+            switchImportTab('database');
+            for (let i = 1; i <= 4; i++) {
+                const p = document.getElementById(`step-panel-${i}`);
+                if (p) p.classList.add('hidden');
+            }
+            const resCard = document.getElementById('executionResultCard');
+            if (resCard) resCard.classList.add('hidden');
+
+            const overlay = document.getElementById('loadingOverlayDb');
+            if (overlay) overlay.classList.remove('hidden');
+
+            const pct = data.percent || 0;
+            const stage = data.stage || 'جاري المعالجة...';
+            const procCount = Number(data.processed || 0).toLocaleString();
+            const totalCount = Number(data.total || 0).toLocaleString();
+            const procStr = totalCount !== '0' ? `${procCount} / ${totalCount} سجل` : `${procCount} سجل`;
+            updateDbProgressUI(pct, stage, procStr);
+
+            const btnCancel = document.getElementById('btnCancelMigration');
+            if (btnCancel) {
+                btnCancel.disabled = (data.status === 'cancelling');
+                if (data.status === 'cancelling') {
+                    btnCancel.classList.add('opacity-50', 'cursor-not-allowed');
+                    btnCancel.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التراجع والإلغاء...';
+                } else {
+                    btnCancel.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnCancel.innerHTML = '<i class="fa-solid fa-ban"></i> إلغاء العملية والتراجع (Cancel & Rollback)';
+                }
+            }
+            startPollingDbMigrationProgress();
+        }
+    })
+    .catch(err => {
+        // quiet error catch
+    });
+});
+
+
+/* ========================================================================= */
+/* TAB 2: MIKROTIK USER MANAGER V6 (API ONLY) SCRIPTS                        */
+/* ========================================================================= */
+let parsedMikrotikDataStore = null;
+
+function onNasSelected(selectElem) {
+    const opt = selectElem.options[selectElem.selectedIndex];
+    const badge = document.getElementById('nasStatusBadge');
+    if (!opt || !opt.value) {
+        if (badge) badge.classList.add('hidden');
+        return;
+    }
+
+    const ip = opt.getAttribute('data-ip') || '';
+    const port = opt.getAttribute('data-port') || '8728';
+    const user = opt.getAttribute('data-user') || 'admin';
+    const pass = opt.getAttribute('data-pass') || '';
+    const isOnline = (opt.getAttribute('data-online') === 'true');
+    const latency = opt.getAttribute('data-latency') || '0';
+
+    if (ip) document.getElementById('apiHost').value = ip;
+    if (port) document.getElementById('apiPort').value = port;
+    if (user) document.getElementById('apiUser').value = user;
+    if (pass) document.getElementById('apiPass').value = pass;
+
+    if (badge) {
+        badge.classList.remove('hidden');
+        if (isOnline) {
+            badge.className = 'text-xs px-3 py-1 rounded-full font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+            badge.innerHTML = `<i class="fa-solid fa-circle text-[8px] ml-1"></i> الراوتر متصل (${latency} ms)`;
+        } else {
+            badge.className = 'text-xs px-3 py-1 rounded-full font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30';
+            badge.innerHTML = `<i class="fa-solid fa-circle text-[8px] ml-1"></i> الراوتر غير متصل حالياً`;
+        }
+    }
+}
+
+function showMikrotikLoading(title, text) {
+    Swal.fire({
+        title: title || 'جاري المعالجة...',
+        text: text || 'يرجى الانتظار قليلاً',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+            Swal.showLoading();
+        },
+        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+    });
+}
+
+function hideMikrotikLoading() {
+    Swal.close();
+}
+
+function fetchFromApi() {
+    const host = document.getElementById('apiHost').value.trim();
+    const port = document.getElementById('apiPort').value.trim();
+    const username = document.getElementById('apiUser').value.trim();
+    const password = document.getElementById('apiPass').value;
+    const use_ssl = document.getElementById('apiSsl').checked;
+
+    if (!host || !username) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'بيانات ناقصة',
+            text: 'يرجى تزويد عنوان IP واسم المستخدم للراوتر',
+            confirmButtonText: 'حسناً',
+            customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+        });
+        return;
+    }
+
+    showMikrotikLoading('جاري الاتصال براوتر MikroTik...', `الاتصال عبر المنفذ ${port} وفحص قاعدة User Manager`);
+
+    fetch('{{ url_for("api_mikrotik_userman_test_api") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            host: host,
+            port: port,
+            username: username,
+            password: password,
+            use_ssl: use_ssl
+        })
+    })
+    .then(r => r.json())
+    .then(res => {
+        hideMikrotikLoading();
+        if (res.success && res.data) {
+            parsedMikrotikDataStore = res.data;
+            renderMikrotikPreview(res.data, `اتصال حي: ${host}:${port}`);
+        } else {
+            Swal.fire({
+                icon: 'error',
+                title: 'فشل الاتصال بالراوتر',
+                text: res.error || 'تعذر الاتصال بـ RouterOS API. تأكد من تمكين خدمة API في IP -> Services وصحة اسم المستخدم وكلمة المرور.',
+                confirmButtonText: 'حسناً',
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            });
+        }
+    })
+    .catch(err => {
+        hideMikrotikLoading();
+        Swal.fire({
+            icon: 'error',
+            title: 'خطأ في الاتصال',
+            text: err.message || err.toString(),
+            confirmButtonText: 'حسناً',
+            customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+        });
+    });
+}
+
+function renderMikrotikPreview(data, sourceLabel) {
+    document.getElementById('panelPreviewMikrotik').classList.remove('hidden');
+    document.getElementById('previewSourceLabel').innerText = sourceLabel || '';
+
+    // Summary KPIs
+    document.getElementById('statTotalUsers').innerText = Number(data.total_users || 0).toLocaleString();
+    document.getElementById('statActiveUsers').innerText = Number(data.active_users || 0).toLocaleString();
+    document.getElementById('statExpiredUsers').innerText = Number(data.expired_users || 0).toLocaleString();
+    document.getElementById('statDisabledUsers').innerText = Number(data.disabled_users || 0).toLocaleString();
+    document.getElementById('statTotalProfiles').innerText = (data.profiles || []).length;
+
+    // Fallback Packages Dropdown
+    const pkgSelect = document.getElementById('importFallbackPackage');
+    pkgSelect.innerHTML = '<option value="">-- احتفظ بالباقة الأصلية أو تلقائي --</option>';
+    (data.profiles || []).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.name;
+        opt.innerText = p.name + ' (' + (p.price || 0) + ' ريال)';
+        pkgSelect.appendChild(opt);
+    });
+
+    // Profiles Table
+    const pBody = document.getElementById('profilesTableBody');
+    pBody.innerHTML = '';
+    (data.profiles || []).forEach(p => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition';
+        const quotaText = p.quota_mb > 0 ? (p.quota_mb >= 1024 ? (p.quota_mb / 1024).toFixed(1) + ' GB' : p.quota_mb + ' MB') : 'غير محدود';
+        const uptimeText = p.uptime_mins > 0 ? p.uptime_mins + ' دقيقة' : 'غير محدود';
+        
+        tr.innerHTML = 
+            '<td class="p-3 font-bold text-white flex items-center gap-1.5">' +
+                '<span class="w-2 h-2 rounded-full bg-purple-400"></span>' +
+                '<span>' + (p.name || '') + '</span>' +
+                (p.name_for_users && p.name_for_users !== p.name ? '<span class="text-[10px] text-slate-500">(' + p.name_for_users + ')</span>' : '') +
+            '</td>' +
+            '<td class="p-3 text-cyan-300 font-mono">' + (p.rate_down || '10M') + ' / ' + (p.rate_up || '5M') + '</td>' +
+            '<td class="p-3">' + (p.validity_value || 30) + ' ' + (p.validity_unit === 'days' ? 'أيام' : (p.validity_unit === 'hours' ? 'ساعات' : p.validity_unit)) + '</td>' +
+            '<td class="p-3 font-mono">' + quotaText + '</td>' +
+            '<td class="p-3 font-mono">' + uptimeText + '</td>' +
+            '<td class="p-3 text-emerald-400 font-bold font-mono">' + (p.price || 0) + '</td>';
+        pBody.appendChild(tr);
+    });
+
+    if ((data.profiles || []).length === 0) {
+        pBody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-500">لم يتم العثور على بروفايلات صريحة، سيتم تطبيق الباقة الافتراضية للنظام.</td></tr>';
+    }
+
+    // Users Table Sample
+    const uBody = document.getElementById('usersTableBody');
+    uBody.innerHTML = '';
+    const sampleUsers = (data.users || []).slice(0, 100);
+    document.getElementById('usersSampleCount').innerText = 'عرض أول ' + sampleUsers.length + ' من أصل ' + Number(data.total_users || 0).toLocaleString() + ' كرت';
+
+    sampleUsers.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/40 transition';
+        const statusBadge = u.disabled ? '<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-semibold">معطل</span>' : (u.has_profile ? '<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-semibold">صالح</span>' : '<span class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 font-semibold">منتهي</span>');
+        const profBadge = u.has_profile ? ('<span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 font-semibold">' + u.actual_profile + '</span>') : ('<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">بدون باقة (منتهي)</span>');
+        
+        let usageText = '—';
+        const downMb = u.download_used_bytes > 0 ? (u.download_used_bytes / (1024 * 1024)).toFixed(1) : 0;
+        if (downMb > 0 || u.uptime_used_mins > 0) {
+            usageText = '<span class="font-mono text-cyan-400">' + downMb + ' MB</span> / <span class="font-mono text-purple-400">' + (u.uptime_used_mins || 0) + 'د</span>';
+        }
+
+        tr.innerHTML = 
+            '<td class="p-3 font-mono font-bold text-white">' + (u.username || '') + '</td>' +
+            '<td class="p-3 font-mono text-slate-400">' + (u.password || '— (رقم الكرت)') + '</td>' +
+            '<td class="p-3">' + profBadge + '</td>' +
+            '<td class="p-3">' + usageText + '</td>' +
+            '<td class="p-3 font-mono text-slate-400">' + (u.caller_id || '—') + '</td>' +
+            '<td class="p-3">' + statusBadge + '</td>';
+        uBody.appendChild(tr);
+    });
+
+    document.getElementById('panelPreviewMikrotik').scrollIntoView({ behavior: 'smooth' });
+}
+
+function executeMikrotikImportAction() {
+    if (!parsedMikrotikDataStore || !parsedMikrotikDataStore.users || parsedMikrotikDataStore.users.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'تنبيه',
+            text: 'لا توجد بيانات مستخدمين صالحة للاستيراد',
+            confirmButtonText: 'حسناً',
+            customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+        });
+        return;
+    }
+
+    const targetType = document.getElementById('importTargetType').value;
+    const fallbackPkg = document.getElementById('importFallbackPackage').value;
+    const dupAction = document.getElementById('importDuplicateAction').value;
+    const ignoreExpired = (document.getElementById('importIgnoreExpired').value === 'yes');
+    const importConsumption = (document.getElementById('importConsumption').value === 'yes');
+    const totalUsers = parsedMikrotikDataStore.users.length;
+    const activeUsers = parsedMikrotikDataStore.active_users || totalUsers;
+    const totalProfiles = (parsedMikrotikDataStore.profiles || []).length;
+
+    const countToImport = ignoreExpired ? activeUsers : totalUsers;
+
+    Swal.fire({
+        title: 'تأكيد ترحيل وزرع البيانات',
+        html: 
+            '<div class="text-right text-xs space-y-2 text-slate-300">' +
+                '<p>هل تريد استيراد <b>' + countToImport.toLocaleString() + '</b> كرت/مشترك مقسمة عبر <b>' + totalProfiles + '</b> باقة/حزمة؟</p>' +
+                (ignoreExpired ? '<p class="text-amber-400">⚠️ سيتم استبعاد الكروت المنتهية تلقائياً.</p>' : '<p class="text-cyan-400">ℹ️ سيتم استيراد كافة الكروت بما فيها المنتهية.</p>') +
+                (importConsumption ? '<p class="text-emerald-400">📊 سيتم سحب وترحيل سجلات الاستهلاك السابقة إلى RADIUS.</p>' : '<p class="text-slate-400">🌱 سيتم استيرادها ككروت جديدة برصيد كامل.</p>') +
+            '</div>',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#059669',
+        cancelButtonColor: '#334155',
+        confirmButtonText: 'نعم، ابدأ الاستيراد والتقسيم الآن',
+        cancelButtonText: 'إلغاء',
+        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+    }).then((res) => {
+        if (res.isConfirmed) {
+            showMikrotikLoading('جاري ترحيل وزرع البيانات...', 'إنشاء الحزم والباقات وتوزيع الكروت وسجلات FreeRADIUS');
+
+            fetch('{{ url_for("api_mikrotik_userman_execute") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    data: parsedMikrotikDataStore,
+                    target_type: targetType,
+                    fallback_package: fallbackPkg,
+                    duplicate_action: dupAction,
+                    ignore_expired: ignoreExpired,
+                    import_consumption: importConsumption
+                })
+            })
+            .then(async r => {
+                const text = await r.text();
+                try {
+                    return JSON.parse(text);
+                } catch(e) {
+                    throw new Error(`استجابة غير متوقعة من السيرفر (كود ${r.status}): ${text.slice(0, 150)}`);
+                }
+            })
+            .then(data => {
+                hideMikrotikLoading();
+                if (data.success) {
+                    const st = data.stats || {};
+                    let batchesHtml = '';
+                    if (st.batch_details && st.batch_details.length > 0) {
+                        batchesHtml = '<div class="mt-2 pt-2 border-t border-slate-700 space-y-1 text-slate-300 font-semibold">';
+                        batchesHtml += '<p class="text-purple-300 font-bold">📦 الحزم المنشأة والموزعة:</p>';
+                        st.batch_details.forEach(b => {
+                            batchesHtml += '<p class="flex justify-between"><span>• ' + b.name + '</span><span class="text-cyan-400 font-mono">' + b.total_cards + ' كرت</span></p>';
+                        });
+                        batchesHtml += '</div>';
+                    }
+
+                    Swal.fire({
+                        title: 'اكتمل الاستيراد بنجاح! 🎉',
+                        html: 
+                            '<div class="text-right space-y-2 text-xs text-slate-300">' +
+                                '<p class="text-sm font-bold text-emerald-400">' + (data.message || 'تم الترحيل بنجاح') + '</p>' +
+                                '<div class="bg-black/40 p-3 rounded-xl border border-slate-700 space-y-1 mt-2">' +
+                                    '<p>✅ تم إنشاء: <b>' + (st.created_users || 0) + '</b> كرت/مشترك</p>' +
+                                    '<p>📦 تم إنشاء/تحديث: <b>' + (st.created_packages || 0) + '</b> باقة</p>' +
+                                    (st.ignored_expired_users > 0 ? '<p>🚫 تم استبعاد وتخطي: <b>' + st.ignored_expired_users + '</b> كرت منتهي</p>' : '') +
+                                    (st.imported_consumption_users > 0 ? '<p>📊 تم ترحيل استهلاك: <b>' + st.imported_consumption_users + '</b> كرت إلى RADIUS</p>' : '') +
+                                    '<p>⏭️ تم تخطي: <b>' + (st.skipped_users || 0) + '</b> كرت موجود مسبقاً</p>' +
+                                    batchesHtml +
+                                    '<div class="mt-3 pt-2 border-t border-slate-700 text-xs text-slate-400">💡 يمكنك تعديل الحزم أو طباعتها من قائمة حزم الكروت.</div>' +
+                                '</div>' +
+                            '</div>',
+                        icon: 'success',
+                        confirmButtonText: (targetType === 'vouchers' ? 'انتقال إلى إدارة الحزم والكروت' : 'انتقال إلى صفحة المشتركين'),
+                        showCancelButton: true,
+                        cancelButtonText: 'البقاء هنا',
+                        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+                    }).then((nav) => {
+                        if (nav.isConfirmed) {
+                            window.location.href = (targetType === 'vouchers' ? '{{ url_for("vouchers") }}' : '{{ url_for("subscribers") }}');
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'فشل الاستيراد',
+                        text: data.error || data.message,
+                        confirmButtonText: 'حسناً',
+                        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+                    });
+                }
+            })
+            .catch(err => {
+                hideMikrotikLoading();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ في الاتصال',
+                    text: err.message || err.toString(),
+                    confirmButtonText: 'حسناً',
+                    customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+                });
+            });
+        }
+    });
+}
+
+
+/* ========================================================================= */
+/* TAB 3: EXCEL & CSV IMPORT SCRIPTS                                         */
+/* ========================================================================= */
+function handleTypeChange(type) {
+    const batchGrp = document.getElementById('batchNameGroup');
+    if (batchGrp) {
+        batchGrp.style.display = (type === 'vouchers') ? 'block' : 'none';
+    }
+}
+
+function handleFileSelected(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        document.getElementById('fileNameDisplay').textContent = file.name;
+        const sizeKb = (file.size / 1024).toFixed(1);
+        document.getElementById('fileSizeDisplay').textContent = `(${sizeKb} KB)`;
+        
+        document.getElementById('dropZonePrompt').classList.add('hidden');
+        document.getElementById('fileInfoBox').classList.remove('hidden');
+    }
+}
+
+function clearSelectedFile(e) {
+    if (e) e.stopPropagation();
+    const input = document.getElementById('excelFileInput');
+    if (input) input.value = '';
+    document.getElementById('dropZonePrompt').classList.remove('hidden');
+    document.getElementById('fileInfoBox').classList.add('hidden');
+}
+
+// Drag and drop event listeners for Excel
+const dropZoneExcel = document.getElementById('dropZoneExcel');
+if (dropZoneExcel) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZoneExcel.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZoneExcel.classList.add('border-emerald-400', 'bg-emerald-950/20');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZoneExcel.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZoneExcel.classList.remove('border-emerald-400', 'bg-emerald-950/20');
+        }, false);
+    });
+}
+
+// Handle AJAX Excel form submission
+const importForm = document.getElementById('importForm');
+if (importForm) {
+    importForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const form = this;
+        const fileInput = document.getElementById('excelFileInput');
+        if (!fileInput.files || !fileInput.files[0]) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'تنبيه',
+                text: 'يرجى اختيار ملف إكسل (.xlsx أو .xls) أولاً.',
+                confirmButtonText: 'حسناً',
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            });
+            return;
+        }
+
+        const formData = new FormData(form);
+        const submitBtn = document.getElementById('submitBtnExcel');
+        const origBtnHtml = submitBtn.innerHTML;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>جارٍ التحقق ومعالجة البيانات...</span>`;
+
+        try {
+            const resp = await fetch(form.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await resp.json();
+
+            if (data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم الاستيراد بنجاح! 🎉',
+                    html: `
+                        <div class="text-xs text-slate-300 text-right space-y-2">
+                            <p class="text-emerald-400 font-bold text-sm">${data.message}</p>
+                            ${data.batch_name ? `<p>اسم الحزمة: <strong class="text-white font-mono">${data.batch_name}</strong></p>` : ''}
+                            <p>عدد السجلات التي تمت مزامنتها: <strong class="text-emerald-400 font-mono text-sm">${data.count}</strong></p>
+                        </div>
+                    `,
+                    confirmButtonText: data.redirect_url ? 'الانتقال إلى القائمة' : 'تم',
+                    customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+                }).then((res) => {
+                    if (data.redirect_url) {
+                        window.location.href = data.redirect_url;
+                    } else {
+                        form.reset();
+                        clearSelectedFile();
+                    }
+                });
+            } else {
+                let errorHtml = `<p class="text-rose-400 font-bold mb-2">${data.message || 'فشلت عملية التحقق من الملف.'}</p>`;
+                if (data.errors && data.errors.length > 0) {
+                    errorHtml += `<div class="max-h-60 overflow-y-auto text-right text-xs bg-[#070b14] p-3 rounded-xl border border-rose-500/20 text-slate-300 space-y-1 font-mono">`;
+                    data.errors.slice(0, 15).forEach(err => {
+                        errorHtml += `<div class="text-rose-300 flex items-start gap-1.5"><i class="fa-solid fa-circle-xmark text-rose-500 text-[10px] mt-1"></i><span>${err}</span></div>`;
+                    });
+                    if (data.errors.length > 15) {
+                        errorHtml += `<div class="text-slate-400 text-[11px] pt-1">... و ${data.errors.length - 15} أخطاء أخرى.</div>`;
+                    }
+                    errorHtml += `</div>`;
+                }
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'فشل التحقق من صحة الملف',
+                    html: errorHtml,
+                    confirmButtonText: 'إغلاق وتصحيح الملف',
+                    customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+                });
+            }
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ في الاتصال',
+                text: 'تعذر إرسال الملف إلى الخادم. يرجى المحاولة مرة أخرى.',
+                confirmButtonText: 'حسناً',
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            });
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = origBtnHtml;
+        }
+    });
+}
+</script>
+{% endblock %}
