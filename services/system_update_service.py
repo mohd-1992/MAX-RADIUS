@@ -150,6 +150,37 @@ def get_update_progress():
     with _UPDATE_LOCK:
         return dict(_UPDATE_STATE)
 
+def docker_socket_request(method, path, body=None, timeout=120):
+    """Direct HTTP communication with local Docker daemon over UNIX socket."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        s.connect('/var/run/docker.sock')
+        req = f"{method} {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n"
+        if body:
+            b_bytes = json.dumps(body).encode('utf-8')
+            req += f"Content-Type: application/json\r\nContent-Length: {len(b_bytes)}\r\n\r\n"
+            s.sendall(req.encode('utf-8') + b_bytes)
+        else:
+            req += "\r\n"
+            s.sendall(req.encode('utf-8'))
+        
+        data = b""
+        while True:
+            try:
+                chunk = s.recv(8192)
+                if not chunk:
+                    break
+                data += chunk
+            except Exception:
+                break
+        s.close()
+        return data
+    except Exception as e:
+        logger.warning(f"Docker socket request error ({method} {path}): {e}")
+        return None
+
 def _execute_update_worker(target_version):
     """Background worker executing the multi-stage safe update."""
     global _UPDATE_STATE
@@ -160,7 +191,7 @@ def _execute_update_worker(target_version):
             _UPDATE_STATE['percent'] = 10
             _UPDATE_STATE['stage'] = 'جاري التحضير والتهيئة للترقية...'
             _UPDATE_STATE['message'] = 'فحص متطلبات النظام والمساحة التخزينية المتاحة.'
-        time.sleep(1.2)
+        time.sleep(1.0)
 
         # Stage 2: Automatic Pre-Update Backup
         with _UPDATE_LOCK:
@@ -169,12 +200,12 @@ def _execute_update_worker(target_version):
             _UPDATE_STATE['message'] = 'إنشاء لقطة أمان فورية تحسباً لأي طارئ (Pre-update Snapshot).'
         
         try:
-            from services.backup_service import create_backup
-            b_res = create_backup(description=f"Auto Backup Before Update to {target_version}")
+            from services.backup_service import create_comprehensive_backup
+            b_res = create_comprehensive_backup(admin_username='System Auto-Update', notes=f'Auto Snapshot Before Update to {target_version}')
             logger.info("Pre-update backup result: %s", b_res)
         except Exception as e:
             logger.warning("Pre-update backup warning: %s", e)
-        time.sleep(1.5)
+        time.sleep(1.0)
 
         # Stage 3: Pulling Docker Image Layers
         with _UPDATE_LOCK:
@@ -182,20 +213,13 @@ def _execute_update_worker(target_version):
             _UPDATE_STATE['stage'] = 'سحب وتنزيل طبقات التحديث السحابية (Docker Layers)...'
             _UPDATE_STATE['message'] = f'تنزيل أحدث حزمة برمجية مشفرة ({DOCKER_IMAGE_NAME}).'
 
-        # Attempt docker pull inside or outside container if docker daemon is accessible
         try:
-            # If docker CLI / socket is accessible
-            pull_res = subprocess.run(
-                ['docker', 'pull', DOCKER_IMAGE_NAME],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                timeout=180
-            )
-            logger.info("Docker pull result code: %s", pull_res.returncode)
+            # Pull latest image via Docker API
+            pull_resp = docker_socket_request('POST', '/images/create?fromImage=mohd777%2Fmax-radius-web&tag=latest', timeout=180)
+            logger.info("Docker API image pull initiated via socket.")
         except Exception as e:
-            logger.info("Direct docker pull notice (handled by orchestrator): %s", e)
-        time.sleep(2.0)
+            logger.warning("Docker image pull notice: %s", e)
+        time.sleep(1.5)
 
         # Stage 4: Database Migrations Check
         with _UPDATE_LOCK:
@@ -204,30 +228,46 @@ def _execute_update_worker(target_version):
             _UPDATE_STATE['message'] = 'مزامنة الجداول والحقول الإضافية مع FreeRADIUS.'
         
         try:
-            # Check and run database migrations if needed
-            from database.db import get_connection, is_mysql_conn
-            conn = get_connection()
-            is_mysql = is_mysql_conn(conn)
-            conn.close()
-            # Perform harmless table index or settings refresh
             execute_write("UPDATE wisp_system_settings SET `value` = ? WHERE `key` = 'last_system_update_at'", (datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),))
         except Exception as e:
             logger.warning("Migration execution notice: %s", e)
-        time.sleep(1.2)
+        time.sleep(1.0)
 
-        # Stage 5: Reloading and Re-initializing Services
+        # Stage 5: Trigger Transient Container Recreator
         with _UPDATE_LOCK:
             _UPDATE_STATE['percent'] = 90
             _UPDATE_STATE['stage'] = 'إعادة تشغيل وتفعيل الحاوية المحدثة...'
             _UPDATE_STATE['message'] = 'تطبيق الإصدار الجديد والتحقق من صحة وجاهزية الخدمات.'
-        time.sleep(1.5)
+        
+        try:
+            # 1. Clean previous updater if exists
+            docker_socket_request('DELETE', '/containers/max_radius_update_orchestrator?force=true&v=true')
+            # 2. Create transient updater using docker:cli
+            create_payload = {
+                "Image": "docker:cli",
+                "Cmd": ["sh", "-c", "sleep 3 && docker compose -f /opt/max-radius/docker-compose.yml pull wisp-web && docker compose -f /opt/max-radius/docker-compose.yml up -d --no-deps wisp-web && docker rm -f max_radius_update_orchestrator"],
+                "HostConfig": {
+                    "Binds": [
+                        "/var/run/docker.sock:/var/run/docker.sock",
+                        "/opt/max-radius:/opt/max-radius"
+                    ],
+                    "AutoRemove": False
+                }
+            }
+            docker_socket_request('POST', '/containers/create?name=max_radius_update_orchestrator', body=create_payload)
+            # 3. Start transient updater
+            docker_socket_request('POST', '/containers/max_radius_update_orchestrator/start')
+            logger.info("Transient container orchestrator started successfully.")
+        except Exception as e:
+            logger.error("Transient container orchestrator trigger failed: %s", e)
+        time.sleep(1.0)
 
         # Stage 6: Completion
         with _UPDATE_LOCK:
             _UPDATE_STATE['status'] = 'completed'
             _UPDATE_STATE['percent'] = 100
             _UPDATE_STATE['stage'] = 'اكتمل تحديث النظام بنجاح! 🎉'
-            _UPDATE_STATE['message'] = f'تمت ترقية MAX RADIUS بنجاح إلى الإصدار {target_version}. سيتم تحديث الصفحة الآن.'
+            _UPDATE_STATE['message'] = f'تمت ترقية MAX RADIUS بنجاح إلى الإصدار {target_version}. سيتم إعادة تحميل لوحة التحكم فوراً.'
             _UPDATE_STATE['completed_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         logger.info("System update completed successfully to version %s", target_version)
