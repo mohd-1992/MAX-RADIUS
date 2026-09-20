@@ -148,7 +148,7 @@
                         <i class="fa-solid fa-fingerprint"></i>
                         <span>بصمة العتاد الثابتة للسيرفر (Hardware Machine ID)</span>
                     </h3>
-                    <span class="text-[11px] text-slate-400">مربوطة باللوحة الأم والمعالج</span>
+                    <span class="text-[11px] text-slate-400">بصمة مشفرة ومعتمدة</span>
                 </div>
 
                 <div class="flex flex-col sm:flex-row items-center gap-3">
@@ -187,10 +187,7 @@
                         <input type="file" name="license_file" accept=".lic,.json" class="w-full bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-cyan-600 file:text-white hover:file:bg-cyan-500 cursor-pointer">
                     </div>
 
-                    <div class="pt-2">
-                        <label class="block text-slate-300 mb-1.5">عنوان خادم التراخيص المركزي (اختياري للمزامنة):</label>
-                        <input type="text" name="master_server_url" value="{{ license.master_server_url or 'http://136.244.95.245:3030' }}" class="w-full bg-slate-950/90 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 font-mono text-xs focus:border-cyan-500 focus:outline-none">
-                    </div>
+                    <input type="hidden" name="master_server_url" value="{{ license.master_server_url or 'http://136.244.95.245:3030' }}">
 
                     <div class="pt-3">
                         <button type="submit" class="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-600/25 transition flex items-center justify-center gap-2 cursor-pointer transform active:scale-[0.99]">

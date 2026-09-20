@@ -105,12 +105,12 @@
                 <div class="flex items-center gap-3 text-xs text-slate-400 lic-muted mt-1.5 flex-wrap">
                     <span class="flex items-center gap-1.5">
                         <i class="fa-solid fa-lock text-blue-400"></i>
-                        <span>تشفير توقيع رقمي Ed25519</span>
+                        <span>تشفير توقيع رقمي معتمد</span>
                     </span>
                     <span class="text-slate-600">•</span>
                     <span class="flex items-center gap-1.5">
-                        <i class="fa-solid fa-cloud text-cyan-400"></i>
-                        <span>الخادم السحابي: <code class="font-mono text-cyan-300">license.max-net.net</code></span>
+                        <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                        <span>مزامنة أمان سحابية مؤمنة ومشفرة</span>
                     </span>
                 </div>
             </div>
@@ -197,7 +197,7 @@
                     </h3>
                     <span class="text-[11px] px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold flex items-center gap-1.5">
                         <i class="fa-solid fa-microchip text-[10px]"></i>
-                        <span>بصمة فيزيائية معتمدة (DMI + CPU + Disk)</span>
+                        <span>بصمة فيزيائية معتمدة ومشفرة</span>
                     </span>
                 </div>
 
@@ -440,17 +440,8 @@
                         <textarea name="license_token" id="licenseTokenInput" rows="4" class="w-full bg-[#070b14] lic-subcard border border-[#162136] lic-border rounded-2xl p-3.5 text-emerald-400 font-mono text-[11px] focus:border-blue-500 focus:outline-none placeholder-slate-500 transition-all" placeholder="الصق كود الترخيص المشفر (Token) هنا..."></textarea>
                     </div>
 
-                    <!-- 3. Master Server URL -->
-                    <div>
-                        <label class="block text-slate-300 lic-title mb-1.5 flex items-center justify-between">
-                            <span>3. عنوان خادم التراخيص السحابي للمزامنة</span>
-                            <span class="text-[10px] text-emerald-400 flex items-center gap-1 font-bold">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                SSL آمن
-                            </span>
-                        </label>
-                        <input type="text" name="master_server_url" value="{{ license.master_server_url or 'https://license.max-net.net' }}" class="w-full bg-[#070b14] lic-subcard border border-[#162136] lic-border rounded-2xl px-4 py-3 text-slate-200 font-mono text-xs focus:border-blue-500 focus:outline-none transition-all">
-                    </div>
+                    <!-- Hidden Master Server URL -->
+                    <input type="hidden" name="master_server_url" value="{{ license.master_server_url or 'http://136.244.95.245:3030' }}">
 
                     <button type="submit" class="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 cursor-pointer transform active:scale-[0.98]">
                         <i class="fa-solid fa-circle-check text-base lic-btn-text"></i>
