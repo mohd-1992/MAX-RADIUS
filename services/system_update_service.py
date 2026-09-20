@@ -245,29 +245,37 @@ def _execute_update_worker(target_version):
             _UPDATE_STATE['stage'] = 'فشلت عملية التحديث'
             _UPDATE_STATE['message'] = f'حدث خطأ غير متوقع: {str(err)}'
 
-def trigger_system_update(target_version=None):
+def trigger_system_update(target_version=None, backup_first=True, triggered_by='Admin'):
     """
     Triggers the background update task if not already in progress.
-    Returns (success: bool, message: str).
+    Returns a dictionary with success, target_version, and message.
     """
     global _UPDATE_STATE
     with _UPDATE_LOCK:
         if _UPDATE_STATE['status'] == 'running':
-            return False, 'عملية التحديث قيد التنفيذ بالفعل حالياً.'
+            return {
+                'success': False,
+                'message': 'عملية التحديث قيد التنفيذ بالفعل حالياً.'
+            }
 
+        target_ver = target_version or '2.5.0'
         _UPDATE_STATE['status'] = 'running'
-        _UPDATE_STATE['stage'] = 'بدء تشغيل محرك التحديث...'
+        _UPDATE_STATE['stage'] = 'بدء تشغيل محرك التحديث والترقية...'
         _UPDATE_STATE['percent'] = 5
-        _UPDATE_STATE['message'] = 'جاري الاتصال بخادم التحديثات.'
+        _UPDATE_STATE['message'] = 'جاري الاتصال بخادم التحديثات وفحص المتطلبات.'
         _UPDATE_STATE['error'] = None
         _UPDATE_STATE['started_at'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        _UPDATE_STATE['target_version'] = target_version or '2.1.0'
+        _UPDATE_STATE['target_version'] = target_ver
         _UPDATE_STATE['completed_at'] = None
 
     worker_thread = threading.Thread(
         target=_execute_update_worker,
-        args=(_UPDATE_STATE['target_version'],),
+        args=(target_ver,),
         daemon=True
     )
     worker_thread.start()
-    return True, 'تم بدء عملية التحديث بنجاح في الخلفية.'
+    return {
+        'success': True,
+        'target_version': target_ver,
+        'message': 'تم بدء عملية التحديث بنجاح في الخلفية.'
+    }

@@ -244,10 +244,16 @@ function checkUpdates(force = false) {
     const url = '{{ url_for("api_system_update_check") }}' + (force ? '?force=1' : '');
 
     fetch(url)
-    .then(r => r.json())
+    .then(async r => {
+        if (!r.ok) {
+            const errData = await r.json().catch(() => ({}));
+            throw new Error(errData.message || `HTTP ${r.status}`);
+        }
+        return r.json();
+    })
     .then(data => {
         if (spinner) spinner.classList.remove('fa-spin');
-        if (data.success) {
+        if (data && data.success) {
             renderUpdateData(data);
         }
     })
@@ -333,9 +339,15 @@ function triggerUpdateExecution() {
     fetch('{{ url_for("api_system_update_apply") }}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version: g_latestVersion })
+        body: JSON.stringify({ version: g_latestVersion, backup_first: true })
     })
-    .then(r => r.json())
+    .then(async r => {
+        if (!r.ok) {
+            const errData = await r.json().catch(() => ({}));
+            throw new Error(errData.message || `HTTP ${r.status}`);
+        }
+        return r.json();
+    })
     .then(data => {
         if (data.success) {
             startPollingProgress();
@@ -346,7 +358,7 @@ function triggerUpdateExecution() {
     })
     .catch(err => {
         if (modal) modal.classList.add('hidden');
-        Swal.fire('خطأ في الاتصال', err.message, 'error');
+        Swal.fire('خطأ في الاتصال', err.message || 'تعذر بدء التحديث', 'error');
     });
 }
 
@@ -355,8 +367,12 @@ function startPollingProgress() {
 
     g_updatePollTimer = setInterval(() => {
         fetch('{{ url_for("api_system_update_progress") }}')
-        .then(r => r.json())
+        .then(async r => {
+            if (!r.ok) return null;
+            return r.json();
+        })
         .then(data => {
+            if (!data) return;
             const pct = data.percent || 0;
             const stage = data.stage || 'جاري التحديث...';
 

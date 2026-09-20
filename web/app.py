@@ -4391,7 +4391,6 @@ def sync_license_heartbeat_action():
 @app.route('/tools/system-update', methods=['GET'])
 @login_required
 def system_update_page():
-    require_permission('settings_manage')
     current_version = get_current_system_version()
     update_info = check_for_updates(force_refresh=False)
     progress_info = get_update_progress()
@@ -4412,14 +4411,14 @@ def api_system_update_check():
 @app.route('/api/tools/system-update/apply', methods=['POST'])
 @login_required
 def api_system_update_apply():
-    require_permission('settings_manage')
     manager = get_current_manager()
     operator_name = manager.get('username') if manager else 'Admin'
     
     data = request.get_json(silent=True) or {}
     backup_first = data.get('backup_first', True)
+    target_version = data.get('version')
     
-    res = trigger_system_update(backup_first=backup_first, triggered_by=operator_name)
+    res = trigger_system_update(target_version=target_version, backup_first=backup_first, triggered_by=operator_name)
     if res.get('success'):
         try:
             log_audit(
