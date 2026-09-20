@@ -489,14 +489,15 @@
 </div>
 
 <script>
-// 1. Copy Machine ID to clipboard with visual feedback
+// 1. Copy Machine ID to clipboard with visual feedback & universal HTTP fallback
 function copyMachineId() {
     const txt = document.getElementById("machineIdText").innerText.trim();
-    navigator.clipboard.writeText(txt).then(() => {
+    
+    function showSuccessUI() {
         const icon = document.getElementById("copyIcon");
         const text = document.getElementById("copyText");
-        icon.className = "fa-solid fa-check text-emerald-300";
-        text.innerText = "تم النسخ!";
+        if (icon) icon.className = "fa-solid fa-check text-emerald-300";
+        if (text) text.innerText = "تم النسخ!";
         
         if (window.Swal) {
             Swal.fire({
@@ -511,10 +512,38 @@ function copyMachineId() {
         }
 
         setTimeout(() => {
-            icon.className = "fa-solid fa-copy";
-            text.innerText = "نسخ البصمة";
+            if (icon) icon.className = "fa-solid fa-copy";
+            if (text) text.innerText = "نسخ البصمة";
         }, 2500);
-    });
+    }
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(txt).then(showSuccessUI).catch(() => fallbackCopy(txt));
+    } else {
+        fallbackCopy(txt);
+    }
+
+    function fallbackCopy(textToCopy) {
+        try {
+            const tempInput = document.createElement("textarea");
+            tempInput.value = textToCopy;
+            tempInput.style.position = "fixed";
+            tempInput.style.left = "-9999px";
+            tempInput.style.top = "-9999px";
+            document.body.appendChild(tempInput);
+            tempInput.focus();
+            tempInput.select();
+            const successful = document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            if (successful) {
+                showSuccessUI();
+            } else {
+                prompt("يرجى نسخ البصمة يدوياً:", textToCopy);
+            }
+        } catch (e) {
+            prompt("يرجى نسخ البصمة يدوياً:", textToCopy);
+        }
+    }
 }
 
 // 2. Drag and Drop file name listener

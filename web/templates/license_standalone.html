@@ -222,16 +222,41 @@
     <script>
         function copyHwId() {
             const hwid = document.getElementById('machineIdText').innerText.trim();
-            navigator.clipboard.writeText(hwid).then(() => {
+            function showSuccess() {
                 const btnText = document.getElementById('copyHwText');
                 const btn = document.getElementById('copyHwBtn');
-                btnText.innerText = 'تم النسخ بنجاح!';
-                btn.classList.add('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/40');
+                if (btnText) btnText.innerText = 'تم النسخ بنجاح!';
+                if (btn) btn.classList.add('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/40');
                 setTimeout(() => {
-                    btnText.innerText = 'نسخ البصمة';
-                    btn.classList.remove('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/40');
+                    if (btnText) btnText.innerText = 'نسخ البصمة';
+                    if (btn) btn.classList.remove('bg-emerald-500/20', 'text-emerald-400', 'border-emerald-500/40');
                 }, 2500);
-            });
+            }
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(hwid).then(showSuccess).catch(() => fallback(hwid));
+            } else {
+                fallback(hwid);
+            }
+
+            function fallback(text) {
+                try {
+                    const el = document.createElement('textarea');
+                    el.value = text;
+                    el.style.position = 'fixed';
+                    el.style.left = '-9999px';
+                    el.style.top = '-9999px';
+                    document.body.appendChild(el);
+                    el.focus();
+                    el.select();
+                    const res = document.execCommand('copy');
+                    document.body.removeChild(el);
+                    if (res) showSuccess();
+                    else prompt('يرجى نسخ البصمة يدوياً:', text);
+                } catch (e) {
+                    prompt('يرجى نسخ البصمة يدوياً:', text);
+                }
+            }
         }
     </script>
 </body>
