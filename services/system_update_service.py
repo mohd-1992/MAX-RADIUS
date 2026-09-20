@@ -28,7 +28,7 @@ from database.db import query_all, query_one, execute_write
 logger = logging.getLogger('system_update_service')
 
 # Master Update & Release Server Endpoint
-DEFAULT_UPDATE_SERVER_URL = os.environ.get("MASTER_UPDATE_SERVER_URL", "http://127.0.0.1:5095/api/v1/updates/latest")
+DEFAULT_UPDATE_SERVER_URL = os.environ.get("MASTER_UPDATE_SERVER_URL", "http://136.244.95.245:3040/api/v1/updates/latest")
 DOCKER_IMAGE_NAME = "mohd777/max-radius-web:latest"
 
 # Global In-Memory Update Lock & Progress State
@@ -123,24 +123,19 @@ def check_for_updates(force_refresh=False, force=False):
             'checked_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
     else:
-        # Fallback local release metadata / simulated latest release version
-        # System running 2.4.0 -> New update available: v2.5.0
-        latest_ver = "2.5.0"
-        has_update = is_newer_version(current_version, latest_ver)
+        # Fallback when master server is unreachable: system is up to date
+        latest_ver = current_version
+        has_update = False
         result = {
             'success': True,
-            'has_update': has_update,
+            'has_update': False,
             'current_version': current_version,
-            'latest_version': latest_ver if has_update else current_version,
+            'latest_version': current_version,
             'release_date': datetime.date.today().strftime('%Y-%m-%d'),
             'is_critical': False,
-            'title': f"تحديث MAX RADIUS الإصدار v{latest_ver}",
+            'title': f"نظام MAX RADIUS v{current_version}",
             'changelog': [
-                "🔧 إصلاح مشكلة زر نسخ بصمة الجهاز (Hardware ID) في صفحة الترخيص ودعم النسخ في كافة بيئات HTTP و HTTPS.",
-                "✨ إضافة مركز استيراد وترحيل البيانات الموحد (Unified Import Hub) مع 3 تبويبات.",
-                "📡 استيراد مباشر وسريع لكروت وبروفايلات MikroTik User Manager v6 عبر RouterOS API.",
-                "🚀 مركز التحديثات والترقية الآلية بنقرة زر واحدة مع إشعار دائم في لوحة التحكم.",
-                "🛡️ تحسينات على استقرار مزامنة FreeRADIUS والنسخ الاحتياطي التلقائي."
+                "✨ النظام محدث ومزود بآخر التحديثات والإصلاحات البرمجية."
             ],
             'docker_image': DOCKER_IMAGE_NAME,
             'checked_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
