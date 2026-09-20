@@ -90,15 +90,11 @@ services:
       - RADIUS_COA_PORT=37990
       - L2TP_CONTAINER=max_radius_l2tp
     ports:
+      - "80:5090/tcp"
       - "5090:5090/tcp"
     volumes:
-      - ./core:/app/core
-      - ./database:/app/database
-      - ./services:/app/services
-      - ./web:/app/web
       - ./storage:/app/storage
       - ./storage/uploads:/app/web/static/uploads
-      - ./run.py:/app/run.py
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5090/"]

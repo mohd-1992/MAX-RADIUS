@@ -2676,13 +2676,14 @@ def edit_nas_action(nas_id):
         flash(f'خطأ أثناء حفظ تعديلات الراوتر: {str(e)}', 'danger')
     return redirect(url_for('nas_details_page', nas_id=nas_id))
 
-@app.route('/nas/delete/<int:nas_id>', methods=['POST'])
+@app.route('/nas/delete/<int:nas_id>', methods=['GET', 'POST'])
 def delete_nas_action(nas_id):
     try:
-        delete_nas_device(nas_id)
+        admin_user = session.get('user', {}).get('username') or session.get('admin_username') or 'admin'
+        delete_nas_device(nas_id, admin_username=admin_user)
         flash('تم حذف الراوتر ومسحه من FreeRADIUS بنجاح.', 'warning')
     except Exception as e:
-        flash(f'خطأ: {str(e)}', 'danger')
+        flash(f'خطأ أثناء حذف الراوتر: {str(e)}', 'danger')
     return redirect(url_for('nas'))
 
 @app.route('/api/nas/test-coa/<int:nas_id>', methods=['POST'])

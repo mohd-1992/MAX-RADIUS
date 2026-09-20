@@ -192,6 +192,48 @@
             m.classList.add('hidden');
         }
     };
+
+    window.deleteNasFromElement = function(btn) {
+        if (!btn) return;
+        var nasId = btn.getAttribute('data-id');
+        var nasName = btn.getAttribute('data-name') || 'الراوتر';
+        window.confirmDeleteNas(nasId, nasName);
+    };
+
+    window.confirmDeleteNas = function(nasId, name) {
+        if (!nasId) return;
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'حذف الراوتر ومسح الإعدادات',
+                html: '<div class="text-right text-xs space-y-2 text-slate-300">' +
+                      '<p>هل أنت متأكد من حذف راوتر <strong class="text-rose-400">[' + name + ']</strong> نهائياً؟</p>' +
+                      '<p class="text-[11px] text-slate-400">سيتم حذف الراوتر من قاعدة البيانات وإزالته فوراً من عملاء FreeRADIUS.</p>' +
+                      '</div>',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                cancelButtonColor: '#475569',
+                confirmButtonText: '<i class="fa-solid fa-trash-can mr-1"></i> نعم، احذف الراوتر',
+                cancelButtonText: 'إلغاء'
+            }).then(function(res) {
+                if (res.isConfirmed) {
+                    var form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/nas/delete/' + nasId;
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            });
+        } else {
+            if (confirm('هل أنت متأكد من حذف راوتر [' + name + '] نهائياً؟')) {
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/nas/delete/' + nasId;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    };
 </script>
 
 <div class="space-y-6">
@@ -450,7 +492,12 @@
                 </div>
 
                 <!-- 4. حذف -->
-                <button type="button" onclick="confirmDeleteNas({{ d.id }}, '{{ d.name|e }}')" class="p-2 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-xl text-xs transition border border-[#162136] flex-shrink-0 cursor-pointer" title="حذف الراوتر">
+                <button type="button" 
+                        data-id="{{ d.id }}" 
+                        data-name="{{ d.name }}" 
+                        onclick="deleteNasFromElement(this)" 
+                        class="p-2 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-xl text-xs transition border border-[#162136] flex-shrink-0 cursor-pointer" 
+                        title="حذف الراوتر">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </div>

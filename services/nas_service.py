@@ -159,11 +159,21 @@ def update_nas_device(nas_id, data, admin_username='admin'):
 def delete_nas_device(nas_id, admin_username='admin'):
     nas = query_one('SELECT ip_address, name FROM wisp_nas_devices WHERE id = ?', (nas_id,))
     if nas:
-        ip = nas['ip_address']
-        execute_write('DELETE FROM nas WHERE nasname = ?', (ip,))
+        ip = nas.get('ip_address', '').strip()
+        try:
+            if ip:
+                execute_write('DELETE FROM nas WHERE nasname = ?', (ip,))
+        except Exception:
+            pass
         execute_write('DELETE FROM wisp_nas_devices WHERE id = ?', (nas_id,))
-        sync_nas_table_entries()
-        log_audit(1, admin_username, 'DELETE_NAS', 'nas', f'Deleted NAS {nas["name"]} ({ip}) and cleaned all associated radius client entries')
+        try:
+            sync_nas_table_entries()
+        except Exception:
+            pass
+        try:
+            log_audit(1, admin_username, 'DELETE_NAS', 'nas', f'Deleted NAS {nas.get("name", nas_id)} ({ip}) and cleaned all associated radius client entries')
+        except Exception:
+            pass
         return True
     return False
 
