@@ -3657,9 +3657,11 @@ def api_mikrotik_userman_execute():
     from services.mikrotik_userman_importer import execute_userman_import
     req_data = request.json or {}
     parsed_data = req_data.get('data') or {}
-    target_type = req_data.get('target_type', 'subscribers')
+    target_type = req_data.get('target_type', 'vouchers')
     fallback_package = req_data.get('fallback_package')
     duplicate_action = req_data.get('duplicate_action', 'skip')
+    ignore_expired = bool(req_data.get('ignore_expired', True))
+    import_consumption = bool(req_data.get('import_consumption', False))
     admin_user = session.get('username', 'admin')
 
     res = execute_userman_import(
@@ -3667,6 +3669,8 @@ def api_mikrotik_userman_execute():
         target_type=target_type,
         fallback_package=fallback_package,
         duplicate_action=duplicate_action,
+        ignore_expired=ignore_expired,
+        import_consumption=import_consumption,
         admin_user=admin_user
     )
     return jsonify(res)

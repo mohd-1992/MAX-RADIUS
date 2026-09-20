@@ -89,6 +89,9 @@ def parse_shared_users(val):
 def parse_mikrotik_bytes_to_mb(byte_val):
     if not byte_val:
         return 0
+    s_raw = str(byte_val).strip().lower()
+    if s_raw in ('unlimited', 'off', 'none', 'auto', '0', '0s', ''):
+        return 0
     try:
         s = str(byte_val).strip().upper()
         if any(s.endswith(u) for u in ('GIB', 'GB', 'G')):
@@ -104,18 +107,47 @@ def parse_mikrotik_bytes_to_mb(byte_val):
             num = float(re.sub(r'[^\d.]', '', s))
             return int(num * 1024 * 1024)
         else:
-            num = float(s)
+            num = float(re.sub(r'[^\d.]', '', s) or 0)
             if num > 1024 * 1024:
                 return int(num / (1024 * 1024))
             return int(num)
     except Exception:
         return 0
 
+# Helper: extract quota in MB from profile/limitation name (e.g. '100GB', '350M', '3GB', '1.5GB', '4 قيقا')
+def extract_quota_from_name(name_str):
+    if not name_str:
+        return 0
+    s = str(name_str).strip()
+    
+    # Check for GB patterns: e.g. "100GB", "100 GB", "1.5GB", "100 قيقا", "100G" (not followed by bps)
+    gb_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:GB|GIB|قيقا|جيجا|G(?![A-Za-z]))', s, re.IGNORECASE)
+    if gb_match:
+        try:
+            val = float(gb_match.group(1))
+            return int(val * 1024)
+        except Exception:
+            pass
+
+    # Check for MB patterns: e.g. "350M", "350MB", "350 ميجا", "350 ميقا"
+    mb_match = re.search(r'(\d+(?:\.\d+)?)\s*(?:MB|MIB|ميقا|ميجا|M(?![A-Za-z]))', s, re.IGNORECASE)
+    if mb_match:
+        try:
+            val = float(mb_match.group(1))
+            return int(val)
+        except Exception:
+            pass
+
+    return 0
+
 # Helper: parse uptime to minutes
 def parse_mikrotik_uptime_to_mins(uptime_val):
-    if not uptime_val or str(uptime_val).strip() in ('0', '0s', ''):
+    if not uptime_val:
         return 0
-    s = str(uptime_val).strip().lower()
+    s_raw = str(uptime_val).strip().lower()
+    if s_raw in ('unlimited', 'off', 'none', 'auto', '0', '0s', ''):
+        return 0
+    s = s_raw
     total_mins = 0
     
     # Pattern like '1w2d3h4m' or '2h30m' or '1d'
@@ -135,7 +167,8 @@ def parse_mikrotik_uptime_to_mins(uptime_val):
             
     if total_mins == 0:
         try:
-            total_mins = int(s)
+            num_clean = re.sub(r'[^\d]', '', s)
+            total_mins = int(num_clean) if num_clean else 0
         except Exception:
             pass
     return total_mins
@@ -241,7 +274,13 @@ def parse_rsc_content(raw_text):
                     if not tx_k and attrs.get('rate-limit-tx'):
                         _, tx_k = parse_mikrotik_rate_limit(attrs.get('rate-limit-tx'))
                         
-                    download_mb = parse_mikrotik_bytes_to_mb(attrs.get('download-limit') or attrs.get('transfer-limit') or 0)
+                    download_mb = parse_mikrotik_bytes_to_mb(
+                        attrs.get('download-limit') or attrs.get('transfer-limit') or
+                        attrs.get('upload-limit') or attrs.get('total-limit') or
+                        attrs.get('limit-bytes-total') or attrs.get('limit-bytes-in') or 0
+                    )
+                    if not download_mb:
+                        download_mb = extract_quota_from_name(l_name)
                     upload_mb = parse_mikrotik_bytes_to_mb(attrs.get('upload-limit') or 0)
                     uptime_mins = parse_mikrotik_uptime_to_mins(attrs.get('uptime-limit') or 0)
                     
@@ -262,16 +301,26 @@ def parse_rsc_content(raw_text):
             elif current_section == 'users':
                 username = attrs.get('username')
                 if username:
+                    act_prof = (attrs.get('actual-profile') or attrs.get('profile') or '').strip()
+                    uptime_used = parse_mikrotik_uptime_to_mins(attrs.get('uptime-used') or 0)
+                    down_used = int(re.sub(r'[^\d]', '', str(attrs.get('download-used') or 0)) or 0)
+                    up_used = int(re.sub(r'[^\d]', '', str(attrs.get('upload-used') or 0)) or 0)
+                    has_prof = bool(act_prof and act_prof.lower() != 'none')
                     users.append({
                         'username': username,
                         'password': attrs.get('password', username),
-                        'actual_profile': attrs.get('actual-profile') or attrs.get('profile') or '',
+                        'actual_profile': act_prof,
+                        'has_profile': has_prof,
                         'caller_id': attrs.get('caller-id', ''),
                         'comment': attrs.get('comment', ''),
                         'email': attrs.get('email', ''),
                         'phone': attrs.get('phone', ''),
                         'shared_users': parse_shared_users(attrs.get('shared-users', 1)),
-                        'disabled': str(attrs.get('disabled', 'no')).lower() in ('yes', 'true', '1')
+                        'disabled': str(attrs.get('disabled', 'no')).lower() in ('yes', 'true', '1'),
+                        'uptime_used_mins': uptime_used,
+                        'download_used_bytes': down_used,
+                        'upload_used_bytes': up_used,
+                        'till_time': attrs.get('till-time', '')
                     })
 
     # Combine profiles with their limitations
@@ -291,18 +340,22 @@ def parse_rsc_content(raw_text):
             p['rate_down'] = '10M'
         if 'rate_up' not in p:
             p['rate_up'] = '5M'
-        if 'quota_mb' not in p:
-            p['quota_mb'] = 0
+        if not p.get('quota_mb'):
+            p['quota_mb'] = extract_quota_from_name(p.get('name')) or extract_quota_from_name(p.get('name_for_users'))
         if 'uptime_mins' not in p:
             p['uptime_mins'] = 0
+
+    active_cnt = sum(1 for u in users if not u['disabled'] and u.get('has_profile', True))
+    expired_cnt = sum(1 for u in users if not u['disabled'] and not u.get('has_profile', True))
 
     return {
         'profiles': list(profiles.values()),
         'users': users,
         'total_profiles': len(profiles),
         'total_users': len(users),
-        'active_users': sum(1 for u in users if not u['disabled']),
-        'disabled_users': sum(1 for u in users if u['disabled'])
+        'active_users': active_cnt,
+        'disabled_users': sum(1 for u in users if u['disabled']),
+        'expired_users': expired_cnt
     }
 
 
@@ -342,10 +395,19 @@ def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, ti
                 rx_k, _ = parse_mikrotik_rate_limit(lim.get('rate-limit-rx'))
             if not tx_k and lim.get('rate-limit-tx'):
                 _, tx_k = parse_mikrotik_rate_limit(lim.get('rate-limit-tx'))
+            
+            quota_mb = parse_mikrotik_bytes_to_mb(
+                lim.get('download-limit') or lim.get('transfer-limit') or
+                lim.get('upload-limit') or lim.get('total-limit') or
+                lim.get('limit-bytes-total') or lim.get('limit-bytes-in') or 0
+            )
+            if not quota_mb:
+                quota_mb = extract_quota_from_name(l_name)
+
             limit_map[l_name] = {
                 'rate_down': f"{rx_k}k" if rx_k else "10M",
                 'rate_up': f"{tx_k}k" if tx_k else "5M",
-                'quota_mb': parse_mikrotik_bytes_to_mb(lim.get('download-limit') or lim.get('transfer-limit') or 0),
+                'quota_mb': quota_mb,
                 'uptime_mins': parse_mikrotik_uptime_to_mins(lim.get('uptime-limit') or 0)
             }
 
@@ -366,17 +428,21 @@ def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, ti
         l_name = prof_limit_ref.get(p_name)
         lim_info = limit_map.get(l_name, {})
 
+        p_quota = lim_info.get('quota_mb', 0)
+        if not p_quota:
+            p_quota = extract_quota_from_name(p_name) or extract_quota_from_name(p.get('name-for-users', ''))
+
         profiles_list.append({
             'name': p_name,
             'name_for_users': p.get('name-for-users', p_name),
-            'price': float(p.get('price', 0.0) or 0.0),
+            'price': float(re.sub(r'[^\d.]', '', str(p.get('price', 0.0) or 0)) or 0.0),
             'validity_value': val_v,
             'validity_unit': val_u,
             'rate_down': lim_info.get('rate_down', '10M'),
             'rate_up': lim_info.get('rate_up', '5M'),
-            'quota_mb': lim_info.get('quota_mb', 0),
+            'quota_mb': p_quota,
             'uptime_mins': lim_info.get('uptime_mins', 0),
-            'override_shared_users': int(p.get('override-shared-users', 1) or 1)
+            'override_shared_users': parse_shared_users(p.get('override-shared-users', 1))
         })
 
     users_list = []
@@ -384,35 +450,52 @@ def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, ti
         uname = u.get('username')
         if not uname:
             continue
+        act_prof = (u.get('actual-profile') or u.get('profile') or '').strip()
+        uptime_used = parse_mikrotik_uptime_to_mins(u.get('uptime-used') or 0)
+        down_used = int(re.sub(r'[^\d]', '', str(u.get('download-used') or 0)) or 0)
+        up_used = int(re.sub(r'[^\d]', '', str(u.get('upload-used') or 0)) or 0)
+        has_prof = bool(act_prof and act_prof.lower() != 'none')
         users_list.append({
             'username': uname,
             'password': u.get('password', uname),
-            'actual_profile': u.get('actual-profile') or u.get('profile') or '',
+            'actual_profile': act_prof,
+            'has_profile': has_prof,
             'caller_id': u.get('caller-id', ''),
             'comment': u.get('comment', ''),
             'email': u.get('email', ''),
             'phone': u.get('phone', ''),
-            'shared_users': int(u.get('shared-users', 1) or 1),
-            'disabled': str(u.get('disabled', 'false')).lower() in ('true', 'yes', '1')
+            'shared_users': parse_shared_users(u.get('shared-users', 1)),
+            'disabled': str(u.get('disabled', 'false')).lower() in ('true', 'yes', '1'),
+            'uptime_used_mins': uptime_used,
+            'download_used_bytes': down_used,
+            'upload_used_bytes': up_used,
+            'till_time': u.get('till-time', '')
         })
+
+    active_cnt = sum(1 for u in users_list if not u['disabled'] and u.get('has_profile', True))
+    expired_cnt = sum(1 for u in users_list if not u.get('has_profile', True))
 
     return {
         'profiles': profiles_list,
         'users': users_list,
         'total_profiles': len(profiles_list),
         'total_users': len(users_list),
-        'active_users': sum(1 for u in users_list if not u['disabled']),
-        'disabled_users': sum(1 for u in users_list if u['disabled'])
+        'active_users': active_cnt,
+        'disabled_users': sum(1 for u in users_list if u['disabled']),
+        'expired_users': expired_cnt
     }
 
 
 # -------------------------------------------------------------
 # 3. Execution Engine: Insert into MAX RADIUS
 # -------------------------------------------------------------
-def execute_userman_import(parsed_data, target_type='subscribers', fallback_package=None, duplicate_action='skip', admin_user='admin'):
+def execute_userman_import(parsed_data, target_type='vouchers', fallback_package=None, duplicate_action='skip', ignore_expired=True, import_consumption=False, admin_user='admin'):
     """
     Executes the isolated database insertion:
     - Creates/matches packages in wisp_packages
+    - Creates dedicated batches for each package in wisp_voucher_batches
+    - Filters expired / no-profile cards if ignore_expired is True
+    - Imports past bandwidth and uptime consumption to radacct if import_consumption is True
     - Inserts users into wisp_subscribers or wisp_vouchers
     - Creates FreeRADIUS radcheck, radreply, radusergroup entries
     """
@@ -425,9 +508,13 @@ def execute_userman_import(parsed_data, target_type='subscribers', fallback_pack
     
     stats = {
         'created_packages': 0,
+        'created_batches': 0,
         'created_users': 0,
         'updated_users': 0,
         'skipped_users': 0,
+        'ignored_expired_users': 0,
+        'imported_consumption_users': 0,
+        'batch_details': [],
         'errors': []
     }
 
@@ -437,17 +524,29 @@ def execute_userman_import(parsed_data, target_type='subscribers', fallback_pack
 
         # 1. Sync / Create Packages
         package_map = {}  # profile_name -> package_id
+        package_names = {} # package_id -> profile_name
         
         # Load existing packages
         cur.execute("SELECT id, name FROM wisp_packages")
         for row in cur.fetchall():
             if isinstance(row, dict):
                 package_map[row['name'].strip()] = row['id']
+                package_names[row['id']] = row['name'].strip()
             else:
                 package_map[row[1].strip()] = row[0]
+                package_names[row[0]] = row[1].strip()
 
         for prof in profiles:
             p_name = prof['name'].strip()
+            p_quota = int(prof.get('quota_mb', 0) or extract_quota_from_name(p_name) or 0)
+            p_uptime = int(prof.get('uptime_mins', 0) or 0)
+            p_down = prof.get('rate_down', '10M')
+            p_up = prof.get('rate_up', '5M')
+            p_price = float(prof.get('price', 0.0) or 0.0)
+            p_val = int(prof.get('validity_value', 30) or 30)
+            p_unit = prof.get('validity_unit', 'days') or 'days'
+            p_simul = int(prof.get('override_shared_users', 1) or 1)
+
             if p_name not in package_map:
                 # Insert new package
                 cur.execute("""
@@ -457,19 +556,16 @@ def execute_userman_import(parsed_data, target_type='subscribers', fallback_pack
                         simultaneous_sessions, is_active, created_at
                     ) VALUES (?, ?, 0.00, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
                 """.replace('?', '%s' if is_mysql_conn(db) else '?'), (
-                    p_name,
-                    prof.get('price', 0.0),
-                    prof.get('validity_value', 30),
-                    prof.get('validity_unit', 'days'),
-                    prof.get('quota_mb', 0),
-                    prof.get('uptime_mins', 0),
-                    prof.get('rate_down', '10M'),
-                    prof.get('rate_up', '5M'),
-                    prof.get('override_shared_users', 1)
+                    p_name, p_price, p_val, p_unit, p_quota, p_uptime, p_down, p_up, p_simul
                 ))
                 pkg_id = cur.lastrowid
                 package_map[p_name] = pkg_id
+                package_names[pkg_id] = p_name
                 stats['created_packages'] += 1
+            else:
+                pkg_id = package_map[p_name]
+                if p_quota > 0:
+                    cur.execute("UPDATE wisp_packages SET volume_quota_mb = ? WHERE id = ? AND (volume_quota_mb = 0 OR volume_quota_mb IS NULL)".replace('?', '%s' if is_mysql_conn(db) else '?'), (p_quota, pkg_id))
 
         # Fallback default package
         default_pkg_id = None
@@ -483,18 +579,38 @@ def execute_userman_import(parsed_data, target_type='subscribers', fallback_pack
             if row:
                 default_pkg_id = row['id'] if isinstance(row, dict) else row[0]
 
-        # 2. Insert / Update Users
+        # 2. Setup Batches Mapping for Vouchers
+        batch_map = {} # package_id -> batch_id
+        profiles_dict = {p['name'].strip(): p for p in profiles}
+        timestamp_str = datetime.datetime.now().strftime('%m%d%H%M')
+
+        # 3. Insert / Update Users
         for u in users:
             uname = u['username'].strip()
             upass = u.get('password', uname).strip() or uname
             uprofile = u.get('actual_profile', '').strip()
+            has_prof = bool(uprofile and uprofile.lower() != 'none')
+
+            # Skip expired/no-profile card if requested
+            if ignore_expired and not has_prof:
+                stats['ignored_expired_users'] += 1
+                continue
+
             pkg_id = package_map.get(uprofile, default_pkg_id)
+            if not pkg_id and package_map:
+                pkg_id = next(iter(package_map.values()))
+
             mac = u.get('caller_id', '').strip() or None
             comment = u.get('comment', '').strip()
             email = u.get('email', '').strip()
             phone = u.get('phone', '').strip()
             simul = u.get('shared_users', 1)
             status = 'inactive' if u.get('disabled') else 'active'
+
+            uptime_mins = u.get('uptime_used_mins', 0)
+            down_bytes = u.get('download_used_bytes', 0)
+            up_bytes = u.get('upload_used_bytes', 0)
+            has_usage = (uptime_mins > 0 or down_bytes > 0 or up_bytes > 0)
 
             # Check if user already exists
             cur.execute("SELECT id FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'".replace('?', '%s' if is_mysql_conn(db) else '?'), (uname,))
@@ -517,31 +633,105 @@ def execute_userman_import(parsed_data, target_type='subscribers', fallback_pack
                     cur.execute("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Calling-Station-Id', '==', ?)".replace('?', '%s' if is_mysql_conn(db) else '?'), (uname, mac))
 
                 # C. FreeRADIUS radusergroup
-                if uprofile:
-                    cur.execute("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)".replace('?', '%s' if is_mysql_conn(db) else '?'), (uname, uprofile))
+                pkg_name_actual = package_names.get(pkg_id, uprofile)
+                if pkg_name_actual:
+                    cur.execute("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)".replace('?', '%s' if is_mysql_conn(db) else '?'), (uname, pkg_name_actual))
 
                 # D. MAX RADIUS Application Entity
                 if target_type == 'vouchers':
-                    # Ensure an import batch exists
-                    cur.execute("SELECT id FROM wisp_voucher_batches WHERE name = 'MikroTik_UserMan_Import' LIMIT 1")
-                    b_row = cur.fetchone()
-                    if b_row:
-                        batch_id = b_row['id'] if isinstance(b_row, dict) else b_row[0]
+                    batch_id = batch_map.get(pkg_id)
+                    if not batch_id:
+                        cur.execute("SELECT id FROM wisp_voucher_batches WHERE package_id = ? LIMIT 1".replace('?', '%s' if is_mysql_conn(db) else '?'), (pkg_id,))
+                        b_row = cur.fetchone()
+                        if b_row:
+                            batch_id = b_row['id'] if isinstance(b_row, dict) else b_row[0]
+                        else:
+                            clean_code = re.sub(r'[^A-Za-z0-9]', '', pkg_name_actual)[:6].upper() or 'PKG'
+                            batch_num = f"UM-{clean_code}-{datetime.datetime.now().strftime('%m%d%H%M')}"
+                            cur.execute("INSERT INTO wisp_voucher_batches (batch_number, name, package_id, card_count, created_at) VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)".replace('?', '%s' if is_mysql_conn(db) else '?'), (batch_num, f"استيراد يوزرمانجر - {pkg_name_actual}", pkg_id))
+                            batch_id = cur.lastrowid
+                        batch_map[pkg_id] = batch_id
+
+                    v_status = 'disabled' if u.get('disabled') else ('active' if (import_consumption and has_usage) else 'unused')
+                    prof_info = profiles_dict.get(pkg_name_actual, {})
+                    snap_p = float(prof_info.get('price', 0.0) or 0.0)
+                    snap_q = int(prof_info.get('quota_mb', 0) or extract_quota_from_name(pkg_name_actual) or 0)
+                    snap_u = int(prof_info.get('uptime_mins', 0) or 0)
+                    snap_v_val = int(prof_info.get('validity_value', 30) or 30)
+                    snap_v_unit = str(prof_info.get('validity_unit', 'days') or 'days')
+                    snap_v_days = snap_v_val if snap_v_unit == 'days' else 30
+                    snap_rd = str(prof_info.get('rate_down', '10M') or '10M')
+                    snap_ru = str(prof_info.get('rate_up', '5M') or '5M')
+                    snap_r_str = f"{snap_rd}/{snap_ru}"
+                    snap_simul = int(prof_info.get('override_shared_users', 1) or 1)
+
+                    if import_consumption and has_usage:
+                        first_used_sql = f"DATE_SUB(CURRENT_TIMESTAMP, INTERVAL {max(1, uptime_mins)} MINUTE)"
+                        cur.execute(f"""
+                            INSERT INTO wisp_vouchers (
+                                batch_id, package_id, serial_number, username, password, pin_code, status,
+                                first_used_at, bound_mac, created_at,
+                                snap_price, snap_cost, snap_volume_quota_mb, snap_uptime_limit_mins,
+                                snap_validity_value, snap_validity_unit, snap_validity_days,
+                                snap_rate_download, snap_rate_upload, snap_rate_limit_str,
+                                snap_simultaneous_sessions, snap_mikrotik_group
+                            ) VALUES (
+                                ?, ?, ?, ?, ?, ?, ?,
+                                {first_used_sql}, ?, CURRENT_TIMESTAMP,
+                                ?, 0.00, ?, ?,
+                                ?, ?, ?,
+                                ?, ?, ?,
+                                ?, 'ALL-SPEED'
+                            )
+                        """.replace('?', '%s' if is_mysql_conn(db) else '?'), (
+                            batch_id, pkg_id, uname[:30], uname, upass, upass, v_status, mac,
+                            snap_p, snap_q, snap_u,
+                            snap_v_val, snap_v_unit, snap_v_days,
+                            snap_rd, snap_ru, snap_r_str,
+                            snap_simul
+                        ))
+
+                        sess_id = f"UM-MIG-{uname}-{int(time.time()) % 100000}"
+                        cur.execute(f"""
+                            INSERT INTO radacct (
+                                acctsessionid, acctuniqueid, username, realm, nasipaddress, nasportid,
+                                acctstarttime, acctupdatetime, acctstoptime, acctsessiontime, acctauthentic,
+                                acctinputoctets, acctoutputoctets, calledstationid, callingstationid,
+                                acctterminatecause, servicetype, framedprotocol, framedipaddress
+                            ) VALUES (
+                                ?, MD5(?), ?, '', '127.0.0.1', '1',
+                                {first_used_sql}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, 'RADIUS',
+                                ?, ?, '', ?,
+                                'User-Request', 'Framed-User', 'PPP', ''
+                            )
+                        """.replace('?', '%s' if is_mysql_conn(db) else '?'), (
+                            sess_id, sess_id, uname, uptime_mins * 60, up_bytes, down_bytes, mac or ''
+                        ))
+                        stats['imported_consumption_users'] += 1
                     else:
                         cur.execute("""
-                            INSERT INTO wisp_voucher_batches (name, package_id, total_cards, created_at)
-                            VALUES ('MikroTik_UserMan_Import', ?, 0, CURRENT_TIMESTAMP)
-                        """.replace('?', '%s' if is_mysql_conn(db) else '?'), (pkg_id,))
-                        batch_id = cur.lastrowid
-
-                    cur.execute("""
-                        INSERT INTO wisp_vouchers (
-                            batch_id, package_id, serial_number, username, password, pin_code, status,
-                            bound_mac, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    """.replace('?', '%s' if is_mysql_conn(db) else '?'), (
-                        batch_id, pkg_id, uname, uname, upass, upass, 'unused' if status == 'active' else 'disabled', mac
-                    ))
+                            INSERT INTO wisp_vouchers (
+                                batch_id, package_id, serial_number, username, password, pin_code, status,
+                                bound_mac, created_at,
+                                snap_price, snap_cost, snap_volume_quota_mb, snap_uptime_limit_mins,
+                                snap_validity_value, snap_validity_unit, snap_validity_days,
+                                snap_rate_download, snap_rate_upload, snap_rate_limit_str,
+                                snap_simultaneous_sessions, snap_mikrotik_group
+                            ) VALUES (
+                                ?, ?, ?, ?, ?, ?, ?,
+                                ?, CURRENT_TIMESTAMP,
+                                ?, 0.00, ?, ?,
+                                ?, ?, ?,
+                                ?, ?, ?,
+                                ?, 'ALL-SPEED'
+                            )
+                        """.replace('?', '%s' if is_mysql_conn(db) else '?'), (
+                            batch_id, pkg_id, uname[:30], uname, upass, upass, v_status, mac,
+                            snap_p, snap_q, snap_u,
+                            snap_v_val, snap_v_unit, snap_v_days,
+                            snap_rd, snap_ru, snap_r_str,
+                            snap_simul
+                        ))
                 else:
                     full_name = comment or uname
                     cur.execute("""
@@ -555,19 +745,36 @@ def execute_userman_import(parsed_data, target_type='subscribers', fallback_pack
 
                 stats['created_users'] += 1
 
+        # Update batch card_count and remove empty batches
+        if target_type == 'vouchers' and batch_map:
+            for p_id, b_id in list(batch_map.items()):
+                cur.execute("UPDATE wisp_voucher_batches SET card_count = (SELECT COUNT(*) FROM wisp_vouchers WHERE batch_id = ?) WHERE id = ?".replace('?', '%s' if is_mysql_conn(db) else '?'), (b_id, b_id))
+                cur.execute("SELECT name, card_count FROM wisp_voucher_batches WHERE id = ?".replace('?', '%s' if is_mysql_conn(db) else '?'), (b_id,))
+                b_info = cur.fetchone()
+                if b_info:
+                    c_name = b_info['name'] if isinstance(b_info, dict) else b_info[0]
+                    c_count = b_info['card_count'] if isinstance(b_info, dict) else b_info[1]
+                    if c_count == 0:
+                        cur.execute("DELETE FROM wisp_voucher_batches WHERE id = ?".replace('?', '%s' if is_mysql_conn(db) else '?'), (b_id,))
+                    else:
+                        stats['batch_details'].append({
+                            'id': b_id,
+                            'name': c_name,
+                            'total_cards': c_count
+                        })
 
         if is_mysql_conn(db):
             cur.execute("SET foreign_key_checks = 1;")
             
         db.commit()
         elapsed = round(time.time() - start_t, 2)
-        log_audit(1, admin_user or 'admin', 'USERMAN_IMPORT', 'tools', f"Imported {stats['created_users']} users and {stats['created_packages']} packages from MikroTik User Manager in {elapsed}s.")
+        log_audit(1, admin_user or 'admin', 'USERMAN_IMPORT', 'tools', f"Imported {stats['created_users']} users across {len(batch_map)} batches from MikroTik User Manager in {elapsed}s.")
         
         return {
             'success': True,
             'duration_seconds': elapsed,
             'stats': stats,
-            'message': f"تم بنجاح استيراد {stats['created_users']:,} مستخدماً و {stats['created_packages']} باقة خلال {elapsed} ثانية."
+            'message': f"تم بنجاح استيراد {stats['created_users']:,} كرت/مشترك مقسمة عبر {len(stats['batch_details'])} حزمة باقات خلال {elapsed} ثانية."
         }
     except Exception as e:
         db.rollback()
@@ -579,8 +786,8 @@ def execute_userman_import(parsed_data, target_type='subscribers', fallback_pack
                 pass
         return {
             'success': False,
-            'error': str(e),
-            'message': f"فشلت عملية الاستيراد: {str(e)}"
+            'error': f"فشل الاستيراد والزرع: {str(e)}",
+            'stats': stats
         }
     finally:
         cur.close()

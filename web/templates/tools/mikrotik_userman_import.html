@@ -322,14 +322,18 @@
             </div>
 
             <!-- Stats Grid -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <div class="mikrotik-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
-                    <p class="text-[11px] font-semibold text-slate-400">إجمالي المشتركين</p>
+                    <p class="text-[11px] font-semibold text-slate-400">إجمالي الحسابات</p>
                     <p class="text-2xl font-black text-cyan-400" id="statTotalUsers">0</p>
                 </div>
                 <div class="mikrotik-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
-                    <p class="text-[11px] font-semibold text-slate-400">حسابات نشطة</p>
+                    <p class="text-[11px] font-semibold text-slate-400">حسابات صالحة ونشطة</p>
                     <p class="text-2xl font-black text-emerald-400" id="statActiveUsers">0</p>
+                </div>
+                <div class="mikrotik-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
+                    <p class="text-[11px] font-semibold text-slate-400">كروت منتهية (بدون باقة)</p>
+                    <p class="text-2xl font-black text-rose-400" id="statExpiredUsers">0</p>
                 </div>
                 <div class="mikrotik-subcard bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-1 text-center">
                     <p class="text-[11px] font-semibold text-slate-400">حسابات معطلة</p>
@@ -345,7 +349,7 @@
             <div class="space-y-2">
                 <h4 class="mikrotik-text-title text-xs font-bold text-slate-300 flex items-center gap-2">
                     <i class="fa-solid fa-box text-purple-400"></i>
-                    الباقات والبروفايلات المكتشفة (ستُنشأ في MAX RADIUS تلقائياً)
+                    الباقات والبروفايلات المكتشفة (ستُنشأ لكل باقة حزمة مستقلة في MAX RADIUS)
                 </h4>
                 <div class="overflow-x-auto rounded-xl border border-slate-800 bg-[#070b14]/70">
                     <table class="w-full text-xs text-right">
@@ -370,7 +374,7 @@
                 <div class="flex items-center justify-between">
                     <h4 class="mikrotik-text-title text-xs font-bold text-slate-300 flex items-center gap-2">
                         <i class="fa-solid fa-users text-cyan-400"></i>
-                        عينة من المشتركين المكتشفين
+                        عينة من الكروت والمشتركين المكتشفين
                     </h4>
                     <span class="text-[11px] text-slate-500" id="usersSampleCount"></span>
                 </div>
@@ -381,8 +385,8 @@
                                 <th class="p-3">اسم المستخدم</th>
                                 <th class="p-3">كلمة المرور</th>
                                 <th class="p-3">البروفايل المرتبط</th>
-                                <th class="p-3">الماك أدرس (Caller-ID)</th>
-                                <th class="p-3">ملاحظات / تعليق</th>
+                                <th class="p-3">الاستهلاك السابق</th>
+                                <th class="p-3">الماك أدرس</th>
                                 <th class="p-3">الحالة</th>
                             </tr>
                         </thead>
@@ -396,12 +400,12 @@
             <div class="mikrotik-exec-box bg-[#0c1322] border border-slate-800 p-5 rounded-2xl space-y-4">
                 <h4 class="text-xs font-bold text-white flex items-center gap-2">
                     <i class="fa-solid fa-sliders text-cyan-400"></i>
-                    خيارات ترحيل وزرع البيانات
+                    خيارات ترحيل وزرع البيانات وتخصيص الحزم
                 </h4>
                 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div class="space-y-1.5">
-                        <label class="text-xs font-semibold text-slate-400">نوع الحسابات المستوردة في MAX RADIUS</label>
+                        <label class="text-xs font-semibold text-slate-400">نوع الحسابات المستوردة</label>
                         <select id="importTargetType" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
                             <option value="vouchers" selected>كروت شبكة وهوتسبوت (Vouchers / Cards)</option>
                             <option value="subscribers">مشتركون دائمون (Subscribers)</option>
@@ -409,29 +413,45 @@
                     </div>
 
                     <div class="space-y-1.5">
-                        <label class="text-xs font-semibold text-slate-400">الباقة الافتراضية للكروت غير المربوطة</label>
-                        <select id="importFallbackPackage" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
-                            <option value="">-- احتفظ بالباقة الأصلية أو تلقائي --</option>
+                        <label class="text-xs font-semibold text-slate-400">معالجة الكروت المنتهية (بدون باقة)</label>
+                        <select id="importIgnoreExpired" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold">
+                            <option value="yes" selected>استبعاد وتخطي المنتهية تلقائياً (موصى به)</option>
+                            <option value="no">استيراد الكل وتطبيق الباقة الافتراضية</option>
                         </select>
                     </div>
 
                     <div class="space-y-1.5">
-                        <label class="text-xs font-semibold text-slate-400">في حال وجود اسم مستخدم مطابق مسبقاً</label>
+                        <label class="text-xs font-semibold text-slate-400">استهلاك وسجلات الكروت السابقة</label>
+                        <select id="importConsumption" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-bold">
+                            <option value="no" selected>كروت جديدة برصيد كامل (Unused)</option>
+                            <option value="yes">ترحيل وسحب رصيد الاستهلاك والوقت السابق</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-400">عند وجود كرت مطابق مسبقاً</label>
                         <select id="importDuplicateAction" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
-                            <option value="skip">تخطي المشترك وعدم التعديل (Skip)</option>
+                            <option value="skip">تخطي وعدم التعديل (Skip)</option>
                             <option value="overwrite">تحديث كلمة المرور والبيانات (Overwrite)</option>
                         </select>
                     </div>
                 </div>
 
+                <div class="space-y-1.5 pt-1">
+                    <label class="text-xs font-semibold text-slate-400">الباقة الاحتياطية (في حال تفعيل استيراد الكروت المنتهية غير المربوطة):</label>
+                    <select id="importFallbackPackage" class="mikrotik-select w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+                        <option value="">-- احتفظ بالباقة الأصلية أو تلقائي --</option>
+                    </select>
+                </div>
+
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-slate-800">
                     <div class="text-[11px] text-slate-400 flex items-center gap-1.5">
-                        <i class="fa-solid fa-shield-halved text-emerald-400"></i>
-                        <span>العملية تتم داخل Transaction آمنة بنسبة 100% مع دعم التراجع التلقائي في حال الخطأ.</span>
+                        <i class="fa-solid fa-layer-group text-purple-400"></i>
+                        <span>سيتم تلقائياً إنشاء حزمة مستقلة لكل باقة وتوزيع الكروت عليها في قائمة الحزم.</span>
                     </div>
                     <button type="button" id="btnExecuteImport" onclick="executeImportAction()" class="px-8 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 transition flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/20 cursor-pointer">
                         <i class="fa-solid fa-check-double"></i>
-                        <span>بدء الاستيراد والزرع الفوري</span>
+                        <span>بدء الاستيراد وتوزيع الحزم فورياً</span>
                     </button>
                 </div>
             </div>
@@ -597,7 +617,14 @@ function analyzeRscFile() {
         method: 'POST',
         body: formData
     })
-    .then(r => r.json())
+    .then(async r => {
+        const text = await r.text();
+        try {
+            return JSON.parse(text);
+        } catch(e) {
+            throw new Error(`استجابة غير متوقعة من السيرفر (كود ${r.status}): ${text.slice(0, 150)}`);
+        }
+    })
     .then(res => {
         hideLoading();
         if (res.success) {
@@ -608,7 +635,7 @@ function analyzeRscFile() {
     })
     .catch(err => {
         hideLoading();
-        Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+        Swal.fire('خطأ في الاتصال', err.message || err.toString(), 'error');
     });
 }
 
@@ -631,7 +658,14 @@ function fetchFromApi() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ host: host, port: port, username: user, password: pass, use_ssl: useSsl })
     })
-    .then(r => r.json())
+    .then(async r => {
+        const text = await r.text();
+        try {
+            return JSON.parse(text);
+        } catch(e) {
+            throw new Error(`استجابة غير متوقعة من السيرفر (كود ${r.status}): ${text.slice(0, 150)}`);
+        }
+    })
     .then(res => {
         hideLoading();
         if (res.success) {
@@ -642,7 +676,7 @@ function fetchFromApi() {
     })
     .catch(err => {
         hideLoading();
-        Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+        Swal.fire('خطأ في الاتصال', err.message || err.toString(), 'error');
     });
 }
 
@@ -654,6 +688,7 @@ function renderPreview(data, sourceLabel) {
     // Stats
     document.getElementById('statTotalUsers').innerText = Number(data.total_users || 0).toLocaleString();
     document.getElementById('statActiveUsers').innerText = Number(data.active_users || 0).toLocaleString();
+    document.getElementById('statExpiredUsers').innerText = Number(data.expired_users || 0).toLocaleString();
     document.getElementById('statDisabledUsers').innerText = Number(data.disabled_users || 0).toLocaleString();
     document.getElementById('statTotalProfiles').innerText = Number(data.total_profiles || 0).toLocaleString();
 
@@ -698,19 +733,26 @@ function renderPreview(data, sourceLabel) {
     const uBody = document.getElementById('usersTableBody');
     uBody.innerHTML = '';
     const sampleUsers = (data.users || []).slice(0, 100);
-    document.getElementById('usersSampleCount').innerText = 'عرض أول ' + sampleUsers.length + ' من أصل ' + Number(data.total_users || 0).toLocaleString() + ' مشترك';
+    document.getElementById('usersSampleCount').innerText = 'عرض أول ' + sampleUsers.length + ' من أصل ' + Number(data.total_users || 0).toLocaleString() + ' كرت';
 
     sampleUsers.forEach(u => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-800/40 transition';
-        const statusBadge = u.disabled ? '<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-semibold">معطل</span>' : '<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-semibold">نشط</span>';
+        const statusBadge = u.disabled ? '<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-semibold">معطل</span>' : (u.has_profile ? '<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-semibold">صالح</span>' : '<span class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-300 font-semibold">منتهي</span>');
+        const profBadge = u.has_profile ? ('<span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 font-semibold">' + u.actual_profile + '</span>') : ('<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400">بدون باقة (منتهي)</span>');
+        
+        let usageText = '—';
+        const downMb = u.download_used_bytes > 0 ? (u.download_used_bytes / (1024 * 1024)).toFixed(1) : 0;
+        if (downMb > 0 || u.uptime_used_mins > 0) {
+            usageText = '<span class="font-mono text-cyan-400">' + downMb + ' MB</span> / <span class="font-mono text-purple-400">' + (u.uptime_used_mins || 0) + 'د</span>';
+        }
 
         tr.innerHTML = 
             '<td class="p-3 font-mono font-bold text-white">' + (u.username || '') + '</td>' +
             '<td class="p-3 font-mono text-slate-400">' + (u.password || '— (رقم الكرت)') + '</td>' +
-            '<td class="p-3"><span class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 font-semibold">' + (u.actual_profile || 'بدون باقة (تلقائي)') + '</span></td>' +
+            '<td class="p-3">' + profBadge + '</td>' +
+            '<td class="p-3">' + usageText + '</td>' +
             '<td class="p-3 font-mono text-slate-400">' + (u.caller_id || '—') + '</td>' +
-            '<td class="p-3 text-slate-400">' + (u.comment || '—') + '</td>' +
             '<td class="p-3">' + statusBadge + '</td>';
         uBody.appendChild(tr);
     });
@@ -728,21 +770,31 @@ function executeImportAction() {
     const targetType = document.getElementById('importTargetType').value;
     const fallbackPkg = document.getElementById('importFallbackPackage').value;
     const dupAction = document.getElementById('importDuplicateAction').value;
+    const ignoreExpired = (document.getElementById('importIgnoreExpired').value === 'yes');
+    const importConsumption = (document.getElementById('importConsumption').value === 'yes');
     const totalUsers = parsedDataStore.users.length;
+    const activeUsers = parsedDataStore.active_users || totalUsers;
     const totalProfiles = (parsedDataStore.profiles || []).length;
+
+    const countToImport = ignoreExpired ? activeUsers : totalUsers;
 
     Swal.fire({
         title: 'تأكيد ترحيل وزرع البيانات',
-        text: 'هل تريد استيراد (' + totalUsers.toLocaleString() + ') مستخدم و (' + totalProfiles + ') باقة إلى MAX RADIUS؟',
+        html: 
+            '<div class="text-right text-xs space-y-2 text-slate-300">' +
+                '<p>هل تريد استيراد <b>' + countToImport.toLocaleString() + '</b> كرت/مشترك مقسمة عبر <b>' + totalProfiles + '</b> باقة/حزمة؟</p>' +
+                (ignoreExpired ? '<p class="text-amber-400">⚠️ سيتم استبعاد الكروت المنتهية تلقائياً.</p>' : '<p class="text-cyan-400">ℹ️ سيتم استيراد كافة الكروت بما فيها المنتهية.</p>') +
+                (importConsumption ? '<p class="text-emerald-400">📊 سيتم سحب وترحيل سجلات الاستهلاك السابقة إلى RADIUS.</p>' : '<p class="text-slate-400">🌱 سيتم استيرادها ككروت جديدة برصيد كامل.</p>') +
+            '</div>',
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#059669',
         cancelButtonColor: '#334155',
-        confirmButtonText: 'نعم، ابدأ الاستيراد الآن',
+        confirmButtonText: 'نعم، ابدأ الاستيراد والتقسيم الآن',
         cancelButtonText: 'إلغاء'
     }).then((res) => {
         if (res.isConfirmed) {
-            showLoading('جاري ترحيل وزرع البيانات...', 'إنشاء الباقات وحسابات المشتركين وسجلات FreeRADIUS');
+            showLoading('جاري ترحيل وزرع البيانات...', 'إنشاء الحزم والباقات وتوزيع الكروت وسجلات FreeRADIUS');
 
             fetch('{{ url_for("api_mikrotik_userman_execute") }}', {
                 method: 'POST',
@@ -751,28 +803,49 @@ function executeImportAction() {
                     data: parsedDataStore,
                     target_type: targetType,
                     fallback_package: fallbackPkg,
-                    duplicate_action: dupAction
+                    duplicate_action: dupAction,
+                    ignore_expired: ignoreExpired,
+                    import_consumption: importConsumption
                 })
             })
-            .then(r => r.json())
+            .then(async r => {
+                const text = await r.text();
+                try {
+                    return JSON.parse(text);
+                } catch(e) {
+                    throw new Error(`استجابة غير متوقعة من السيرفر (كود ${r.status}): ${text.slice(0, 150)}`);
+                }
+            })
             .then(data => {
                 hideLoading();
                 if (data.success) {
                     const st = data.stats || {};
+                    let batchesHtml = '';
+                    if (st.batch_details && st.batch_details.length > 0) {
+                        batchesHtml = '<div class="mt-2 pt-2 border-t border-slate-700 space-y-1 text-slate-300 font-semibold">';
+                        batchesHtml += '<p class="text-purple-300 font-bold">📦 الحزم المنشأة والموزعة:</p>';
+                        st.batch_details.forEach(b => {
+                            batchesHtml += '<p class="flex justify-between"><span>• ' + b.name + '</span><span class="text-cyan-400 font-mono">' + b.total_cards + ' كرت</span></p>';
+                        });
+                        batchesHtml += '</div>';
+                    }
+
                     Swal.fire({
                         title: 'اكتمل الاستيراد بنجاح! 🎉',
                         html: 
                             '<div class="text-right space-y-2 text-xs text-slate-300">' +
                                 '<p class="text-sm font-bold text-emerald-400">' + (data.message || 'تم الترحيل بنجاح') + '</p>' +
-                                '<div class="bg-black/30 p-3 rounded-xl border border-slate-700 space-y-1 mt-2">' +
-                                    '<p>✅ تم إنشاء: <b>' + (st.created_users || 0) + '</b> مستخدم جديد</p>' +
-                                    '<p>📦 تم إنشاء: <b>' + (st.created_packages || 0) + '</b> باقة جديدة</p>' +
-                                    '<p>🔄 تم تحديث: <b>' + (st.updated_users || 0) + '</b> مستخدم</p>' +
-                                    '<p>⏭️ تم تخطي: <b>' + (st.skipped_users || 0) + '</b> مستخدم موجود مسبقاً</p>' +
+                                '<div class="bg-black/40 p-3 rounded-xl border border-slate-700 space-y-1 mt-2">' +
+                                    '<p>✅ تم إنشاء: <b>' + (st.created_users || 0) + '</b> كرت/مشترك</p>' +
+                                    '<p>📦 تم إنشاء/تحديث: <b>' + (st.created_packages || 0) + '</b> باقة</p>' +
+                                    (st.ignored_expired_users > 0 ? '<p>🚫 تم استبعاد وتخطي: <b>' + st.ignored_expired_users + '</b> كرت منتهي</p>' : '') +
+                                    (st.imported_consumption_users > 0 ? '<p>📊 تم ترحيل استهلاك: <b>' + st.imported_consumption_users + '</b> كرت إلى RADIUS</p>' : '') +
+                                    '<p>⏭️ تم تخطي: <b>' + (st.skipped_users || 0) + '</b> كرت موجود مسبقاً</p>' +
+                                    batchesHtml +
                                 '</div>' +
                             '</div>',
                         icon: 'success',
-                        confirmButtonText: (targetType === 'vouchers' ? 'انتقال إلى إدارة الكروت' : 'انتقال إلى صفحة المشتركين'),
+                        confirmButtonText: (targetType === 'vouchers' ? 'انتقال إلى إدارة الحزم والكروت' : 'انتقال إلى صفحة المشتركين'),
                         showCancelButton: true,
                         cancelButtonText: 'البقاء هنا'
                     }).then((nav) => {
@@ -786,7 +859,7 @@ function executeImportAction() {
             })
             .catch(err => {
                 hideLoading();
-                Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                Swal.fire('خطأ في الاتصال', err.message || err.toString(), 'error');
             });
         }
     });
