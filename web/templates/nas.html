@@ -254,14 +254,8 @@
             </div>
         </div>
         
-        <!-- Action Buttons & Timer -->
+        <!-- Action Buttons -->
         <div class="flex items-center gap-3 flex-wrap">
-            <div class="bg-[#070b14] border border-[#162136] px-3.5 py-2 rounded-xl text-xs flex items-center gap-2">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="text-slate-400">تحديث تلقائي:</span>
-                <span id="countdownTimer" class="font-mono text-emerald-400 font-bold">30s</span>
-            </div>
-
             <button onclick="fetchNasLiveStatus(true)" id="btnRefresh" class="px-3.5 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i id="refreshIcon" class="fa-solid fa-arrows-rotate text-blue-400"></i>
                 <span>تحديث فوري</span>
@@ -604,25 +598,15 @@
     }
 
     // -------------------------------------------------------------
-    // Live Monitoring AJAX Engine (Auto Refresh every 30s)
+    // Live Monitoring AJAX Engine (Silent Background Auto-Refresh every 30s)
     // -------------------------------------------------------------
-    let secondsLeft = 30;
     let timerInterval = null;
 
     function startCountdown() {
         if (timerInterval) clearInterval(timerInterval);
-        secondsLeft = 30;
-        const timerEl = document.getElementById('countdownTimer');
-        if (timerEl) timerEl.innerText = `${secondsLeft}s`;
-
         timerInterval = setInterval(() => {
-            secondsLeft--;
-            if (timerEl) timerEl.innerText = `${secondsLeft}s`;
-            if (secondsLeft <= 0) {
-                fetchNasLiveStatus(false);
-                secondsLeft = 30;
-            }
-        }, 1000);
+            fetchNasLiveStatus(false);
+        }, 30000);
     }
 
     function fetchNasLiveStatus(isManual = false) {
