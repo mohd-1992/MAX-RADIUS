@@ -4404,14 +4404,14 @@ def system_update_page():
 
 @app.route('/api/tools/system-update/check', methods=['GET'])
 @login_required
-def api_check_system_update():
+def api_system_update_check():
     force = request.args.get('force', 'false').lower() in ['true', '1']
     res = check_for_updates(force_refresh=force)
     return jsonify(res)
 
 @app.route('/api/tools/system-update/apply', methods=['POST'])
 @login_required
-def api_apply_system_update():
+def api_system_update_apply():
     require_permission('settings_manage')
     manager = get_current_manager()
     operator_name = manager.get('username') if manager else 'Admin'
@@ -4435,7 +4435,7 @@ def api_apply_system_update():
 
 @app.route('/api/tools/system-update/progress', methods=['GET'])
 @login_required
-def api_get_system_update_progress():
+def api_system_update_progress():
     res = get_update_progress()
     return jsonify(res)
 
