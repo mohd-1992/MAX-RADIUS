@@ -101,6 +101,14 @@ net.ipv4.udp_wmem_min = 16384
 EOF
 sysctl --system -q 2>/dev/null || true
 
+# Free Port 80 from conflicting services (e.g. Apache2/Nginx)
+echo -e "${YELLOW}[INFO] Ensuring Port 80 is free for MAX RADIUS Web...${NC}"
+systemctl stop apache2 2>/dev/null || true
+systemctl disable apache2 2>/dev/null || true
+systemctl stop nginx 2>/dev/null || true
+systemctl disable nginx 2>/dev/null || true
+fuser -k 80/tcp 2>/dev/null || true
+
 # Prepare Installation Directory & Clone Repository
 echo -e "${BLUE}[5/6] Deploying MAX RADIUS codebase into ${INSTALL_DIR}...${NC}"
 if [ -d "$INSTALL_DIR/.git" ]; then

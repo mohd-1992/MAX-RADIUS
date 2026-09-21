@@ -643,7 +643,6 @@ BEGIN
             first_used_at = CURRENT_TIMESTAMP,
             last_renewed_at = CURRENT_TIMESTAMP,
             expires_at = v_exp_date,
-            bound_mac = CASE WHEN (bound_mac IS NULL OR bound_mac = '') AND NEW.callingstationid != '' THEN NEW.callingstationid ELSE bound_mac END,
             snap_price = v_pkg_price,
             snap_cost = v_pkg_cost,
             snap_volume_quota_mb = v_quota,

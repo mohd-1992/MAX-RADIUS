@@ -90,6 +90,7 @@ services:
       - RADIUS_COA_PORT=37990
       - L2TP_CONTAINER=max_radius_l2tp
     ports:
+      - "80:5090"
       - "5090:5090/tcp"
     volumes:
       - ./storage:/app/storage

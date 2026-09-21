@@ -224,7 +224,6 @@ BEGIN
             first_used_at = IFNULL(first_used_at, CURRENT_TIMESTAMP),
             last_renewed_at = IFNULL(last_renewed_at, CURRENT_TIMESTAMP),
             expires_at = IFNULL(expires_at, v_exp_date),
-            bound_mac = CASE WHEN (bound_mac IS NULL OR bound_mac = '') AND NEW.callingstationid IS NOT NULL AND NEW.callingstationid != '' THEN NEW.callingstationid ELSE bound_mac END,
             global_seq_id = IFNULL(global_seq_id, v_assigned_seq),
             snap_price = IFNULL(snap_price, v_pkg_price),
             snap_cost = IFNULL(snap_cost, v_pkg_cost),

@@ -201,7 +201,8 @@ def _collect_db_metrics_internal():
     sub_count = query_one('SELECT COUNT(*) as total FROM wisp_subscribers')
     total_subs = sub_count['total'] if sub_count else 0
     
-    active_sessions = query_one('''
+    # 0. Total Active Sessions across all interfaces (Hotspot + PPPoE) matching MikroTik Active
+    active_sessions_q = query_one('''
         SELECT COUNT(*) as total 
         FROM radacct 
         WHERE acctstoptime IS NULL
@@ -211,7 +212,7 @@ def _collect_db_metrics_internal():
             (acctupdatetime IS NULL AND acctstarttime >= ?)
           )
     ''', (cutoff_str, cutoff_str))
-    active_count = active_sessions['total'] if active_sessions else 0
+    total_active_sessions = active_sessions_q['total'] if active_sessions_q else 0
     
     # 1. Total Card Subscribers (All activated vouchers: expired and non-expired)
     tot_act_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE first_used_at IS NOT NULL OR status IN ('active', 'used', 'expired')")
@@ -222,8 +223,11 @@ def _collect_db_metrics_internal():
     active_subscribers = act_valid_q['c'] if act_valid_q else 0
 
     # 3. Online Live Vouchers & Subscribers via Index with Heartbeat
-    online_sub_q = query_one("""
-        SELECT COUNT(DISTINCT a.username) as c
+    # Broadband / PPPoE
+    online_sub_q = query_one('''
+        SELECT 
+            COUNT(DISTINCT a.username) as unique_users,
+            COUNT(a.radacctid) as total_devices
         FROM radacct a
         INNER JOIN wisp_subscribers s ON a.username = s.username
         WHERE a.acctstoptime IS NULL
@@ -232,11 +236,15 @@ def _collect_db_metrics_internal():
             OR
             (a.acctupdatetime IS NULL AND a.acctstarttime >= ?)
           )
-    """, (cutoff_str, cutoff_str))
-    online_subscribers = online_sub_q['c'] if online_sub_q else 0
+    ''', (cutoff_str, cutoff_str))
+    online_subscribers = online_sub_q['unique_users'] if online_sub_q else 0
+    online_subscriber_devices = online_sub_q['total_devices'] if online_sub_q else 0
     
-    online_vch_q = query_one("""
-        SELECT COUNT(DISTINCT a.username) as c
+    # Hotspot Vouchers
+    online_vch_q = query_one('''
+        SELECT 
+            COUNT(DISTINCT a.username) as unique_cards,
+            COUNT(a.radacctid) as total_devices
         FROM radacct a
         INNER JOIN wisp_vouchers v ON a.username = v.username
         WHERE a.acctstoptime IS NULL
@@ -245,17 +253,21 @@ def _collect_db_metrics_internal():
             OR
             (a.acctupdatetime IS NULL AND a.acctstarttime >= ?)
           )
-    """, (cutoff_str, cutoff_str))
-    online_vouchers = online_vch_q['c'] if online_vch_q else 0
-    active_count = online_subscribers + online_vouchers
+    ''', (cutoff_str, cutoff_str))
+    online_vouchers_cards = online_vch_q['unique_cards'] if online_vch_q else 0
+    online_vouchers_devices = online_vch_q['total_devices'] if online_vch_q else 0
+
+    # Total Connected Devices / Active Sessions
+    total_connected_devices = max(total_active_sessions, online_subscriber_devices + online_vouchers_devices)
+    total_unique_online = online_subscribers + online_vouchers_cards
 
     # 4. Expired Card Subscribers (Quota or Time exhausted)
-    exp_q = query_one("""
+    exp_q = query_one('''
         SELECT COUNT(*) as c
         FROM wisp_vouchers
         WHERE status = 'expired'
            OR (expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP)
-    """)
+    ''')
     expired_vouchers = exp_q['c'] if exp_q else 0
 
     # Available Vouchers (Inventory)
@@ -284,13 +296,15 @@ def _collect_db_metrics_internal():
     voucher_summary = {
         'total_card_subscribers': total_card_subscribers,
         'active_subscribers': active_subscribers,
-        'online_subscribers': online_vouchers,
+        'online_subscribers': online_vouchers_cards,
+        'online_devices': online_vouchers_devices,
+        'online': online_vouchers_devices,
+        'online_cards': online_vouchers_cards,
         'expired_subscribers': expired_vouchers,
         'disabled_subscribers': disabled_vouchers,
         'recharged_subscribers': recharged_vouchers,
         'available': available_vouchers,
         'activated': total_card_subscribers,
-        'online': online_vouchers,
         'expired': expired_vouchers,
         'disabled': disabled_vouchers,
         'recharged': recharged_vouchers,
@@ -300,20 +314,22 @@ def _collect_db_metrics_internal():
     nas_devices = query_one('SELECT COUNT(*) as total FROM wisp_nas_devices')
     total_nas = nas_devices['total'] if nas_devices else 0
     
-    traffic = query_one("""
+    traffic = query_one('''
         SELECT COALESCE(SUM(a.acctinputoctets), 0) as total_in,
                COALESCE(SUM(a.acctoutputoctets), 0) as total_out
         FROM radacct a
         WHERE a.username IN (SELECT username FROM wisp_subscribers)
            OR a.username IN (SELECT username FROM wisp_vouchers)
-    """)
+    ''')
     raw_in = traffic['total_in'] or 0 if traffic else 0
     raw_out = traffic['total_out'] or 0 if traffic else 0
 
     return {
         'total_subscribers': total_subs,
         'online_subscribers': online_subscribers,
-        'active_sessions': active_count,
+        'online_subscriber_devices': online_subscriber_devices,
+        'active_sessions': total_connected_devices,
+        'total_unique_online': total_unique_online,
         'vouchers': v_stats,
         'voucher_summary': voucher_summary,
         'total_nas': total_nas,
