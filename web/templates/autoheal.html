@@ -218,11 +218,11 @@
                 <div class="space-y-3">
                     <div class="flex items-center gap-2">
                         <label class="text-[11px] text-slate-400">مهلة الانقطاع:</label>
-                        <select id="purgeTimeoutSelect" class="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
-                            <option value="10">10 دقائق</option>
-                            <option value="15" selected>15 دقيقة (افتراضي)</option>
-                            <option value="30">30 دقيقة</option>
-                            <option value="60">ساعة واحدة</option>
+                        <select id="purgeTimeoutSelect" onchange="saveZombieTimeoutSetting(this.value)" class="bg-[#0b0f19] border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none">
+                            <option value="10" {% if data.zombie_timeout == 10 %}selected{% endif %}>10 دقائق</option>
+                            <option value="15" {% if (data.zombie_timeout or 15) == 15 %}selected{% endif %}>15 دقيقة (الموصى به)</option>
+                            <option value="30" {% if data.zombie_timeout == 30 %}selected{% endif %}>30 دقيقة</option>
+                            <option value="60" {% if data.zombie_timeout == 60 %}selected{% endif %}>ساعة واحدة</option>
                         </select>
                     </div>
                     <button onclick="purgeZombieSessions()" id="btnPurgeZombies" class="w-full py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
@@ -579,6 +579,31 @@ function probeAllPorts() {
             }
         })
         .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+}
+
+// Save dynamic zombie timeout setting
+function saveZombieTimeoutSetting(timeoutVal) {
+    fetch('/api/tools/autoheal/save-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeout_minutes: timeoutVal })
+    })
+    .then(res => res.json())
+    .then(res => {
+        if (res.success) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: res.message || 'تم تحديث مهلة المراقب الآلي',
+                showConfirmButton: false,
+                timer: 2500
+            });
+        } else {
+            Swal.fire('خطأ', res.message || 'فشل حفظ الإعداد', 'error');
+        }
+    })
+    .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
 }
 
 // Stale Zombie Sessions Purge

@@ -197,17 +197,19 @@ def test_nas_coa(nas_id):
     # If CoA failed/timed out, check if MikroTik API is reachable
     if nas.get('api_port') and nas.get('api_username'):
         try:
-            from core.mikrotik_api import RouterOSApiProtocol
+            from core.mikrotik_api import RouterOSApiProtocol, sync_mikrotik_router_clock
             ros = RouterOSApiProtocol(nas['ip_address'], port=int(nas['api_port']), timeout=2.0)
             ros.connect()
             ok = ros.login(nas['api_username'], nas.get('api_password') or '')
             ros.close()
             if ok:
+                # Synchronize clock as well
+                sync_mikrotik_router_clock(nas['ip_address'], nas['api_username'], nas.get('api_password') or '', port=int(nas['api_port']))
                 return {
                     'success': True,
                     'status': 'api_verified',
                     'method': 'mikrotik_api',
-                    'message': f'منفذ CoA لم يستجب (Timeout)، ولكن تم التحقق من اتصال RouterOS API بنجاح عبر المنفذ {nas["api_port"]} والراوتر جاهز تماماً لطرد المشتركين تلقائياً.'
+                    'message': f'منفذ CoA لم يستجب (Timeout)، ولكن تم التحقق من اتصال RouterOS API بنجاح ومزامنة ساعة الراوتر عبر المنفذ {nas["api_port"]}.'
                 }
         except Exception as e:
             pass

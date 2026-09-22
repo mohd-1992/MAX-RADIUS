@@ -83,6 +83,11 @@ else
   echo -e "${GREEN}[OK] Docker is already installed: $(docker --version)${NC}"
 fi
 
+# Add invoking non-root user to docker group if applicable
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+  usermod -aG docker "$SUDO_USER" 2>/dev/null || true
+fi
+
 # Ensure Kernel Parameters for High-Throughput RADIUS & L2TP
 echo -e "${BLUE}[4/6] Optimizing Kernel Parameters & IP Forwarding...${NC}"
 cat << 'EOF' > /etc/sysctl.d/99-maxradius.conf
@@ -100,14 +105,6 @@ net.ipv4.udp_rmem_min = 16384
 net.ipv4.udp_wmem_min = 16384
 EOF
 sysctl --system -q 2>/dev/null || true
-
-# Free Port 80 from conflicting services (e.g. Apache2/Nginx)
-echo -e "${YELLOW}[INFO] Ensuring Port 80 is free for MAX RADIUS Web...${NC}"
-systemctl stop apache2 2>/dev/null || true
-systemctl disable apache2 2>/dev/null || true
-systemctl stop nginx 2>/dev/null || true
-systemctl disable nginx 2>/dev/null || true
-fuser -k 80/tcp 2>/dev/null || true
 
 # Prepare Installation Directory & Clone Repository
 echo -e "${BLUE}[5/6] Deploying MAX RADIUS codebase into ${INSTALL_DIR}...${NC}"

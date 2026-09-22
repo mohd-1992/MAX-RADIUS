@@ -471,7 +471,9 @@
 /radius incoming set accept=yes port={{ device.coa_port or 3799 }}
 /radius add address={{ radius_server_ip }} secret="{{ device.secret }}" service=hotspot,ppp,login authentication-port=1812 accounting-port=1813 timeout=3000ms comment="MAX_RADIUS"
 /ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
-/ppp aaa set use-radius=yes interim-update=1m</div>
+/ppp aaa set use-radius=yes interim-update=1m
+/system clock set time-zone-name="{{ settings.get('timezone', 'Asia/Riyadh') }}"
+/system ntp client set enabled=yes servers=time.google.com,pool.ntp.org</div>
             </div>
 
             <!-- 2. Active Sessions Table on this Router -->
@@ -517,12 +519,15 @@
         const ip = document.getElementById('customRadiusIp').value.trim() || '192.168.1.100';
         const coaPort = "{{ device.coa_port or 3799 }}";
         const secret = "{{ device.secret }}";
+        const tzName = "{{ settings.get('timezone', 'Asia/Riyadh') }}";
         const codeEl = document.getElementById('routerCliCode');
         if (codeEl) {
             codeEl.innerText = `/radius incoming set accept=yes port=${coaPort}
 /radius add address=${ip} secret="${secret}" service=hotspot,ppp,login authentication-port=1812 accounting-port=1813 timeout=3000ms comment="MAX_RADIUS"
 /ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m
-/ppp aaa set use-radius=yes interim-update=1m`;
+/ppp aaa set use-radius=yes interim-update=1m
+/system clock set time-zone-name="${tzName}"
+/system ntp client set enabled=yes servers=time.google.com,pool.ntp.org`;
         }
     }
 

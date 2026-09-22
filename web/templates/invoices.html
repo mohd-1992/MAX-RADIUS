@@ -93,7 +93,7 @@
                         <td class="py-3.5 px-5 text-center">
                             <div class="flex items-center justify-center gap-2">
                                 {% if inv.status == 'unpaid' %}
-                                <form method="POST" action="{{ url_for('pay_invoice_action', inv_id=inv.id) }}" class="inline">
+                                <form method="POST" action="{{ url_for('pay_invoice_action', inv_id=inv.id) }}" onsubmit="const b=this.querySelector('button[type=submit]'); b.disabled=true; b.innerHTML='<i class=\'fa-solid fa-spinner fa-spin\'></i>';" class="inline">
                                     <button type="submit" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition" title="تسجيل كسداد">
                                         سداد
                                     </button>

@@ -442,7 +442,11 @@ def calculate_package_expiration(validity_value, validity_unit='days', start_dt=
         return None, None
 
     if start_dt is None:
-        start_dt = datetime.datetime.now()
+        try:
+            from core.time_service import get_system_now
+            start_dt = get_system_now()
+        except Exception:
+            start_dt = datetime.datetime.now()
     
     unit = str(validity_unit or 'days').lower().strip()
     
@@ -583,140 +587,175 @@ def check_and_update_expired_vouchers():
 def activate_voucher_card(username, bound_mac=None, nas_ip=None):
     """
     Activates a voucher card upon first login or manual activation.
-    1. Captures live package snapshot at this exact moment and saves it into wisp_vouchers snap_* columns.
-    2. Calculates exact expiration date from validity_value and validity_unit natively in SQL.
-    3. Updates status = 'active', first_used_at, and expires_at.
-    4. Writes snapshotted rate-limit and VSAs to radreply.
-    5. Records the card sale and revenue in wisp_voucher_sales table.
+    1. Locks the row with SELECT ... FOR UPDATE within an atomic transaction.
+    2. Checks idempotency: if status != 'unused', returns False.
+    3. Captures live package snapshot at this exact moment and saves it into wisp_vouchers snap_* columns.
+    4. Calculates exact expiration date from validity_value and validity_unit natively in SQL.
+    5. Updates status = 'active', first_used_at, and expires_at.
+    6. Writes snapshotted rate-limit and VSAs to radreply.
+    7. Records the card sale and revenue in wisp_voucher_sales table.
     """
-    card = query_one('''
-        SELECT v.*, 
-               p.name as package_name, p.price, p.cost,
-               p.validity_value, p.validity_unit, p.validity_days,
-               p.volume_quota_mb, p.uptime_limit_mins,
-               p.rate_download, p.rate_upload, p.burst_download, p.burst_upload,
-               p.burst_threshold_down, p.burst_threshold_up, p.burst_time,
-               p.priority, p.min_download, p.min_upload,
-               p.simultaneous_sessions, p.mikrotik_group,
-               b.name as batch_name, b.id as batch_id
-        FROM wisp_vouchers v
-        JOIN wisp_packages p ON v.package_id = p.id
-        JOIN wisp_voucher_batches b ON v.batch_id = b.id
-        WHERE LOWER(v.username) = LOWER(?) OR v.pin_code = ?
-        LIMIT 1
-    ''', (username, username))
-
-    if not card:
+    if not username:
         return False
 
-    if card['status'] == 'unused':
-        val = card.get('validity_value') if card.get('validity_value') is not None else (card.get('validity_days') or 30)
-        unit = card.get('validity_unit') or 'days'
-        quota_mb = int(card.get('volume_quota_mb') or 0)
-        uptime_mins = int(card.get('uptime_limit_mins') or 0)
-        pkg_price = float(card.get('price') or 0.0)
-        pkg_cost = float(card.get('cost') or 0.0)
-        simul = int(card.get('simultaneous_sessions') or 1)
-        mgroup = str(card.get('mikrotik_group') or '').strip()
-        
-        rate_str = build_mikrotik_rate_limit(
-            download=card['rate_download'],
-            upload=card['rate_upload'],
-            burst_down=card.get('burst_download'),
-            burst_up=card.get('burst_upload'),
-            threshold_down=card.get('burst_threshold_down'),
-            threshold_up=card.get('burst_threshold_up'),
-            burst_time=card.get('burst_time', 16),
-            priority=card.get('priority', 8),
-            min_down=card.get('min_download'),
-            min_up=card.get('min_upload')
-        )
+    from database.db import db_session, adapt_query, is_mysql_conn
 
-        # 1. Update card status and freeze snapshot on voucher record
-        execute_write('''
-            UPDATE wisp_vouchers
-            SET status = 'active',
-                first_used_at = IFNULL(first_used_at, CURRENT_TIMESTAMP),
-                last_renewed_at = IFNULL(last_renewed_at, CURRENT_TIMESTAMP),
-                expires_at = IFNULL(expires_at, 
-                    CASE 
-                        WHEN ? = 'minutes' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? MINUTE)
-                        WHEN ? = 'hours' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? HOUR)
-                        WHEN ? = 'months' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? MONTH)
-                        ELSE DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? DAY)
-                    END
-                ),
-                expire_reason = '',
-                bound_mac = IFNULL(bound_mac, ''),
-                snap_price = ?,
-                snap_cost = ?,
-                snap_volume_quota_mb = ?,
-                snap_uptime_limit_mins = ?,
-                snap_validity_value = ?,
-                snap_validity_unit = ?,
-                snap_validity_days = ?,
-                snap_rate_download = ?,
-                snap_rate_upload = ?,
-                snap_rate_limit_str = ?,
-                snap_simultaneous_sessions = ?,
-                snap_mikrotik_group = ?
-            WHERE id = ? AND batch_id = ?
-        ''', (
-            unit, val, unit, val, unit, val, val,
-            pkg_price, pkg_cost, quota_mb, uptime_mins,
-            val, unit, val, str(card.get('rate_download') or ''), str(card.get('rate_upload') or ''),
-            rate_str, simul, mgroup,
-            card['id'], card['batch_id']
-        ))
+    try:
+        with db_session() as conn:
+            cursor = conn.cursor()
+            lock_clause = "FOR UPDATE" if is_mysql_conn(conn) else ""
+            sql = adapt_query(f'''
+                SELECT v.*, 
+                       p.name as package_name, p.price, p.cost,
+                       p.validity_value, p.validity_unit, p.validity_days,
+                       p.volume_quota_mb, p.uptime_limit_mins,
+                       p.rate_download, p.rate_upload, p.burst_download, p.burst_upload,
+                       p.burst_threshold_down, p.burst_threshold_up, p.burst_time,
+                       p.priority, p.min_download, p.min_upload,
+                       p.simultaneous_sessions, p.mikrotik_group,
+                       b.name as batch_name, b.id as batch_id
+                FROM wisp_vouchers v
+                JOIN wisp_packages p ON v.package_id = p.id
+                JOIN wisp_voucher_batches b ON v.batch_id = b.id
+                WHERE LOWER(v.username) = LOWER(?) OR v.pin_code = ?
+                LIMIT 1 {lock_clause}
+            ''', conn)
 
-        # 1.1 Ensure global sequence ID is assigned
-        execute_write('''
-            INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
-            VALUES ('voucher', ?, CURRENT_TIMESTAMP)
-            ON DUPLICATE KEY UPDATE seq_id = seq_id
-        ''', (card['id'],))
-        seq_row = query_one("SELECT seq_id FROM wisp_global_sequence WHERE entity_type = 'voucher' AND entity_id = ?", (card['id'],))
-        if seq_row:
-            execute_write("UPDATE wisp_vouchers SET global_seq_id = ? WHERE id = ?", (seq_row['seq_id'], card['id']))
+            cursor.execute(sql, (username, username))
+            card = cursor.fetchone()
+            if not card:
+                return False
 
-        # 2. Write frozen rate-limit & reply attributes to radreply
-        if rate_str:
-            execute_write(
-                'INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = ?',
-                (card['username'], 'MikroTik-Rate-Limit', ':=', rate_str, rate_str)
-            )
-        execute_write(
-            'INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = ?',
-            (card['username'], 'Acct-Interim-Interval', ':=', '180', '180')
-        )
-        if mgroup:
-            execute_write(
-                'INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = ?',
-                (card['username'], 'Mikrotik-Group', ':=', mgroup, mgroup)
+            if not isinstance(card, dict):
+                card = dict(card)
+
+            if card['status'] != 'unused':
+                return False
+
+            val = card.get('validity_value') if card.get('validity_value') is not None else (card.get('validity_days') or 30)
+            unit = card.get('validity_unit') or 'days'
+            quota_mb = int(card.get('volume_quota_mb') or 0)
+            uptime_mins = int(card.get('uptime_limit_mins') or 0)
+            pkg_price = float(card.get('price') or 0.0)
+            pkg_cost = float(card.get('cost') or 0.0)
+            simul = int(card.get('simultaneous_sessions') or 1)
+            mgroup = str(card.get('mikrotik_group') or '').strip()
+            
+            rate_str = build_mikrotik_rate_limit(
+                download=card['rate_download'],
+                upload=card['rate_upload'],
+                burst_down=card.get('burst_download'),
+                burst_up=card.get('burst_upload'),
+                threshold_down=card.get('burst_threshold_down'),
+                threshold_up=card.get('burst_threshold_up'),
+                burst_time=card.get('burst_time', 16),
+                priority=card.get('priority', 8),
+                min_down=card.get('min_download'),
+                min_up=card.get('min_upload')
             )
 
-        # 3. Remove any static Expiration attribute in radcheck so FreeRADIUS computes dynamic Session-Timeout from MariaDB
-        execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", (card['username'],))
-
-        # 4. Record sale revenue in wisp_voucher_sales
-        existing_sale = query_one('SELECT 1 FROM wisp_voucher_sales WHERE voucher_id = ?', (card['id'],))
-        if not existing_sale:
-            execute_write('''
-                INSERT INTO wisp_voucher_sales (
-                    voucher_id, batch_id, batch_name, username, serial_number,
-                    package_name, price, cost, reseller_id, activated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ''', (
-                card['id'], card['batch_id'], card['batch_name'], card['username'],
-                card['serial_number'], card['package_name'], pkg_price,
-                pkg_cost, card['reseller_id']
+            # 1. Update card status and freeze snapshot on voucher record
+            update_sql = adapt_query('''
+                UPDATE wisp_vouchers
+                SET status = 'active',
+                    first_used_at = IFNULL(first_used_at, CURRENT_TIMESTAMP),
+                    last_renewed_at = IFNULL(last_renewed_at, CURRENT_TIMESTAMP),
+                    expires_at = IFNULL(expires_at, 
+                        CASE 
+                            WHEN ? = 'minutes' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? MINUTE)
+                            WHEN ? = 'hours' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? HOUR)
+                            WHEN ? = 'months' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? MONTH)
+                            ELSE DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? DAY)
+                        END
+                    ),
+                    expire_reason = '',
+                    bound_mac = IFNULL(bound_mac, ''),
+                    snap_price = ?,
+                    snap_cost = ?,
+                    snap_volume_quota_mb = ?,
+                    snap_uptime_limit_mins = ?,
+                    snap_validity_value = ?,
+                    snap_validity_unit = ?,
+                    snap_validity_days = ?,
+                    snap_rate_download = ?,
+                    snap_rate_upload = ?,
+                    snap_rate_limit_str = ?,
+                    snap_simultaneous_sessions = ?,
+                    snap_mikrotik_group = ?
+                WHERE id = ? AND batch_id = ?
+            ''', conn)
+            cursor.execute(update_sql, (
+                unit, val, unit, val, unit, val, val,
+                pkg_price, pkg_cost, quota_mb, uptime_mins,
+                val, unit, val, str(card.get('rate_download') or ''), str(card.get('rate_upload') or ''),
+                rate_str, simul, mgroup,
+                card['id'], card['batch_id']
             ))
 
-        log_audit(1, 'system', 'ACTIVATE_VOUCHER', 'vouchers',
-                  f'Card {card["username"]} activated with frozen package snapshot ({quota_mb}MB / {rate_str or "Unlimited"}).')
-        return True
+            # 1.1 Ensure global sequence ID is assigned
+            seq_ins = adapt_query('''
+                INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
+                VALUES ('voucher', ?, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE seq_id = seq_id
+            ''', conn)
+            cursor.execute(seq_ins, (card['id'],))
 
-    return False
+            seq_sel = adapt_query("SELECT seq_id FROM wisp_global_sequence WHERE entity_type = 'voucher' AND entity_id = ?", conn)
+            cursor.execute(seq_sel, (card['id'],))
+            seq_row = cursor.fetchone()
+            if seq_row:
+                s_id = seq_row['seq_id'] if isinstance(seq_row, dict) else seq_row[0]
+                seq_up = adapt_query("UPDATE wisp_vouchers SET global_seq_id = ? WHERE id = ?", conn)
+                cursor.execute(seq_up, (s_id, card['id']))
+
+            # 2. Write frozen rate-limit & reply attributes to radreply
+            if rate_str:
+                rr_rate = adapt_query(
+                    'INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = ?',
+                    conn
+                )
+                cursor.execute(rr_rate, (card['username'], 'MikroTik-Rate-Limit', ':=', rate_str, rate_str))
+
+            rr_int = adapt_query(
+                'INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = ?',
+                conn
+            )
+            cursor.execute(rr_int, (card['username'], 'Acct-Interim-Interval', ':=', '180', '180'))
+
+            if mgroup:
+                rr_grp = adapt_query(
+                    'INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE value = ?',
+                    conn
+                )
+                cursor.execute(rr_grp, (card['username'], 'Mikrotik-Group', ':=', mgroup, mgroup))
+
+            # 3. Remove any static Expiration attribute in radcheck so FreeRADIUS computes dynamic Session-Timeout from MariaDB
+            del_rc = adapt_query("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", conn)
+            cursor.execute(del_rc, (card['username'],))
+
+            # 4. Record sale revenue in wisp_voucher_sales
+            chk_sale = adapt_query('SELECT 1 FROM wisp_voucher_sales WHERE voucher_id = ?', conn)
+            cursor.execute(chk_sale, (card['id'],))
+            existing_sale = cursor.fetchone()
+            if not existing_sale:
+                ins_sale = adapt_query('''
+                    INSERT INTO wisp_voucher_sales (
+                        voucher_id, batch_id, batch_name, username, serial_number,
+                        package_name, price, cost, reseller_id, activated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', conn)
+                cursor.execute(ins_sale, (
+                    card['id'], card['batch_id'], card['batch_name'], card['username'],
+                    card['serial_number'], card['package_name'], pkg_price,
+                    pkg_cost, card['reseller_id']
+                ))
+
+            log_audit(1, 'system', 'ACTIVATE_VOUCHER', 'vouchers',
+                      f'Card {card["username"]} activated with frozen package snapshot ({quota_mb}MB / {rate_str or "Unlimited"}).')
+            return True
+    except Exception as e:
+        print(f"[Voucher Activation Error in services/voucher_service]: {e}")
+        return False
 
 def sync_voucher_sales(batch_size=5000):
     """Backfills all activated/expired vouchers into wisp_voucher_sales if missing in efficient chunks."""

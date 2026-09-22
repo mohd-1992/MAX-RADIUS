@@ -15,6 +15,7 @@ services:
       MYSQL_DATABASE: radius_wisp
       MYSQL_USER: radius
       MYSQL_PASSWORD: radpass
+      TZ: ${SYSTEM_TIMEZONE:-Asia/Riyadh}
     ports:
       - "3307:3306"
     volumes:
@@ -50,6 +51,7 @@ services:
       DB_PASSWORD: radpass
       DB_NAME: radius_wisp
       RADIUS_SECRET_DEFAULT: "max123"
+      TZ: ${SYSTEM_TIMEZONE:-Asia/Riyadh}
     ports:
       - "1812:1812/udp"
       - "1813:1813/udp"
@@ -89,8 +91,9 @@ services:
       - PORT=5090
       - RADIUS_COA_PORT=37990
       - L2TP_CONTAINER=max_radius_l2tp
+      - TZ=${SYSTEM_TIMEZONE:-Asia/Riyadh}
+      - DEFAULT_TIMEZONE=Asia/Riyadh
     ports:
-      - "80:5090"
       - "5090:5090/tcp"
     volumes:
       - ./storage:/app/storage
@@ -120,6 +123,7 @@ services:
       - AUTOHEAL_INTERVAL=10
       - AUTOHEAL_START_PERIOD=30
       - AUTOHEAL_DEFAULT_STOP_TIMEOUT=10
+      - TZ=${SYSTEM_TIMEZONE:-Asia/Riyadh}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -136,11 +140,12 @@ services:
     privileged: true
     cap_add:
       - NET_ADMIN
-    devices:
-      - /dev/ppp:/dev/ppp
     environment:
+      - TZ=${SYSTEM_TIMEZONE:-Asia/Riyadh}
       - VPN_SUBNET=192.168.44.0/24
       - VPN_SERVER_IP=192.168.44.1
+    devices:
+      - /dev/ppp:/dev/ppp
     ports:
       - "1701:1701/udp"
     volumes:

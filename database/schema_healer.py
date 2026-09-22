@@ -97,9 +97,9 @@ REQUIRED_COLUMNS = {
         ('snap_validity_days', 'INT DEFAULT 30'),
         ('snap_rate_download', "VARCHAR(50) DEFAULT '0'"),
         ('snap_rate_upload', "VARCHAR(50) DEFAULT '0'"),
-        ('snap_rate_limit_str', "VARCHAR(100) DEFAULT '0/0'"),
         ('snap_simultaneous_sessions', 'INT DEFAULT 1'),
-        ('snap_mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'")
+        ('snap_mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'"),
+        ('balance', 'DECIMAL(10,2) DEFAULT 0.00')
     ],
     'wisp_voucher_batches': [
         ('price', 'DECIMAL(10,2) DEFAULT 0.00'),
@@ -224,6 +224,7 @@ BEGIN
             first_used_at = IFNULL(first_used_at, CURRENT_TIMESTAMP),
             last_renewed_at = IFNULL(last_renewed_at, CURRENT_TIMESTAMP),
             expires_at = IFNULL(expires_at, v_exp_date),
+            bound_mac = CASE WHEN (bound_mac IS NULL OR bound_mac = '') AND NEW.callingstationid IS NOT NULL AND NEW.callingstationid != '' THEN NEW.callingstationid ELSE bound_mac END,
             global_seq_id = IFNULL(global_seq_id, v_assigned_seq),
             snap_price = IFNULL(snap_price, v_pkg_price),
             snap_cost = IFNULL(snap_cost, v_pkg_cost),

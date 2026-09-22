@@ -774,19 +774,33 @@
             color: '#fff'
         }).then((result) => {
             if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ إرسال أمر الفصل...',
+                    text: 'يتم إرسال حزمة CoA Disconnect للراوتر عبر منفذ 3799 / API...',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => Swal.showLoading(),
+                    background: '#0b0f19',
+                    color: '#fff'
+                });
+                const fd = new FormData();
+                fd.append('target_type', 'subscriber');
+                fd.append('target_id', '{{ subscriber.id }}');
                 fetch('/api/actions/disconnect', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: new URLSearchParams({target_type: 'subscriber', ids: '{{ subscriber.id }}'})
+                    body: fd
                 })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
-                        Swal.fire({title: 'تم الفصل', text: data.message, icon: 'success', background: '#0b0f19', color: '#fff'})
+                        Swal.fire({title: 'تم الفصل', text: data.message || 'تم قطع اتصال المشترك بنجاح.', icon: 'success', background: '#0b0f19', color: '#fff'})
                         .then(() => location.reload());
                     } else {
-                        Swal.fire({title: 'خطأ', text: data.message, icon: 'error', background: '#0b0f19', color: '#fff'});
+                        Swal.fire({title: 'إشعار الفصل', text: data.message || 'فشل إرسال أمر الفصل.', icon: 'warning', background: '#0b0f19', color: '#fff'});
                     }
+                })
+                .catch(err => {
+                    Swal.fire({title: 'خطأ في الاتصال', text: err.toString(), icon: 'error', background: '#0b0f19', color: '#fff'});
                 });
             }
         });

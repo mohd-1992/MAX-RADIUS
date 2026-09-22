@@ -27,6 +27,36 @@ try:
 except ImportError:
     SQLITE_AVAILABLE = False
 
+_CURRENT_TZ_OFFSET = '+03:00'
+
+def set_active_db_timezone(tz_name_or_offset):
+    """Sets the SQL session time_zone offset (e.g. '+03:00' or 'Asia/Riyadh')."""
+    global _CURRENT_TZ_OFFSET
+    if not tz_name_or_offset:
+        return
+    if isinstance(tz_name_or_offset, str) and (tz_name_or_offset.startswith('+') or tz_name_or_offset.startswith('-')):
+        _CURRENT_TZ_OFFSET = tz_name_or_offset
+        return
+    try:
+        from core.time_service import get_system_timezone
+        tz = get_system_timezone(tz_name_or_offset)
+        now = datetime.datetime.now(tz)
+        utcoffset = now.utcoffset()
+        if utcoffset is not None:
+            total_seconds = int(utcoffset.total_seconds())
+            sign = '+' if total_seconds >= 0 else '-'
+            abs_seconds = abs(total_seconds)
+            hours = abs_seconds // 3600
+            minutes = (abs_seconds % 3600) // 60
+            _CURRENT_TZ_OFFSET = f"{sign}{hours:02d}:{minutes:02d}"
+    except Exception:
+        pass
+
+def get_db_timezone_offset():
+    """Returns the cached SQL time_zone offset string without executing any database query."""
+    global _CURRENT_TZ_OFFSET
+    return _CURRENT_TZ_OFFSET
+
 def is_mysql_conn(conn):
     """Returns True if connection is not a standard SQLite connection."""
     if SQLITE_AVAILABLE and isinstance(conn, sqlite3.Connection):
@@ -37,6 +67,7 @@ def get_connection():
     """Returns a database connection based on configured DB_TYPE or fallback."""
     if DB_TYPE == 'mysql' and PYMYSQL_AVAILABLE:
         try:
+            tz_offset = get_db_timezone_offset()
             conn = pymysql.connect(
                 host=DB_HOST,
                 port=DB_PORT,
@@ -46,7 +77,8 @@ def get_connection():
                 charset='utf8mb4',
                 cursorclass=DictCursor,
                 autocommit=False,
-                connect_timeout=5
+                connect_timeout=5,
+                init_command=f"SET time_zone = '{tz_offset}';"
             )
             return conn
         except Exception:
@@ -193,46 +225,20 @@ def init_database():
         try:
             conn = get_connection()
             if is_mysql_conn(conn):
-                # Check if core tables exist
-                has_subs = False
-                try:
-                    with conn.cursor() as cur:
-                        cur.execute("SHOW TABLES LIKE 'wisp_subscribers'")
-                        has_subs = bool(cur.fetchone())
-                except Exception:
-                    pass
-                    
-                if not has_subs:
-                    print(f"[DB] Core tables missing in ({DB_HOST}:{DB_PORT}/{DB_NAME}). Auto-importing full schema...")
-                    with open(schema_file, 'r', encoding='utf-8') as f:
-                        sql_content = f.read()
+                print(f"[DB] Initializing MySQL Database ({DB_HOST}:{DB_PORT}/{DB_NAME})...")
+                with open(schema_file, 'r', encoding='utf-8') as f:
+                    sql_content = f.read()
 
-                    clean_lines = []
-                    delim = ';'
-                    for line in sql_content.splitlines():
-                        sline = line.strip()
-                        if sline.upper().startswith('DELIMITER'):
-                            delim = sline.split()[1] if len(sline.split()) > 1 else ';'
-                            continue
-                        if delim != ';' and sline.endswith(delim):
-                            continue
-                        if delim == ';' and not sline.startswith('--'):
-                            clean_lines.append(line)
-                            
-                    full_clean_sql = '\n'.join(clean_lines)
-                    commands = [c.strip() for c in full_clean_sql.split(';') if c.strip()]
-                    
+                commands = [c.strip() for c in sql_content.split(';') if c.strip()]
+                with db_session() as c:
+                    cursor = c.cursor()
                     for cmd in commands:
-                        if cmd and not cmd.startswith('--'):
+                        if cmd and not cmd.startswith('--') and not cmd.upper().startswith('DELIMITER'):
                             try:
-                                with conn.cursor() as cur:
-                                    cur.execute(cmd)
-                                conn.commit()
+                                cursor.execute(cmd)
                             except Exception:
                                 pass
-                    print("[DB] MySQL FreeRADIUS & WISP Tables and Indexes initialized successfully.")
-                conn.close()
-                
+                print("[DB] MySQL FreeRADIUS & WISP Tables and Indexes initialized successfully.")
                 try:
                     from database.schema_healer import heal_database_schema
                     heal_database_schema()

@@ -473,3 +473,50 @@ def get_nas_status(host, api_port=8728, coa_port=3799):
     if is_online:
         return {'status': 'online', 'latency_ms': latency, 'method': f'TCP/ICMP {api_port}'}
     return {'status': 'offline', 'latency_ms': 0, 'method': 'None'}
+
+def sync_mikrotik_router_clock(host, username, password, port=8728, tz_name=None):
+    """
+    Synchronizes the MikroTik RouterOS clock and timezone via RouterOS API.
+    Executes /system/clock/set with server current date, time, and timezone.
+    Returns: (success: bool, msg: str)
+    """
+    if not host or not username:
+        return False, "بيانات الاتصال بـ API غير مكتملة"
+
+    from core.time_service import get_system_now, get_configured_timezone_name
+    tz = tz_name or get_configured_timezone_name()
+    now = get_system_now(tz)
+    
+    date_str = now.strftime('%b/%d/%Y')  # e.g. Sep/22/2026
+    time_str = now.strftime('%H:%M:%S')  # e.g. 01:40:00
+    
+    ros = RouterOSApiProtocol(host, port=port, timeout=3.0)
+    try:
+        ros.connect()
+        if not ros.login(username, password or ''):
+            return False, "فشل تسجيل الدخول إلى MikroTik API"
+
+        # 1. Set Clock
+        cmd = [
+            '/system/clock/set',
+            f'=time-zone-name={tz}',
+            f'=date={date_str}',
+            f'=time={time_str}'
+        ]
+        ros.talk(cmd)
+
+        # 2. Configure NTP Client (RouterOS v6 & v7 friendly)
+        try:
+            ros.talk([
+                '/system/ntp/client/set',
+                '=enabled=yes',
+                '=servers=time.google.com,pool.ntp.org'
+            ])
+        except Exception:
+            pass
+
+        ros.close()
+        return True, f"تمت مزامنة ساعة الراوتر بنجاح مع توقيت السيرفر ({tz} - {time_str} - {date_str})"
+    except Exception as e:
+        ros.close()
+        return False, f"خطأ أثناء مزامنة ساعة الراوتر: {e}"

@@ -8,7 +8,7 @@ from pathlib import Path
 
 # Application Identity & Centralized Versioning System
 APP_NAME = os.environ.get('APP_NAME', 'MAX RADIUS').replace('_', ' ')
-APP_VERSION = os.environ.get('APP_VERSION', '2.5.2')
+APP_VERSION = os.environ.get('APP_VERSION', '2.6.0')
 APP_EDITION = os.environ.get('APP_EDITION', 'Enterprise')
 APP_VERSION_FULL = f"{APP_NAME} v{APP_VERSION}"
 APP_VERSION_BADGE = f"v{APP_VERSION} {APP_EDITION}"

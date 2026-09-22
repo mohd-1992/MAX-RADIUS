@@ -181,10 +181,10 @@ def run_watchdog_cycle():
         radius_ok = check_radius_engine_health()
         check_auto_database_cleanup()
 
-        # Auto-heal zombie sessions in background (reap sessions without heartbeat > 3m)
+        # Auto-heal zombie sessions in background (reap sessions based on dynamic setting, default 15m)
         try:
             from services.autoheal_service import purge_stale_zombie_sessions
-            purge_stale_zombie_sessions(timeout_minutes=3)
+            purge_stale_zombie_sessions()
         except Exception:
             pass
 

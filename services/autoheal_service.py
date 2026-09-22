@@ -456,22 +456,25 @@ def run_deep_system_diagnostic():
 
     # 4. Check Stale Zombie Sessions in Accounting
     try:
+        from core.time_service import get_utc_cutoff_str
+        z_timeout = get_zombie_session_timeout()
+        cutoff_utc = get_utc_cutoff_str(z_timeout)
         zombie_sessions = query_one("""
             SELECT COUNT(*) as cnt 
             FROM radacct 
             WHERE acctstoptime IS NULL 
               AND (
-                  (acctupdatetime IS NOT NULL AND acctupdatetime < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
-                  OR (acctupdatetime IS NULL AND acctstarttime < DATE_SUB(NOW(), INTERVAL 15 MINUTE))
+                  (acctupdatetime IS NOT NULL AND acctupdatetime < ?)
+                  OR (acctupdatetime IS NULL AND acctstarttime < ?)
               )
-        """)
+        """, (cutoff_utc, cutoff_utc))
         z_count = int(zombie_sessions['cnt'] or 0) if zombie_sessions else 0
         if z_count > 20:
             score -= 10
             findings.append({
                 'type': 'warning',
                 'title': f'تراكم جلسات معلقة بدون تحديث ({z_count} جلسة)',
-                'desc': 'جلسات اتصال في radacct لم ترسل تحديثات Interim-Update لأكثر من 15 دقيقة.',
+                'desc': f'جلسات اتصال في radacct لم ترسل تحديثات Interim-Update لأكثر من {z_timeout} دقيقة.',
                 'action': 'تفريغ الجلسات العالقة'
             })
     except Exception:
@@ -502,35 +505,69 @@ def run_deep_system_diagnostic():
         'disk_free_gb': free_gb
     }
 
-def purge_stale_zombie_sessions(timeout_minutes=15):
+def get_zombie_session_timeout():
+    """Returns configured timeout in minutes from wisp_system_settings (default 15)."""
+    try:
+        row = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = 'zombie_session_timeout_mins'")
+        if row and row.get('value'):
+            return max(5, int(row['value']))
+    except Exception:
+        pass
+    return 15
+
+def set_zombie_session_timeout(timeout_mins):
+    """Saves configured timeout in minutes into wisp_system_settings."""
+    timeout_mins = max(5, int(timeout_mins or 15))
+    try:
+        execute_write("""
+            INSERT INTO wisp_system_settings (`key`, `value`) 
+            VALUES ('zombie_session_timeout_mins', ?)
+            ON DUPLICATE KEY UPDATE `value` = ?
+        """, (str(timeout_mins), str(timeout_mins)))
+        return True, f"تم حفظ مهلة الجلسات العالقة بنجاح إلى ({timeout_mins} دقيقة)."
+    except Exception:
+        try:
+            execute_write("INSERT OR REPLACE INTO wisp_system_settings (`key`, `value`) VALUES ('zombie_session_timeout_mins', ?)", (str(timeout_mins),))
+            return True, f"تم حفظ مهلة الجلسات العالقة بنجاح إلى ({timeout_mins} دقيقة)."
+        except Exception as e:
+            return False, f"خطأ أثناء حفظ الإعداد: {e}"
+
+def purge_stale_zombie_sessions(timeout_minutes=None):
     """
     Cleans up orphaned sessions where users disconnected without sending Acct-Stop.
-    Uses SQL-native time calculation (DATE_SUB(NOW(), INTERVAL ? MINUTE)) to prevent timezone mismatch.
+    Uses UTC timestamp string matching FreeRADIUS radacct time standard.
     """
-    timeout_minutes = max(5, int(timeout_minutes or 15))
+    if timeout_minutes is None:
+        timeout_minutes = get_zombie_session_timeout()
+    else:
+        timeout_minutes = max(5, int(timeout_minutes or 15))
 
     try:
+        from core.time_service import get_utc_cutoff_str, get_utc_now_str
+        cutoff_utc = get_utc_cutoff_str(timeout_minutes)
+        now_utc = get_utc_now_str()
+
         affected = query_one("""
             SELECT COUNT(*) as cnt FROM radacct
             WHERE acctstoptime IS NULL 
               AND (
-                  (acctupdatetime IS NOT NULL AND acctupdatetime < DATE_SUB(NOW(), INTERVAL ? MINUTE))
-                  OR (acctupdatetime IS NULL AND acctstarttime < DATE_SUB(NOW(), INTERVAL ? MINUTE))
+                  (acctupdatetime IS NOT NULL AND acctupdatetime < ?)
+                  OR (acctupdatetime IS NULL AND acctstarttime < ?)
               )
-        """, (timeout_minutes, timeout_minutes))
+        """, (cutoff_utc, cutoff_utc))
         count = int(affected['cnt'] or 0) if affected else 0
 
         if count > 0:
             execute_update("""
                 UPDATE radacct
-                SET acctstoptime = NOW(),
+                SET acctstoptime = ?,
                     acctterminatecause = 'Watchdog-Autoheal-Timeout'
                 WHERE acctstoptime IS NULL
                   AND (
-                      (acctupdatetime IS NOT NULL AND acctupdatetime < DATE_SUB(NOW(), INTERVAL ? MINUTE))
-                      OR (acctupdatetime IS NULL AND acctstarttime < DATE_SUB(NOW(), INTERVAL ? MINUTE))
+                      (acctupdatetime IS NOT NULL AND acctupdatetime < ?)
+                      OR (acctupdatetime IS NULL AND acctstarttime < ?)
                   )
-            """, (timeout_minutes, timeout_minutes))
+            """, (now_utc, cutoff_utc, cutoff_utc))
 
             log_system_alert(
                 alert_type='ZOMBIE_SESSIONS_PURGED',
@@ -562,6 +599,8 @@ def get_autoheal_dashboard_full():
     total_gb = round(total_b / (1024 ** 3), 2)
     used_gb = round(used_b / (1024 ** 3), 2)
 
+    zombie_timeout = get_zombie_session_timeout()
+
     return {
         'fleet': fleet,
         'ports': ports,
@@ -569,6 +608,7 @@ def get_autoheal_dashboard_full():
         'unresolved_alerts_count': unresolved_alerts_count,
         'autoheal_container': autoheal_c,
         'watchdog_active': bool(_watchdog_thread and _watchdog_thread.is_alive()),
+        'zombie_timeout': zombie_timeout,
         'disk': {
             'total_gb': total_gb,
             'used_gb': used_gb,

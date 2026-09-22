@@ -57,10 +57,13 @@
     window.copyNasScript = function(routerName, radiusIp, secret, coaPort) {
         var port = coaPort || 3799;
         var ip = radiusIp || '192.168.1.100';
+        var tz = '{{ settings.get("timezone", "Asia/Riyadh") }}';
         var script = '/radius incoming set accept=yes port=' + port + '\n' +
                      '/radius add address=' + ip + ' secret="' + secret + '" service=hotspot,ppp,login authentication-port=1812 accounting-port=1813 timeout=3000ms comment="MAX_RADIUS"\n' +
                      '/ip hotspot profile set [find default=yes] use-radius=yes radius-accounting=yes radius-interim-update=1m\n' +
-                     '/ppp aaa set use-radius=yes interim-update=1m';
+                     '/ppp aaa set use-radius=yes interim-update=1m\n' +
+                     '/system clock set time-zone-name="' + tz + '"\n' +
+                     '/system ntp client set enabled=yes servers=time.google.com,pool.ntp.org';
 
         window.copyTextToClipboard(script).then(function() {
             if (typeof Swal !== 'undefined') {

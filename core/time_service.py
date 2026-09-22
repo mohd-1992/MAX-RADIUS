@@ -159,20 +159,73 @@ def get_real_utc_now():
     return datetime.datetime.fromtimestamp(real_ts, tz=datetime.timezone.utc)
 
 
-def get_configured_timezone_name():
+_CACHED_TIMEZONE_NAME = None
+_CACHED_TZ_LOCK = threading.Lock()
+_IS_LOADING_TZ = False
+
+
+def get_configured_timezone_name(force_refresh=False):
     """
-    Reads the configured timezone name from `wisp_system_settings` table.
-    Defaults to 'Asia/Aden' if not found or if database is uninitialized.
+    Reads the configured timezone name from cache or `wisp_system_settings` table.
+    Defaults to 'Asia/Riyadh' or 'Asia/Dubai' or system env if uninitialized.
     """
+    global _CACHED_TIMEZONE_NAME, _IS_LOADING_TZ
+    if _CACHED_TIMEZONE_NAME is not None and not force_refresh:
+        return _CACHED_TIMEZONE_NAME
+
+    if _IS_LOADING_TZ:
+        return os.environ.get('TZ', DEFAULT_TIMEZONE)
+
+    tz = None
     try:
+        _IS_LOADING_TZ = True
         from database.db import query_one
         row = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = ?", ('timezone',))
         if row and row.get('value') and row['value'].strip():
-            return row['value'].strip()
+            tz = row['value'].strip()
     except Exception:
         pass
-        
-    return os.environ.get('TZ', DEFAULT_TIMEZONE)
+    finally:
+        _IS_LOADING_TZ = False
+
+    if not tz:
+        tz = os.environ.get('TZ', DEFAULT_TIMEZONE)
+
+    with _CACHED_TZ_LOCK:
+        _CACHED_TIMEZONE_NAME = tz
+
+    try:
+        from database.db import set_active_db_timezone
+        set_active_db_timezone(tz)
+    except Exception:
+        pass
+
+    return tz
+
+
+def update_system_timezone(new_tz_name):
+    """
+    Dynamically updates the active timezone in memory, DB session offsets, and environment.
+    """
+    global _CACHED_TIMEZONE_NAME
+    if not new_tz_name or not isinstance(new_tz_name, str):
+        return
+    tz_clean = new_tz_name.strip()
+    with _CACHED_TZ_LOCK:
+        _CACHED_TIMEZONE_NAME = tz_clean
+
+    os.environ['TZ'] = tz_clean
+    if hasattr(time, 'tzset'):
+        try:
+            time.tzset()
+        except Exception:
+            pass
+
+    try:
+        from database.db import set_active_db_timezone
+        set_active_db_timezone(tz_clean)
+    except Exception:
+        pass
 
 
 def get_system_timezone(tz_name=None):

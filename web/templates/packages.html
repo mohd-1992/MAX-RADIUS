@@ -3,7 +3,7 @@
 {% block title %}إدارة الباقات والسرعات{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-5 pb-16">
     <!-- Header & Action Bar -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840]">
         <div>
@@ -13,7 +13,7 @@
                 </div>
                 <span>إدارة الباقات والسرعات (Profiles & Bandwidth)</span>
             </h2>
-            <p class="text-xs text-slate-400 mt-1">تحديد سرعات MikroTik-Rate-Limit، الكوتا، الصلاحية، الأسعار، والمزامنة اللحظية في FreeRADIUS وميكروتيك</p>
+            <p class="text-xs text-slate-400 mt-1">تحديد سرعات MikroTik-Rate-Limit، الكوتا، الصلاحية، الأسعار، وإجراء تعديلات جماعية فورية</p>
         </div>
         <div class="flex items-center gap-2.5 flex-wrap">
             <a href="{{ url_for('new_package_page') }}" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
@@ -23,39 +23,50 @@
         </div>
     </div>
 
-    <!-- Search & Filter Controls -->
-    <form method="GET" action="{{ url_for('packages') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-[#0b0f19] p-4 rounded-xl border border-[#1c2840]">
-        <div class="relative sm:col-span-2">
-            <i class="fa-solid fa-magnifying-glass absolute right-3 top-3.5 text-slate-500 text-sm"></i>
-            <input type="text" name="q" value="{{ q or '' }}" placeholder="بحث باسم الباقة أو الوصف..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-9 pl-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
-        </div>
-        <div>
-            <select name="service_type" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-                <option value="">جميع أنواع الخدمة (All Types)</option>
-                <option value="hotspot" {% if service_type == 'hotspot' %}selected{% endif %}>Hotspot (الوايفاي والكروت)</option>
-                <option value="pppoe" {% if service_type == 'pppoe' %}selected{% endif %}>PPPoE (المنزلي / الفايبر)</option>
-                <option value="both" {% if service_type == 'both' %}selected{% endif %}>مزدوجة (Hotspot + PPPoE)</option>
-            </select>
-        </div>
-        <div class="flex gap-2">
-            <button type="submit" class="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-semibold transition border border-slate-700 cursor-pointer">
-                فلترة
-            </button>
-            {% if q or service_type %}
-            <a href="{{ url_for('packages') }}" class="px-3 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-sm font-semibold transition border border-slate-700 flex items-center justify-center" title="إلغاء الفلترة">
-                <i class="fa-solid fa-xmark"></i>
-            </a>
-            {% endif %}
-        </div>
-    </form>
+    <!-- Theme / Bulk Action Bar Style -->
+    <style>
+        .bulk-action-bar-container {
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.45) 0%, #0b0f19 50%, #070b14 100%);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+        }
+        .bulk-selected-badge {
+            background-color: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+            border: 1px solid rgba(59, 130, 246, 0.35);
+        }
+        .bulk-clear-btn {
+            color: #94a3b8;
+        }
+        .bulk-clear-btn:hover {
+            color: #f43f5e;
+        }
+        html.theme-light .bulk-action-bar-container {
+            background: #ffffff !important;
+            border: 1px solid #bfdbfe !important;
+            box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+        }
+        html.theme-light .bulk-selected-badge {
+            background-color: #eff6ff !important;
+            color: #1d4ed8 !important;
+            border: 1px solid #bfdbfe !important;
+            font-weight: 700 !important;
+        }
+        html.theme-light .bulk-clear-btn {
+            color: #64748b !important;
+            font-weight: 600 !important;
+        }
+        html.theme-light .bulk-clear-btn:hover {
+            color: #e11d48 !important;
+        }
+    </style>
 
     <!-- KPI Summary Cards -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <!-- إجمالي الباقات -->
-        <div class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
+        <div class="bg-[#0b0f19] p-4 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
             <div>
                 <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي الباقات</span>
-                <h3 class="text-2xl font-black text-white font-mono">{{ total_packages_count }}</h3>
+                <h3 class="text-2xl font-black text-white font-mono" id="statTotalCount">{{ total_packages_count }}</h3>
                 <span class="text-[11px] text-slate-400 font-medium">بروفايل معرف</span>
             </div>
             <div class="w-11 h-11 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg border border-amber-500/20">
@@ -64,7 +75,7 @@
         </div>
 
         <!-- باقات الهوتسبوت -->
-        <div class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
+        <div class="bg-[#0b0f19] p-4 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
             <div>
                 <span class="text-xs font-bold text-slate-400 block mb-1">باقات Hotspot</span>
                 <h3 class="text-2xl font-black text-sky-400 font-mono">{{ hotspot_packages_count }}</h3>
@@ -76,7 +87,7 @@
         </div>
 
         <!-- باقات PPPoE المنزلي -->
-        <div class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
+        <div class="bg-[#0b0f19] p-4 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
             <div>
                 <span class="text-xs font-bold text-slate-400 block mb-1">باقات PPPoE</span>
                 <h3 class="text-2xl font-black text-purple-400 font-mono">{{ pppoe_packages_count }}</h3>
@@ -88,7 +99,7 @@
         </div>
 
         <!-- إجمالي المستفيدين -->
-        <div class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
+        <div class="bg-[#0b0f19] p-4 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
             <div>
                 <span class="text-xs font-bold text-slate-400 block mb-1">المستفيدون النشطون</span>
                 <h3 class="text-2xl font-black text-emerald-400 font-mono">{{ total_subs_count + total_vouchers_count }}</h3>
@@ -100,137 +111,1009 @@
         </div>
     </div>
 
-    <!-- Packages Cards Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {% for p in packages %}
-        <div class="bg-[#0b0f19] border border-[#1c2840] hover:border-blue-500/50 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative overflow-hidden group transition cursor-pointer" onclick="window.location.href='{{ url_for('package_details', pkg_id=p.id) }}'">
-            <div class="space-y-3.5">
-                <!-- Top Header: Badges & Price -->
-                <div class="flex items-start justify-between gap-2 border-b border-[#1c2840]/70 pb-3">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                        <!-- Service Type Badge -->
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide {% if p.service_type == 'pppoe' %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% elif p.service_type == 'both' %}bg-sky-500/20 text-sky-300 border border-sky-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
-                            <i class="fa-solid {% if p.service_type == 'pppoe' %}fa-network-wired{% elif p.service_type == 'both' %}fa-arrows-split-up-and-left{% else %}fa-wifi{% endif %} ml-1 text-[9px]"></i>
-                            {{ p.service_type }}
-                        </span>
-                        
-                        <!-- Rollover Badge -->
-                        {% if p.is_rollover_enabled %}
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" title="ترحيل البيانات والأيام المتبقية تلقائياً عند التجديد المبكر">
-                            <i class="fa-solid fa-arrows-rotate text-[9px]"></i> ترحيل الرصيد
-                        </span>
-                        {% endif %}
+    <!-- Search, Filter & View Switcher Toolbar -->
+    <div class="bg-[#0b0f19] p-4 rounded-2xl border border-[#1c2840] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <!-- Live Search Input -->
+        <div class="relative flex-1">
+            <i class="fa-solid fa-magnifying-glass absolute right-3.5 top-3 text-slate-500 text-sm"></i>
+            <input type="text" id="liveSearchInput" placeholder="بحث سريع باسم الباقة أو السرعة أو السعر..." 
+                   class="w-full bg-[#070b14] border border-slate-700/80 focus:border-blue-500 rounded-xl pr-10 pl-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none transition">
+        </div>
 
-                        <!-- Active Status Dot -->
-                        {% if p.is_active %}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> مفعلة
-                        </span>
-                        {% else %}
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-400 bg-slate-800 border border-slate-700">
-                            <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> معطلة
-                        </span>
-                        {% endif %}
-                    </div>
+        <!-- Filters & View Switcher -->
+        <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-between md:justify-end">
+            <!-- Service Type Filter -->
+            <select id="typeFilter" class="bg-[#070b14] border border-slate-700/80 focus:border-blue-500 rounded-xl px-3 py-2 text-xs font-medium text-white focus:outline-none">
+                <option value="all">جميع الأنواع</option>
+                <option value="hotspot">Hotspot</option>
+                <option value="pppoe">PPPoE</option>
+                <option value="both">مزدوجة (Both)</option>
+            </select>
 
-                    <!-- Price -->
-                    <div class="text-left flex-shrink-0">
-                        <span class="text-2xl font-black text-blue-400 font-mono">{{ p.price }}</span>
-                        <span class="text-xs text-slate-400 font-semibold">{{ settings.get('currency_symbol', 'ر.س') }}</span>
-                    </div>
-                </div>
+            <!-- Status Filter -->
+            <select id="statusFilter" class="bg-[#070b14] border border-slate-700/80 focus:border-blue-500 rounded-xl px-3 py-2 text-xs font-medium text-white focus:outline-none">
+                <option value="all">جميع الحالات</option>
+                <option value="active">مفعلة فقط</option>
+                <option value="inactive">معطلة فقط</option>
+            </select>
 
-                <!-- Package Name & Description -->
-                <div>
-                    <a href="{{ url_for('package_details', pkg_id=p.id) }}" class="text-base font-bold text-white hover:text-blue-400 transition block group-hover:text-blue-400" onclick="event.stopPropagation()">
-                        {{ p.name }}
-                    </a>
-                    <p class="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-2">{{ p.description or 'باقة إنترنت وسرعات متطورة مع مزامنة لحظية في FreeRADIUS وميكروتيك' }}</p>
-                </div>
+            <!-- Reset Filter Button -->
+            <button type="button" id="resetFiltersBtn" class="px-2.5 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition border border-slate-700 flex items-center gap-1 cursor-pointer" title="إعادة ضبط الفلاتر">
+                <i class="fa-solid fa-arrows-rotate"></i>
+            </button>
 
-                <!-- Speed & Burst Specifications Box -->
-                <div class="bg-[#070b14] rounded-xl p-3 space-y-2 border border-slate-800 text-xs font-mono">
-                    <div class="flex justify-between items-center">
-                        <span class="text-slate-400 flex items-center gap-1.5">
-                            <i class="fa-solid fa-gauge-high text-emerald-400"></i>السرعة الأساسية:
-                        </span>
-                        <span class="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                            {{ (p.rate_download, p.rate_upload)|format_speed_pair }}
-                        </span>
-                    </div>
-                    {% if p.burst_download and p.burst_upload %}
-                    <div class="flex justify-between items-center text-amber-300">
-                        <span class="flex items-center gap-1.5">
-                            <i class="fa-solid fa-bolt text-amber-400"></i>سرعة التوربو (Burst):
-                        </span>
-                        <span class="font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                            {{ p.burst_upload }} / {{ p.burst_download }}
-                        </span>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <!-- Limits & Quota Grid -->
-                <div class="grid grid-cols-2 gap-2 text-xs text-slate-300">
-                    <div class="bg-[#070b14] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
-                        <div>
-                            <span class="text-[10px] text-slate-400 block mb-0.5">سعة البيانات (Quota):</span>
-                            <strong class="text-white font-mono">{% if p.volume_quota_mb > 0 %}{{ (p.volume_quota_mb / 1024)|round(1) }} GB{% else %}غير محدود{% endif %}</strong>
-                        </div>
-                        <i class="fa-solid fa-database text-slate-600 text-base"></i>
-                    </div>
-                    <div class="bg-[#070b14] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
-                        <div>
-                            <span class="text-[10px] text-slate-400 block mb-0.5">مدة الصلاحية:</span>
-                            <strong class="text-white font-mono">{{ p.validity_value or p.validity_days or 30 }} {% if p.validity_unit == 'hours' %}ساعة{% elif p.validity_unit == 'minutes' %}دقيقة{% elif p.validity_unit == 'months' %}أشهر{% else %}يوم{% endif %}</strong>
-                        </div>
-                        <i class="fa-solid fa-calendar-days text-slate-600 text-base"></i>
-                    </div>
-                </div>
-
-                <!-- Subscribers & Cards Usage Counter -->
-                <div class="text-[11px] text-slate-400 flex items-center justify-between pt-1 font-mono">
-                    <span class="flex items-center gap-1.5 bg-[#070b14] px-2.5 py-1 rounded-lg border border-slate-800">
-                        <i class="fa-solid fa-user text-blue-400"></i>
-                        المشتركون: <strong class="text-white">{{ p.subs_count }}</strong>
-                    </span>
-                    <span class="flex items-center gap-1.5 bg-[#070b14] px-2.5 py-1 rounded-lg border border-slate-800">
-                        <i class="fa-solid fa-ticket text-amber-400"></i>
-                        الكروت: <strong class="text-white">{{ p.vouchers_count }}</strong>
-                    </span>
-                </div>
-            </div>
-
-            <!-- Card Actions Footer -->
-            <div class="border-t border-[#1c2840] pt-3 mt-4 flex items-center justify-between" onclick="event.stopPropagation()">
-                <a href="{{ url_for('package_details', pkg_id=p.id) }}" class="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
-                    <i class="fa-solid fa-gear"></i>عرض وتعديل الإعدادات
-                </a>
-                <button type="button" onclick="confirmDeletePackage('{{ p.id }}', '{{ p.name|e }}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الباقة">
-        <i class="fa-solid fa-trash"></i>
-    </button>
+            <!-- View Switcher (جدول / بطاقات) -->
+            <div class="flex items-center bg-[#070b14] p-1 rounded-xl border border-slate-700/80">
+                <button type="button" id="tableViewBtn" onclick="switchViewMode('table')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer bg-blue-600 text-white shadow" title="عرض جدول">
+                    <i class="fa-solid fa-table-list"></i>
+                    <span>جدول</span>
+                </button>
+                <button type="button" id="cardsViewBtn" onclick="switchViewMode('cards')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-white" title="عرض بطاقات">
+                    <i class="fa-solid fa-grip"></i>
+                    <span>بطاقات</span>
+                </button>
             </div>
         </div>
-        {% else %}
-        <div class="col-span-full py-16 bg-[#0b0f19] rounded-2xl border border-[#1c2840] text-center space-y-4 shadow-sm">
-            <div class="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-3xl mx-auto border border-amber-500/20">
-                <i class="fa-solid fa-bolt"></i>
+    </div>
+
+    <!-- ==================================================================== -->
+    <!-- TOP BULK ACTION BAR (نفس فكرة المشتركين ومشتركي الكروت تماماً)       -->
+    <!-- ==================================================================== -->
+    <div id="bulkActionBar" class="bulk-action-bar bulk-action-bar-container hidden p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-4 transition-all duration-300">
+        <!-- Count Badge & Clear Selection -->
+        <div class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bulk-selected-badge shadow-sm">
+                <i class="fa-solid fa-check-double text-blue-400"></i>
+                <span id="selectedCountBadge">تم تحديد 0 باقة</span>
+            </span>
+            <button type="button" onclick="clearSelection()" class="text-xs bulk-clear-btn transition flex items-center gap-1 cursor-pointer">
+                <i class="fa-solid fa-xmark text-xs"></i>
+                <span>إلغاء التحديد</span>
+            </button>
+        </div>
+
+        <!-- Actions Menu Dropdown -->
+        <div class="relative">
+            <button type="button" id="bulkDropdownBtn" onclick="toggleBulkDropdown(event)" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-bolt-lightning text-amber-300"></i>
+                <span>الإجراءات الجماعية</span>
+                <i class="fa-solid fa-chevron-down text-[10px] transition-transform duration-200" id="bulkChevron"></i>
+            </button>
+
+            <!-- Floating Menu (Matched exactly to Subscribers / Active Cards Dropdown) -->
+            <div id="bulkDropdownMenu" class="bulk-dropdown-menu action-dropdown-menu hidden absolute left-0 top-full mt-2 z-[9999] w-64 bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-2xl py-2 text-xs divide-y divide-[#1c2840]">
+                <div class="px-3.5 py-2 text-[11px] font-bold text-slate-400 bg-[#070b14]/60 border-b border-[#1c2840] flex items-center justify-between">
+                    <span>قائمة الإجراءات المجمعة</span>
+                    <span id="bulkMenuCount" class="text-blue-400 font-mono font-bold">0 باقة</span>
+                </div>
+                
+                <!-- المجموعة 1: الحذف -->
+                <div class="py-1">
+                    <button type="button" onclick="confirmBulkDelete()" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
+                        <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
+                        <span>حذف الباقات المحددة (Delete)</span>
+                    </button>
+                </div>
+
+                <!-- المجموعة 2: تفعيل / تعطيل -->
+                <div class="py-1">
+                    <button type="button" onclick="executeBulkAction('activate')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                        <i class="fa-solid fa-circle-check text-emerald-400 w-4 text-center"></i>
+                        <span>تفعيل الباقات المحددة (Activate)</span>
+                    </button>
+                    <button type="button" onclick="executeBulkAction('deactivate')" class="w-full text-right px-3.5 py-2 text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                        <i class="fa-solid fa-circle-pause text-slate-400 w-4 text-center"></i>
+                        <span>تعطيل الباقات المحددة (Deactivate)</span>
+                    </button>
+                </div>
+
+                <!-- المجموعة 3: الأسعار والصلاحية والخدمة -->
+                <div class="py-1">
+                    <button type="button" onclick="openBulkPriceModal()" class="w-full text-right px-3.5 py-2 text-blue-300 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                        <i class="fa-solid fa-tags text-blue-400 w-4 text-center"></i>
+                        <span>تعديل الأسعار جماعياً (Update Price)</span>
+                    </button>
+                    <button type="button" onclick="openBulkValidityModal()" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                        <i class="fa-solid fa-calendar-days text-purple-400 w-4 text-center"></i>
+                        <span>تعديل الصلاحية جماعياً (Validity)</span>
+                    </button>
+                    <button type="button" onclick="openBulkTypeModal()" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                        <i class="fa-solid fa-sliders text-sky-400 w-4 text-center"></i>
+                        <span>تغيير نوع الخدمة (Service Type)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================================================================== -->
+    <!-- VIEW 1: DATA TABLE (عرض الجدول)                                      -->
+    <!-- ==================================================================== -->
+    <div id="tableViewContainer" class="bg-[#0b0f19] rounded-2xl border border-[#1c2840] shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs" id="packagesTable">
+                <thead>
+                    <tr class="bg-[#070b14] text-slate-400 font-bold border-b border-[#1c2840] select-none text-[11px] uppercase tracking-wider">
+                        <th scope="col" class="p-4 w-10 text-center">
+                            <input type="checkbox" id="selectAllTableCheckbox" class="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer accent-blue-600">
+                        </th>
+                        <th scope="col" class="py-3.5 px-3">اسم الباقة والوصف</th>
+                        <th scope="col" class="py-3.5 px-3">نوع الخدمة</th>
+                        <th scope="col" class="py-3.5 px-3">السرعة الأساسية / Burst</th>
+                        <th scope="col" class="py-3.5 px-3">الكوتا والصلاحية</th>
+                        <th scope="col" class="py-3.5 px-3">السعر</th>
+                        <th scope="col" class="py-3.5 px-3 text-center">المستفيدون</th>
+                        <th scope="col" class="py-3.5 px-3 text-center">الحالة</th>
+                        <th scope="col" class="py-3.5 px-4 text-center w-28">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]/60 text-slate-300" id="packagesTableBody">
+                    {% for p in packages %}
+                    <tr class="hover:bg-[#121929] transition-colors group pkg-row" 
+                        data-id="{{ p.id }}" 
+                        data-name="{{ p.name|lower }}" 
+                        data-type="{{ p.service_type }}" 
+                        data-status="{% if p.is_active %}active{% else %}inactive{% endif %}"
+                        data-price="{{ p.price }}">
+                        
+                        <!-- Checkbox -->
+                        <td class="p-4 text-center" onclick="event.stopPropagation()">
+                            <input type="checkbox" value="{{ p.id }}" class="pkg-checkbox pkg-cb-table w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer accent-blue-600" data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}">
+                        </td>
+
+                        <!-- Name & Description -->
+                        <td class="py-3.5 px-3 font-medium">
+                            <div class="flex items-center gap-2">
+                                <a href="{{ url_for('package_details', pkg_id=p.id) }}" class="font-bold text-white group-hover:text-blue-400 text-sm transition">
+                                    {{ p.name }}
+                                </a>
+                                {% if p.is_rollover_enabled %}
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-300 border border-indigo-500/30" title="ترحيل الرصيد مفعل">
+                                    <i class="fa-solid fa-arrows-rotate text-[9px]"></i> ترحيل
+                                </span>
+                                {% endif %}
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-0.5 max-w-xs truncate">{{ p.description or 'لا يوجد وصف مخصص للباقة' }}</p>
+                        </td>
+
+                        <!-- Service Type -->
+                        <td class="py-3.5 px-3 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide {% if p.service_type == 'pppoe' %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% elif p.service_type == 'both' %}bg-sky-500/20 text-sky-300 border border-sky-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
+                                <i class="fa-solid {% if p.service_type == 'pppoe' %}fa-network-wired{% elif p.service_type == 'both' %}fa-arrows-split-up-and-left{% else %}fa-wifi{% endif %} ml-1 text-[9px]"></i>
+                                {{ p.service_type }}
+                            </span>
+                        </td>
+
+                        <!-- Speed & Burst -->
+                        <td class="py-3.5 px-3 whitespace-nowrap font-mono">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 text-[11px]">
+                                    <i class="fa-solid fa-gauge-high ml-1 text-[9px]"></i>{{ (p.rate_download, p.rate_upload)|format_speed_pair }}
+                                </span>
+                            </div>
+                            {% if p.burst_download and p.burst_upload %}
+                            <div class="mt-1 text-[10px] text-amber-300/90 flex items-center gap-1">
+                                <i class="fa-solid fa-bolt text-amber-400 text-[9px]"></i>
+                                <span>توربو: {{ p.burst_upload }} / {{ p.burst_download }}</span>
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Quota & Validity -->
+                        <td class="py-3.5 px-3 whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1 text-[11px] text-slate-300 font-mono bg-[#070b14] px-2 py-0.5 rounded border border-slate-800">
+                                    <i class="fa-solid fa-database text-slate-500 text-[9px]"></i>
+                                    {% if p.volume_quota_mb > 0 %}{{ (p.volume_quota_mb / 1024)|round(1) }} GB{% else %}غير محدود{% endif %}
+                                </span>
+                                <span class="inline-flex items-center gap-1 text-[11px] text-slate-300 font-mono bg-[#070b14] px-2 py-0.5 rounded border border-slate-800">
+                                    <i class="fa-solid fa-calendar-days text-slate-500 text-[9px]"></i>
+                                    {{ p.validity_value or p.validity_days or 30 }} {% if p.validity_unit == 'hours' %}ساعة{% elif p.validity_unit == 'minutes' %}دقيقة{% elif p.validity_unit == 'months' %}أشهر{% else %}يوم{% endif %}
+                                </span>
+                            </div>
+                        </td>
+
+                        <!-- Price -->
+                        <td class="py-3.5 px-3 whitespace-nowrap">
+                            <span class="text-base font-black text-blue-400 font-mono">{{ p.price }}</span>
+                            <span class="text-[10px] text-slate-400 font-semibold">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                        </td>
+
+                        <!-- Subscribers & Vouchers Usage -->
+                        <td class="py-3.5 px-3 whitespace-nowrap text-center">
+                            <div class="inline-flex items-center gap-2 bg-[#070b14] px-2 py-1 rounded-lg border border-slate-800 text-[10px] font-mono">
+                                <span title="مشتركون نشطون" class="flex items-center gap-1 text-slate-300">
+                                    <i class="fa-solid fa-user text-blue-400"></i>{{ p.subs_count }}
+                                </span>
+                                <span class="text-slate-600">|</span>
+                                <span title="كروت فعالة" class="flex items-center gap-1 text-slate-300">
+                                    <i class="fa-solid fa-ticket text-amber-400"></i>{{ p.vouchers_count }}
+                                </span>
+                            </div>
+                        </td>
+
+                        <!-- Status Badge -->
+                        <td class="py-3.5 px-3 whitespace-nowrap text-center" onclick="event.stopPropagation()">
+                            {% if p.is_active %}
+                            <button type="button" onclick="quickToggleStatus('{{ p.id }}', 'deactivate')" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition cursor-pointer" title="انقر للتعطيل">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> مفعلة
+                            </button>
+                            {% else %}
+                            <button type="button" onclick="quickToggleStatus('{{ p.id }}', 'activate')" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-400 bg-slate-800 border border-slate-700 hover:bg-slate-700 transition cursor-pointer" title="انقر للتفعيل">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> معطلة
+                            </button>
+                            {% endif %}
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="py-3.5 px-4 whitespace-nowrap text-center" onclick="event.stopPropagation()">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <!-- Details / Edit -->
+                                <a href="{{ url_for('package_details', pkg_id=p.id) }}" class="p-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-lg text-xs transition border border-blue-500/20" title="تعديل الباقة">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </a>
+                                <!-- Clone / Duplicate -->
+                                <button type="button" onclick="clonePackage('{{ p.id }}', '{{ p.name|e }}')" class="p-1.5 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 rounded-lg text-xs transition border border-purple-500/20 cursor-pointer" title="نسخ الباقة">
+                                    <i class="fa-solid fa-copy"></i>
+                                </button>
+                                <!-- Delete Single -->
+                                <button type="button" onclick="confirmDeletePackage('{{ p.id }}', '{{ p.name|e }}')" class="p-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 rounded-lg text-xs transition border border-rose-500/20 cursor-pointer" title="حذف الباقة">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr id="emptyRowTable">
+                        <td colspan="9" class="py-16 text-center text-slate-400">
+                            <div class="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-2xl mx-auto border border-amber-500/20 mb-3">
+                                <i class="fa-solid fa-bolt"></i>
+                            </div>
+                            <h3 class="text-base font-bold text-white">لا توجد باقات معرفة حتى الآن</h3>
+                            <p class="text-xs text-slate-500 mt-1 mb-4">ابدأ بإنشاء باقات وسرعات MikroTik مع مزامنة FreeRADIUS</p>
+                            <a href="{{ url_for('new_package_page') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition">
+                                <i class="fa-solid fa-plus-circle"></i>إنشاء أول باقة
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Table Footer / Count -->
+        <div class="p-3.5 bg-[#070b14] border-t border-[#1c2840] flex items-center justify-between text-xs text-slate-400">
+            <div>
+                عرض <span id="visibleRowCount" class="text-white font-bold font-mono">{{ packages|length }}</span> من إجمالي <span class="text-white font-bold font-mono">{{ packages|length }}</span> باقة
+            </div>
+            <div class="text-[11px] text-slate-500">
+                يمكنك التحديد المتعدد لتطبيق تعديلات جماعية فورية
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================================================================== -->
+    <!-- VIEW 2: CARDS GRID (عرض البطاقات)                                    -->
+    <!-- ==================================================================== -->
+    <div id="cardsViewContainer" class="hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="packagesCardsGrid">
+            {% for p in packages %}
+            <div class="bg-[#0b0f19] border border-[#1c2840] hover:border-blue-500/50 rounded-2xl p-5 shadow-sm flex flex-col justify-between relative overflow-hidden group transition cursor-pointer pkg-card"
+                 data-id="{{ p.id }}" 
+                 data-name="{{ p.name|lower }}" 
+                 data-type="{{ p.service_type }}" 
+                 data-status="{% if p.is_active %}active{% else %}inactive{% endif %}"
+                 data-price="{{ p.price }}"
+                 onclick="window.location.href='{{ url_for('package_details', pkg_id=p.id) }}'">
+                
+                <div class="space-y-3.5">
+                    <!-- Top Header: Badges & Price & Selection Checkbox -->
+                    <div class="flex items-start justify-between gap-2 border-b border-[#1c2840]/70 pb-3">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <!-- Card Checkbox -->
+                            <div onclick="event.stopPropagation()">
+                                <input type="checkbox" value="{{ p.id }}" class="pkg-checkbox pkg-cb-card w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer accent-blue-600" data-id="{{ p.id }}" data-name="{{ p.name }}" data-price="{{ p.price }}">
+                            </div>
+
+                            <!-- Service Type Badge -->
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide {% if p.service_type == 'pppoe' %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% elif p.service_type == 'both' %}bg-sky-500/20 text-sky-300 border border-sky-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
+                                <i class="fa-solid {% if p.service_type == 'pppoe' %}fa-network-wired{% elif p.service_type == 'both' %}fa-arrows-split-up-and-left{% else %}fa-wifi{% endif %} ml-1 text-[9px]"></i>
+                                {{ p.service_type }}
+                            </span>
+                            
+                            <!-- Rollover Badge -->
+                            {% if p.is_rollover_enabled %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" title="ترحيل البيانات والأيام المتبقية تلقائياً">
+                                <i class="fa-solid fa-arrows-rotate text-[9px]"></i> ترحيل
+                            </span>
+                            {% endif %}
+
+                            <!-- Active Status Badge -->
+                            {% if p.is_active %}
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> مفعلة
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-400 bg-slate-800 border border-slate-700">
+                                <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> معطلة
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Price -->
+                        <div class="text-left flex-shrink-0">
+                            <span class="text-2xl font-black text-blue-400 font-mono">{{ p.price }}</span>
+                            <span class="text-xs text-slate-400 font-semibold">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Package Name & Description -->
+                    <div>
+                        <a href="{{ url_for('package_details', pkg_id=p.id) }}" class="text-base font-bold text-white hover:text-blue-400 transition block group-hover:text-blue-400" onclick="event.stopPropagation()">
+                            {{ p.name }}
+                        </a>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-2">{{ p.description or 'باقة إنترنت وسرعات متطورة مع مزامنة لحظية في FreeRADIUS وميكروتيك' }}</p>
+                    </div>
+
+                    <!-- Speed & Burst Specifications Box -->
+                    <div class="bg-[#070b14] rounded-xl p-3 space-y-2 border border-slate-800 text-xs font-mono">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400 flex items-center gap-1.5">
+                                <i class="fa-solid fa-gauge-high text-emerald-400"></i>السرعة الأساسية:
+                            </span>
+                            <span class="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                {{ (p.rate_download, p.rate_upload)|format_speed_pair }}
+                            </span>
+                        </div>
+                        {% if p.burst_download and p.burst_upload %}
+                        <div class="flex justify-between items-center text-amber-300">
+                            <span class="flex items-center gap-1.5">
+                                <i class="fa-solid fa-bolt text-amber-400"></i>سرعة التوربو (Burst):
+                            </span>
+                            <span class="font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                {{ p.burst_upload }} / {{ p.burst_download }}
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Limits & Quota Grid -->
+                    <div class="grid grid-cols-2 gap-2 text-xs text-slate-300">
+                        <div class="bg-[#070b14] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] text-slate-400 block mb-0.5">سعة البيانات (Quota):</span>
+                                <strong class="text-white font-mono">{% if p.volume_quota_mb > 0 %}{{ (p.volume_quota_mb / 1024)|round(1) }} GB{% else %}غير محدود{% endif %}</strong>
+                            </div>
+                            <i class="fa-solid fa-database text-slate-600 text-base"></i>
+                        </div>
+                        <div class="bg-[#070b14] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                            <div>
+                                <span class="text-[10px] text-slate-400 block mb-0.5">مدة الصلاحية:</span>
+                                <strong class="text-white font-mono">{{ p.validity_value or p.validity_days or 30 }} {% if p.validity_unit == 'hours' %}ساعة{% elif p.validity_unit == 'minutes' %}دقيقة{% elif p.validity_unit == 'months' %}أشهر{% else %}يوم{% endif %}</strong>
+                            </div>
+                            <i class="fa-solid fa-calendar-days text-slate-600 text-base"></i>
+                        </div>
+                    </div>
+
+                    <!-- Subscribers & Cards Usage Counter -->
+                    <div class="text-[11px] text-slate-400 flex items-center justify-between pt-1 font-mono">
+                        <span class="flex items-center gap-1.5 bg-[#070b14] px-2.5 py-1 rounded-lg border border-slate-800">
+                            <i class="fa-solid fa-user text-blue-400"></i>
+                            المشتركون: <strong class="text-white">{{ p.subs_count }}</strong>
+                        </span>
+                        <span class="flex items-center gap-1.5 bg-[#070b14] px-2.5 py-1 rounded-lg border border-slate-800">
+                            <i class="fa-solid fa-ticket text-amber-400"></i>
+                            الكروت: <strong class="text-white">{{ p.vouchers_count }}</strong>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Card Actions Footer -->
+                <div class="border-t border-[#1c2840] pt-3 mt-4 flex items-center justify-between" onclick="event.stopPropagation()">
+                    <a href="{{ url_for('package_details', pkg_id=p.id) }}" class="px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-gear"></i>عرض وتعديل
+                    </a>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" onclick="clonePackage('{{ p.id }}', '{{ p.name|e }}')" class="p-1.5 bg-slate-800 hover:bg-purple-900/60 text-slate-400 hover:text-purple-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="نسخ وتكرار الباقة">
+                            <i class="fa-solid fa-copy"></i>
+                        </button>
+                        <button type="button" onclick="confirmDeletePackage('{{ p.id }}', '{{ p.name|e }}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الباقة">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-span-full py-16 bg-[#0b0f19] rounded-2xl border border-[#1c2840] text-center space-y-4 shadow-sm" id="emptyCards">
+                <div class="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-3xl mx-auto border border-amber-500/20">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-white">لا توجد باقات مطابقة للبحث</h3>
+                    <p class="text-xs text-slate-400 mt-1">ابدأ بإنشاء باقات وسرعات MikroTik مع مزامنة FreeRADIUS</p>
+                </div>
+                <a href="{{ url_for('new_package_page') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition">
+                    <i class="fa-solid fa-plus-circle"></i>إنشاء باقة جديدة الآن
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- MODAL: BULK PRICE ADJUSTMENT                                         -->
+<!-- ==================================================================== -->
+<div id="bulkPriceModal" class="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-tags text-blue-400"></i>
+                <span>تعديل الأسعار جماعياً</span>
+            </h3>
+            <button onclick="closeModal('bulkPriceModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        
+        <p class="text-xs text-slate-400 leading-relaxed">
+            سيتم تطبيق تعديل السعر على <strong id="priceModalCount" class="text-blue-400">0</strong> باقة محددة:
+        </p>
+
+        <div class="space-y-3">
+            <div>
+                <label class="text-xs text-slate-300 font-semibold block mb-1.5">نوع تعديل السعر:</label>
+                <select id="bulkPriceType" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                    <option value="fixed">سعر موحد جديد (Fixed Price)</option>
+                    <option value="percentage_increase">زيادة بنسبة مئوية (+%)</option>
+                    <option value="percentage_discount">خصم بنسبة مئوية (-%)</option>
+                    <option value="amount_increase">زيادة بمبلغ ثابت (+)</option>
+                    <option value="amount_discount">خصم بمبلغ ثابت (-)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="text-xs text-slate-300 font-semibold block mb-1.5" id="bulkPriceValueLabel">القيمة المطلوبة:</label>
+                <div class="relative">
+                    <input type="number" id="bulkPriceValue" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500">
+                    <span id="bulkPriceUnitHint" class="absolute left-3 top-2 text-xs text-slate-500 font-mono">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#1c2840]">
+            <button onclick="closeModal('bulkPriceModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+            <button onclick="submitBulkPrice()" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 cursor-pointer">تطبيق التعديل</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- MODAL: BULK VALIDITY ADJUSTMENT                                      -->
+<!-- ==================================================================== -->
+<div id="bulkValidityModal" class="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-calendar-days text-purple-400"></i>
+                <span>تعديل مدة الصلاحية جماعياً</span>
+            </h3>
+            <button onclick="closeModal('bulkValidityModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        
+        <p class="text-xs text-slate-400 leading-relaxed">
+            سيتم تحديث صلاحية <strong id="validityModalCount" class="text-purple-400">0</strong> باقة محددة:
+        </p>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div>
+                <label class="text-xs text-slate-300 font-semibold block mb-1.5">المدة / القيمة:</label>
+                <input type="number" id="bulkValidityValue" min="1" value="30" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500">
             </div>
             <div>
-                <h3 class="text-lg font-bold text-white">لا توجد باقات مطابقة للبحث</h3>
-                <p class="text-xs text-slate-400 mt-1">ابدأ بإنشاء باقات وسرعات MikroTik مع مزامنة FreeRADIUS</p>
+                <label class="text-xs text-slate-300 font-semibold block mb-1.5">الوحدة:</label>
+                <select id="bulkValidityUnit" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                    <option value="days">أيام (Days)</option>
+                    <option value="hours">ساعات (Hours)</option>
+                    <option value="months">أشهر (Months)</option>
+                </select>
             </div>
-            <a href="{{ url_for('new_package_page') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition">
-                <i class="fa-solid fa-plus-circle"></i>إنشاء باقة جديدة الآن
-            </a>
         </div>
-        {% endfor %}
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#1c2840]">
+            <button onclick="closeModal('bulkValidityModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+            <button onclick="submitBulkValidity()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-500/25 cursor-pointer">تطبيق الصلاحية</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- MODAL: BULK SERVICE TYPE ADJUSTMENT                                  -->
+<!-- ==================================================================== -->
+<div id="bulkTypeModal" class="fixed inset-0 z-[10000] bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-full max-w-md p-5 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-sky-400"></i>
+                <span>تغيير نوع الخدمة جماعياً</span>
+            </h3>
+            <button onclick="closeModal('bulkTypeModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        
+        <p class="text-xs text-slate-400 leading-relaxed">
+            اختر نوع الخدمة الجديد لـ <strong id="typeModalCount" class="text-sky-400">0</strong> باقة محددة:
+        </p>
+
+        <div>
+            <label class="text-xs text-slate-300 font-semibold block mb-1.5">نوع الخدمة المستهدف:</label>
+            <select id="bulkTargetType" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500">
+                <option value="hotspot">Hotspot (الوايفاي والكروت)</option>
+                <option value="pppoe">PPPoE (المنزلي / الفايبر)</option>
+                <option value="both">مزدوجة (Hotspot + PPPoE)</option>
+            </select>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#1c2840]">
+            <button onclick="closeModal('bulkTypeModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+            <button onclick="submitBulkType()" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-sky-500/25 cursor-pointer">تطبيق التغيير</button>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+    // State
+    const selectedIds = new Set();
+
+    // DOM Elements
+    const tableViewContainer = document.getElementById('tableViewContainer');
+    const cardsViewContainer = document.getElementById('cardsViewContainer');
+    const tableViewBtn = document.getElementById('tableViewBtn');
+    const cardsViewBtn = document.getElementById('cardsViewBtn');
+    const selectAllTableCheckbox = document.getElementById('selectAllTableCheckbox');
+    const bulkActionBar = document.getElementById('bulkActionBar');
+    const bulkDropdownMenu = document.getElementById('bulkDropdownMenu');
+    const bulkChevron = document.getElementById('bulkChevron');
+    const selectedCountBadge = document.getElementById('selectedCountBadge');
+    const bulkMenuCount = document.getElementById('bulkMenuCount');
+    const liveSearchInput = document.getElementById('liveSearchInput');
+    const typeFilter = document.getElementById('typeFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    const visibleRowCount = document.getElementById('visibleRowCount');
+    const pkgRows = document.querySelectorAll('.pkg-row');
+    const pkgCards = document.querySelectorAll('.pkg-card');
+
+    // ----------------------------------------------------
+    // View Mode Switcher (Table <-> Cards)
+    // ----------------------------------------------------
+    function switchViewMode(mode) {
+        if (mode === 'cards') {
+            tableViewContainer.classList.add('hidden');
+            cardsViewContainer.classList.remove('hidden');
+
+            cardsViewBtn.classList.add('bg-blue-600', 'text-white', 'shadow');
+            cardsViewBtn.classList.remove('text-slate-400');
+            tableViewBtn.classList.remove('bg-blue-600', 'text-white', 'shadow');
+            tableViewBtn.classList.add('text-slate-400');
+
+            localStorage.setItem('packages_view_mode', 'cards');
+        } else {
+            cardsViewContainer.classList.add('hidden');
+            tableViewContainer.classList.remove('hidden');
+
+            tableViewBtn.classList.add('bg-blue-600', 'text-white', 'shadow');
+            tableViewBtn.classList.remove('text-slate-400');
+            cardsViewBtn.classList.remove('bg-blue-600', 'text-white', 'shadow');
+            cardsViewBtn.classList.add('text-slate-400');
+
+            localStorage.setItem('packages_view_mode', 'table');
+        }
+    }
+
+    // Initialize View Mode from LocalStorage
+    const savedViewMode = localStorage.getItem('packages_view_mode') || 'table';
+    switchViewMode(savedViewMode);
+
+    // ----------------------------------------------------
+    // Dropdown Management (Subscribers Style)
+    // ----------------------------------------------------
+    function toggleBulkDropdown(e) {
+        e.stopPropagation();
+        if (!bulkDropdownMenu) return;
+        const isHidden = bulkDropdownMenu.classList.contains('hidden');
+        if (isHidden) {
+            bulkDropdownMenu.classList.remove('hidden');
+            if (bulkChevron) bulkChevron.style.transform = 'rotate(180deg)';
+        } else {
+            closeBulkDropdown();
+        }
+    }
+
+    function closeBulkDropdown() {
+        if (bulkDropdownMenu) bulkDropdownMenu.classList.add('hidden');
+        if (bulkChevron) bulkChevron.style.transform = 'rotate(0deg)';
+    }
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#bulkDropdownMenu') && !e.target.closest('#bulkDropdownBtn')) {
+            closeBulkDropdown();
+        }
+    });
+
+    // ----------------------------------------------------
+    // Checkbox & Selection Management (Synchronized across Views)
+    // ----------------------------------------------------
+    function updateToolbar() {
+        const count = selectedIds.size;
+        
+        if (count > 0) {
+            bulkActionBar.classList.remove('hidden');
+            selectedCountBadge.innerText = `تم تحديد ${count} باقة`;
+            if (bulkMenuCount) bulkMenuCount.innerText = `${count} باقة محددة`;
+        } else {
+            bulkActionBar.classList.add('hidden');
+            closeBulkDropdown();
+        }
+
+        // Sync all checkboxes
+        document.querySelectorAll('.pkg-checkbox').forEach(cb => {
+            cb.checked = selectedIds.has(cb.value);
+        });
+
+        // Update select all table checkbox
+        const visibleRows = Array.from(pkgRows).filter(row => row.style.display !== 'none');
+        if (visibleRows.length > 0) {
+            const allChecked = visibleRows.every(row => selectedIds.has(row.dataset.id));
+            const someChecked = visibleRows.some(row => selectedIds.has(row.dataset.id));
+            if (selectAllTableCheckbox) {
+                selectAllTableCheckbox.checked = allChecked;
+                selectAllTableCheckbox.indeterminate = someChecked && !allChecked;
+            }
+        } else if (selectAllTableCheckbox) {
+            selectAllTableCheckbox.checked = false;
+            selectAllTableCheckbox.indeterminate = false;
+        }
+    }
+
+    function toggleSelection(id, isChecked) {
+        if (isChecked) {
+            selectedIds.add(id);
+        } else {
+            selectedIds.delete(id);
+        }
+        updateToolbar();
+    }
+
+    // Bind all checkboxes
+    document.querySelectorAll('.pkg-checkbox').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+            toggleSelection(e.target.value, e.target.checked);
+        });
+    });
+
+    if (selectAllTableCheckbox) {
+        selectAllTableCheckbox.addEventListener('change', (e) => {
+            const checked = e.target.checked;
+            pkgRows.forEach(row => {
+                if (row.style.display !== 'none') {
+                    if (checked) {
+                        selectedIds.add(row.dataset.id);
+                    } else {
+                        selectedIds.delete(row.dataset.id);
+                    }
+                }
+            });
+            updateToolbar();
+        });
+    }
+
+    function clearSelection() {
+        selectedIds.clear();
+        updateToolbar();
+    }
+
+    function getSelectedIds() {
+        return Array.from(selectedIds);
+    }
+
+    // ----------------------------------------------------
+    // Live Filtering (Search, Type, Status) for Both Table & Cards
+    // ----------------------------------------------------
+    function applyFilters() {
+        const query = (liveSearchInput.value || '').trim().toLowerCase();
+        const selectedType = typeFilter.value;
+        const selectedStatus = statusFilter.value;
+
+        let visible = 0;
+
+        function matchItem(el) {
+            const name = el.dataset.name || '';
+            const type = el.dataset.type || '';
+            const status = el.dataset.status || '';
+            const textContent = el.innerText.toLowerCase();
+
+            const matchesQuery = !query || textContent.includes(query) || name.includes(query);
+            const matchesType = (selectedType === 'all') || (type === selectedType);
+            const matchesStatus = (selectedStatus === 'all') || (status === selectedStatus);
+
+            return matchesQuery && matchesType && matchesStatus;
+        }
+
+        pkgRows.forEach(row => {
+            if (matchItem(row)) {
+                row.style.display = '';
+                visible++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        pkgCards.forEach(card => {
+            if (matchItem(card)) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        if (visibleRowCount) visibleRowCount.innerText = visible;
+        updateToolbar();
+    }
+
+    if (liveSearchInput) liveSearchInput.addEventListener('input', applyFilters);
+    if (typeFilter) typeFilter.addEventListener('change', applyFilters);
+    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
+
+    if (resetFiltersBtn) {
+        resetFiltersBtn.addEventListener('click', () => {
+            if (liveSearchInput) liveSearchInput.value = '';
+            if (typeFilter) typeFilter.value = 'all';
+            if (statusFilter) statusFilter.value = 'all';
+            applyFilters();
+        });
+    }
+
+    // ----------------------------------------------------
+    // Modal Helpers
+    // ----------------------------------------------------
+    function openModal(id) {
+        closeBulkDropdown();
+        const m = document.getElementById(id);
+        if (m) m.classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+        const m = document.getElementById(id);
+        if (m) m.classList.add('hidden');
+    }
+
+    function openBulkPriceModal() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        document.getElementById('priceModalCount').innerText = ids.length;
+        openModal('bulkPriceModal');
+    }
+
+    function openBulkValidityModal() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        document.getElementById('validityModalCount').innerText = ids.length;
+        openModal('bulkValidityModal');
+    }
+
+    function openBulkTypeModal() {
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+        document.getElementById('typeModalCount').innerText = ids.length;
+        openModal('bulkTypeModal');
+    }
+
+    // Dynamic price unit hint
+    const bulkPriceTypeSelect = document.getElementById('bulkPriceType');
+    const bulkPriceUnitHint = document.getElementById('bulkPriceUnitHint');
+    if (bulkPriceTypeSelect && bulkPriceUnitHint) {
+        bulkPriceTypeSelect.addEventListener('change', () => {
+            const v = bulkPriceTypeSelect.value;
+            if (v === 'percentage_increase' || v === 'percentage_discount') {
+                bulkPriceUnitHint.innerText = '%';
+            } else {
+                bulkPriceUnitHint.innerText = "{{ settings.get('currency_symbol', 'ر.س') }}";
+            }
+        });
+    }
+
+    // ----------------------------------------------------
+    // AJAX Bulk Actions Execution
+    // ----------------------------------------------------
+    async function postBulkAction(payload) {
+        closeBulkDropdown();
+        try {
+            Swal.fire({
+                title: 'جاري تطبيق التعديلات...',
+                text: 'يرجى الانتظار بينما تتم مزامنة التغييرات في FreeRADIUS وميكروتيك',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            const res = await fetch('/packages/bulk-action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم بنجاح!',
+                    text: data.message || 'تم تنفيذ الإجراء الجماعي وتحديث السيرفر بنجاح',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.reload();
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: data.message || 'حدث خطأ أثناء معالجة الطلب'
+                });
+            }
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'فشل الاتصال',
+                text: 'تعذر التواصل مع الخادم: ' + err.message
+            });
+        }
+    }
+
+    function executeBulkAction(action) {
+        closeBulkDropdown();
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+
+        const actionTitles = {
+            'activate': 'تفعيل الباقات المحددة',
+            'deactivate': 'تعطيل الباقات المحددة'
+        };
+
+        Swal.fire({
+            title: actionTitles[action] || 'تأكيد الإجراء',
+            text: `هل تريد بالتأكيد تطبيق هذا الإجراء على ${ids.length} باقة؟`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#2563eb',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، طبق الآن',
+            cancelButtonText: 'إلغاء'
+        }).then(r => {
+            if (r.isConfirmed) {
+                postBulkAction({ action: action, package_ids: ids });
+            }
+        });
+    }
+
+    function confirmBulkDelete() {
+        closeBulkDropdown();
+        const ids = getSelectedIds();
+        if (ids.length === 0) return;
+
+        Swal.fire({
+            title: 'حذف جماعي للباقات!',
+            text: `تحذير: سيتم حذف (${ids.length}) باقة نهائياً ومسح ملفاتها من FreeRADIUS. هل أنت متأكد؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569',
+            confirmButtonText: `نعم، احذف ${ids.length} باقة`,
+            cancelButtonText: 'إلغاء'
+        }).then(r => {
+            if (r.isConfirmed) {
+                postBulkAction({ action: 'delete', package_ids: ids });
+            }
+        });
+    }
+
+    function submitBulkPrice() {
+        const ids = getSelectedIds();
+        const priceType = document.getElementById('bulkPriceType').value;
+        const val = parseFloat(document.getElementById('bulkPriceValue').value);
+
+        if (isNaN(val) || val < 0) {
+            Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال قيمة صحيحة للسعر أو النسبة' });
+            return;
+        }
+
+        closeModal('bulkPriceModal');
+        postBulkAction({
+            action: 'update_price',
+            package_ids: ids,
+            price_type: priceType,
+            price_value: val
+        });
+    }
+
+    function submitBulkValidity() {
+        const ids = getSelectedIds();
+        const val = parseInt(document.getElementById('bulkValidityValue').value);
+        const unit = document.getElementById('bulkValidityUnit').value;
+
+        if (isNaN(val) || val <= 0) {
+            Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال مدة صلاحية صحيحة أكبر من صفر' });
+            return;
+        }
+
+        closeModal('bulkValidityModal');
+        postBulkAction({
+            action: 'update_validity',
+            package_ids: ids,
+            validity_value: val,
+            validity_unit: unit
+        });
+    }
+
+    function submitBulkType() {
+        const ids = getSelectedIds();
+        const sType = document.getElementById('bulkTargetType').value;
+
+        closeModal('bulkTypeModal');
+        postBulkAction({
+            action: 'update_service_type',
+            package_ids: ids,
+            target_service_type: sType
+        });
+    }
+
+    // ----------------------------------------------------
+    // Single Row Actions (Toggle Status, Clone, Delete)
+    // ----------------------------------------------------
+    function quickToggleStatus(pkgId, action) {
+        postBulkAction({
+            action: action,
+            package_ids: [pkgId]
+        });
+    }
+
+    async function clonePackage(pkgId, name) {
+        Swal.fire({
+            title: 'نسخ الباقة',
+            text: `هل تريد إنشاء نسخة مطابقة من باقة [${name}]؟`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#9333ea',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، أنشئ نسخة',
+            cancelButtonText: 'إلغاء'
+        }).then(async (r) => {
+            if (r.isConfirmed) {
+                Swal.fire({ title: 'جاري نسخ الباقة...', didOpen: () => Swal.showLoading() });
+                try {
+                    const res = await fetch(`/packages/clone/${pkgId}`, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'تم النسخ بنجاح!',
+                            text: data.message,
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => window.location.reload());
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل نسخ الباقة' });
+                    }
+                } catch (err) {
+                    Swal.fire({ icon: 'error', title: 'فشل الاتصال', text: err.message });
+                }
+            }
+        });
+    }
+
     function confirmDeletePackage(pkgId, name) {
         Swal.fire({
             title: 'حذف باقة الاشتراك',
