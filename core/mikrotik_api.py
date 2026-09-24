@@ -275,7 +275,7 @@ def fetch_single_nas_status(nas_row):
     # If direct ping probe fails, check if this router is reachable via L2TP VPN Container Bridge
     if not is_online:
         try:
-            from services.l2tp_service import get_active_l2tp_sessions, _docker_exec_run, L2TP_CONTAINER_NAME
+            from services.l2tp_service import get_active_ppp_sessions, _docker_exec_run, L2TP_CONTAINER_NAME
             # Direct ICMP ping through L2TP container tap_vpn bridge
             res = _docker_exec_run(L2TP_CONTAINER_NAME, ['ping', '-c', '1', '-W', '1', str(host)], timeout=1.2)
             out = (res.get('stdout') or '').lower()
@@ -296,7 +296,7 @@ def fetch_single_nas_status(nas_row):
                 )
                 if l2tp_tunnel:
                     u = l2tp_tunnel['username'].lower()
-                    active_l2tp = get_active_l2tp_sessions()
+                    active_l2tp = get_active_ppp_sessions()
                     if u in active_l2tp:
                         is_online = True
                         is_l2tp = True

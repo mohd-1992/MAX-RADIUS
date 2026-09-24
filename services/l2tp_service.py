@@ -150,8 +150,7 @@ def sync_all_tunnels_to_vpn():
         lines.append(f'"{u}"\t*\t"{p}"\t{ip}')
     
     # Wildcard fallback accounts
-    lines.append('"max_vpn"\t*\t"max123"\t*')
-    lines.append('*\t*\t"max123"\t*')
+    # No wildcard fallback accounts allowed for strict security
     
     file_content = '\n'.join(lines) + '\n'
     
@@ -498,6 +497,19 @@ def update_l2tp_tunnel(tunnel_id, form_or_data, admin_username='admin'):
     return True
 
 
+def kill_l2tp_session(username=None, tunnel_ip=None):
+    """Immediately terminates an active L2TP PPP session from the kernel/daemon."""
+    try:
+        pat = str(username or tunnel_ip or 'ppp')
+        cmd = [
+            'bash', '-c',
+            f"pkill -9 -f 'pppd.*{pat}' 2>/dev/null || true; for iface in $(ip -o link show | awk -F': ' '/ppp/ {{print $2}}'); do ip link delete $iface 2>/dev/null || true; done"
+        ]
+        _docker_exec_run(L2TP_CONTAINER_NAME, cmd, timeout=2.0)
+    except Exception as e:
+        logger.warning(f"[L2TP Engine] Failed to kill session for {username}/{tunnel_ip}: {e}")
+
+
 def delete_l2tp_tunnel(tunnel_id, admin_username='admin'):
     """Deletes an L2TP tunnel, cleans NAS records, and syncs PPP secrets."""
     tun = query_one("SELECT * FROM wisp_l2tp_tunnels WHERE id = ?", (tunnel_id,))
@@ -506,6 +518,7 @@ def delete_l2tp_tunnel(tunnel_id, admin_username='admin'):
 
     ip = tun.get('tunnel_ip')
     u = tun.get('username')
+    kill_l2tp_session(username=u, tunnel_ip=ip)
 
     execute_write("DELETE FROM wisp_l2tp_tunnels WHERE id = ?", (tunnel_id,))
     if ip:
@@ -617,3 +630,5 @@ add name="{api_user}" password="{api_pass}" group=full comment="MAX_RADIUS_API" 
 :put "============================================================"
 """
     return script
+
+get_active_l2tp_sessions = get_active_ppp_sessions

@@ -160,9 +160,19 @@ def delete_nas_device(nas_id, admin_username='admin'):
     nas = query_one('SELECT ip_address, name FROM wisp_nas_devices WHERE id = ?', (nas_id,))
     if nas:
         ip = nas.get('ip_address', '').strip()
+        name = nas.get('name', '').strip()
         try:
             if ip:
                 execute_write('DELETE FROM nas WHERE nasname = ?', (ip,))
+        except Exception:
+            pass
+        # Automatically delete and kill any associated L2TP VPN tunnel
+        try:
+            from services.l2tp_service import delete_l2tp_tunnel, kill_l2tp_session
+            tun = query_one("SELECT id, username, tunnel_ip FROM wisp_l2tp_tunnels WHERE tunnel_ip = ? OR name = ?", (ip, name))
+            if tun:
+                kill_l2tp_session(username=tun.get('username'), tunnel_ip=tun.get('tunnel_ip'))
+                delete_l2tp_tunnel(tun['id'], admin_username=admin_username)
         except Exception:
             pass
         execute_write('DELETE FROM wisp_nas_devices WHERE id = ?', (nas_id,))

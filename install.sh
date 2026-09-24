@@ -153,6 +153,9 @@ echo -e "${BLUE}[6/6] Pulling images and starting MAX RADIUS services...${NC}"
 docker compose pull
 docker compose up -d
 
+# Configure Host Kernel Routing for L2TP Subnet
+ip route replace 192.168.44.0/24 via 172.18.0.10 2>/dev/null || true
+
 # Verify Database Schema Integrity
 echo -e "${BLUE}[+] Verifying database integrity...${NC}"
 for i in {1..25}; do

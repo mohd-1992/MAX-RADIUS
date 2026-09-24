@@ -84,7 +84,7 @@ def _fetch_single_container_stats(cname):
             c_mem_bytes = mem_stats.get('usage', 0)
             c_limit_bytes = mem_stats.get('limit', 0)
 
-            display_name = 'FreeRADIUS Core' if 'core' in cname else ('MariaDB Database' if 'db' in cname else 'Web App')
+            display_name = 'FreeRADIUS Core' if 'core' in cname else ('MariaDB Database' if ('db' in cname or 'mariadb' in cname) else ('L2TP VPN Server' if ('l2tp' in cname or 'vpn' in cname) else 'Web Dashboard'))
             return {
                 'key': cname,
                 'name': display_name,
@@ -112,7 +112,26 @@ def _collect_server_resources_internal():
     ram_total_gb = 8.0
     containers_info = {}
 
-    target_containers = ['max_radius_core', 'max_radius_db', 'max_radius_web']
+    # Dynamically discover all active project containers
+    target_containers = []
+    try:
+        conn = UnixHTTPConnection('/var/run/docker.sock')
+        conn.request('GET', '/containers/json')
+        resp = conn.getresponse()
+        if resp.status == 200:
+            c_list = json.loads(resp.read().decode())
+            for c in c_list:
+                for n in c.get('Names', []):
+                    clean_n = n.lstrip('/')
+                    if any(k in clean_n.lower() for k in ('core', 'db', 'mariadb', 'web', 'wisp', 'l2tp', 'vpn')) and 'autoheal' not in clean_n.lower():
+                        target_containers.append(clean_n)
+                        break
+        conn.close()
+    except Exception:
+        pass
+
+    if not target_containers:
+        target_containers = ['max_radius_core', 'max_radius_db', 'max_radius_web', 'max_radius_l2tp']
 
     # 1. Direct Docker Socket Query for exact container metrics via parallel threads
     try:
