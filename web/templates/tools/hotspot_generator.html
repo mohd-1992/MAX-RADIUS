@@ -23,15 +23,12 @@
             </div>
         </div>
 
-        <div class="flex items-center gap-2.5 flex-wrap">
-            <a href="{{ url_for('download_hotspot_generator_zip') }}" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition-all">
+        <!-- Header Actions: Only shown when Subscriber Portal is enabled -->
+        <div id="topHeaderActions" class="flex items-center gap-2.5 flex-wrap {% if settings.get('enable_user_portal', '0') != '1' %}hidden{% endif %}">
+            <a href="{{ url_for('download_hotspot_generator_zip') }}" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-600/30 transition-all">
                 <i class="fa-solid fa-cloud-arrow-down text-sm"></i>
                 <span>تحميل حزمة الهوتسبوت (ZIP)</span>
             </a>
-            <button type="button" onclick="copyScriptToClipboard()" class="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-600/30 transition-all">
-                <i class="fa-solid fa-copy text-sm"></i>
-                <span id="topCopyBtnText">نسخ السكربت</span>
-            </button>
         </div>
     </div>
 
@@ -44,9 +41,9 @@
             <span>إعدادات بوابة المشتركين (User Portal)</span>
         </button>
 
-        <!-- Sub-Tab 2: Hotspot & Queue Generator -->
+        <!-- Sub-Tab 2: Hotspot & Queue Generator (Only visible when portal is enabled) -->
         <button type="button" onclick="switchMainTab('hotspot')" id="tabBtn_hotspot"
-                class="main-tab-btn flex items-center gap-2.5 px-5 py-3 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]">
+                class="main-tab-btn flex items-center gap-2.5 px-5 py-3 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b] {% if settings.get('enable_user_portal', '0') != '1' %}hidden{% endif %}">
             <i class="fa-solid fa-server text-sm text-cyan-400"></i>
             <span>مولد الهوتسبوت والكيو (Hotspot & Queue Studio)</span>
         </button>
@@ -605,12 +602,21 @@
     function togglePortalMasterSwitch(isEnabled) {
         const disabledNotice = document.getElementById('portalDisabledNotice');
         const activeSettings = document.getElementById('portalActiveSettings');
+        const tabBtnHotspot = document.getElementById('tabBtn_hotspot');
+        const topHeaderActions = document.getElementById('topHeaderActions');
+
         if (isEnabled) {
             if (disabledNotice) disabledNotice.classList.add('hidden');
             if (activeSettings) activeSettings.classList.remove('hidden');
+            if (tabBtnHotspot) tabBtnHotspot.classList.remove('hidden');
+            if (topHeaderActions) topHeaderActions.classList.remove('hidden');
         } else {
             if (disabledNotice) disabledNotice.classList.remove('hidden');
             if (activeSettings) activeSettings.classList.add('hidden');
+            if (tabBtnHotspot) tabBtnHotspot.classList.add('hidden');
+            if (topHeaderActions) topHeaderActions.classList.add('hidden');
+            // When disabling, return smoothly to portal tab
+            switchMainTab('portal');
         }
     }
 
@@ -968,9 +974,10 @@
     document.addEventListener('DOMContentLoaded', () => {
         renderSpeedOptions();
         
-        // Handle hash navigation
+        const isPortalEnabled = document.getElementById('toggleEnableUserPortal')?.checked;
         const hash = window.location.hash.replace('#', '');
-        if (hash === 'hotspot') {
+        
+        if (hash === 'hotspot' && isPortalEnabled) {
             switchMainTab('hotspot');
         } else {
             switchMainTab('portal');
