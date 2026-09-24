@@ -7,9 +7,12 @@ import time
 import http.client
 import socket
 import json
+import logging
+import re
 from database.db import query_all, query_one
 from core.rate_limit import format_bytes
 
+logger = logging.getLogger('wisp.stats')
 
 class UnixHTTPConnection(http.client.HTTPConnection):
     def __init__(self, path):
@@ -63,7 +66,8 @@ _LAST_ACTIVATION_SYNC = 0
 from concurrent.futures import ThreadPoolExecutor
 
 
-def _fetch_single_container_stats(cname):
+def _fetch_single_container_stats(c_info):
+    cname, std_key, display_name = c_info
     conn = None
     try:
         conn = UnixHTTPConnection('/var/run/docker.sock')
@@ -84,9 +88,8 @@ def _fetch_single_container_stats(cname):
             c_mem_bytes = mem_stats.get('usage', 0)
             c_limit_bytes = mem_stats.get('limit', 0)
 
-            display_name = 'FreeRADIUS Core' if 'core' in cname else ('MariaDB Database' if ('db' in cname or 'mariadb' in cname) else ('L2TP VPN Server' if ('l2tp' in cname or 'vpn' in cname) else 'Web Dashboard'))
             return {
-                'key': cname,
+                'key': std_key,
                 'name': display_name,
                 'cpu_percent': round(c_cpu, 1),
                 'mem_used_mb': round(c_mem_bytes / (1024 * 1024), 1),
@@ -112,8 +115,9 @@ def _collect_server_resources_internal():
     ram_total_gb = 8.0
     containers_info = {}
 
-    # Dynamically discover all active project containers
-    target_containers = []
+    # Discover the exact 3 core containers: Web App, MariaDB Database, FreeRADIUS Core
+    target_tasks = []
+    found_types = set()
     try:
         conn = UnixHTTPConnection('/var/run/docker.sock')
         conn.request('GET', '/containers/json')
@@ -123,17 +127,33 @@ def _collect_server_resources_internal():
             for c in c_list:
                 for n in c.get('Names', []):
                     clean_n = n.lstrip('/')
-                    if any(k in clean_n.lower() for k in ('core', 'db', 'mariadb', 'web', 'wisp', 'l2tp', 'vpn')) and 'autoheal' not in clean_n.lower():
-                        target_containers.append(clean_n)
+                    cn_lower = clean_n.lower()
+                    if 'autoheal' in cn_lower:
+                        continue
+                    if ('web' in cn_lower or 'wisp' in cn_lower) and 'web' not in found_types:
+                        target_tasks.append((clean_n, 'max_radius_web', 'Web App'))
+                        found_types.add('web')
+                        break
+                    elif ('db' in cn_lower or 'mariadb' in cn_lower or 'mysql' in cn_lower) and 'db' not in found_types:
+                        target_tasks.append((clean_n, 'max_radius_db', 'MariaDB Database'))
+                        found_types.add('db')
+                        break
+                    elif ('core' in cn_lower or 'freeradius' in cn_lower) and 'core' not in found_types:
+                        target_tasks.append((clean_n, 'max_radius_core', 'FreeRADIUS Core'))
+                        found_types.add('core')
                         break
         conn.close()
     except Exception:
         pass
 
-    if not target_containers:
-        target_containers = ['max_radius_core', 'max_radius_db', 'max_radius_web', 'max_radius_l2tp']
+    if not target_tasks:
+        target_tasks = [
+            ('max_radius_web', 'max_radius_web', 'Web App'),
+            ('max_radius_db', 'max_radius_db', 'MariaDB Database'),
+            ('max_radius_core', 'max_radius_core', 'FreeRADIUS Core')
+        ]
 
-    # 1. Direct Docker Socket Query for exact container metrics via parallel threads
+    # Query metrics via parallel threads
     try:
         if os.path.exists('/var/run/docker.sock'):
             total_container_cpu = 0.0
@@ -141,10 +161,14 @@ def _collect_server_resources_internal():
             container_mem_limit = 0
 
             with ThreadPoolExecutor(max_workers=3) as executor:
-                results = list(executor.map(_fetch_single_container_stats, target_containers))
+                results = list(executor.map(_fetch_single_container_stats, target_tasks))
 
-            for r in results:
-                if r:
+            # Maintain strict order: Web App, MariaDB Database, FreeRADIUS Core
+            desired_order = ['max_radius_web', 'max_radius_db', 'max_radius_core']
+            res_dict = {r['key']: r for r in results if r}
+            for k in desired_order:
+                if k in res_dict:
+                    r = res_dict[k]
                     containers_info[r['key']] = {
                         'name': r['name'],
                         'cpu_percent': r['cpu_percent'],
@@ -163,7 +187,7 @@ def _collect_server_resources_internal():
     except Exception:
         pass
 
-    # 2. Linux /proc and cgroup fallback if Docker socket didn't return data
+    # 2. Linux /proc and cgroup fallback
     if not containers_info and os.path.exists('/proc/meminfo'):
         try:
             with open('/proc/meminfo', 'r') as f:

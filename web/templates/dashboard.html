@@ -106,7 +106,7 @@
             <span class="text-xs text-slate-400 font-medium">محدث لحظياً</span>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <!-- 1. مشتركو الكروت (الكل) -->
             <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
                 <div class="flex items-start justify-between">
@@ -200,7 +200,7 @@
             <span class="text-xs text-slate-400 font-medium">سيرفرات البث و PPPoE</span>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <!-- 1. المشتركون المنزليون -->
             <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
                 <div class="flex items-start justify-between">
@@ -348,7 +348,7 @@
         </div>
 
         <!-- Container Details Breakdown -->
-        <div id="stat-containers-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-[#1c2840] {% if not metrics.resources.containers %}hidden{% endif %}">
+        <div id="stat-containers-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#1c2840] {% if not metrics.resources.containers %}hidden{% endif %}">
             {% for ckey, cinfo in metrics.resources.containers.items() %}
             <div data-container="{{ ckey }}" class="bg-[#070b14] border border-[#162136] hover:border-blue-500/30 rounded-xl px-4 py-3 flex items-center justify-between transition">
                 <div class="flex items-center gap-2.5">
@@ -414,7 +414,7 @@
     <!-- ========================================================== -->
     <!-- 6. بطاقات معلومات وحالة النظام العامة (System Status Cards)  -->
     <!-- ========================================================== -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <!-- 1. مدة عمل النظام (System Uptime) -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-blue-500/40 transition flex flex-col justify-between">
             <div class="flex items-center justify-between">
