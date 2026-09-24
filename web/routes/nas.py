@@ -469,3 +469,96 @@ def api_mikrotik_userman_execute():
     return jsonify(res)
 
 
+# ==============================================================================
+# MIKROTIK HOTSPOT & DYNAMIC PCQ QUEUE GENERATOR TOOL
+# ==============================================================================
+@nas_bp.route('/tools/hotspot-generator', endpoint="hotspot_generator_page")
+@login_required
+def hotspot_generator_page():
+    import json
+    from services.hotspot_generator_service import (
+        get_hotspot_generator_settings,
+        generate_mikrotik_hotspot_script
+    )
+    runtime_host = request.host
+    settings = get_hotspot_generator_settings(default_host=runtime_host)
+    script_text = generate_mikrotik_hotspot_script(settings)
+    
+    speed_options = []
+    if settings.get('portal_speed_options'):
+        try:
+            speed_options = json.loads(settings.get('portal_speed_options'))
+        except Exception:
+            speed_options = []
+
+    return render_template(
+        'tools/hotspot_generator.html',
+        settings=settings,
+        speed_options=speed_options,
+        script_text=script_text,
+        runtime_host=runtime_host
+    )
+
+
+@nas_bp.route('/api/tools/hotspot-generator/save', methods=['POST'], endpoint="api_hotspot_generator_save")
+@login_required
+def api_hotspot_generator_save():
+    from services.hotspot_generator_service import (
+        save_hotspot_generator_settings,
+        get_hotspot_generator_settings,
+        generate_mikrotik_hotspot_script
+    )
+    req_data = request.json or {}
+    save_hotspot_generator_settings(req_data)
+    updated_settings = get_hotspot_generator_settings(default_host=request.host)
+    updated_script = generate_mikrotik_hotspot_script(updated_settings)
+    return jsonify({
+        'success': True,
+        'settings': updated_settings,
+        'script': updated_script
+    })
+
+
+@nas_bp.route('/tools/hotspot-generator/download-zip', endpoint="download_hotspot_generator_zip")
+@nas_bp.route('/api/hotspot/package.zip', endpoint="api_download_hotspot_package_zip")
+def download_hotspot_generator_zip():
+    from services.hotspot_generator_service import (
+        get_hotspot_generator_settings,
+        generate_hotspot_zip_bytes
+    )
+    runtime_host = request.host
+    settings = get_hotspot_generator_settings(default_host=runtime_host)
+    zip_bytes = generate_hotspot_zip_bytes(settings)
+    folder_name = settings.get('folder_name', 'max-radius') or 'max-radius'
+    
+    return Response(
+        zip_bytes,
+        mimetype='application/zip',
+        headers={
+            'Content-Disposition': f'attachment; filename={folder_name}.zip'
+        }
+    )
+
+
+@nas_bp.route('/tools/hotspot-generator/download-script', endpoint="download_hotspot_generator_script")
+@login_required
+def download_hotspot_generator_script():
+    from services.hotspot_generator_service import (
+        get_hotspot_generator_settings,
+        generate_mikrotik_hotspot_script
+    )
+    runtime_host = request.host
+    settings = get_hotspot_generator_settings(default_host=runtime_host)
+    script_text = generate_mikrotik_hotspot_script(settings)
+    folder_name = settings.get('folder_name', 'max-radius') or 'max-radius'
+    
+    return Response(
+        script_text,
+        mimetype='text/plain; charset=utf-8',
+        headers={
+            'Content-Disposition': f'attachment; filename=setup_hotspot_{folder_name}.rsc'
+        }
+    )
+
+
+

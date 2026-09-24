@@ -1676,7 +1676,7 @@
                 </a>
 
                 <!-- 9. الأدوات (Tools) -> [قائمة منسدلة] -->
-                {% set tools_active = request.endpoint in ['backups_page', 'system_services_page', 'import_data_page', 'database_maintenance_page', 'autoheal_page', 'radius_simulator_page', 'traffic_analytics_page', 'accounting_archiver_page', 'database_migration_studio', 'mikrotik_userman_import_page', 'system_update_page'] %}
+                {% set tools_active = request.endpoint in ['backups_page', 'system_services_page', 'import_data_page', 'database_maintenance_page', 'autoheal_page', 'radius_simulator_page', 'traffic_analytics_page', 'accounting_archiver_page', 'database_migration_studio', 'mikrotik_userman_import_page', 'system_update_page', 'hotspot_generator_page'] %}
                 <div class="space-y-1">
                     <button onclick="toggleMenu('toolsMenu', 'toolsArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if tools_active %}text-cyan-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
@@ -1688,6 +1688,14 @@
                         <i id="toolsArrow" class="fa-solid fa-chevron-down text-[10px] text-slate-500 transition-transform duration-200 {% if tools_active %}rotate-180 text-cyan-400{% endif %}"></i>
                     </button>
                     <div id="toolsMenu" class="{% if not tools_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
+                        <!-- بوابة المشتركين والهوتسبوت -->
+                        <a href="{{ url_for('hotspot_generator_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'hotspot_generator_page' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'hotspot_generator_page' %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>بوابة المشتركين والهوتسبوت</span>
+                            </div>
+                            <i class="fa-solid fa-tower-broadcast text-[10px] text-cyan-400"></i>
+                        </a>
                         <!-- 1. التعافي التلقائي والمراقب الآلي -->
                         <a href="{{ url_for('autoheal_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'autoheal_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">

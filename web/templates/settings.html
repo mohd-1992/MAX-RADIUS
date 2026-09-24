@@ -56,12 +56,7 @@
                 <span>العملة والتوقيت</span>
             </button>
 
-            <!-- Tab 3: User Portal -->
-            <button type="button" onclick="switchSettingsTab('portal')" id="tab-btn-portal"
-                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]">
-                <i class="fa-solid fa-users-gear text-sm text-indigo-400"></i>
-                <span>بوابة المشتركين</span>
-            </button>
+            
 
             <!-- Tab 4: Network & RADIUS -->
             <button type="button" onclick="switchSettingsTab('network')" id="tab-btn-network"
@@ -385,141 +380,6 @@
 
         <!-- ========================================================= -->
         <!-- TAB 3: بوابة المشتركين (User Portal & Self-Service)       -->
-        <!-- ========================================================= -->
-        <div id="tab-content-portal" class="tab-pane hidden space-y-6">
-            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-6">
-                
-                <div class="border-b border-[#1c2840] pb-4 flex items-center justify-between flex-wrap gap-2">
-                    <div>
-                        <h3 class="font-bold text-white text-base flex items-center gap-2.5">
-                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center text-sm">
-                                <i class="fa-solid fa-users-gear"></i>
-                            </div>
-                            <span>إعدادات بوابة المشترك والخدمات الذاتية (User Portal)</span>
-                        </h3>
-                        <p class="text-xs text-slate-400 mt-1">
-                            التحكم الكامل في الميزات المتاحة للمشتركين ومستخدمي الكروت داخل بوابتهم الذكية
-                        </p>
-                    </div>
-                    <span class="text-[11px] bg-indigo-500/10 text-indigo-300 font-bold px-3 py-1 rounded-xl border border-indigo-500/20 flex items-center gap-1.5">
-                        <i class="fa-solid fa-toggle-on text-indigo-400"></i>
-                        <span>التحكم في البوابة</span>
-                    </span>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    <!-- Toggle 1: Self Registration -->
-                    <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
-                        <div class="space-y-1">
-                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                                <i class="fa-solid fa-user-plus text-emerald-400"></i>
-                                <span>السماح بإنشاء حساب جديد</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">إظهار خيار "إنشاء حساب جديد" في شاشة تسجيل دخول المشتركين للبوابة.</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                            <input type="checkbox" name="portal_allow_registration" value="1" {% if settings.get('portal_allow_registration', '1') == '1' %}checked{% endif %} class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                        </label>
-                    </div>
-
-                    <!-- Toggle 2: Package Renewal/Change -->
-                    <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
-                        <div class="space-y-1">
-                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                                <i class="fa-solid fa-arrows-rotate text-blue-400"></i>
-                                <span>السماح بتجديد وتغيير الباقة</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">تمكين المشتركين من تجديد باقاتهم الحالية أو الترقية لباقة أخرى من رصيد المحفظة.</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                            <input type="checkbox" name="portal_allow_package_change" value="1" {% if settings.get('portal_allow_package_change', '1') == '1' %}checked{% endif %} class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                        </label>
-                    </div>
-
-                    <!-- Toggle 3: Password Change -->
-                    <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
-                        <div class="space-y-1">
-                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                                <i class="fa-solid fa-key text-amber-400"></i>
-                                <span>السماح بتغيير كلمة المرور</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">إتاحة إمكانية تغيير كلمة المرور للمشتركين ذاتياً من داخل حساباتهم الشخصية.</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                            <input type="checkbox" name="portal_allow_password_change" value="1" {% if settings.get('portal_allow_password_change', '1') == '1' %}checked{% endif %} class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                        </label>
-                    </div>
-
-                    <!-- Toggle 3.5: Username Only Login (Single-Field PIN Login) -->
-                    <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
-                        <div class="space-y-1">
-                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                                <i class="fa-solid fa-id-card text-sky-400"></i>
-                                <span>تسجيل الدخول باسم المستخدم فقط</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">إخفاء حقل كلمة المرور والاكتفاء بإدخال رقم المستخدم أو الكرت فقط في شاشة الدخول.</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                            <input type="checkbox" name="portal_login_username_only" value="1" {% if settings.get('portal_login_username_only', '0') == '1' %}checked{% endif %} class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                        </label>
-                    </div>
-
-                    <!-- Toggle 4: Data Loan Feature -->
-                    <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-5 flex items-center justify-between gap-4 transition shadow-sm">
-                        <div class="space-y-1">
-                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                                <i class="fa-solid fa-hand-holding-dollar text-amber-400"></i>
-                                <span>سلفة بيانات الطوارئ (Data Loan)</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">تمكين المشترك من طلب سلفة بيانات عند اقتراب نفاذ رصيده، تُسدد من الكرت القادم.</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                            <input type="checkbox" name="allow_data_loan" value="1" {% if settings.get('allow_data_loan', '1') == '1' %}checked{% endif %} class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                        </label>
-                    </div>
-
-                    <!-- Input 5: Data Loan Amount (MB) -->
-                    <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-5 flex flex-col justify-between gap-3 transition shadow-sm">
-                        <div class="space-y-1">
-                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                                <i class="fa-solid fa-database text-blue-400"></i>
-                                <span>حجم السلفة الممنوحة (Loan Size)</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">سعة السلفة بالميجابايت (مثلاً: 1024 MB تعادل 1 GB).</p>
-                        </div>
-                        <div class="relative">
-                            <input type="number" name="loan_amount_mb" min="10" max="102400" step="1" 
-                                   value="{{ settings.get('loan_amount_mb', '1024') }}" required placeholder="1024" 
-                                   class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl pr-3.5 pl-14 py-2 text-xs text-white font-mono font-bold focus:border-amber-500 focus:outline-none transition">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[11px] text-amber-400 font-bold">MB</span>
-                        </div>
-                    </div>
-
-                    <!-- Input 6: Data Loan Threshold (MB) -->
-                    <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-5 flex flex-col justify-between gap-3 transition shadow-sm">
-                        <div class="space-y-1">
-                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
-                                <i class="fa-solid fa-gauge-simple-high text-emerald-400"></i>
-                                <span>حد استحقاق السلفة (Threshold)</span>
-                            </span>
-                            <p class="text-[11px] text-slate-400 leading-relaxed">الحد الأقصى للرصيد المتبقي (MB) الذي تتاح عنده السلفة للمشترك.</p>
-                        </div>
-                        <div class="relative">
-                            <input type="number" name="loan_threshold_mb" min="1" max="10240" step="1" 
-                                   value="{{ settings.get('loan_threshold_mb', '100') }}" required placeholder="100" 
-                                   class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl pr-3.5 pl-14 py-2 text-xs text-white font-mono font-bold focus:border-emerald-500 focus:outline-none transition">
-                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[11px] text-emerald-400 font-bold">MB</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- ========================================================= -->
         <!-- TAB 4: الشبكة و FreeRADIUS (Network, RADIUS & CoA)       -->
         <!-- ========================================================= -->
@@ -967,5 +827,6 @@
             row.style.display = text.includes(query) ? '' : 'none';
         });
     }
+    
 </script>
 {% endblock %}

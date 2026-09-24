@@ -1,0 +1,980 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة بوابة المشتركين والهوتسبوت - MAX RADIUS{% endblock %}
+{% block page_title %}إدارة بوابة المشتركين والهوتسبوت{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Header Banner -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                <i class="fa-solid fa-tower-broadcast"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2 flex-wrap">
+                    <span>إدارة بوابة المشتركين والهوتسبوت</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono">Subscriber & Hotspot Studio</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-1">
+                    إدارة وتخصيص بوابة المشتركين الذكية (User Portal) وتوليد حزم الهوتسبوت وسكربتات الميكروتك (الكيو الأب و PCQ و Walled Garden) المخصصة لشبكتك فورياً.
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <a href="{{ url_for('download_hotspot_generator_zip') }}" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-600/30 transition-all">
+                <i class="fa-solid fa-cloud-arrow-down text-sm"></i>
+                <span>تحميل حزمة الهوتسبوت (ZIP)</span>
+            </a>
+            <button type="button" onclick="copyScriptToClipboard()" class="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-cyan-600/30 transition-all">
+                <i class="fa-solid fa-copy text-sm"></i>
+                <span id="topCopyBtnText">نسخ السكربت</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Navigation Sub-Tabs -->
+    <div class="flex items-center gap-2 border-b border-[#1c2840] pb-2 overflow-x-auto scrollbar-thin">
+        <!-- Sub-Tab 1: Subscriber Portal -->
+        <button type="button" onclick="switchMainTab('portal')" id="tabBtn_portal"
+                class="main-tab-btn active flex items-center gap-2.5 px-5 py-3 rounded-xl text-xs font-bold transition whitespace-nowrap bg-indigo-600/20 text-indigo-300 border border-indigo-500/40">
+            <i class="fa-solid fa-users-gear text-sm text-indigo-400"></i>
+            <span>إعدادات بوابة المشتركين (User Portal)</span>
+        </button>
+
+        <!-- Sub-Tab 2: Hotspot & Queue Generator -->
+        <button type="button" onclick="switchMainTab('hotspot')" id="tabBtn_hotspot"
+                class="main-tab-btn flex items-center gap-2.5 px-5 py-3 rounded-xl text-xs font-bold transition whitespace-nowrap text-slate-400 hover:text-white hover:bg-[#11192b]">
+            <i class="fa-solid fa-server text-sm text-cyan-400"></i>
+            <span>مولد الهوتسبوت والكيو (Hotspot & Queue Studio)</span>
+        </button>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1 CONTENT: SUBSCRIBER PORTAL SETTINGS                                 -->
+    <!-- ========================================================================= -->
+    <div id="tabContent_portal" class="tab-pane space-y-6">
+        <form id="portalConfigForm" onsubmit="savePortalSettings(event)" class="space-y-6">
+            
+            <!-- MASTER SWITCH CARD -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between flex-wrap gap-4">
+                    <div class="flex items-center gap-3.5">
+                        <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-xl flex-shrink-0">
+                            <i class="fa-solid fa-power-off"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="font-black text-white text-base">تفعيل بوابة المشتركين والخدمات الذاتية (User Portal)</h3>
+                                <span class="text-[10px] bg-indigo-500/20 text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-500/30">المفتاح الرئيسي</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">
+                                تمكين وصول المشتركين إلى بوابتهم الذكية لمتابعة الاستهلاك، وتغيير السرعات، وشحن الكروت، وطلب السلفات. (الوضع الافتراضي: معطل).
+                            </p>
+                        </div>
+                    </div>
+
+                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 scale-110">
+                        <input type="checkbox" name="enable_user_portal" id="toggleEnableUserPortal" value="1" 
+                               {% if settings.get('enable_user_portal', '0') == '1' %}checked{% endif %} 
+                               onchange="togglePortalMasterSwitch(this.checked)"
+                               class="sr-only peer">
+                        <div class="w-14 h-7 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- DISABLED NOTICE BOX (Shown when portal is OFF) -->
+            <div id="portalDisabledNotice" class="bg-[#0b0f19] border border-dashed border-[#1c2840] rounded-2xl p-8 text-center space-y-3 {% if settings.get('enable_user_portal', '0') == '1' %}hidden{% endif %}">
+                <div class="w-14 h-14 rounded-full bg-slate-800/80 text-slate-400 border border-slate-700 flex items-center justify-center text-2xl mx-auto">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h4 class="text-sm font-bold text-white">بوابة المشتركين معطلة حالياً</h4>
+                <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                    عند تفعيل <strong>المفتاح الرئيسي</strong> أعلاه، ستظهر جميع ميزات وإعدادات البوابة (إنشاء الحسابات، وتغيير الباقات، والسلفة، ومحدد السرعات، وتخصيص النصوص، والتبويبات) لتخصيصها وحفظها.
+                </p>
+            </div>
+
+            <!-- ACTIVE PORTAL SETTINGS CONTAINER (Shown when portal is ON) -->
+            <div id="portalActiveSettings" class="space-y-6 {% if settings.get('enable_user_portal', '0') != '1' %}hidden{% endif %}">
+                
+                <!-- 1. Core Permissions Grid -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+                    <div class="border-b border-[#162136] pb-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-white font-black text-sm">
+                            <i class="fa-solid fa-shield-halved text-indigo-400"></i>
+                            <span>الميزات والصلاحيات الأساسية للمشتركين</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-bold">Permissions</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Toggle 1: Self Registration -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-user-plus text-emerald-400"></i>
+                                    <span>إنشاء حساب جديد</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">إظهار خيار التسجيل الذاتي لإنشاء حسابات جديدة للمشتركين.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_allow_registration" value="1" {% if settings.get('portal_allow_registration', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Toggle 2: Package Renewal/Change -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-arrows-rotate text-blue-400"></i>
+                                    <span>تجديد وتغيير الباقة</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">تمكين المشتركين من تجديد باقاتهم أو الترقية لباقة أخرى من رصيد المحفظة.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_allow_package_change" value="1" {% if settings.get('portal_allow_package_change', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Toggle 3: Password Change -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-key text-amber-400"></i>
+                                    <span>تغيير كلمة المرور</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">إتاحة إمكانية تغيير كلمة المرور للمشتركين ذاتياً من داخل حساباتهم.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_allow_password_change" value="1" {% if settings.get('portal_allow_password_change', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Toggle 4: Username Only Login (Single-Field PIN Login) -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-id-card text-sky-400"></i>
+                                    <span>الدخول برقم الكرت فقط</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">إخفاء حقل كلمة المرور والاكتفاء برقم الكرت لتسهيل وسرعة الدخول.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_login_username_only" value="1" {% if settings.get('portal_login_username_only', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Emergency Data Loan Section -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+                    <div class="flex items-center justify-between border-b border-[#162136] pb-3 flex-wrap gap-2">
+                        <div class="space-y-0.5">
+                            <span class="text-sm font-black text-white flex items-center gap-2">
+                                <i class="fa-solid fa-hand-holding-dollar text-amber-400"></i>
+                                <span>سلفة بيانات الطوارئ (Emergency Data Loan)</span>
+                            </span>
+                            <p class="text-xs text-slate-400">تمكين المشترك من استعارة رصيد بيانات مؤقت عند اقتراب نفاذ رصيده، وتُسدد تلقائياً من الكرت القادم.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input type="checkbox" name="allow_data_loan" id="toggleAllowDataLoan" value="1" 
+                                   {% if settings.get('allow_data_loan', '1') == '1' %}checked{% endif %} 
+                                   onchange="toggleLoanInputsVisibility(this.checked)"
+                                   class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+
+                    <!-- Loan Inputs Grid (Progressive Disclosure) -->
+                    <div id="loanInputsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 {% if settings.get('allow_data_loan', '1') != '1' %}hidden{% endif %}">
+                        <!-- Loan Amount Input -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between gap-2.5 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-database text-blue-400"></i>
+                                    <span>حجم السلفة الممنوحة (Loan Size)</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400">سعة السلفة بالميجابايت (مثلاً: 1024 MB تعادل 1 GB).</p>
+                            </div>
+                            <div class="relative">
+                                <input type="number" name="loan_amount_mb" min="10" max="102400" step="1" 
+                                       value="{{ settings.get('loan_amount_mb', '1024') }}" required placeholder="1024" 
+                                       class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl pr-3.5 pl-14 py-2 text-xs text-white font-mono font-bold focus:border-amber-500 focus:outline-none transition">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[11px] text-amber-400 font-bold">MB</span>
+                            </div>
+                        </div>
+
+                        <!-- Loan Threshold Input -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between gap-2.5 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-gauge-simple-high text-emerald-400"></i>
+                                    <span>حد استحقاق السلفة (Threshold)</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400">الحد الأقصى للرصيد المتبقي (MB) الذي تتاح عنده السلفة للمشترك.</p>
+                            </div>
+                            <div class="relative">
+                                <input type="number" name="loan_threshold_mb" min="1" max="10240" step="1" 
+                                       value="{{ settings.get('loan_threshold_mb', '100') }}" required placeholder="100" 
+                                       class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl pr-3.5 pl-14 py-2 text-xs text-white font-mono font-bold focus:border-emerald-500 focus:outline-none transition">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[11px] text-emerald-400 font-bold">MB</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. QoS Speed Selector Section -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+                    <div class="flex items-center justify-between border-b border-[#162136] pb-3 flex-wrap gap-2">
+                        <div class="space-y-0.5">
+                            <span class="text-sm font-black text-white flex items-center gap-2">
+                                <i class="fa-solid fa-bolt text-amber-400"></i>
+                                <span>محدد السرعات الذكي في بوابة المشترك (QoS Speed Selector)</span>
+                            </span>
+                            <p class="text-xs text-slate-400">تمكين بطاقات السرعات (توفير، متوازن، ألعاب) في شاشة الدخول ولوحة المشترك. (إذا عُطل تطبق سرعة الباقة الأصلية).</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input type="checkbox" name="portal_enable_speed_selector" id="togglePortalSpeedSelector" value="1" 
+                                   {% if settings.get('portal_enable_speed_selector', '0') == '1' %}checked{% endif %} 
+                                   onchange="toggleSpeedInputsVisibility(this.checked)"
+                                   class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+
+                    <!-- Speed Inputs Container (Progressive Disclosure) -->
+                    <div id="speedInputsGrid" class="space-y-4 pt-1 {% if settings.get('portal_enable_speed_selector', '0') != '1' %}hidden{% endif %}">
+                        <div class="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                                <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-sliders text-amber-400"></i>
+                                    <span>قائمة خيارات السرعات المتاحة للمشتركين (Speed Presets)</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 mt-0.5">
+                                    يمكنك تخصيص معدل التنزيل والرفع والاسم والأيقونة والوصف لكل سرعة. (السرعة المفتوحة قيمتها 0).
+                                </p>
+                            </div>
+                            <button type="button" onclick="addNewSpeedOption()" class="px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-amber-600/30 cursor-pointer">
+                                <i class="fa-solid fa-plus text-xs"></i>
+                                <span>إضافة سرعة جديدة</span>
+                            </button>
+                        </div>
+
+                        <!-- Repeater Container -->
+                        <div id="speedOptionsRepeater" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+
+                        <input type="hidden" name="portal_speed_options" id="portal_speed_options_input" value="">
+                    </div>
+                </div>
+
+                <!-- 4. Portal Texts & Branding -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4">
+                    <div class="border-b border-[#162136] pb-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-white font-black text-sm">
+                            <i class="fa-solid fa-pen-to-square text-emerald-400"></i>
+                            <span>تخصيص نصوص وعناوين صفحة المشترك ومعلومات الشبكة</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-bold">Branding Texts</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-200">عنوان الترحيب الرئيسي في البوابة:</label>
+                            <input type="text" name="portal_welcome_title" value="{{ settings.get('portal_welcome_title', 'بوابة المصادقة الآمنة والذكية') }}" placeholder="بوابة المصادقة الآمنة والذكية"
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold focus:border-emerald-500">
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-200">الوصف الترويجي المختصر أسفل اسم الشبكة:</label>
+                            <input type="text" name="portal_network_subtitle" value="{{ settings.get('portal_network_subtitle', 'نقطة بث Wi-Fi 6 فائقة السرعة • نظام MAX RADIUS') }}" placeholder="نقطة بث Wi-Fi 6 فائقة السرعة • نظام MAX RADIUS"
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold focus:border-emerald-500">
+                        </div>
+
+                        <div class="sm:col-span-2 space-y-1.5">
+                            <label class="text-xs font-bold text-slate-200">نص نبذة عن الشبكة (في تبويب "عن الشبكة"):</label>
+                            <textarea name="portal_about_text" rows="3" placeholder="اكتب نبذة تعريفية عن شبكتك، خدماتك، ومناطق التغطية المتاحة..."
+                                      class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-xs text-white leading-relaxed focus:border-emerald-500">{{ settings.get('portal_about_text', '') }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Support & Contact Numbers -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4">
+                    <div class="border-b border-[#162136] pb-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-white font-black text-sm">
+                            <i class="fa-solid fa-headset text-sky-400"></i>
+                            <span>أرقام الدعم الفني والشحن وواتساب المعتمد</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-bold">Contact Info</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-brands fa-whatsapp text-emerald-400"></i>
+                                <span>رقم واتساب الشحن والدعم (مع رمز الدولة بدون +):</span>
+                            </label>
+                            <input type="text" name="portal_whatsapp" value="{{ settings.get('portal_whatsapp', settings.get('support_phone', '967773570053')) }}" placeholder="967773570053"
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-bold focus:border-emerald-500">
+                            <span class="text-[10px] text-slate-400">يستخدم لروابط الشراء المباشر عبر واتساب وتواصل المشتركين</span>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-solid fa-phone text-sky-400"></i>
+                                <span>رقم الاتصال المباشر لخدمة العملاء والطوارئ:</span>
+                            </label>
+                            <input type="text" name="portal_support_phone" value="{{ settings.get('portal_support_phone', settings.get('support_phone', '773570053')) }}" placeholder="773570053"
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-bold focus:border-sky-500">
+                            <span class="text-[10px] text-slate-400">يظهر في زر الاتصال الهاتفي السريع في صفحة الدعم</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. Tab Visibility Toggles -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4">
+                    <div class="border-b border-[#162136] pb-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-white font-black text-sm">
+                            <i class="fa-solid fa-eye text-purple-400"></i>
+                            <span>التحكم في التبويبات والمظهر العام للبوابة</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-bold">Portal Tabs</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Pricing Tab -->
+                        <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 flex items-center justify-between">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-tags text-emerald-400"></i>
+                                <span>تبويب الأسعار والباقات</span>
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="portal_show_pricing" value="1" {% if settings.get('portal_show_pricing', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Speedtest Tab -->
+                        <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 flex items-center justify-between">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-gauge-high text-sky-400"></i>
+                                <span>تبويب قياس السرعة</span>
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="portal_show_speedtest" value="1" {% if settings.get('portal_show_speedtest', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Network Info Tab -->
+                        <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 flex items-center justify-between">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-info text-blue-400"></i>
+                                <span>تبويب عن الشبكة</span>
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="portal_show_network_tab" value="1" {% if settings.get('portal_show_network_tab', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Support Tab -->
+                        <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 flex items-center justify-between">
+                            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-headset text-purple-400"></i>
+                                <span>تبويب الدعم والتواصل</span>
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="portal_show_support_tab" value="1" {% if settings.get('portal_show_support_tab', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Action Buttons Bar -->
+                <div class="flex items-center gap-3 pt-2">
+                    <button type="submit" id="btnSavePortal" class="px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-cyan-600/30">
+                        <i class="fa-solid fa-floppy-disk text-xs"></i>
+                        <span>حفظ إعدادات بوابة المشتركين</span>
+                    </button>
+                    <span id="portalSaveStatus" class="text-xs font-bold text-emerald-400 hidden flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span>تم حفظ إعدادات البوابة بنجاح!</span>
+                    </span>
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2 CONTENT: HOTSPOT & QUEUE STUDIO                                     -->
+    <!-- ========================================================================= -->
+    <div id="tabContent_hotspot" class="tab-pane hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left Column: Settings Form -->
+            <div class="lg:col-span-5 space-y-6">
+                <div class="bg-[#0b0f19] rounded-2xl border border-[#1c2840] p-5 shadow-sm space-y-5">
+                    <div class="flex items-center justify-between border-b border-[#162136] pb-3">
+                        <div class="flex items-center gap-2 text-white font-bold text-sm">
+                            <i class="fa-solid fa-sliders text-cyan-400"></i>
+                            <span>إعدادات الكيو وتوليد الحزمة</span>
+                        </div>
+                        <span class="text-[11px] text-cyan-400 font-mono bg-cyan-500/10 px-2 py-0.5 rounded-md border border-cyan-500/20">Dynamic Generator</span>
+                    </div>
+
+                    <form id="hotspotConfigForm" onsubmit="saveHotspotSettings(event)" class="space-y-4">
+                        <!-- Bandwidth Limits -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-download text-emerald-400 text-xs"></i>
+                                    <span>سرعة التحميل الكلية (Down)</span>
+                                </label>
+                                <input type="text" id="cfg_total_download" name="total_download" value="{{ settings.get('hotspot_total_download', '100M') }}" placeholder="مثال: 100M" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-white text-xs font-mono font-bold transition focus:outline-none" required>
+                                <p class="text-[10px] text-slate-500 mt-1">مثل: 100M, 50M, 1G</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-upload text-sky-400 text-xs"></i>
+                                    <span>سرعة الرفع الكلية (Up)</span>
+                                </label>
+                                <input type="text" id="cfg_total_upload" name="total_upload" value="{{ settings.get('hotspot_total_upload', '50M') }}" placeholder="مثال: 50M" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-white text-xs font-mono font-bold transition focus:outline-none" required>
+                                <p class="text-[10px] text-slate-500 mt-1">مثل: 50M, 20M</p>
+                            </div>
+                        </div>
+
+                        <!-- Server IP / Host -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-server text-purple-400 text-xs"></i>
+                                    <span>عنوان السيرفر المعتمد بالصفحة</span>
+                                </label>
+                                <button type="button" onclick="setDetectedHost()" class="text-[10px] text-cyan-400 hover:text-cyan-300 font-bold underline cursor-pointer">استخدام الآي بي الحالي</button>
+                            </div>
+                            <input type="text" id="cfg_server_host" name="server_host" value="{{ settings.get('hotspot_server_host', runtime_host) }}" placeholder="مثال: 199.247.3.47 أو domain.com" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-white text-xs font-mono font-bold transition focus:outline-none" required>
+                            <p class="text-[10px] text-slate-500 mt-1">العنوان الذي ستقوم ملفات الهوتسبوت بالتحويل إليه (IP أو نطاق).</p>
+                        </div>
+
+                        <!-- Hotspot Folder Name -->
+                        <div>
+                            <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                                <i class="fa-solid fa-folder-open text-amber-400 text-xs"></i>
+                                <span>اسم مجلد الهوتسبوت في الميكروتك</span>
+                            </label>
+                            <input type="text" id="cfg_folder_name" name="folder_name" value="{{ settings.get('hotspot_folder_name', 'max-radius') }}" placeholder="max-radius" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-white text-xs font-mono font-bold transition focus:outline-none" required>
+                            <p class="text-[10px] text-slate-500 mt-1">اسم المجلد عند رفعه إلى Files في الميكروتك.</p>
+                        </div>
+
+                        <div class="pt-2 flex items-center gap-2">
+                            <button type="submit" id="btnSaveConfig" class="flex-1 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs flex items-center justify-center gap-2 transition shadow-md shadow-cyan-600/30 cursor-pointer">
+                                <i class="fa-solid fa-floppy-disk text-xs"></i>
+                                <span>حفظ وتحديث السكربت</span>
+                            </button>
+                            <button type="button" onclick="resetDefaults()" class="px-3.5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold transition shadow-sm cursor-pointer" title="استعادة الافتراضي">
+                                <i class="fa-solid fa-rotate-left"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Quick Step Guide -->
+                <div class="bg-[#0b0f19] rounded-2xl border border-[#1c2840] p-5 shadow-sm space-y-3.5">
+                    <h3 class="text-xs font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-circle-info text-cyan-400"></i>
+                        <span>طريقة التركيب في الميكروتك (3 خطوات)</span>
+                    </h3>
+                    <ol class="text-xs text-slate-300 space-y-2.5 pr-4 list-decimal leading-relaxed">
+                        <li>
+                            <strong>تطبيق السكربت:</strong> انسخ السكربت الموضح على اليسار، والصقه في <strong>Terminal</strong> الميكروتك واضغط <strong>Enter</strong>.
+                        </li>
+                        <li>
+                            <strong>رفع الملفات:</strong> حمّل ملف <strong>ZIP</strong>، وفك ضغطه واسحب مجلد <strong><span class="text-cyan-400 font-mono">{{ settings.get('hotspot_folder_name', 'max-radius') }}</span></strong> وأفلته داخل <strong>Files</strong> في Winbox.
+                        </li>
+                        <li>
+                            <strong>جاهز للعمل:</strong> سيتم تفعيل صفحة الدخول الذكية وتطبيق الكيو الأب تلقائياً!
+                        </li>
+                    </ol>
+                </div>
+
+                <!-- Direct Fetch Box -->
+                <div class="bg-[#0b0f19] rounded-2xl border border-[#1c2840] p-5 shadow-sm space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold text-white flex items-center gap-1.5">
+                            <i class="fa-solid fa-terminal text-emerald-400"></i>
+                            <span>أمر التحميل السريع في Terminal</span>
+                        </h4>
+                        <button type="button" onclick="copyDirectFetch()" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 cursor-pointer">
+                            <i class="fa-solid fa-copy"></i>
+                            <span id="fetchCopyText">نسخ الأمر</span>
+                        </button>
+                    </div>
+                    <pre id="directFetchCmd" dir="ltr" class="bg-[#050811] p-3 rounded-xl border border-[#162136] text-slate-300 font-mono text-[11px] select-all overflow-x-auto">/tool fetch url="http://{{ settings.get('hotspot_server_host', runtime_host) }}/api/hotspot/package.zip" mode=http dst-path=max-radius.zip</pre>
+                </div>
+            </div>
+
+            <!-- Right Column: Live Script Generator & Download Tools -->
+            <div class="lg:col-span-7 space-y-6">
+                <div class="bg-[#0b0f19] rounded-2xl border border-[#1c2840] p-5 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-[#162136] pb-3 flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <h3 class="text-sm font-black text-white">سكربت الميكروتك (RouterOS Script)</h3>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="copyScriptToClipboard()" class="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm cursor-pointer">
+                                <i class="fa-solid fa-copy"></i>
+                                <span id="copyBtnText">نسخ السكربت</span>
+                            </button>
+                            <a href="{{ url_for('download_hotspot_generator_script') }}" class="px-3.5 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-sm">
+                                <i class="fa-solid fa-download"></i>
+                                <span>تحميل .rsc</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Code Container -->
+                    <div class="relative">
+                        <pre id="scriptContentBox" dir="ltr" class="w-full text-left bg-[#050811] p-4 rounded-xl border border-[#162136] text-emerald-400 font-mono text-xs overflow-x-auto leading-relaxed max-h-[550px] select-all scrollbar-thin">{{ script_text }}</pre>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-cyan-200 flex items-center gap-2.5">
+                        <i class="fa-solid fa-shield-halved text-cyan-400 text-sm flex-shrink-0"></i>
+                        <span>يتضمن هذا السكربت قواعد الأمان، وحظر التحايل، وربط قوائم Walled Garden لخدمة بوابة المشتركين تلقائياً.</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+</div>
+
+<!-- Interactive JavaScript -->
+<script>
+    const runtimeDetectedHost = "{{ runtime_host }}";
+
+    // Sub-Tab Switcher
+    function switchMainTab(tabId) {
+        document.querySelectorAll('.main-tab-btn').forEach(btn => {
+            btn.classList.remove('active', 'bg-indigo-600/20', 'text-indigo-300', 'border-indigo-500/40', 'bg-cyan-600/20', 'text-cyan-300', 'border-cyan-500/40');
+            btn.classList.add('text-slate-400');
+        });
+
+        document.querySelectorAll('.tab-pane').forEach(pane => {
+            pane.classList.add('hidden');
+        });
+
+        const activeBtn = document.getElementById('tabBtn_' + tabId);
+        const activePane = document.getElementById('tabContent_' + tabId);
+
+        if (activeBtn && activePane) {
+            activeBtn.classList.remove('text-slate-400');
+            if (tabId === 'portal') {
+                activeBtn.classList.add('active', 'bg-indigo-600/20', 'text-indigo-300', 'border', 'border-indigo-500/40');
+            } else {
+                activeBtn.classList.add('active', 'bg-cyan-600/20', 'text-cyan-300', 'border', 'border-cyan-500/40');
+            }
+            activePane.classList.remove('hidden');
+            window.location.hash = tabId;
+        }
+    }
+
+    // Progressive Disclosure Toggles
+    function togglePortalMasterSwitch(isEnabled) {
+        const disabledNotice = document.getElementById('portalDisabledNotice');
+        const activeSettings = document.getElementById('portalActiveSettings');
+        if (isEnabled) {
+            if (disabledNotice) disabledNotice.classList.add('hidden');
+            if (activeSettings) activeSettings.classList.remove('hidden');
+        } else {
+            if (disabledNotice) disabledNotice.classList.remove('hidden');
+            if (activeSettings) activeSettings.classList.add('hidden');
+        }
+    }
+
+    function toggleLoanInputsVisibility(isEnabled) {
+        const el = document.getElementById('loanInputsGrid');
+        if (el) {
+            if (isEnabled) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        }
+    }
+
+    function toggleSpeedInputsVisibility(isEnabled) {
+        const el = document.getElementById('speedInputsGrid');
+        if (el) {
+            if (isEnabled) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        }
+    }
+
+    // Dynamic Speed Options Manager
+    let speedOptionsList = {{ speed_options|tojson if speed_options else '[]' }};
+
+    if (!Array.isArray(speedOptionsList) || speedOptionsList.length === 0) {
+        speedOptionsList = [
+            { id: 'eco', name: 'توفير البيانات', rate_down: '4M', rate_up: '4M', description: 'توفير واستهلاك اقتصادي', icon: 'fa-solid fa-leaf', badge: '4Mbps', color: 'emerald', is_open: false, is_default: false },
+            { id: 'balanced', name: 'سرعة متوازنة', rate_down: '10M', rate_up: '10M', description: 'يوتيوب وتصفح فائق HD', icon: 'fa-solid fa-play', badge: '10Mbps', color: 'sky', is_open: false, is_default: false },
+            { id: 'turbo', name: 'ألعاب وبث مباشر', rate_down: '25M', rate_up: '25M', description: 'بنج منخفض وأداء عالي', icon: 'fa-solid fa-gamepad', badge: '25Mbps', color: 'purple', is_open: false, is_default: false },
+            { id: 'open', name: 'سرعة مفتوحة', rate_down: '0', rate_up: '0', description: 'أقصى سرعة متاحة', icon: 'fa-solid fa-bolt-lightning', badge: 'أقصى سرعة', color: 'amber', is_open: true, is_default: true }
+        ];
+    }
+
+    function renderSpeedOptions() {
+        const container = document.getElementById('speedOptionsRepeater');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const colors = [
+            { id: 'emerald', label: 'أخضر (Emerald)', hex: '#10b981' },
+            { id: 'sky', label: 'أزرق (Sky)', hex: '#0ea5e9' },
+            { id: 'purple', label: 'بنفسجي (Purple)', hex: '#a855f7' },
+            { id: 'amber', label: 'برتقالي (Amber)', hex: '#f59e0b' },
+            { id: 'rose', label: 'أحمر (Rose)', hex: '#f43f5e' },
+            { id: 'indigo', label: 'نيلي (Indigo)', hex: '#6366f1' },
+            { id: 'cyan', label: 'سماوي (Cyan)', hex: '#06b6d4' }
+        ];
+
+        const hasDef = speedOptionsList.some(item => item.is_default);
+        if (!hasDef && speedOptionsList.length > 0) {
+            speedOptionsList[Math.min(1, speedOptionsList.length - 1)].is_default = true;
+        }
+
+        speedOptionsList.forEach((item, index) => {
+            const card = document.createElement('div');
+            const isZero = String(item.rate_down).trim() === '0' || item.is_open === true;
+            const colorObj = colors.find(c => c.id === (item.color || 'sky')) || colors[1];
+            const isDefault = item.is_default === true;
+
+            card.className = "bg-[#070b14] border rounded-2xl p-4 space-y-3 relative group shadow-sm transition";
+            card.style.borderColor = isDefault ? colorObj.hex : '#162136';
+
+            card.innerHTML = `
+                <div class="flex items-center justify-between border-b border-[#162136] pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-mono text-xs font-bold flex items-center justify-center border border-slate-700">
+                            ${index + 1}
+                        </span>
+                        <span class="text-xs font-black text-white flex items-center gap-1.5">
+                            <i class="${item.icon || 'fa-solid fa-bolt'} text-xs" style="color: ${colorObj.hex};"></i>
+                            <span>${item.name || 'سرعة ' + (index + 1)}</span>
+                        </span>
+                        ${isZero ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">مفتوح</span>' : ''}
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        ${isDefault ? `
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
+                                <i class="fa-solid fa-star text-[9px]"></i>
+                                <span>افتراضية</span>
+                            </span>
+                        ` : `
+                            <button type="button" onclick="setDefaultSpeedOption(${index})" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 hover:text-emerald-300 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1 cursor-pointer" title="تعيين كسرعة افتراضية">
+                                <i class="fa-regular fa-star text-[9px]"></i>
+                                <span>تعيين افتراضي</span>
+                            </button>
+                        `}
+                        <button type="button" onclick="removeSpeedOption(${index})" class="text-slate-500 hover:text-rose-400 p-1 transition cursor-pointer" title="حذف هذا الخيار">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5 text-xs">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">اسم السرعة:</label>
+                        <input type="text" value="${item.name || ''}" oninput="updateSpeedField(${index}, 'name', this.value)" placeholder="مثال: سرعة الألعاب"
+                               class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-bold focus:border-amber-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">الشارة (Badge):</label>
+                        <input type="text" value="${item.badge || ''}" oninput="updateSpeedField(${index}, 'badge', this.value)" placeholder="مثال: 4Mbps أو أقصى سرعة"
+                               class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-bold focus:border-amber-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">التحميل (Download):</label>
+                        <input type="text" value="${item.rate_down !== undefined ? item.rate_down : '10M'}" oninput="updateSpeedField(${index}, 'rate_down', this.value)" placeholder="مثال: 4M أو 10M أو 0"
+                               class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono font-bold focus:border-amber-500 outline-none">
+                        <span class="text-[9px] text-slate-500 block mt-0.5">0 = سرعة الباقة الأصلية</span>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">الرفع (Upload):</label>
+                        <input type="text" value="${item.rate_up !== undefined ? item.rate_up : '10M'}" oninput="updateSpeedField(${index}, 'rate_up', this.value)" placeholder="مثال: 4M أو 10M أو 0"
+                               class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono font-bold focus:border-amber-500 outline-none">
+                    </div>
+
+                    <div class="col-span-2">
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">الوصف المختصر:</label>
+                        <input type="text" value="${item.description || ''}" oninput="updateSpeedField(${index}, 'description', this.value)" placeholder="مثال: مناسب لتوفير الرصيد"
+                               class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white focus:border-amber-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">رمز الأيقونة (FontAwesome):</label>
+                        <input type="text" value="${item.icon || 'fa-solid fa-bolt'}" oninput="updateSpeedField(${index}, 'icon', this.value)" placeholder="fa-solid fa-gamepad"
+                               class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-mono focus:border-amber-500 outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">اللون المميز:</label>
+                        <select onchange="updateSpeedField(${index}, 'color', this.value)"
+                                class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white font-bold focus:border-amber-500 outline-none">
+                            ${colors.map(c => `<option value="${c.id}" ${item.color === c.id ? 'selected' : ''}>${c.label}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        syncSpeedOptionsToJson();
+    }
+
+    function setDefaultSpeedOption(index) {
+        speedOptionsList.forEach((item, i) => {
+            item.is_default = (i === index);
+        });
+        renderSpeedOptions();
+    }
+
+    function updateSpeedField(index, field, value) {
+        if (speedOptionsList[index]) {
+            speedOptionsList[index][field] = value;
+            if (field === 'rate_down') {
+                const valClean = String(value).trim();
+                if (valClean === '0' || valClean === '0M' || valClean === '0K' || valClean === '') {
+                    speedOptionsList[index].is_open = true;
+                    if (!speedOptionsList[index].rate_up || speedOptionsList[index].rate_up === '10M') {
+                        speedOptionsList[index].rate_up = '0';
+                    }
+                } else {
+                    speedOptionsList[index].is_open = false;
+                }
+            }
+            if (field === 'color') {
+                renderSpeedOptions();
+                return;
+            }
+            syncSpeedOptionsToJson();
+        }
+    }
+
+    function addNewSpeedOption() {
+        const newIdx = speedOptionsList.length + 1;
+        speedOptionsList.push({
+            id: 'speed_' + Date.now(),
+            name: 'سرعة مخصصة ' + newIdx,
+            rate_down: '15M',
+            rate_up: '15M',
+            description: 'أداء وتصفح سريع',
+            icon: 'fa-solid fa-gauge-high',
+            badge: '15Mbps',
+            color: 'sky',
+            is_open: false,
+            is_default: false
+        });
+        renderSpeedOptions();
+    }
+
+    function removeSpeedOption(index) {
+        if (speedOptionsList.length <= 1) {
+            alert('يجب الإبقاء على خيار سرعة واحد على الأقل!');
+            return;
+        }
+        const wasDefault = speedOptionsList[index].is_default;
+        speedOptionsList.splice(index, 1);
+        if (wasDefault && speedOptionsList.length > 0) {
+            speedOptionsList[0].is_default = true;
+        }
+        renderSpeedOptions();
+    }
+
+    function syncSpeedOptionsToJson() {
+        const input = document.getElementById('portal_speed_options_input');
+        if (input) {
+            input.value = JSON.stringify(speedOptionsList);
+        }
+    }
+
+    // Save Portal Settings via AJAX
+    async function savePortalSettings(e) {
+        e.preventDefault();
+        syncSpeedOptionsToJson();
+
+        const form = document.getElementById('portalConfigForm');
+        const formData = new FormData(form);
+        const payload = {};
+
+        // Boolean checkboxes handling
+        const checkboxKeys = [
+            'enable_user_portal', 'portal_allow_registration', 'portal_allow_package_change',
+            'portal_allow_password_change', 'portal_login_username_only', 'allow_data_loan',
+            'portal_enable_speed_selector', 'portal_show_pricing', 'portal_show_speedtest',
+            'portal_show_network_tab', 'portal_show_support_tab'
+        ];
+
+        checkboxKeys.forEach(k => {
+            payload[k] = form.elements[k] && form.elements[k].checked ? '1' : '0';
+        });
+
+        // Other text & json fields
+        for (let [key, val] of formData.entries()) {
+            if (!checkboxKeys.includes(key)) {
+                payload[key] = val;
+            }
+        }
+
+        const btn = document.getElementById('btnSavePortal');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>جاري الحفظ...</span>';
+
+        try {
+            const resp = await fetch('{{ url_for("api_hotspot_generator_save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                const statusSpan = document.getElementById('portalSaveStatus');
+                if (statusSpan) {
+                    statusSpan.classList.remove('hidden');
+                    setTimeout(() => statusSpan.classList.add('hidden'), 4000);
+                }
+            } else {
+                alert('فشل الحفظ: ' + (data.message || 'خطأ غير متوقع'));
+            }
+        } catch (err) {
+            console.error('Error saving portal settings:', err);
+            alert('حدث خطأ أثناء الاتصال بالسيرفر لحفظ الإعدادات.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    // Save Hotspot Settings & Update Live Script
+    async function saveHotspotSettings(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnSaveConfig');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>جاري التحديث...</span>';
+
+        const payload = {
+            total_download: document.getElementById('cfg_total_download').value,
+            total_upload: document.getElementById('cfg_total_upload').value,
+            server_host: document.getElementById('cfg_server_host').value,
+            folder_name: document.getElementById('cfg_folder_name').value
+        };
+
+        try {
+            const resp = await fetch('{{ url_for("api_hotspot_generator_save") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await resp.json();
+
+            if (data.success && data.script) {
+                document.getElementById('scriptContentBox').innerText = data.script;
+                // Update direct fetch command
+                const directFetch = `/tool fetch url="http://${payload.server_host}/api/hotspot/package.zip" mode=http dst-path=${payload.folder_name}.zip`;
+                document.getElementById('directFetchCmd').innerText = directFetch;
+            } else {
+                alert('فشل الحفظ: ' + (data.message || 'خطأ غير معروف'));
+            }
+        } catch (err) {
+            console.error('Error saving hotspot config:', err);
+            alert('حدث خطأ أثناء الاتصال بالسيرفر.');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    // Clipboard Helpers
+    function copyScriptToClipboard() {
+        const text = document.getElementById('scriptContentBox').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const copyBtnText = document.getElementById('copyBtnText');
+            const topCopyBtnText = document.getElementById('topCopyBtnText');
+            if (copyBtnText) copyBtnText.innerText = 'تم النسخ!';
+            if (topCopyBtnText) topCopyBtnText.innerText = 'تم النسخ!';
+            setTimeout(() => {
+                if (copyBtnText) copyBtnText.innerText = 'نسخ السكربت';
+                if (topCopyBtnText) topCopyBtnText.innerText = 'نسخ السكربت';
+            }, 2500);
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+        });
+    }
+
+    function copyDirectFetch() {
+        const text = document.getElementById('directFetchCmd').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const el = document.getElementById('fetchCopyText');
+            if (el) el.innerText = 'تم النسخ!';
+            setTimeout(() => {
+                if (el) el.innerText = 'نسخ الأمر';
+            }, 2500);
+        });
+    }
+
+    function setDetectedHost() {
+        if (runtimeDetectedHost) {
+            document.getElementById('cfg_server_host').value = runtimeDetectedHost;
+        }
+    }
+
+    function resetDefaults() {
+        if (confirm('هل أنت متأكد من استعادة القيم الافتراضية للسرعات ومجلد الهوتسبوت؟')) {
+            document.getElementById('cfg_total_download').value = '100M';
+            document.getElementById('cfg_total_upload').value = '50M';
+            document.getElementById('cfg_folder_name').value = 'max-radius';
+            if (runtimeDetectedHost) {
+                document.getElementById('cfg_server_host').value = runtimeDetectedHost;
+            }
+            document.getElementById('hotspotConfigForm').dispatchEvent(new Event('submit'));
+        }
+    }
+
+    // Initialize Page
+    document.addEventListener('DOMContentLoaded', () => {
+        renderSpeedOptions();
+        
+        // Handle hash navigation
+        const hash = window.location.hash.replace('#', '');
+        if (hash === 'hotspot') {
+            switchMainTab('hotspot');
+        } else {
+            switchMainTab('portal');
+        }
+    });
+</script>
+{% endblock %}

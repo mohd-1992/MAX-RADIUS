@@ -71,6 +71,7 @@ def create_app(config=None):
         if (
             path.startswith('/static') or
             path.startswith('/api/v1/license') or
+            path.startswith('/api/hotspot') or
             path == '/settings/license' or
             path == '/settings/license/activate' or
             path == '/settings/license/sync-heartbeat' or
@@ -100,13 +101,14 @@ def create_app(config=None):
     def check_authentication():
         public_endpoints = {
             'login', 'logout', 'static', 'api_coa_status', 'health_check',
-            'license_status_page', 'activate_license_action', 'sync_license_heartbeat_action'
+            'license_status_page', 'activate_license_action', 'sync_license_heartbeat_action',
+            'api_download_hotspot_package_zip'
         }
         
         ep = request.endpoint.split('.')[-1] if request.endpoint else ''
         if request.endpoint in public_endpoints or ep in public_endpoints:
             return None
-        if request.path.startswith('/static') or request.path.startswith('/user') or request.path in [
+        if request.path.startswith('/static') or request.path.startswith('/user') or request.path.startswith('/api/hotspot') or request.path in [
             '/login', '/logout', '/health', '/api/backup/health', '/favicon.ico',
             '/settings/license', '/settings/license/activate', '/settings/license/sync-heartbeat'
         ]:
