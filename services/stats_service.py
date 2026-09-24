@@ -7,12 +7,9 @@ import time
 import http.client
 import socket
 import json
-import logging
-import re
 from database.db import query_all, query_one
 from core.rate_limit import format_bytes
 
-logger = logging.getLogger('wisp.stats')
 
 class UnixHTTPConnection(http.client.HTTPConnection):
     def __init__(self, path):
@@ -66,8 +63,7 @@ _LAST_ACTIVATION_SYNC = 0
 from concurrent.futures import ThreadPoolExecutor
 
 
-def _fetch_single_container_stats(c_info):
-    cname, std_key, display_name = c_info
+def _fetch_single_container_stats(cname):
     conn = None
     try:
         conn = UnixHTTPConnection('/var/run/docker.sock')
@@ -88,8 +84,9 @@ def _fetch_single_container_stats(c_info):
             c_mem_bytes = mem_stats.get('usage', 0)
             c_limit_bytes = mem_stats.get('limit', 0)
 
+            display_name = 'FreeRADIUS Core' if 'core' in cname else ('MariaDB Database' if 'db' in cname else 'Web App')
             return {
-                'key': std_key,
+                'key': cname,
                 'name': display_name,
                 'cpu_percent': round(c_cpu, 1),
                 'mem_used_mb': round(c_mem_bytes / (1024 * 1024), 1),
@@ -115,45 +112,9 @@ def _collect_server_resources_internal():
     ram_total_gb = 8.0
     containers_info = {}
 
-    # Discover the exact 3 core containers: Web App, MariaDB Database, FreeRADIUS Core
-    target_tasks = []
-    found_types = set()
-    try:
-        conn = UnixHTTPConnection('/var/run/docker.sock')
-        conn.request('GET', '/containers/json')
-        resp = conn.getresponse()
-        if resp.status == 200:
-            c_list = json.loads(resp.read().decode())
-            for c in c_list:
-                for n in c.get('Names', []):
-                    clean_n = n.lstrip('/')
-                    cn_lower = clean_n.lower()
-                    if 'autoheal' in cn_lower:
-                        continue
-                    if ('web' in cn_lower or 'wisp' in cn_lower) and 'web' not in found_types:
-                        target_tasks.append((clean_n, 'max_radius_web', 'Web App'))
-                        found_types.add('web')
-                        break
-                    elif ('db' in cn_lower or 'mariadb' in cn_lower or 'mysql' in cn_lower) and 'db' not in found_types:
-                        target_tasks.append((clean_n, 'max_radius_db', 'MariaDB Database'))
-                        found_types.add('db')
-                        break
-                    elif ('core' in cn_lower or 'freeradius' in cn_lower) and 'core' not in found_types:
-                        target_tasks.append((clean_n, 'max_radius_core', 'FreeRADIUS Core'))
-                        found_types.add('core')
-                        break
-        conn.close()
-    except Exception:
-        pass
+    target_containers = ['max_radius_core', 'max_radius_db', 'max_radius_web']
 
-    if not target_tasks:
-        target_tasks = [
-            ('max_radius_web', 'max_radius_web', 'Web App'),
-            ('max_radius_db', 'max_radius_db', 'MariaDB Database'),
-            ('max_radius_core', 'max_radius_core', 'FreeRADIUS Core')
-        ]
-
-    # Query metrics via parallel threads
+    # 1. Direct Docker Socket Query for exact container metrics via parallel threads
     try:
         if os.path.exists('/var/run/docker.sock'):
             total_container_cpu = 0.0
@@ -161,14 +122,10 @@ def _collect_server_resources_internal():
             container_mem_limit = 0
 
             with ThreadPoolExecutor(max_workers=3) as executor:
-                results = list(executor.map(_fetch_single_container_stats, target_tasks))
+                results = list(executor.map(_fetch_single_container_stats, target_containers))
 
-            # Maintain strict order: Web App, MariaDB Database, FreeRADIUS Core
-            desired_order = ['max_radius_web', 'max_radius_db', 'max_radius_core']
-            res_dict = {r['key']: r for r in results if r}
-            for k in desired_order:
-                if k in res_dict:
-                    r = res_dict[k]
+            for r in results:
+                if r:
                     containers_info[r['key']] = {
                         'name': r['name'],
                         'cpu_percent': r['cpu_percent'],
@@ -187,7 +144,7 @@ def _collect_server_resources_internal():
     except Exception:
         pass
 
-    # 2. Linux /proc and cgroup fallback
+    # 2. Linux /proc and cgroup fallback if Docker socket didn't return data
     if not containers_info and os.path.exists('/proc/meminfo'):
         try:
             with open('/proc/meminfo', 'r') as f:
@@ -244,7 +201,8 @@ def _collect_db_metrics_internal():
     sub_count = query_one('SELECT COUNT(*) as total FROM wisp_subscribers')
     total_subs = sub_count['total'] if sub_count else 0
     
-    active_sessions = query_one('''
+    # 0. Total Active Sessions across all interfaces (Hotspot + PPPoE) matching MikroTik Active
+    active_sessions_q = query_one('''
         SELECT COUNT(*) as total 
         FROM radacct 
         WHERE acctstoptime IS NULL
@@ -254,7 +212,7 @@ def _collect_db_metrics_internal():
             (acctupdatetime IS NULL AND acctstarttime >= ?)
           )
     ''', (cutoff_str, cutoff_str))
-    active_count = active_sessions['total'] if active_sessions else 0
+    total_active_sessions = active_sessions_q['total'] if active_sessions_q else 0
     
     # 1. Total Card Subscribers (All activated vouchers: expired and non-expired)
     tot_act_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE first_used_at IS NOT NULL OR status IN ('active', 'used', 'expired')")
@@ -265,8 +223,11 @@ def _collect_db_metrics_internal():
     active_subscribers = act_valid_q['c'] if act_valid_q else 0
 
     # 3. Online Live Vouchers & Subscribers via Index with Heartbeat
-    online_sub_q = query_one("""
-        SELECT COUNT(DISTINCT a.username) as c
+    # Broadband / PPPoE
+    online_sub_q = query_one('''
+        SELECT 
+            COUNT(DISTINCT a.username) as unique_users,
+            COUNT(a.radacctid) as total_devices
         FROM radacct a
         INNER JOIN wisp_subscribers s ON a.username = s.username
         WHERE a.acctstoptime IS NULL
@@ -275,11 +236,15 @@ def _collect_db_metrics_internal():
             OR
             (a.acctupdatetime IS NULL AND a.acctstarttime >= ?)
           )
-    """, (cutoff_str, cutoff_str))
-    online_subscribers = online_sub_q['c'] if online_sub_q else 0
+    ''', (cutoff_str, cutoff_str))
+    online_subscribers = online_sub_q['unique_users'] if online_sub_q else 0
+    online_subscriber_devices = online_sub_q['total_devices'] if online_sub_q else 0
     
-    online_vch_q = query_one("""
-        SELECT COUNT(DISTINCT a.username) as c
+    # Hotspot Vouchers
+    online_vch_q = query_one('''
+        SELECT 
+            COUNT(DISTINCT a.username) as unique_cards,
+            COUNT(a.radacctid) as total_devices
         FROM radacct a
         INNER JOIN wisp_vouchers v ON a.username = v.username
         WHERE a.acctstoptime IS NULL
@@ -288,17 +253,21 @@ def _collect_db_metrics_internal():
             OR
             (a.acctupdatetime IS NULL AND a.acctstarttime >= ?)
           )
-    """, (cutoff_str, cutoff_str))
-    online_vouchers = online_vch_q['c'] if online_vch_q else 0
-    active_count = online_subscribers + online_vouchers
+    ''', (cutoff_str, cutoff_str))
+    online_vouchers_cards = online_vch_q['unique_cards'] if online_vch_q else 0
+    online_vouchers_devices = online_vch_q['total_devices'] if online_vch_q else 0
+
+    # Total Connected Devices / Active Sessions
+    total_connected_devices = max(total_active_sessions, online_subscriber_devices + online_vouchers_devices)
+    total_unique_online = online_subscribers + online_vouchers_cards
 
     # 4. Expired Card Subscribers (Quota or Time exhausted)
-    exp_q = query_one("""
+    exp_q = query_one('''
         SELECT COUNT(*) as c
         FROM wisp_vouchers
         WHERE status = 'expired'
            OR (expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP)
-    """)
+    ''')
     expired_vouchers = exp_q['c'] if exp_q else 0
 
     # Available Vouchers (Inventory)
@@ -327,13 +296,15 @@ def _collect_db_metrics_internal():
     voucher_summary = {
         'total_card_subscribers': total_card_subscribers,
         'active_subscribers': active_subscribers,
-        'online_subscribers': online_vouchers,
+        'online_subscribers': online_vouchers_cards,
+        'online_devices': online_vouchers_devices,
+        'online': online_vouchers_devices,
+        'online_cards': online_vouchers_cards,
         'expired_subscribers': expired_vouchers,
         'disabled_subscribers': disabled_vouchers,
         'recharged_subscribers': recharged_vouchers,
         'available': available_vouchers,
         'activated': total_card_subscribers,
-        'online': online_vouchers,
         'expired': expired_vouchers,
         'disabled': disabled_vouchers,
         'recharged': recharged_vouchers,
@@ -343,20 +314,22 @@ def _collect_db_metrics_internal():
     nas_devices = query_one('SELECT COUNT(*) as total FROM wisp_nas_devices')
     total_nas = nas_devices['total'] if nas_devices else 0
     
-    traffic = query_one("""
+    traffic = query_one('''
         SELECT COALESCE(SUM(a.acctinputoctets), 0) as total_in,
                COALESCE(SUM(a.acctoutputoctets), 0) as total_out
         FROM radacct a
         WHERE a.username IN (SELECT username FROM wisp_subscribers)
            OR a.username IN (SELECT username FROM wisp_vouchers)
-    """)
+    ''')
     raw_in = traffic['total_in'] or 0 if traffic else 0
     raw_out = traffic['total_out'] or 0 if traffic else 0
 
     return {
         'total_subscribers': total_subs,
         'online_subscribers': online_subscribers,
-        'active_sessions': active_count,
+        'online_subscriber_devices': online_subscriber_devices,
+        'active_sessions': total_connected_devices,
+        'total_unique_online': total_unique_online,
         'vouchers': v_stats,
         'voucher_summary': voucher_summary,
         'total_nas': total_nas,
