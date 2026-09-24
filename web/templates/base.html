@@ -1653,6 +1653,18 @@
                     </div>
                 </a>
 
+                <!-- 7.1 بوت وخدمات الواتساب الذكية (WhatsApp Bot) -->
+                {% set wa_active = request.endpoint in ['whatsapp_dashboard', 'whatsapp_templates_page', 'whatsapp_broadcast_page', 'whatsapp_logs_page', 'whatsapp_simulator_page'] %}
+                <a href="{{ url_for('whatsapp_dashboard') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if wa_active %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if wa_active %}bg-emerald-500 text-white{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
+                            <i class="fa-brands fa-whatsapp text-sm"></i>
+                        </div>
+                        <span>بوت وخدمات الواتساب</span>
+                    </div>
+                    <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">جديد</span>
+                </a>
+
                 <!-- 8. محرك الأتمتة والمهام (Automation) -->
                 <a href="{{ url_for('automation_rules_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'automation_rules_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">

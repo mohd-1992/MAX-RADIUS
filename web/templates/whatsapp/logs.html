@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}سجل رسائل الواتساب{% endblock %}
+{% block page_title %}سجل رسائل وعمليات الواتساب (WhatsApp Message Logs){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header Banner -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    <span>سجل رسائل وعمليات الواتساب</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    تتبع تفاصيل الرسائل الصادرة والواردة، الردود الآلية، وحالة التسليم بالملي ثانية
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 flex-wrap">
+            <button type="button" onclick="clearLogs()" class="px-3.5 py-2 bg-rose-600/10 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+                <span>مسح السجل</span>
+            </button>
+            <a href="{{ url_for('whatsapp_dashboard') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-arrow-right text-xs"></i>
+                <span>العودة للوحة الواتساب</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 shadow-sm">
+        <form method="GET" action="{{ url_for('whatsapp_logs_page') }}" class="flex flex-wrap items-center gap-3">
+            
+            <div class="flex items-center gap-2">
+                <label class="text-xs font-bold text-slate-400">الحالة:</label>
+                <select name="status" class="px-3 py-1.5 bg-[#070b14] border border-slate-700 rounded-xl text-xs text-white outline-none">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>جميع الحالات</option>
+                    <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>ناجحة (Sent / Delivered)</option>
+                    <option value="received" {% if status_filter == 'received' %}selected{% endif %}>واردة (Received)</option>
+                    <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>فاشلة (Failed)</option>
+                </select>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <label class="text-xs font-bold text-slate-400">رقم الهاتف:</label>
+                <input type="text" name="phone" value="{{ phone_filter or '' }}" placeholder="بحث بالرقم..." class="px-3 py-1.5 bg-[#070b14] border border-slate-700 rounded-xl text-xs text-white outline-none font-mono">
+            </div>
+
+            <button type="submit" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                <span>تصفية</span>
+            </button>
+
+            {% if status_filter != 'all' or phone_filter %}
+            <a href="{{ url_for('whatsapp_logs_page') }}" class="px-3 py-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition">
+                إلغاء الفلتر
+            </a>
+            {% endif %}
+
+        </form>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead>
+                    <tr class="text-slate-400 border-b border-slate-800">
+                        <th class="py-2.5 px-3">#</th>
+                        <th class="py-2.5 px-3">الاتجاه</th>
+                        <th class="py-2.5 px-3">رقم الهاتف</th>
+                        <th class="py-2.5 px-3">نوع الحدث</th>
+                        <th class="py-2.5 px-3">نص الرسالة</th>
+                        <th class="py-2.5 px-3">الحالة</th>
+                        <th class="py-2.5 px-3">الوقت</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                    {% for l in logs %}
+                    <tr class="hover:bg-slate-800/30 transition">
+                        <td class="py-2.5 px-3 text-slate-500 font-mono text-[11px]">{{ l.id }}</td>
+                        <td class="py-2.5 px-3">
+                            {% if l.direction == 'in' %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                                <i class="fa-solid fa-arrow-down-left"></i> واردة
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                                <i class="fa-solid fa-arrow-up-right"></i> صادرة
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-3 font-mono font-bold text-white">{{ l.phone_number }}</td>
+                        <td class="py-2.5 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
+                                {{ l.event_type }}
+                            </span>
+                        </td>
+                        <td class="py-2.5 px-3 max-w-md text-slate-300 whitespace-pre-wrap select-all font-mono leading-relaxed" style="word-break: break-word;">{{ l.message_body }}</td>
+                        <td class="py-2.5 px-3">
+                            {% if l.status in ('sent', 'delivered') %}
+                            <span class="text-emerald-400 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-circle-check text-[10px]"></i> ناجحة
+                            </span>
+                            {% elif l.status == 'received' %}
+                            <span class="text-purple-400 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-inbox text-[10px]"></i> تم الاستلام
+                            </span>
+                            {% else %}
+                            <span class="text-rose-400 font-bold flex items-center gap-1" title="{{ l.error_message }}">
+                                <i class="fa-solid fa-circle-xmark text-[10px]"></i> فشلت
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-3 text-slate-500 font-mono text-[11px] whitespace-nowrap">{{ l.created_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="py-8 text-center text-slate-500">لا توجد رسائل مطابقة لخيارات البحث.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- SweetAlert2 Vendor -->
+<script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
+
+<script>
+function clearLogs() {
+    Swal.fire({
+        title: 'تأكيد مسح السجل',
+        text: 'هل أنت متأكد من رغبتك في مسح كافة سجلات الرسائل؟ لا يمكن التراجع عن هذا الإجراء.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e11d48',
+        cancelButtonColor: '#334155',
+        confirmButtonText: 'نعم، امسح السجل',
+        cancelButtonText: 'إلغاء',
+        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+    }).then(res => {
+        if (res.isConfirmed) {
+            fetch('{{ url_for("api_whatsapp_clear_logs") }}', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: 'تم المسح',
+                        text: data.message,
+                        icon: 'success',
+                        timer: 1200,
+                        showConfirmButton: false,
+                        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+                    }).then(() => location.reload());
+                }
+            });
+        }
+    });
+}
+</script>
+{% endblock %}

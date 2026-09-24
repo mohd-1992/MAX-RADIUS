@@ -237,17 +237,17 @@ def create_app(config=None):
 
     app.url_build_error_handlers.append(handle_blueprint_url_build_error)
 
-    # 7. Register all 10 Blueprints
+    # 7. Register all 11 Blueprints
     from web.routes import (
         auth_bp, dashboard_bp, vouchers_bp, subscribers_bp,
         packages_bp, resellers_bp, nas_bp, accounting_bp,
-        system_bp, portal_bp
+        system_bp, portal_bp, whatsapp_bp
     )
 
     for bp in [
         auth_bp, dashboard_bp, vouchers_bp, subscribers_bp,
         packages_bp, resellers_bp, nas_bp, accounting_bp,
-        system_bp, portal_bp
+        system_bp, portal_bp, whatsapp_bp
     ]:
         app.register_blueprint(bp)
 

@@ -13,6 +13,7 @@ from web.routes.nas import nas_bp
 from web.routes.accounting import accounting_bp
 from web.routes.system import system_bp
 from web.routes.portal import portal_bp
+from web.routes.whatsapp import whatsapp_bp
 
 __all__ = [
     'auth_bp',
@@ -24,5 +25,6 @@ __all__ = [
     'nas_bp',
     'accounting_bp',
     'system_bp',
-    'portal_bp'
+    'portal_bp',
+    'whatsapp_bp'
 ]

@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}محاكي محادثات الواتساب التفاعلي{% endblock %}
+{% block page_title %}محاكي وتجربة بوت الواتساب (WhatsApp Bot Live Simulator){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header Banner -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                <i class="fa-solid fa-comments"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    <span>محاكي محادثات بوت الواتساب المباشر</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Live Sandbox
+                    </span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    تجربة فورية وتفاعلية لجميع ردود وأوامر البوت الذكي، فحص الكروت، والشحن في بيئة تحاكي تطبيق الواتساب
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('whatsapp_dashboard') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-arrow-right text-xs"></i>
+                <span>العودة للوحة الواتساب</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- 2-Column Grid: Simulator Phone & Quick Shortcuts -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left 2 Cols: WhatsApp Phone Mockup -->
+        <div class="lg:col-span-2 flex justify-center">
+            
+            <div class="w-full max-w-md bg-[#111b21] rounded-3xl border-4 border-[#222e35] shadow-2xl overflow-hidden flex flex-col h-[650px] relative">
+                
+                <!-- Phone Header -->
+                <div class="bg-[#202c33] px-4 py-3 flex items-center justify-between border-b border-[#2a3942] z-10">
+                    <div class="flex items-center gap-3">
+                        <div class="relative">
+                            <div class="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white text-lg font-bold shadow-sm">
+                                <i class="fa-solid fa-robot"></i>
+                            </div>
+                            <span class="w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#202c33] absolute bottom-0 right-0"></span>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-white leading-tight">{{ app_name }} Support Bot</h3>
+                            <p class="text-[10px] text-emerald-400 font-semibold">متصل الآن (Online)</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 text-slate-400 text-sm">
+                        <i class="fa-solid fa-phone cursor-pointer hover:text-white transition"></i>
+                        <i class="fa-solid fa-ellipsis-vertical cursor-pointer hover:text-white transition"></i>
+                    </div>
+                </div>
+
+                <!-- Chat Messages Scroll Container -->
+                <div id="chatMessages" class="flex-1 p-4 overflow-y-auto space-y-3 bg-[#0b141a] bg-opacity-95" style="background-image: radial-gradient(#202c33 1px, transparent 1px); background-size: 16px 16px;">
+                    
+                    <!-- Bot Initial Welcome Bubble -->
+                    <div class="flex items-start gap-2 justify-start animate-fade-in">
+                        <div class="bg-[#202c33] text-slate-200 rounded-2xl rounded-tr-xs p-3.5 max-w-[85%] text-xs shadow-md border border-[#2a3942] space-y-1">
+                            <div class="whitespace-pre-wrap leading-relaxed">👋 أهلاً بك في المساعد الآلي لشبكة *{{ app_name }}*!
+
+أرسل:
+1️⃣ *الاستعلام عن الرصيد والصلاحية*
+2️⃣ *شحن رصيد بكارت جديد*
+3️⃣ *عرض الباقات والأسعار*
+4️⃣ *الدعم الفني المباشر*</div>
+                            <div class="text-[9px] text-slate-400 text-left pt-1">09:00 ص</div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Chat Input Bar -->
+                <div class="bg-[#202c33] p-2.5 border-t border-[#2a3942] flex items-center gap-2">
+                    <button type="button" class="text-slate-400 hover:text-white px-2 transition"><i class="fa-regular fa-face-smile text-lg"></i></button>
+                    <input type="text" id="chatInput" placeholder="اكتب رسالتك هنا (مثلاً: 1 أو كود كارت)..." onkeydown="handleChatKey(event)"
+                           class="flex-1 bg-[#2a3942] text-white placeholder-slate-400 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:ring-1 focus:ring-emerald-500">
+                    <button type="button" onclick="sendSimulatedMessage()" id="btnSendChat"
+                            class="w-10 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center text-sm shadow-md transition shrink-0 cursor-pointer">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Right 1 Col: Quick Shortcut Buttons & Sample Vouchers -->
+        <div class="space-y-4">
+            
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3.5">
+                <div class="flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                    <i class="fa-solid fa-bolt text-amber-400"></i>
+                    <h3 class="text-xs font-bold text-white">أوامر سريعة للتجربة الفورية:</h3>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" onclick="quickSendMessage('1')" class="p-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold text-right transition flex items-center justify-between">
+                        <span>1️⃣ الاستعلام</span>
+                        <i class="fa-solid fa-arrow-left text-slate-500 text-[10px]"></i>
+                    </button>
+                    <button type="button" onclick="quickSendMessage('2')" class="p-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold text-right transition flex items-center justify-between">
+                        <span>2️⃣ شحن كارت</span>
+                        <i class="fa-solid fa-arrow-left text-slate-500 text-[10px]"></i>
+                    </button>
+                    <button type="button" onclick="quickSendMessage('3')" class="p-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold text-right transition flex items-center justify-between">
+                        <span>3️⃣ الباقات</span>
+                        <i class="fa-solid fa-arrow-left text-slate-500 text-[10px]"></i>
+                    </button>
+                    <button type="button" onclick="quickSendMessage('4')" class="p-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold text-right transition flex items-center justify-between">
+                        <span>4️⃣ الدعم</span>
+                        <i class="fa-solid fa-arrow-left text-slate-500 text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sample Vouchers for Instant Testing -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-2.5">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-ticket text-indigo-400"></i>
+                        <h3 class="text-xs font-bold text-white">كروت جاهزة للاختبار من قاعدة بياناتك:</h3>
+                    </div>
+                </div>
+
+                <div class="space-y-2 text-xs">
+                    {% for v in sample_vouchers %}
+                    <div onclick="quickSendMessage('{{ v.username }}')" class="p-2.5 bg-[#070b14] hover:bg-slate-800 rounded-xl border border-slate-800 cursor-pointer flex items-center justify-between transition group">
+                        <div>
+                            <span class="font-mono font-bold text-white group-hover:text-emerald-400">{{ v.username }}</span>
+                            <span class="text-[10px] text-slate-400 block">PIN: {{ v.pin_code or '-' }}</span>
+                        </div>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold {% if v.status == 'unused' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% elif v.status == 'active' %}bg-blue-500/10 text-blue-400 border border-blue-500/20{% else %}bg-slate-800 text-slate-400{% endif %}">
+                            {{ v.status }}
+                        </span>
+                    </div>
+                    {% else %}
+                    <p class="text-[11px] text-slate-500">لا توجد كروت مولدة بعد. يمكنك تجربة كتابة أي نص.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 shadow-sm text-xs text-slate-400 space-y-2">
+                <span class="text-white font-bold block flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-info text-blue-400"></i>
+                    <span>ملاحظة تقنية:</span>
+                </span>
+                <p>هذا المحاكي يتصل مباشرة بمحرك بوت الواتساب (`services.whatsapp_service`) ويعالج الأوامر اللحظية بنفس طريقة استجابة تطبيق الواتساب الفعلي 100%.</p>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+function handleChatKey(e) {
+    if (e.key === 'Enter') {
+        sendSimulatedMessage();
+    }
+}
+
+function quickSendMessage(text) {
+    document.getElementById('chatInput').value = text;
+    sendSimulatedMessage();
+}
+
+function sendSimulatedMessage() {
+    const input = document.getElementById('chatInput');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    input.value = '';
+    const chatContainer = document.getElementById('chatMessages');
+
+    const now = new Date();
+    const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
+    // Add User Bubble (Outgoing)
+    const userBubble = document.createElement('div');
+    userBubble.className = 'flex items-start gap-2 justify-end animate-fade-in';
+    userBubble.innerHTML = `
+        <div class="bg-[#005c4b] text-white rounded-2xl rounded-tl-xs p-3 max-w-[85%] text-xs shadow-md border border-[#02735e] space-y-1">
+            <div class="whitespace-pre-wrap leading-relaxed">${escapeHtml(msg)}</div>
+            <div class="text-[9px] text-emerald-200 text-left pt-1 flex items-center justify-end gap-1">
+                <span>${timeStr}</span>
+                <i class="fa-solid fa-check-double text-[8px] text-cyan-300"></i>
+            </div>
+        </div>
+    `;
+    chatContainer.appendChild(userBubble);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    // Send to API
+    fetch('{{ url_for("api_whatsapp_simulate_chat") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: '967777000000', message: msg, sender_name: 'مدير النظام' })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.reply) {
+            setTimeout(() => {
+                const botBubble = document.createElement('div');
+                botBubble.className = 'flex items-start gap-2 justify-start animate-fade-in';
+                botBubble.innerHTML = `
+                    <div class="bg-[#202c33] text-slate-200 rounded-2xl rounded-tr-xs p-3.5 max-w-[85%] text-xs shadow-md border border-[#2a3942] space-y-1">
+                        <div class="whitespace-pre-wrap leading-relaxed select-all">${formatWhatsAppText(data.reply)}</div>
+                        <div class="text-[9px] text-slate-400 text-left pt-1">${data.timestamp || timeStr}</div>
+                    </div>
+                `;
+                chatContainer.appendChild(botBubble);
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }, 300);
+        }
+    })
+    .catch(err => {
+        console.error("Chat error:", err);
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.innerText = text;
+    return div.innerHTML;
+}
+
+function formatWhatsAppText(text) {
+    let formatted = escapeHtml(text);
+    // Bold: *text*
+    formatted = formatted.replace(/\*([^\*]+)\*/g, '<b class="text-white font-bold">$1</b>');
+    // Italic: _text_
+    formatted = formatted.replace(/_([^_]+)_/g, '<i class="text-slate-300">$1</i>');
+    // Code block: `text`
+    formatted = formatted.replace(/`([^`]+)`/g, '<code class="bg-slate-900 text-emerald-400 px-1 py-0.5 rounded font-mono text-[11px]">$1</code>');
+    return formatted;
+}
+</script>
+{% endblock %}

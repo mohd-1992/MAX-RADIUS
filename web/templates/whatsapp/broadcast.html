@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}حملات الإرسال الجماعي بالواتساب{% endblock %}
+{% block page_title %}إرسال رسائل جماعية للمشتركين والوكلاء (Broadcast Campaigns){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header Banner -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                <i class="fa-solid fa-bullhorn"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    <span>حملات الإرسال الجماعي (Broadcast)</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    إرسال تنبيهات الصيانة، عروض الباقات الجديدة، والرسائل التوعوية لجميع المشتركين أو الوكلاء دفعة واحدة
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('whatsapp_dashboard') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-arrow-right text-xs"></i>
+                <span>العودة للوحة الواتساب</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Grid: Form & Audience Stats -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Form 2 Cols -->
+        <div class="lg:col-span-2 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-pen-nib text-amber-400"></i>
+                    <span>إنشاء حملة رسائل جديدة</span>
+                </h3>
+            </div>
+
+            <form id="broadcastForm" onsubmit="submitBroadcast(event)" class="space-y-4">
+                
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-300">الجمهور المستهدف:</label>
+                    <select id="targetAudience" name="audience" onchange="toggleAudienceOptions()" class="w-full px-3 py-2.5 bg-[#070b14] border border-slate-700 rounded-xl text-xs text-white focus:border-amber-500 outline-none">
+                        <option value="all_subscribers">جميع المشتركين المسجلة أرقامهم ({{ subscribers_count }} مشترك)</option>
+                        <option value="active_subscribers">المشتركون النشطون حالياً فقط</option>
+                        <option value="resellers">جميع الوكلاء والموزعين ({{ resellers|length }} وكيل)</option>
+                    </select>
+                </div>
+
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-300">نص الرسالة الجماعية:</label>
+                    <textarea id="broadcastMessage" name="message_text" rows="6" required placeholder="اكتب نص الرسالة هنا..." class="w-full p-3 bg-[#070b14] border border-slate-700 rounded-xl text-xs text-white focus:border-amber-500 outline-none leading-relaxed"></textarea>
+                    <p class="text-[11px] text-slate-400">💡 يمكنك استخدام تنسيقات الواتساب القياسية (*غامق*، _مائل_).</p>
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" id="btnBroadcast" class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30 cursor-pointer">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>بدء إرسال الحملة الآن (Launch Campaign)</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Audience Info 1 Col -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5 flex flex-col justify-between">
+            <div class="space-y-4">
+                <div class="flex items-center gap-2 border-b border-[#1c2840] pb-3">
+                    <i class="fa-solid fa-users-viewfinder text-indigo-400 text-base"></i>
+                    <h3 class="text-sm font-bold text-white">إرشادات وضوابط الإرسال</h3>
+                </div>
+
+                <div class="space-y-3 text-xs text-slate-300">
+                    <div class="flex items-start gap-2.5 p-3 bg-[#070b14] rounded-xl border border-slate-800">
+                        <i class="fa-solid fa-shield-halved text-emerald-400 text-sm mt-0.5 shrink-0"></i>
+                        <div>
+                            <span class="font-bold text-white block">حماية من الحظر (Anti-Spam)</span>
+                            <span class="text-[11px] text-slate-400">يقوم النظام بتأخير فاصل زمني (0.5 ثانية) تلقائياً بين كل رسالة وأخرى لتجنب حظر الرقم.</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start gap-2.5 p-3 bg-[#070b14] rounded-xl border border-slate-800">
+                        <i class="fa-solid fa-bolt text-amber-400 text-sm mt-0.5 shrink-0"></i>
+                        <div>
+                            <span class="font-bold text-white block">معالجة في الخلفية</span>
+                            <span class="text-[11px] text-slate-400">يتم تشغيل الحملة في الخلفية، بحيث يمكنك إغلاق الصفحة ومتابعة عملك دون انقطاع الإرسال.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center">
+                <span class="text-xs text-amber-300 font-bold block">جاهز للإرسال الفوري</span>
+                <span class="text-[10px] text-slate-400">تأكد من صياغة الرسالة بدقة قبل الإطلاق</span>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- SweetAlert2 Vendor -->
+<script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
+
+<script>
+function toggleAudienceOptions() {
+    // optional logic
+}
+
+function submitBroadcast(e) {
+    e.preventDefault();
+    const audience = document.getElementById('targetAudience').value;
+    const msg = document.getElementById('broadcastMessage').value.trim();
+    if (!msg) return;
+
+    Swal.fire({
+        title: 'تأكيد إطلاق الحملة',
+        text: 'هل أنت متأكد من رغبتك في إرسال هذه الرسالة إلى كافة الأرقام في الجمهور المحدد؟',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#d97706',
+        cancelButtonColor: '#334155',
+        confirmButtonText: 'نعم، أرسل الآن 🚀',
+        cancelButtonText: 'إلغاء',
+        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+    }).then(res => {
+        if (res.isConfirmed) {
+            const btn = document.getElementById('btnBroadcast');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>جاري الإرسال...</span>';
+
+            fetch('{{ url_for("api_whatsapp_send_broadcast") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ audience: audience, message_text: msg })
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>بدء إرسال الحملة الآن (Launch Campaign)</span>';
+                if (data.success) {
+                    Swal.fire({
+                        title: 'تم الإطلاق بنجاح! 🎉',
+                        text: data.message,
+                        icon: 'success',
+                        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+                    });
+                } else {
+                    Swal.fire('تنبيه', data.message || 'تعذر الإرسال', 'warning');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>بدء إرسال الحملة الآن (Launch Campaign)</span>';
+                Swal.fire('خطأ', err.message, 'error');
+            });
+        }
+    });
+}
+</script>
+{% endblock %}
