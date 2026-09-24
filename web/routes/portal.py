@@ -60,31 +60,297 @@ portal_bp = Blueprint('portal_bp', __name__)
 
 
 @portal_bp.route('/user', endpoint="user_dashboard")
-
 @portal_bp.route('/user/dashboard', endpoint="user_dashboard")
-
 def user_dashboard():
     username = session.get('portal_user')
     if not username:
         return redirect(url_for('user_login'))
     
+    settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
+    settings_dict = {r['key']: r['value'] for r in settings_rows} if settings_rows else {}
+    
     user_data = get_portal_user_data(username)
-    return render_template('user_portal/dashboard.html', user=user_data)
+    if not user_data:
+        session.pop('portal_user', None)
+        return redirect(url_for('user_login'))
+        
+    speed_options = get_portal_speed_options(settings_dict)
+
+    # Determine active speed option
+    active_speed_id = session.get('portal_selected_speed_id')
+    if not active_speed_id:
+        if user_data.get('is_open_speed'):
+            for sp in speed_options:
+                if sp.get('is_open'):
+                    active_speed_id = sp['id']
+                    break
+        else:
+            curr_down = str(user_data.get('rate_download') or '').strip().upper()
+            for sp in speed_options:
+                if not sp.get('is_open') and sp['rate_down'].upper().rstrip('M').rstrip('BPS') == curr_down.rstrip('M').rstrip('BPS'):
+                    active_speed_id = sp['id']
+                    break
+                    
+        if not active_speed_id and len(speed_options) > 1:
+            active_speed_id = speed_options[1]['id'] # default to balanced
+        elif not active_speed_id and len(speed_options) > 0:
+            active_speed_id = speed_options[0]['id']
+
+    loan_amount_mb = int(settings_dict.get('loan_amount_mb', '1024') if str(settings_dict.get('loan_amount_mb', '')).isdigit() else 1024)
+    loan_amount_str = format_mb_or_gb(loan_amount_mb)
+
+    return render_template(
+        'user_portal/dashboard.html',
+        user=user_data,
+        settings=settings_dict,
+        speed_options=speed_options,
+        active_speed_id=active_speed_id,
+        loan_amount_str=loan_amount_str
+    )
 
 
 @portal_bp.route('/user/login', methods=['GET'], endpoint="user_login")
-
 def user_login():
-    if session.get('portal_user'):
+    if session.get('portal_user') and not request.args.get('login_url') and not request.args.get('error') and not request.args.get('logged_out'):
         return redirect(url_for('user_dashboard'))
-    return render_template('user_portal/login.html')
+        
+    settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
+    settings_dict = {r['key']: r['value'] for r in settings_rows} if settings_rows else {}
+    
+    speed_options = get_portal_speed_options(settings_dict)
+
+    # Fetch active packages for pricing tab
+    packages = query_all('SELECT * FROM wisp_packages WHERE is_active = 1 AND show_in_portal = 1 ORDER BY price ASC')
+    if not packages:
+        packages = query_all('SELECT * FROM wisp_packages WHERE is_active = 1 ORDER BY price ASC LIMIT 6')
+        
+    # Capture & translate any Hotspot/FreeRADIUS errors
+    raw_error = request.args.get('error') or request.args.get('error-orig') or request.args.get('error_orig') or request.args.get('errmsg') or ''
+    portal_error = translate_portal_error(raw_error) if raw_error else ''
+
+    if request.args.get('logged_out') == '1':
+        portal_error = "✅ تم تسجيل الخروج بنجاح."
+
+    return render_template(
+        'user_portal/login.html',
+        settings=settings_dict,
+        portal_packages=packages,
+        speed_options=speed_options,
+        portal_error=portal_error,
+        prefill_username=request.args.get('username', '')
+    )
+
+
+@portal_bp.route('/user/logout', methods=['GET', 'POST'], endpoint="user_logout")
+def user_logout():
+    """
+    Dual-layer user logout:
+    1. Terminates session in RADIUS via CoA Disconnect.
+    2. Clears web portal session.
+    3. Redirects to MikroTik local logout URL if provided, or back to login page.
+    """
+    username = session.pop('portal_user', None)
+    session.pop('portal_type', None)
+
+    if username:
+        try:
+            from services.quick_action_service import action_disconnect_user
+            action_disconnect_user(username)
+        except Exception as e:
+            logger.warning("Error disconnecting user on logout: %s", e)
+
+    mikrotik_logout = request.args.get('link_logout') or request.args.get('logoutlink') or request.form.get('link_logout')
+    if mikrotik_logout:
+        return redirect(mikrotik_logout)
+
+    return redirect(url_for('user_login', logged_out=1))
+
+
+@portal_bp.route('/user/api/session_status', methods=['GET'], endpoint="api_portal_session_status")
+def api_portal_session_status():
+    """
+    Lightweight heartbeat check for subscriber dashboard.
+    Returns whether the current user is active, data quota remaining, and uptime.
+    """
+    username = session.get('portal_user')
+    if not username:
+        return jsonify({'active': False, 'reason': 'unauthenticated'}), 401
+
+    user_data = get_portal_user_data(username)
+    if not user_data:
+        return jsonify({'active': False, 'reason': 'user_not_found'})
+
+    is_expired = user_data.get('is_expired', False)
+    is_quota_depleted = user_data.get('is_quota_depleted', False)
+    
+    return jsonify({
+        'active': not (is_expired or is_quota_depleted),
+        'username': username,
+        'status': user_data.get('status_label', 'نشط'),
+        'remaining_mb': user_data.get('traffic_balance_mb', 0),
+        'remaining_time': user_data.get('time_left_str', ''),
+        'is_expired': is_expired,
+        'is_quota_depleted': is_quota_depleted
+    })
+
+
+@portal_bp.route('/user/api/login_session', methods=['POST'], endpoint="api_portal_login_session")
+def api_portal_login_session():
+    data = request.json if request.is_json else request.form.to_dict()
+    username = (data.get('username') or '').strip()
+    password = (data.get('password') or username).strip()
+    speed_profile = (data.get('speed_profile') or data.get('speed_id') or '').strip()
+    
+    user_obj, err = authenticate_portal_user(username, password)
+    if not err and user_obj:
+        session['portal_user'] = user_obj['username']
+        session['portal_type'] = user_obj['type']
+
+        settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
+        settings_dict = {r['key']: r['value'] for r in settings_rows} if settings_rows else {}
+        speed_options = get_portal_speed_options(settings_dict)
+
+        selected_speed = None
+        if speed_profile:
+            for sp in speed_options:
+                if sp['id'] == speed_profile or sp['rate_down'] == speed_profile or sp['name'] == speed_profile:
+                    selected_speed = sp
+                    break
+
+        if not selected_speed and speed_profile:
+            is_open = speed_profile in ['0', '0M', '0K', 0, 'open', 'unlimited']
+            selected_speed = {
+                'id': speed_profile if not is_open else 'open',
+                'name': 'سرعة مخصصة' if not is_open else 'سرعة مفتوحة',
+                'rate_down': speed_profile if not is_open else '0',
+                'rate_up': speed_profile if not is_open else '0',
+                'is_open': is_open
+            }
+
+        if selected_speed:
+            session['portal_selected_speed_id'] = selected_speed['id']
+            session['portal_selected_rate'] = selected_speed['rate_down']
+
+            is_open = selected_speed.get('is_open') or str(selected_speed['rate_down']).strip() in ['0', '0M', '0K', '']
+
+            execute_write("DELETE FROM radreply WHERE LOWER(username) = LOWER(?) AND attribute = 'MikroTik-Rate-Limit'", (user_obj['username'],))
+
+            if not is_open:
+                sp_down = selected_speed['rate_down'].upper()
+                if not (sp_down.endswith('M') or sp_down.endswith('K') or '/' in sp_down):
+                    sp_down = f"{sp_down}M"
+                sp_up = str(selected_speed.get('rate_up', sp_down)).upper()
+                if not (sp_up.endswith('M') or sp_up.endswith('K') or '/' in sp_up):
+                    sp_up = f"{sp_up}M"
+                rate_formatted = f"{sp_up}/{sp_down}" if '/' not in sp_down else sp_down
+                execute_write("INSERT INTO radreply (username, attribute, op, value) VALUES (?, 'MikroTik-Rate-Limit', ':=', ?)", (user_obj['username'], rate_formatted))
+
+        return jsonify({
+            'success': True,
+            'username': user_obj['username'],
+            'speed_id': session.get('portal_selected_speed_id')
+        })
+    return jsonify({'success': False, 'error': err or 'فشل التحقق'})
+
+
+@portal_bp.route('/user/api/change-speed', methods=['POST'], endpoint="api_user_change_speed")
+def api_user_change_speed():
+    username = session.get('portal_user')
+    data = request.json if request.is_json else request.form.to_dict()
+    if not username:
+        username = (data.get('username') or '').strip()
+
+    if not username:
+        return jsonify({'success': False, 'message': 'يرجى تسجيل الدخول أولاً'}), 401
+
+    speed_id = (data.get('speed_id') or data.get('speed') or '').strip()
+    rate_down = str(data.get('rate_down') or speed_id or '').strip()
+    rate_up = str(data.get('rate_up') or rate_down).strip()
+
+    settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
+    settings_dict = {r['key']: r['value'] for r in settings_rows} if settings_rows else {}
+    speed_options = get_portal_speed_options(settings_dict)
+
+    selected_speed = None
+    for sp in speed_options:
+        if sp['id'] == speed_id or sp['rate_down'] == rate_down:
+            selected_speed = sp
+            break
+
+    if not selected_speed:
+        is_open = rate_down in ['0', '0M', '0K', 0, 'open', 'unlimited'] or speed_id in ['0', 'open', 'unlimited']
+        selected_speed = {
+            'id': speed_id or ('open' if is_open else 'custom'),
+            'name': 'سرعة مفتوحة' if is_open else 'سرعة مخصصة',
+            'rate_down': rate_down if not is_open else '0',
+            'rate_up': rate_up if not is_open else '0',
+            'is_open': is_open
+        }
+
+    session['portal_selected_speed_id'] = selected_speed['id']
+    session['portal_selected_rate'] = selected_speed['rate_down']
+
+    is_open = selected_speed.get('is_open') or str(selected_speed['rate_down']).strip() in ['0', '0M', '0K', '']
+
+    # 1. Update FreeRADIUS radreply
+    execute_write("DELETE FROM radreply WHERE LOWER(username) = LOWER(?) AND attribute = 'MikroTik-Rate-Limit'", (username,))
+
+    if is_open:
+        rate_formatted = "0/0"
+        display_speed = "سرعة مفتوحة (أقصى سرعة)"
+    else:
+        sp_down = selected_speed['rate_down'].upper()
+        if not (sp_down.endswith('M') or sp_down.endswith('K') or '/' in sp_down):
+            sp_down = f"{sp_down}M"
+        sp_up = str(selected_speed.get('rate_up', sp_down)).upper()
+        if not (sp_up.endswith('M') or sp_up.endswith('K') or '/' in sp_up):
+            sp_up = f"{sp_up}M"
+        rate_formatted = f"{sp_up}/{sp_down}" if '/' not in sp_down else sp_down
+        display_speed = f"{sp_down}bps"
+        execute_write("INSERT INTO radreply (username, attribute, op, value) VALUES (?, 'MikroTik-Rate-Limit', ':=', ?)", (username, rate_formatted))
+
+    # 2. Live CoA update to Router
+    active_session = query_one("""
+        SELECT * FROM radacct 
+        WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL
+        ORDER BY radacctid DESC LIMIT 1
+    """, (username,))
+
+    coa_result = None
+    if active_session and active_session.get('nasipaddress'):
+        nas_ip = active_session['nasipaddress']
+        nas_row = query_one("SELECT secret, ports FROM nas WHERE nasname = ? OR nasname = '0.0.0.0/0' ORDER BY id ASC LIMIT 1", (nas_ip,))
+        nas_secret = nas_row['secret'] if nas_row else 'max123'
+        
+        try:
+            from core.coa import RadiusCoaClient
+            coa_client = RadiusCoaClient(nas_ip, nas_secret, port=3799, timeout=2.5)
+            coa_result = coa_client.modify_rate_limit(
+                username=active_session['username'],
+                framed_ip=active_session.get('framedipaddress'),
+                session_id=active_session.get('acctsessionid'),
+                mac_address=active_session.get('callingstationid'),
+                rate_limit=rate_formatted if not is_open else "0/0"
+            )
+        except Exception as e:
+            logger.warning(f"CoA speed change exception for {username}: {e}")
+
+    return jsonify({
+        'success': True,
+        'speed_id': selected_speed['id'],
+        'speed': display_speed,
+        'rate_formatted': rate_formatted,
+        'is_open': is_open,
+        'coa': coa_result,
+        'message': f'تم تفعيل {selected_speed["name"]} بنجاح وتحديثها لحظياً!'
+    })
 
 
 @portal_bp.route('/user/login', methods=['POST'], endpoint="user_login_action")
-
 def user_login_action():
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '').strip()
+    speed_profile = request.form.get('speed_profile', '').strip()
     
     user_obj, err = authenticate_portal_user(username, password)
     if err:
@@ -93,17 +359,47 @@ def user_login_action():
     
     session['portal_user'] = user_obj['username']
     session['portal_type'] = user_obj['type']
+
+    settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
+    settings_dict = {r['key']: r['value'] for r in settings_rows} if settings_rows else {}
+    speed_options = get_portal_speed_options(settings_dict)
+
+    selected_speed = None
+    if speed_profile:
+        for sp in speed_options:
+            if sp['id'] == speed_profile or sp['rate_down'] == speed_profile or sp['name'] == speed_profile:
+                selected_speed = sp
+                break
+
+    if not selected_speed and speed_profile:
+        is_open = speed_profile in ['0', '0M', '0K', 0, 'open', 'unlimited']
+        selected_speed = {
+            'id': speed_profile if not is_open else 'open',
+            'name': 'سرعة مخصصة' if not is_open else 'سرعة مفتوحة',
+            'rate_down': speed_profile if not is_open else '0',
+            'rate_up': speed_profile if not is_open else '0',
+            'is_open': is_open
+        }
+
+    if selected_speed:
+        session['portal_selected_speed_id'] = selected_speed['id']
+        session['portal_selected_rate'] = selected_speed['rate_down']
+
+        is_open = selected_speed.get('is_open') or str(selected_speed['rate_down']).strip() in ['0', '0M', '0K', '']
+        execute_write("DELETE FROM radreply WHERE LOWER(username) = LOWER(?) AND attribute = 'MikroTik-Rate-Limit'", (user_obj['username'],))
+
+        if not is_open:
+            sp_down = selected_speed['rate_down'].upper()
+            if not (sp_down.endswith('M') or sp_down.endswith('K') or '/' in sp_down):
+                sp_down = f"{sp_down}M"
+            sp_up = str(selected_speed.get('rate_up', sp_down)).upper()
+            if not (sp_up.endswith('M') or sp_up.endswith('K') or '/' in sp_up):
+                sp_up = f"{sp_up}M"
+            rate_formatted = f"{sp_up}/{sp_down}" if '/' not in sp_down else sp_down
+            execute_write("INSERT INTO radreply (username, attribute, op, value) VALUES (?, 'MikroTik-Rate-Limit', ':=', ?)", (user_obj['username'], rate_formatted))
+
     flash(f'مرحباً بك {user_obj["username"]}! تم تسجيل الدخول بنجاح.', 'success')
     return redirect(url_for('user_dashboard'))
-
-
-@portal_bp.route('/user/logout', endpoint="user_logout")
-
-def user_logout():
-    session.pop('portal_user', None)
-    session.pop('portal_type', None)
-    flash('تم تسجيل الخروج من حسابك بنجاح.', 'info')
-    return redirect(url_for('user_login'))
 
 
 @portal_bp.route('/user/register', methods=['GET'], endpoint="user_register")

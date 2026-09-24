@@ -122,6 +122,50 @@ def format_remaining_time(expires_at_val):
 
     return f"باقي {' و '.join(parts)}", total_seconds
 
+def translate_portal_error(raw_error):
+    """
+    Translates raw MikroTik Hotspot and FreeRADIUS error messages into friendly Arabic alerts.
+    Handles URL encodings, double escapes (+ and %), and translates all router/RADIUS error codes.
+    """
+    if not raw_error:
+        return ""
+    import urllib.parse
+    import re
+
+    err = str(raw_error).strip()
+    for _ in range(3):
+        try:
+            decoded = urllib.parse.unquote_plus(err)
+            if decoded == err:
+                break
+            err = decoded
+        except Exception:
+            break
+
+    err_normalized = err.lower().replace('+', ' ').replace('_', ' ').replace('-', ' ').strip()
+
+    if any(k in err_normalized for k in ["invalid username", "invalid password", "wrong password", "bad password", "authentication failed", "auth failed", "internal error"]):
+        return "رقم الكرت أو كلمة المرور غير صحيحة، يرجى التأكد وإعادة المحاولة."
+    if any(k in err_normalized for k in ["uptime limit", "uptime reached", "time limit", "time reached", "limit uptime"]):
+        return "عذراً، لقد انتهى الوقت المخصص لهذا الكرت (صلاحية الوقت منتهية)."
+    if any(k in err_normalized for k in ["traffic limit", "quota reached", "bytes limit", "transfer limit", "limit bytes", "data limit", "limit reached"]):
+        return "عذراً، لقد انتهى رصيد البيانات (الجيجابايت) المخصص لهذا الكرت."
+    if any(k in err_normalized for k in ["already logged in", "simultaneous", "session limit", "too many sessions", "active session"]):
+        return "هذا الكرت متصل حالياً من جهاز آخر (جلسة نشطة)."
+    if any(k in err_normalized for k in ["not responding", "radius timeout", "radius server", "timeout"]):
+        return "تعذر الاتصال بسيرفر المصادقة، يرجى المحاولة بعد قليل."
+    if any(k in err_normalized for k in ["user not found", "user does not exist", "no such user", "invalid user"]):
+        return "رقم الكرت غير مسجل بالنظام، تأكد من كتابة الأرقام بدقة."
+    if any(k in err_normalized for k in ["cannot log in", "disabled", "account suspended", "suspended"]):
+        return "هذا الحساب موقوف أو معلق من قبل إدارة الشبكة."
+    if any(k in err_normalized for k in ["mac cookie", "invalid mac", "mac address", "mac lock"]):
+        return "هذا الكرت مرتبط بجهاز آخر ولا يمكن استخدامه من هذا الجهاز."
+
+    if re.search(r'[\u0600-\u06FF]', err):
+        return err
+
+    return "تعذر تسجيل الدخول: يرجى التحقق من رقم الكرت والمحاولة مجدداً."
+
 def format_mb_or_gb(val_mb):
     """
     Formats megabytes dynamically:
@@ -150,6 +194,284 @@ def format_mb_or_gb(val_mb):
             return f"{int(val_float)} MB"
         else:
             return f"{val_float:.2f}".rstrip('0').rstrip('.') + " MB"
+
+COLOR_THEMES = {
+    'emerald': {
+        'hex': '#10b981',
+        'text': '#34d399',
+        'bg': 'rgba(16, 185, 129, 0.08)',
+        'border': 'rgba(16, 185, 129, 0.45)',
+        'active_bg': 'linear-gradient(135deg, #059669, #10b981)',
+        'active_border': '#34d399',
+        'active_text': '#ffffff',
+        'status_bg': 'rgba(16, 185, 129, 0.12)',
+        'status_border': 'rgba(16, 185, 129, 0.35)',
+        'status_text': '#34d399',
+        'badge_bg': 'rgba(16, 185, 129, 0.22)',
+        'badge_text': '#34d399',
+        'glow': 'rgba(16, 185, 129, 0.35)',
+        'default_emoji': '💰'
+    },
+    'sky': {
+        'hex': '#0ea5e9',
+        'text': '#38bdf8',
+        'bg': 'rgba(14, 165, 233, 0.08)',
+        'border': 'rgba(14, 165, 233, 0.45)',
+        'active_bg': 'linear-gradient(135deg, #0284c7, #0ea5e9)',
+        'active_border': '#38bdf8',
+        'active_text': '#ffffff',
+        'status_bg': 'rgba(14, 165, 233, 0.12)',
+        'status_border': 'rgba(14, 165, 233, 0.35)',
+        'status_text': '#38bdf8',
+        'badge_bg': 'rgba(14, 165, 233, 0.22)',
+        'badge_text': '#38bdf8',
+        'glow': 'rgba(14, 165, 233, 0.35)',
+        'default_emoji': '⚡'
+    },
+    'rose': {
+        'hex': '#f43f5e',
+        'text': '#fb7185',
+        'bg': 'rgba(244, 63, 94, 0.08)',
+        'border': 'rgba(244, 63, 94, 0.45)',
+        'active_bg': 'linear-gradient(135deg, #e11d48, #f43f5e)',
+        'active_border': '#fb7185',
+        'active_text': '#ffffff',
+        'status_bg': 'rgba(244, 63, 94, 0.12)',
+        'status_border': 'rgba(244, 63, 94, 0.35)',
+        'status_text': '#fb7185',
+        'badge_bg': 'rgba(244, 63, 94, 0.22)',
+        'badge_text': '#fb7185',
+        'glow': 'rgba(244, 63, 94, 0.35)',
+        'default_emoji': '🎮'
+    },
+    'indigo': {
+        'hex': '#3b82f6',
+        'text': '#60a5fa',
+        'bg': 'rgba(59, 130, 246, 0.08)',
+        'border': 'rgba(59, 130, 246, 0.45)',
+        'active_bg': 'linear-gradient(135deg, #2563eb, #3b82f6)',
+        'active_border': '#f59e0b',
+        'active_text': '#ffffff',
+        'status_bg': 'rgba(59, 130, 246, 0.12)',
+        'status_border': 'rgba(59, 130, 246, 0.35)',
+        'status_text': '#60a5fa',
+        'badge_bg': 'rgba(59, 130, 246, 0.22)',
+        'badge_text': '#60a5fa',
+        'glow': 'rgba(59, 130, 246, 0.35)',
+        'default_emoji': '🚀'
+    },
+    'purple': {
+        'hex': '#a855f7',
+        'text': '#c084fc',
+        'bg': 'rgba(168, 85, 247, 0.08)',
+        'border': 'rgba(168, 85, 247, 0.45)',
+        'active_bg': 'linear-gradient(135deg, #7e22ce, #a855f7)',
+        'active_border': '#c084fc',
+        'active_text': '#ffffff',
+        'status_bg': 'rgba(168, 85, 247, 0.12)',
+        'status_border': 'rgba(168, 85, 247, 0.35)',
+        'status_text': '#c084fc',
+        'badge_bg': 'rgba(168, 85, 247, 0.22)',
+        'badge_text': '#c084fc',
+        'glow': 'rgba(168, 85, 247, 0.35)',
+        'default_emoji': '🔥'
+    },
+    'amber': {
+        'hex': '#f59e0b',
+        'text': '#fbbf24',
+        'bg': 'rgba(245, 158, 11, 0.08)',
+        'border': 'rgba(245, 158, 11, 0.45)',
+        'active_bg': 'linear-gradient(135deg, #d97706, #f59e0b)',
+        'active_border': '#fbbf24',
+        'active_text': '#ffffff',
+        'status_bg': 'rgba(245, 158, 11, 0.12)',
+        'status_border': 'rgba(245, 158, 11, 0.35)',
+        'status_text': '#fbbf24',
+        'badge_bg': 'rgba(245, 158, 11, 0.22)',
+        'badge_text': '#fbbf24',
+        'glow': 'rgba(245, 158, 11, 0.35)',
+        'default_emoji': '⚡'
+    },
+    'cyan': {
+        'hex': '#06b6d4',
+        'text': '#22d3ee',
+        'bg': 'rgba(6, 182, 212, 0.08)',
+        'border': 'rgba(6, 182, 212, 0.45)',
+        'active_bg': 'linear-gradient(135deg, #0891b2, #06b6d4)',
+        'active_border': '#22d3ee',
+        'active_text': '#ffffff',
+        'status_bg': 'rgba(6, 182, 212, 0.12)',
+        'status_border': 'rgba(6, 182, 212, 0.35)',
+        'status_text': '#22d3ee',
+        'badge_bg': 'rgba(6, 182, 212, 0.22)',
+        'badge_text': '#22d3ee',
+        'glow': 'rgba(6, 182, 212, 0.35)',
+        'default_emoji': '🌐'
+    }
+}
+
+def get_portal_speed_options(settings_dict=None):
+    """
+    Returns the list of speed options parsed from settings or standard 4 defaults.
+    Each item includes complete styling tokens and default selection flag.
+    """
+    import json
+    if settings_dict is None:
+        try:
+            rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
+            settings_dict = {r['key']: r['value'] for r in rows} if rows else {}
+        except Exception:
+            settings_dict = {}
+
+    options_list = None
+    raw = settings_dict.get('portal_speed_options')
+    if raw:
+        try:
+            if isinstance(raw, str):
+                parsed = json.loads(raw)
+            elif isinstance(raw, list):
+                parsed = raw
+            else:
+                parsed = None
+                
+            if isinstance(parsed, list) and len(parsed) > 0:
+                options_list = parsed
+        except Exception:
+            pass
+
+    if not options_list:
+        eco = (settings_dict.get('portal_speed_eco', '4M') or '4M').strip()
+        bal = (settings_dict.get('portal_speed_balanced', '10M') or '10M').strip()
+        turbo = (settings_dict.get('portal_speed_turbo', '25M') or '25M').strip()
+        options_list = [
+            {
+                'id': 'eco',
+                'name': 'سرعة اقتصادية',
+                'rate_down': eco,
+                'rate_up': eco,
+                'description': 'توفير البيانات',
+                'icon': 'fa-solid fa-sack-dollar',
+                'emoji': '💰',
+                'badge': f"{eco}bps" if not eco.lower().endswith('bps') else eco,
+                'color': 'emerald',
+                'is_open': False,
+                'is_default': False
+            },
+            {
+                'id': 'balanced',
+                'name': 'سرعة متوسطة',
+                'rate_down': bal,
+                'rate_up': bal,
+                'description': 'تصفح وفيديو',
+                'icon': 'fa-solid fa-bolt',
+                'emoji': '⚡',
+                'badge': f"{bal}bps" if not bal.lower().endswith('bps') else bal,
+                'color': 'sky',
+                'is_open': False,
+                'is_default': True
+            },
+            {
+                'id': 'turbo',
+                'name': 'سرعة العاب الاونلاين',
+                'rate_down': turbo,
+                'rate_up': turbo,
+                'description': 'بنج منخفض',
+                'icon': 'fa-solid fa-gamepad',
+                'emoji': '🎮',
+                'badge': f"{turbo}bps" if not turbo.lower().endswith('bps') else turbo,
+                'color': 'rose',
+                'is_open': False,
+                'is_default': False
+            },
+            {
+                'id': 'open',
+                'name': 'سرعة مفتوحة',
+                'rate_down': '0',
+                'rate_up': '0',
+                'description': 'أقصى سرعة بدون تحديد',
+                'icon': 'fa-solid fa-rocket',
+                'emoji': '🚀',
+                'badge': 'أقصى سرعة',
+                'color': 'indigo',
+                'is_open': True,
+                'is_default': False
+            }
+        ]
+
+    cleaned = []
+    has_default = False
+    for i, item in enumerate(options_list):
+        sp_id = str(item.get('id') or f"speed_{i+1}").strip()
+        name = str(item.get('name') or f"سرعة {i+1}").strip()
+        r_down = str(item.get('rate_down', '10M')).strip()
+        r_up = str(item.get('rate_up', r_down)).strip()
+        desc = str(item.get('description', '')).strip()
+        icon = str(item.get('icon', 'fa-solid fa-bolt')).strip()
+        color_key = str(item.get('color', 'sky')).strip().lower()
+        if color_key not in COLOR_THEMES:
+            color_key = 'sky'
+        
+        is_open = item.get('is_open') is True or str(r_down).strip() in ['0', '0M', '0K', ''] or 'مفتوح' in name
+        is_def = item.get('is_default') in (True, '1', 1, 'true', 'True')
+        if is_def:
+            has_default = True
+
+        badge = str(item.get('badge') or '').strip()
+        if not badge:
+            badge = "أقصى سرعة" if is_open else (f"{r_down}bps" if not r_down.lower().endswith('bps') else r_down)
+
+        # Format clear readable numbers
+        import re
+        if is_open or str(r_down).strip() in ['0', '0M', '0K', '']:
+            disp_val = 'MAX'
+            disp_unit = 'مفتوحة'
+            disp_sub = 'أقصى سرعة بدون تحديد'
+        else:
+            m = re.match(r'^(\d+(?:\.\d+)?)\s*([A-Za-z]+)?$', str(r_down).strip())
+            if m:
+                disp_val = m.group(1)
+                u = (m.group(2) or 'M').upper()
+                if u in ['M', 'MB', 'MBPS']:
+                    disp_unit = 'Mbps'
+                elif u in ['K', 'KB', 'KBPS']:
+                    disp_unit = 'Kbps'
+                elif u in ['G', 'GB', 'GBPS']:
+                    disp_unit = 'Gbps'
+                else:
+                    disp_unit = u
+                disp_sub = f"تنزيل {disp_val}{disp_unit}"
+            else:
+                disp_val = str(r_down)
+                disp_unit = ''
+                disp_sub = f"سرعة {r_down}"
+
+        theme_tokens = COLOR_THEMES[color_key]
+        emoji = str(item.get('emoji') or theme_tokens.get('default_emoji', '⚡')).strip()
+
+        cleaned.append({
+            'id': sp_id,
+            'name': name,
+            'rate_down': r_down,
+            'rate_up': r_up,
+            'description': desc,
+            'icon': icon,
+            'emoji': emoji,
+            'badge': badge,
+            'display_val': disp_val,
+            'display_unit': disp_unit,
+            'display_sub': disp_sub,
+            'color': color_key,
+            'is_open': is_open,
+            'is_default': is_def,
+            'theme': theme_tokens
+        })
+
+    # If no default set, make the 2nd (or 1st) default
+    if not has_default and cleaned:
+        def_idx = 1 if len(cleaned) > 1 else 0
+        cleaned[def_idx]['is_default'] = True
+
+    return cleaned
 
 def authenticate_portal_user(username, password):
     """
@@ -370,24 +692,30 @@ def get_portal_user_data(username):
     extra_quota_mb = float(user_info.get('extra_quota_mb') or 0)
     total_allowed_quota_mb = base_quota_mb + extra_quota_mb
 
-    if total_allowed_quota_mb > 0 and (base_quota_mb > 0 or extra_quota_mb > 0):
+    if total_allowed_quota_mb > 0:
         total_used_mb = float(raw_in + raw_out) / (1024.0 * 1024.0)
         rem_mb = max(0.0, total_allowed_quota_mb - total_used_mb)
+        user_info['has_quota'] = True
+        user_info['is_unlimited'] = False
         user_info['quota_used_mb'] = round(total_used_mb, 2)
         user_info['quota_total_mb'] = total_allowed_quota_mb
         user_info['quota_rem_mb'] = round(rem_mb, 2)
         user_info['quota_used_str'] = format_mb_or_gb(total_used_mb)
         user_info['quota_total_str'] = format_mb_or_gb(total_allowed_quota_mb)
         user_info['quota_rem_str'] = format_mb_or_gb(rem_mb)
-        user_info['quota_percent'] = min(100.0, round((total_used_mb / total_allowed_quota_mb) * 100.0, 1))
+        user_info['quota_percent'] = max(0.0, min(100.0, round((rem_mb / total_allowed_quota_mb) * 100.0, 1)))
+        user_info['quota_used_percent'] = min(100.0, round((total_used_mb / total_allowed_quota_mb) * 100.0, 1))
     else:
+        user_info['has_quota'] = False
+        user_info['is_unlimited'] = True
         user_info['quota_used_mb'] = 0.00
         user_info['quota_total_mb'] = 'غير محدود (Unlimited)'
         user_info['quota_rem_mb'] = 'غير محدود'
         user_info['quota_used_str'] = '0 MB'
         user_info['quota_total_str'] = 'غير محدود (Unlimited)'
         user_info['quota_rem_str'] = 'غير محدود'
-        user_info['quota_percent'] = 0.0
+        user_info['quota_percent'] = 100.0
+        user_info['quota_used_percent'] = 0.0
 
     # Remaining Time calculation
     rem_time_str, rem_sec = format_remaining_time(user_info.get('expires_at'))
@@ -440,6 +768,25 @@ def get_portal_user_data(username):
         user_info['loan_balance_mb'] = 0
         user_info['loan_status'] = 0
         user_info['can_request_loan'] = False
+
+    # 3. Active QoS Rate-Limit from radreply (Live Speed Override)
+    rad_rate = query_one("SELECT value FROM radreply WHERE LOWER(username) = LOWER(?) AND attribute = 'MikroTik-Rate-Limit'", (username,))
+    if rad_rate and rad_rate.get('value'):
+        val = rad_rate['value'].strip()
+        parts = val.split('/')
+        val_down = parts[0].strip()
+        val_up = parts[1].strip().split()[0] if len(parts) > 1 else val_down
+        user_info['rate_download'] = val_down
+        user_info['rate_upload'] = val_up
+        user_info['current_rate_str'] = val
+        user_info['is_open_speed'] = True if val in ['0/0', '0M/0M', '0K/0K', '0'] else False
+    else:
+        if str(user_info.get('rate_download', '')).strip() in ['0', '0M', '0K', '']:
+            user_info['is_open_speed'] = True
+            user_info['current_rate_str'] = '0/0'
+        else:
+            user_info['is_open_speed'] = False
+            user_info['current_rate_str'] = f"{user_info.get('rate_download', '2M')}/{user_info.get('rate_upload', '1M')}"
 
     return user_info
 

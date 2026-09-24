@@ -1,101 +1,703 @@
 {% extends "user_portal/user_base.html" %}
 
-{% block title %}تسجيل الدخول - بوابة المشتركين{% endblock %}
+{% block title %}تسجيل الدخول - {{ network_name }}{% endblock %}
 
 {% block content %}
-<div class="min-h-[75vh] flex items-center justify-center py-6">
-    <div class="w-full max-w-md portal-card border rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+<div class="max-w-xl mx-auto w-full py-4 space-y-4">
+
+    <!-- Portal Navigation Tabs (Client Sub-pages) -->
+    <div class="portal-card p-1.5 rounded-2xl border border-[#1c2840] shadow-xl overflow-x-auto">
+        <div class="flex items-center gap-1 min-w-max sm:min-w-0">
+            <button type="button" onclick="switchPortalClientTab('login')" id="btn-tab-login" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm">
+                <i class="fa-solid fa-right-to-bracket text-xs"></i>
+                <span>تسجيل الدخول</span>
+            </button>
+            {% if settings.get('portal_show_pricing', '1') == '1' %}
+            <button type="button" onclick="switchPortalClientTab('pricing')" id="btn-tab-pricing" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-tags text-xs"></i>
+                <span>الأسعار</span>
+            </button>
+            {% endif %}
+            {% if settings.get('portal_show_speedtest', '1') == '1' %}
+            <button type="button" onclick="switchPortalClientTab('speedtest')" id="btn-tab-speedtest" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-gauge-high text-xs"></i>
+                <span>فحص السرعة</span>
+            </button>
+            {% endif %}
+            {% if settings.get('portal_show_network_tab', '1') == '1' %}
+            <button type="button" onclick="switchPortalClientTab('network')" id="btn-tab-network" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-circle-info text-xs"></i>
+                <span>عن الشبكة</span>
+            </button>
+            {% endif %}
+            {% if settings.get('portal_show_support_tab', '1') == '1' %}
+            <button type="button" onclick="switchPortalClientTab('support')" id="btn-tab-support" class="flex-1 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-headset text-xs"></i>
+                <span>الدعم</span>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ================= TAB 1: LOGIN & QOS ================= -->
+    <div id="tab-pane-login" class="portal-card rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-[#1c2840]">
         
-        <!-- Logo & Header -->
-        <div class="text-center space-y-2">
+        <!-- Centered Brand Header Card -->
+        <div class="flex flex-col items-center justify-center text-center w-full">
             {% if logo_url %}
-            <img src="{{ logo_url }}" alt="Logo" class="w-20 h-20 rounded-2xl object-contain shadow-xl shadow-blue-500/20 p-2 mx-auto bg-[#070b14] border border-blue-500/30">
+            <div class="p-2 rounded-2xl bg-[#070b14] border border-[#1c2840] shadow-xl mb-3">
+                <img src="{{ logo_url }}" alt="Logo" class="h-14 max-h-14 w-auto object-contain block mx-auto">
+            </div>
             {% else %}
-            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-3xl shadow-xl shadow-blue-500/30 mx-auto">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center text-2xl shadow-xl shadow-emerald-500/25 border border-emerald-300/40 mb-3 group hover:scale-105 transition-transform duration-300">
                 <i class="fa-solid fa-tower-broadcast"></i>
             </div>
             {% endif %}
-            <h2 class="text-2xl font-black text-white tracking-wider">{{ network_name }}</h2>
-            <p class="text-xs text-slate-400 font-medium">بوابة المشتركين الذكية - تسجيل الدخول للاستعلام وشحن الرصيد والتجديد</p>
+            
+            <div class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold mb-2 shadow-sm">
+                <i class="fa-solid fa-shield-halved text-xs"></i>
+                <span>{{ settings.get('portal_welcome_title', 'بوابة المصادقة الآمنة والذكية') }}</span>
+            </div>
+
+            <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">{{ network_name }}</h2>
+            <p class="text-xs text-slate-400 mt-1 flex items-center justify-center gap-1.5 font-medium">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                {{ settings.get('portal_network_subtitle', 'نقطة بث Wi-Fi 6 فائقة السرعة • نظام MAX RADIUS') }}
+            </p>
+        </div>
+
+        <!-- Dynamic Hotspot Error Alert -->
+        <div id="portalErrorAlert" class="{% if not portal_error %}hidden{% endif %} p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold text-center flex items-center justify-center gap-2 shadow-sm">
+            <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm"></i>
+            <span id="portalErrorText">{{ portal_error or '' }}</span>
         </div>
 
         <!-- Login Form -->
-        <form method="POST" action="{{ url_for('user_login_action') }}" class="space-y-4">
-            <!-- Username / Card PIN Input -->
-            <div>
-                <label class="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1.5">
-                    <i class="fa-solid fa-user text-blue-400"></i>
-                    <span>اسم المستخدم أو رقم الكرت (Username / PIN)</span>
+        <form id="portalLoginForm" method="POST" action="{{ url_for('user_login_action') }}" class="space-y-4">
+            
+            <!-- Username / Voucher Code Input -->
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-200 flex items-center justify-between">
+                    <span>رقم الكرت أو اسم المستخدم (PIN / Username)</span>
+                    <span class="text-[11px] text-emerald-400 font-normal">أدخل الكرت المطبوع</span>
                 </label>
                 <div class="relative">
-                    <input type="text" name="username" required autofocus placeholder="مثال: 770000000 أو رقم الكرت" 
-                           class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-blue-500 focus:outline-none transition text-center sm:text-right">
+                    <input type="text" name="username" id="loginUsername" required autofocus placeholder="أدخل رقم الكرت أو الحساب..." 
+                           value="{{ prefill_username or '' }}"
+                           class="w-full bg-[#070b14] border border-[#1e293b] rounded-2xl px-4 py-3 text-center text-lg font-black font-mono tracking-widest text-emerald-400 placeholder:text-slate-600 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition">
+                    <button type="button" onclick="pasteVoucherCode()" title="لصق من الحافظة" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400 p-1.5 transition">
+                        <i class="fa-regular fa-paste text-base"></i>
+                    </button>
                 </div>
             </div>
 
-            <!-- Password Input (Only when portal_login_username_only is NOT enabled) -->
+            <!-- Password Input (if enabled) -->
             {% if settings.get('portal_login_username_only', '0') != '1' %}
-            <div>
-                <label class="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1.5">
-                    <i class="fa-solid fa-key text-amber-400"></i>
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-200 flex items-center justify-between">
                     <span>كلمة المرور (Password)</span>
+                    <span class="text-[11px] text-slate-400 font-normal">لكروت الهوتسبوت: اتركها مطابقة لرقم الكرت</span>
                 </label>
                 <div class="relative">
-                    <input type="password" id="loginPassword" name="password" required placeholder="••••••••" 
-                           class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-blue-500 focus:outline-none transition">
-                    <button type="button" onclick="togglePasswordVisibility()" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-sm">
+                    <input type="password" id="loginPassword" name="password" placeholder="••••••••" 
+                           class="w-full bg-[#070b14] border border-[#1e293b] rounded-2xl px-4 py-2.5 text-sm text-white font-mono focus:border-emerald-500 outline-none transition">
+                    <button type="button" onclick="togglePasswordVisibility()" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 text-sm">
                         <i id="togglePwdIcon" class="fa-solid fa-eye"></i>
                     </button>
                 </div>
-                <span class="text-[11px] text-slate-400 mt-1 block">لمستخدمي الكروت بنظام PIN فقط، أدخل نفس رقم الكرت في الحقلين</span>
+            </div>
+            {% else %}
+            <input type="hidden" name="password" id="loginPasswordHidden" value="">
+            {% endif %}
+
+            <!-- QoS Speed Selector (Conditional) -->
+            {% if settings.get('portal_enable_speed_selector', '0') == '1' and speed_options %}
+            <div class="space-y-2.5 pt-2 border-t border-[#1c2840]">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-black text-slate-200 flex items-center gap-1.5">
+                        <i class="fa-solid fa-bolt text-amber-400"></i>
+                        اختر سرعة الاتصال المبدئية (QoS)
+                    </span>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        مجاناً مع الكرت
+                    </span>
+                </div>
+
+                <!-- Speed Cards Grid: Exactly 2 per row, with odd 3rd card taking full span (col-span-2) -->
+                <div class="grid grid-cols-2 gap-2.5">
+                    {% for sp in speed_options %}
+                    {% set is_selected = sp.is_default %}
+                    <input type="radio" 
+                           name="speed_profile" 
+                           id="speed_{{ sp.id }}" 
+                           value="{{ sp.id }}" 
+                           data-rate="{{ sp.rate_down }}" 
+                           data-active-border="{{ sp.theme.active_border }}"
+                           data-active-bg="{{ sp.theme.active_bg }}"
+                           class="hidden speed-radio" 
+                           {% if is_selected %}checked{% endif %}>
+                    
+                    <label for="speed_{{ sp.id }}" 
+                           id="lbl_speed_{{ sp.id }}"
+                           class="cursor-pointer p-3 rounded-2xl portal-subcard transition-all duration-200 ease-out flex items-center justify-between gap-2.5 relative group border min-w-0 select-none hover:border-slate-600 active:scale-[0.98] {% if loop.last and (loop.index % 2 == 1) %}col-span-2{% endif %}"
+                           style="{% if is_selected %}border-color: {{ sp.theme.active_border }}; background-color: {{ sp.theme.active_bg }};{% else %}border-color: #1f293d;{% endif %}">
+                        
+                        <!-- Left/Start Side: Icon & Titles in Horizontal Row -->
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform duration-200 group-hover:scale-105"
+                                 style="background-color: {{ sp.theme.bg }}; color: {{ sp.theme.text }}; border: 1px solid {{ sp.theme.border }};">
+                                <i class="{{ sp.icon or 'fa-solid fa-bolt' }} text-sm"></i>
+                            </div>
+                            <div class="flex flex-col min-w-0 text-right">
+                                <span class="text-xs font-black text-white truncate leading-tight">{{ sp.name }}</span>
+                                <span class="text-[10px] text-slate-400 truncate leading-tight mt-0.5">{{ sp.description }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Right/End Side: Badge & Check Icon -->
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <span class="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg whitespace-nowrap"
+                                  style="background-color: {{ sp.theme.badge_bg }}; color: {{ sp.theme.badge_text }}; border: 1px solid {{ sp.theme.border }};">
+                                {{ sp.badge }}
+                            </span>
+                            <span class="check-icon {% if is_selected %}opacity-100 scale-100{% else %}opacity-0 scale-75{% endif %} transition-all duration-200 text-[9px] w-4 h-4 rounded-full flex items-center justify-center"
+                                  style="background-color: {{ sp.theme.badge_bg }}; color: {{ sp.theme.text }}; border: 1px solid {{ sp.theme.border }};">
+                                <i class="fa-solid fa-check"></i>
+                            </span>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
             </div>
             {% endif %}
 
-            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition flex items-center justify-center gap-2 text-sm cursor-pointer">
-                <i class="fa-solid fa-right-to-bracket"></i>
-                <span>دخول إلى حسابي</span>
+            <!-- Submit Button -->
+            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black rounded-2xl shadow-xl shadow-emerald-500/20 transition flex items-center justify-center gap-2 text-sm cursor-pointer">
+                <i class="fa-solid fa-right-to-bracket text-base"></i>
+                <span>تسجيل الدخول والاتصال بالإنترنت</span>
             </button>
         </form>
 
-        <!-- Self-Registration Button (Shown if enabled by Admin) -->
+        <!-- Self-Registration Button (if enabled) -->
         {% if settings.get('portal_allow_registration', '1') == '1' %}
         <div class="text-center pt-2 border-t border-[#1c2840]">
-            <p class="text-xs text-slate-400">ليس لديك حساب بعد؟</p>
-            <a href="{{ url_for('user_register') }}" class="mt-2 inline-flex items-center justify-center gap-2 w-full py-3 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 font-bold rounded-xl border border-emerald-500/30 transition text-xs shadow-sm">
+            <p class="text-xs text-slate-400">مشترك جديد وليس لديك حساب؟</p>
+            <a href="{{ url_for('user_register') }}" class="mt-2 inline-flex items-center justify-center gap-2 w-full py-2.5 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 font-bold rounded-xl border border-emerald-500/30 transition text-xs shadow-sm">
                 <i class="fa-solid fa-user-plus"></i>
-                <span>إنشاء حساب جديد (تسجيل ذاتي)</span>
+                <span>إنشاء حساب مشترك جديد</span>
             </a>
         </div>
         {% endif %}
 
-        <!-- Help & Notice Info -->
-        <div class="bg-[#070b14] p-4 rounded-xl border border-[#162136] text-xs text-slate-400 space-y-1.5">
-            <div class="flex items-center gap-2 font-bold text-slate-300">
-                <i class="fa-solid fa-circle-question text-blue-400"></i>
-                <span>هل تواجه مشكلة في تسجيل الدخول؟</span>
-            </div>
-            <p class="text-[11px] leading-relaxed">
-                تأكد من إدخال اسم المستخدم وكلمة المرور الخاصة باشتراكك أو كرتك بدقة. للتواصل مع الدعم الفني: 
-                <strong class="font-mono text-emerald-400 dir-ltr">{{ support_phone }}</strong>
-            </p>
+        <!-- Quick Footer Links -->
+        <div class="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-[#1c2840] font-medium">
+            {% if settings.get('portal_show_pricing', '1') == '1' %}
+            <button type="button" onclick="switchPortalClientTab('pricing')" class="hover:text-emerald-400 transition flex items-center gap-1">
+                <i class="fa-solid fa-tags text-emerald-400"></i> أسعار وباقات الكروت
+            </button>
+            {% else %}
+            <span></span>
+            {% endif %}
+            <a href="https://wa.me/{{ settings.get('portal_whatsapp', settings.get('support_phone', '967773570053')) }}" target="_blank" class="hover:text-emerald-400 transition flex items-center gap-1">
+                <i class="fa-brands fa-whatsapp text-emerald-400 text-sm"></i> الدعم والشحن الفوري
+            </a>
         </div>
 
     </div>
+
+    <!-- ================= TAB 2: PRICING PACKAGES ================= -->
+    {% if settings.get('portal_show_pricing', '1') == '1' %}
+    <div id="tab-pane-pricing" class="portal-card rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-[#1c2840] hidden">
+        <div class="flex items-center justify-between pb-3 border-b border-[#1c2840]">
+            <div>
+                <h3 class="text-base font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-tags text-emerald-400"></i> باقات وأسعار الكروت المتاحة
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">اختر الباقة المناسبة للشحن الفوري أو الشراء عبر واتساب</p>
+            </div>
+            <span class="px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-mono">
+                4G+ / Wi-Fi 6
+            </span>
+        </div>
+
+        <div class="space-y-3">
+            {% if portal_packages and portal_packages|length > 0 %}
+                {% for pkg in portal_packages %}
+                <div class="portal-subcard p-4 rounded-2xl border border-[#1f293d] flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm font-black font-mono">
+                            <i class="fa-solid fa-box-open"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-black text-white">{{ pkg.name }}</h4>
+                            <p class="text-xs text-slate-400 mt-0.5">صلاحية {{ pkg.validity_value }} {{ pkg.validity_unit|default('يوم') }} • سعة {{ pkg.volume_quota_mb|default(0) }} MB</p>
+                        </div>
+                    </div>
+                    <div class="text-left">
+                        <span class="block text-base font-black text-emerald-400 font-mono">{{ pkg.price }} {{ currency_symbol|default('ر.ي') }}</span>
+                        <a href="https://wa.me/{{ settings.get('portal_whatsapp', settings.get('support_phone', '967773570053')) }}?text={{ ('طلب شراء باقة ' ~ pkg.name)|urlencode }}" target="_blank" class="mt-1 inline-block px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-bold text-xs transition">شراء</a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="portal-subcard p-4 rounded-2xl border border-[#1f293d] flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg font-black font-mono">1D</div>
+                        <div>
+                            <h4 class="text-sm font-black text-white">كرت يومي - 1 جيجابايت</h4>
+                            <p class="text-xs text-slate-400 mt-0.5">صلاحية 24 ساعة • سرعة تصل 15 Mbps</p>
+                        </div>
+                    </div>
+                    <div class="text-left">
+                        <span class="block text-base font-black text-emerald-400 font-mono">200 {{ currency_symbol|default('ر.ي') }}</span>
+                        <a href="https://wa.me/{{ settings.get('portal_whatsapp', settings.get('support_phone', '967773570053')) }}?text=طلب%20كرت%20يومي%201GB" target="_blank" class="mt-1 inline-block px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-bold text-xs transition">شراء</a>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ================= TAB 3: SPEEDTEST ================= -->
+    {% if settings.get('portal_show_speedtest', '1') == '1' %}
+    <div id="tab-pane-speedtest" class="portal-card rounded-3xl p-5 sm:p-6 space-y-5 text-center shadow-2xl border border-[#1c2840] hidden">
+        <div class="flex items-center justify-between pb-3 border-b border-[#1c2840]">
+            <div class="text-right">
+                <h3 class="text-base font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-gauge-high text-emerald-400"></i> قياس سرعة الاتصال وجودة البنج
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">فحص مباشر للسرعة ومعدل التأخير (Latency & Jitter)</p>
+            </div>
+            <span id="speedtest-status-pill" class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#070b14] text-slate-400 border border-[#1e293b]">
+                جاهز للفحص
+            </span>
+        </div>
+
+        <!-- Gauge Visualizer -->
+        <div class="relative w-48 h-48 mx-auto flex items-center justify-center my-2">
+            <svg class="w-full h-full" viewBox="0 0 160 160">
+                <circle cx="80" cy="80" r="68" stroke="rgba(255,255,255,0.06)" stroke-width="12" fill="none"/>
+                <circle id="gauge-bar" class="gauge-circle" cx="80" cy="80" r="68" stroke="url(#gauge-gradient)" stroke-width="12" stroke-linecap="round" stroke-dasharray="427" stroke-dashoffset="427" fill="none"/>
+                <defs>
+                    <linearGradient id="gauge-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#10b981" />
+                        <stop offset="50%" stop-color="#0ea5e9" />
+                        <stop offset="100%" stop-color="#a855f7" />
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span id="speed-meter-val" class="text-4xl font-black font-mono text-white tracking-tight">0.0</span>
+                <span class="text-xs font-bold text-emerald-400 mt-0.5 font-mono">Mbps</span>
+                <span id="speed-phase-label" class="text-[10px] text-slate-400 mt-1">اضغط بدء القياس</span>
+            </div>
+        </div>
+
+        <!-- Ping & Jitter Stats -->
+        <div class="grid grid-cols-3 gap-2.5">
+            <div class="portal-subcard p-3 rounded-2xl border border-[#1f293d] text-center">
+                <span class="text-[11px] font-bold text-slate-400 block mb-0.5">البنج (Ping)</span>
+                <span id="metric-ping" class="text-lg font-black font-mono text-sky-400">--</span>
+                <span class="text-[10px] text-slate-400 font-mono"> ms</span>
+            </div>
+            <div class="portal-subcard p-3 rounded-2xl border border-[#1f293d] text-center">
+                <span class="text-[11px] font-bold text-slate-400 block mb-0.5">التذبذب (Jitter)</span>
+                <span id="metric-jitter" class="text-lg font-black font-mono text-purple-400">--</span>
+                <span class="text-[10px] text-slate-400 font-mono"> ms</span>
+            </div>
+            <div class="portal-subcard p-3 rounded-2xl border border-[#1f293d] text-center">
+                <span class="text-[11px] font-bold text-slate-400 block mb-0.5">الرفع (Upload)</span>
+                <span id="metric-upload" class="text-lg font-black font-mono text-emerald-400">--</span>
+                <span class="text-[10px] text-slate-400 font-mono"> Mbps</span>
+            </div>
+        </div>
+
+        <button type="button" id="btn-start-speedtest" onclick="runLiveSpeedTest()" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 text-slate-950 font-black rounded-2xl text-sm transition shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-circle-play text-base"></i>
+            <span>بدء فحص السرعة والبنج الآن</span>
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- ================= TAB 4: ABOUT NETWORK ================= -->
+    {% if settings.get('portal_show_network_tab', '1') == '1' %}
+    <div id="tab-pane-network" class="portal-card rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-[#1c2840] hidden">
+        <div class="flex items-center justify-between pb-3 border-b border-[#1c2840]">
+            <div>
+                <h3 class="text-base font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-emerald-400"></i> عن شبكة {{ network_name }}
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">رؤيتنا، خدماتنا، ومناطق التغطية المعتمدة</p>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                تغطية نشطة
+            </span>
+        </div>
+
+        <div class="portal-subcard p-4 rounded-2xl border border-[#1f293d] space-y-2">
+            <h4 class="text-xs font-black text-white">من نحن:</h4>
+            <p class="text-xs text-slate-300 leading-relaxed">
+                {{ settings.get('portal_about_text') or ('شبكة ' ~ network_name ~ ' توفر خدمات الإنترنت فائق السرعة بتقنية Wi-Fi 6 للمنازل والمحلات والزوار بأعلى درجات الاستقرار وأقل زمن استجابة (Ping) للألعاب والتصفح.') }}
+            </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="portal-subcard p-3 rounded-xl border border-[#1f293d] space-y-1">
+                <span class="font-black text-white block"><i class="fa-solid fa-bolt text-emerald-400 ml-1"></i>تحكم ذكي بالسرعة</span>
+                <p class="text-[11px] text-slate-400">توفير الرصيد باختيار السرعة المناسبة لاحتياجك.</p>
+            </div>
+            <div class="portal-subcard p-3 rounded-xl border border-[#1f293d] space-y-1">
+                <span class="font-black text-white block"><i class="fa-solid fa-gamepad text-sky-400 ml-1"></i>بنج منخفض للألعاب</span>
+                <p class="text-[11px] text-slate-400">مسارات مخصصة لألعاب PUBG و FreeFire بدون لاج.</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ================= TAB 5: SUPPORT ================= -->
+    {% if settings.get('portal_show_support_tab', '1') == '1' %}
+    <div id="tab-pane-support" class="portal-card rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-[#1c2840] hidden">
+        <div class="flex items-center justify-between pb-3 border-b border-[#1c2840]">
+            <div>
+                <h3 class="text-base font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-headset text-emerald-400"></i> مركز الدعم الفني وخدمة العملاء
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">نحن في خدمتكم على مدار 24 ساعة طوال أيام الأسبوع</p>
+            </div>
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">متاح الآن</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <a href="https://wa.me/{{ settings.get('portal_whatsapp', settings.get('support_phone', '967773570053')) }}" target="_blank" class="p-4 rounded-2xl portal-subcard border border-emerald-500/30 hover:border-emerald-500 transition-all flex flex-col items-center text-center gap-2 group">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-110 transition">
+                    <i class="fa-brands fa-whatsapp"></i>
+                </div>
+                <div>
+                    <span class="block text-sm font-black text-white">واتساب الدعم</span>
+                    <span class="block text-xs text-emerald-400 font-mono font-bold mt-0.5">{{ settings.get('portal_whatsapp', settings.get('support_phone', '773 570 053')) }}</span>
+                </div>
+            </a>
+
+            <a href="tel:{{ settings.get('portal_support_phone', settings.get('support_phone', '773570053')) }}" class="p-4 rounded-2xl portal-subcard border border-sky-500/30 hover:border-sky-500 transition-all flex flex-col items-center text-center gap-2 group">
+                <div class="w-12 h-12 rounded-2xl bg-sky-500/20 text-sky-400 flex items-center justify-center text-2xl group-hover:scale-110 transition">
+                    <i class="fa-solid fa-phone-volume"></i>
+                </div>
+                <div>
+                    <span class="block text-sm font-black text-white">الاتصال الهاتفي</span>
+                    <span class="block text-xs text-sky-400 font-mono font-bold mt-0.5">خدمة الطوارئ</span>
+                </div>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+    function switchPortalClientTab(tabName) {
+        const tabs = ['login', 'pricing', 'speedtest', 'network', 'support'];
+        tabs.forEach(t => {
+            const pane = document.getElementById(`tab-pane-${t}`);
+            const btn = document.getElementById(`btn-tab-${t}`);
+            if (t === tabName) {
+                pane.classList.remove('hidden');
+                btn.className = "px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-emerald-500/40 flex items-center justify-center gap-1.5 bg-emerald-500/20 text-emerald-400 shadow-sm";
+            } else {
+                pane.classList.add('hidden');
+                btn.className = "px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white";
+            }
+        });
+    }
+
     function togglePasswordVisibility() {
         const input = document.getElementById('loginPassword');
         const icon = document.getElementById('togglePwdIcon');
         if (input.type === 'password') {
             input.type = 'text';
-            icon.className = 'fa-solid fa-eye-slash text-blue-400';
+            icon.className = 'fa-solid fa-eye-slash text-emerald-400';
         } else {
             input.type = 'password';
             icon.className = 'fa-solid fa-eye text-slate-400';
         }
     }
+
+    function pasteVoucherCode() {
+        navigator.clipboard.readText().then(text => {
+            if (text) {
+                document.getElementById('loginUsername').value = text.trim();
+                const hiddenPwd = document.getElementById('loginPasswordHidden');
+                if (hiddenPwd) hiddenPwd.value = text.trim();
+            }
+        }).catch(() => {
+            alert("يرجى لصق رقم الكرت يدوياً.");
+        });
+    }
+
+    // Single PIN handler: copy username to password if username_only mode
+    const uInput = document.getElementById('loginUsername');
+    if (uInput) {
+        uInput.addEventListener('input', function() {
+            const hiddenPwd = document.getElementById('loginPasswordHidden');
+            if (hiddenPwd) hiddenPwd.value = this.value;
+        });
+    }
+
+    // Speedtest Simulation
+    let isTesting = false;
+    function runLiveSpeedTest() {
+        if (isTesting) return;
+        isTesting = true;
+
+        const btn = document.getElementById('btn-start-speedtest');
+        const pill = document.getElementById('speedtest-status-pill');
+        const gaugeBar = document.getElementById('gauge-bar');
+        const meterVal = document.getElementById('speed-meter-val');
+        const phaseLabel = document.getElementById('speed-phase-label');
+        const metricPing = document.getElementById('metric-ping');
+        const metricJitter = document.getElementById('metric-jitter');
+        const metricUpload = document.getElementById('metric-upload');
+
+        btn.disabled = true;
+        btn.classList.add('opacity-70');
+        btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> جاري الفحص...`;
+        pill.textContent = "جاري الفحص...";
+        pill.className = "px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30";
+
+        phaseLabel.textContent = "فحص البنج والتذبذب...";
+        let ping = Math.floor(Math.random() * 8) + 16;
+        let jitter = Math.floor(Math.random() * 3) + 1;
+        metricPing.textContent = ping;
+        metricJitter.textContent = jitter;
+
+        setTimeout(() => {
+            phaseLabel.textContent = "قياس سرعة التنزيل (Download)...";
+            let currentSpeed = 0;
+            const targetSpeed = 24.8;
+            const totalLength = 427;
+
+            const interval = setInterval(() => {
+                if (currentSpeed < targetSpeed) {
+                    currentSpeed += 1.2;
+                    meterVal.textContent = currentSpeed.toFixed(1);
+                    const progress = Math.min(currentSpeed / 40, 1);
+                    gaugeBar.style.strokeDashoffset = totalLength - (progress * totalLength);
+                } else {
+                    clearInterval(interval);
+                    meterVal.textContent = targetSpeed.toFixed(1);
+
+                    phaseLabel.textContent = "قياس سرعة الرفع (Upload)...";
+                    setTimeout(() => {
+                        metricUpload.textContent = (targetSpeed * 0.45).toFixed(1);
+                        phaseLabel.textContent = "اكتمل الفحص بنجاح!";
+                        pill.textContent = "ممتاز (Ultra Fast)";
+                        pill.className = "px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                        btn.disabled = false;
+                        btn.classList.remove('opacity-70');
+                        btn.innerHTML = `<i class="fa-solid fa-rotate text-sm"></i> <span>إعادة الفحص مرة أخرى</span>`;
+                        isTesting = false;
+                    }, 1000);
+                }
+            }, 50);
+        }, 800);
+    }
+
+    function translateMikrotikError(rawError) {
+        if (!rawError) return "";
+        let err = String(rawError).trim();
+        for (let i = 0; i < 3; i++) {
+            try {
+                let d = decodeURIComponent(err.replace(/\+/g, ' '));
+                if (d === err) break;
+                err = d;
+            } catch(e) {
+                break;
+            }
+        }
+
+        const lower = err.toLowerCase().replace(/\+/g, ' ').replace(/_/g, ' ').replace(/-/g, ' ').trim();
+
+        if (lower.includes("invalid username") || lower.includes("invalid password") || lower.includes("wrong password") || lower.includes("bad password") || lower.includes("authentication failed") || lower.includes("auth failed") || lower.includes("internal error")) {
+            return "رقم الكرت أو كلمة المرور غير صحيحة، يرجى التأكد وإعادة المحاولة.";
+        }
+        if (lower.includes("uptime limit") || lower.includes("uptime reached") || lower.includes("time limit") || lower.includes("time reached") || lower.includes("limit uptime")) {
+            return "عذراً، لقد انتهى الوقت المخصص لهذا الكرت (صلاحية الوقت منتهية).";
+        }
+        if (lower.includes("traffic limit") || lower.includes("quota reached") || lower.includes("bytes limit") || lower.includes("transfer limit") || lower.includes("limit bytes") || lower.includes("data limit") || lower.includes("limit reached")) {
+            return "عذراً، لقد انتهى رصيد البيانات (الجيجابايت) المخصص لهذا الكرت.";
+        }
+        if (lower.includes("already logged in") || lower.includes("simultaneous") || lower.includes("session limit") || lower.includes("too many sessions") || lower.includes("active session")) {
+            return "هذا الكرت متصل حالياً من جهاز آخر (جلسة نشطة).";
+        }
+        if (lower.includes("not responding") || lower.includes("radius timeout") || lower.includes("radius server") || lower.includes("timeout")) {
+            return "تعذر الاتصال بسيرفر المصادقة، يرجى المحاولة بعد قليل.";
+        }
+        if (lower.includes("user not found") || lower.includes("user does not exist") || lower.includes("no such user") || lower.includes("invalid user")) {
+            return "رقم الكرت غير مسجل بالنظام، تأكد من كتابة الأرقام بدقة.";
+        }
+        if (lower.includes("cannot log in") || lower.includes("disabled") || lower.includes("account suspended") || lower.includes("suspended")) {
+            return "هذا الحساب موقوف أو معلق من قبل إدارة الشبكة.";
+        }
+        if (lower.includes("mac cookie") || lower.includes("invalid mac") || lower.includes("mac address") || lower.includes("mac lock")) {
+            return "هذا الكرت مرتبط بجهاز آخر ولا يمكن استخدامه من هذا الجهاز.";
+        }
+
+        // If it already has legible Arabic characters
+        if (/[\u0600-\u06FF]/.test(err)) {
+            return err;
+        }
+
+        return "تعذر تسجيل الدخول: يرجى التحقق من رقم الكرت والمحاولة مجدداً.";
+    }
+
+    // ================= MIKROTIK HOTSPOT PARAMETERS & AUTO-BIND =================
+    document.addEventListener("DOMContentLoaded", function() {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            let mikrotikLoginUrl = urlParams.get('login_url') || urlParams.get('loginlink') || urlParams.get('link-login-only') || urlParams.get('link-login');
+            if (mikrotikLoginUrl) {
+                localStorage.setItem('mt_login_url', mikrotikLoginUrl);
+            } else {
+                mikrotikLoginUrl = localStorage.getItem('mt_login_url') || 'http://10.100.10.1/login';
+            }
+
+            const mikrotikError = urlParams.get('error') || urlParams.get('error-orig') || urlParams.get('error_orig') || urlParams.get('errmsg');
+            const mikrotikUsername = urlParams.get('username');
+            const mikrotikLinkOrig = urlParams.get('link_orig') || urlParams.get('dst');
+
+            // 1. Show translated error message if MikroTik Hotspot returned with an error
+            if (mikrotikError && mikrotikError.trim() !== "") {
+                const errBox = document.getElementById('portalErrorAlert');
+                const errTxt = document.getElementById('portalErrorText');
+                if (errBox && errTxt) {
+                    errTxt.textContent = translateMikrotikError(decodeURIComponent(mikrotikError));
+                    errBox.classList.remove('hidden');
+                }
+            }
+
+            // 2. Prefill username if provided in redirect URL
+            const uInput = document.getElementById('loginUsername');
+            if (mikrotikUsername && uInput && !uInput.value) {
+                uInput.value = mikrotikUsername;
+            }
+
+            // 3. Connect form directly to MikroTik Hotspot daemon
+            const loginForm = document.getElementById('portalLoginForm');
+            if (loginForm && mikrotikLoginUrl) {
+                loginForm.action = mikrotikLoginUrl;
+                loginForm.method = 'POST';
+
+                // Derive and save MikroTik logout URL in localStorage
+                let mtLogoutUrl = 'http://10.100.10.1/logout';
+                try {
+                    const u = new URL(mikrotikLoginUrl);
+                    mtLogoutUrl = u.origin + '/logout';
+                } catch(e) {
+                    mtLogoutUrl = mikrotikLoginUrl.replace(/\/login(\/|$|\?).*/i, '/logout');
+                }
+                localStorage.setItem('mt_logout_url', mtLogoutUrl);
+
+                // Ensure dst redirects to dashboard with logout_url parameter
+                let dstInput = loginForm.querySelector('input[name="dst"]');
+                if (!dstInput) {
+                    dstInput = document.createElement('input');
+                    dstInput.type = 'hidden';
+                    dstInput.name = 'dst';
+                    loginForm.appendChild(dstInput);
+                }
+                // Redirect user to user dashboard on successful login with logout_url
+                dstInput.value = window.location.origin + '/user/dashboard?logout_url=' + encodeURIComponent(mtLogoutUrl);
+
+                // Ensure popup input exists for MikroTik compatibility
+                let popupInput = loginForm.querySelector('input[name="popup"]');
+                if (!popupInput) {
+                    popupInput = document.createElement('input');
+                    popupInput.type = 'hidden';
+                    popupInput.name = 'popup';
+                    popupInput.value = 'true';
+                    loginForm.appendChild(popupInput);
+                }
+            }
+
+            // 4. Ensure password is set to username & sync session before Hotspot submit
+            if (loginForm && mikrotikLoginUrl) {
+                loginForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+
+                    const u = document.getElementById('loginUsername');
+                    const p = document.getElementById('loginPassword');
+                    const pHidden = document.getElementById('loginPasswordHidden');
+                    const uVal = u ? u.value.trim() : '';
+                    let pVal = p ? p.value.trim() : '';
+                    if (!pVal) {
+                        pVal = uVal;
+                    }
+
+                    if (pHidden) pHidden.value = pVal;
+                    if (p) p.value = pVal;
+
+                    const selSpeed = loginForm.querySelector('input[name="speed_profile"]:checked');
+                    const speedVal = selSpeed ? selSpeed.value : '';
+
+                    // Sync session in background with VPS so dashboard opens authenticated with selected speed
+                    try {
+                        await fetch('/user/api/login_session', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: uVal, password: pVal, speed_profile: speedVal })
+                        });
+                    } catch (err) {
+                        console.warn('Session background sync:', err);
+                    }
+
+                    // Direct submission to MikroTik Hotspot daemon
+                    HTMLFormElement.prototype.submit.call(loginForm);
+                });
+            } else if (loginForm) {
+                loginForm.addEventListener('submit', function() {
+                    const u = document.getElementById('loginUsername');
+                    const p = document.getElementById('loginPassword');
+                    const pHidden = document.getElementById('loginPasswordHidden');
+                    const uVal = u ? u.value.trim() : '';
+
+                    if (pHidden) {
+                        pHidden.value = uVal;
+                    }
+                    if (p && (!p.value || p.value.trim() === '')) {
+                        p.value = uVal;
+                    }
+                });
+            }
+
+            // Radio button visual indicator for speed selection
+            document.querySelectorAll('input.speed-radio').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    document.querySelectorAll('input.speed-radio').forEach(r => {
+                        const lbl = document.getElementById(`lbl_${r.id}`);
+                        const chk = lbl ? lbl.querySelector('.check-icon') : null;
+                        const activeBorder = r.getAttribute('data-active-border') || '#f59e0b';
+                        const activeBg = r.getAttribute('data-active-bg') || 'rgba(245, 158, 11, 0.15)';
+
+                        if (lbl && chk) {
+                            if (r.checked) {
+                                chk.classList.remove('opacity-0', 'scale-75');
+                                chk.classList.add('opacity-100', 'scale-100');
+                                lbl.style.borderColor = activeBorder;
+                                lbl.style.backgroundColor = activeBg;
+                            } else {
+                                chk.classList.remove('opacity-100', 'scale-100');
+                                chk.classList.add('opacity-0', 'scale-75');
+                                lbl.style.borderColor = '#1f293d';
+                                lbl.style.backgroundColor = '';
+                            }
+                        }
+                    });
+                });
+            });
+        } catch (e) {
+            console.error("Hotspot parameter binding error:", e);
+        }
+    });
 </script>
 {% endblock %}

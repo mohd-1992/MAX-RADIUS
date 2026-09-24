@@ -42,6 +42,15 @@ ERROR_CAUSE_MAP = {
     507: 'Request Initiated'
 }
 
+ATTR_VENDOR_SPECIFIC     = 26
+
+def encode_vsa_rate_limit(rate_limit_str):
+    """Encodes MikroTik-Rate-Limit Vendor-Specific Attribute (Vendor 14988, Type 8)."""
+    val_bytes = rate_limit_str.encode('utf-8')
+    sub_attr = struct.pack('!BB', 8, len(val_bytes) + 2) + val_bytes
+    vsa_data = struct.pack('!I', 14988) + sub_attr
+    return struct.pack('!BB', ATTR_VENDOR_SPECIFIC, len(vsa_data) + 2) + vsa_data
+
 def encode_attribute(attr_type, value):
     if isinstance(value, str):
         val_bytes = value.encode('utf-8')
@@ -208,6 +217,96 @@ class RadiusCoaClient:
                 'code': None,
                 'latency_ms': None,
                 'message': f'خطأ شبكة أثناء الاتصال بالراوتر ({self.nas_ip}:{self.port}): {str(e)}'
+            }
+        finally:
+            sock.close()
+
+    def modify_rate_limit(self, username=None, framed_ip=None, session_id=None, mac_address=None, rate_limit='10M/10M'):
+        """
+        Sends an RFC 5176 CoA-Request (Code 43) to MikroTik Router to change bandwidth on the fly.
+        """
+        if not any([username, framed_ip, session_id, mac_address]):
+            return {
+                'success': False,
+                'status': 'error',
+                'code': None,
+                'message': 'يجب تحديد معرّف واحد على الأقل للمشترك.'
+            }
+
+        attrs = bytearray()
+        if username:
+            attrs.extend(encode_attribute(ATTR_USER_NAME, username))
+        if framed_ip:
+            try:
+                attrs.extend(encode_ip_attribute(ATTR_FRAMED_IP_ADDRESS, framed_ip))
+            except Exception:
+                pass
+        if session_id:
+            attrs.extend(encode_attribute(ATTR_ACCT_SESSION_ID, session_id))
+        if mac_address:
+            clean_mac = mac_address.replace('-', ':').upper()
+            attrs.extend(encode_attribute(ATTR_CALLING_STATION_ID, clean_mac))
+
+        formatted_rate = rate_limit.strip()
+        if '/' not in formatted_rate:
+            formatted_rate = f"{formatted_rate}/{formatted_rate}"
+
+        attrs.extend(encode_vsa_rate_limit(formatted_rate))
+
+        identifier = os.urandom(1)[0]
+        length = 20 + len(attrs)
+        auth_zeroes = b'\x00' * 16
+        auth_preimage = struct.pack('!BBH', CODE_COA_REQUEST, identifier, length) + auth_zeroes + bytes(attrs) + self.secret
+        authenticator = hashlib.md5(auth_preimage).digest()
+
+        packet = struct.pack('!BBH', CODE_COA_REQUEST, identifier, length) + authenticator + bytes(attrs)
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(self.timeout)
+
+        t_start = time.time()
+        try:
+            sock.sendto(packet, (self.nas_ip, self.port))
+            data, addr = sock.recvfrom(4096)
+            latency_ms = max(0.5, round((time.time() - t_start) * 1000, 1))
+
+            if len(data) < 20:
+                return {
+                    'success': False,
+                    'status': 'invalid_response',
+                    'code': None,
+                    'latency_ms': latency_ms,
+                    'message': 'استجابة غير صالحة من الراوتر.'
+                }
+
+            resp_code, resp_id, resp_len = struct.unpack('!BBH', data[:4])
+            if resp_code == CODE_COA_ACK:
+                return {
+                    'success': True,
+                    'status': 'ack',
+                    'code': 44,
+                    'latency_ms': latency_ms,
+                    'message': f'تم استلام CoA-ACK وتطبيق السرعة {formatted_rate} بنجاح خلال {latency_ms} ms.'
+                }
+            else:
+                return {
+                    'success': False,
+                    'status': 'nak',
+                    'code': resp_code,
+                    'latency_ms': latency_ms,
+                    'message': f'تم رفض طلب تغيير السرعة من الراوتر (كود: {resp_code}).'
+                }
+        except socket.timeout:
+            return {
+                'success': False,
+                'status': 'timeout',
+                'message': 'انتهت مهلة استجابة الراوتر (Timeout).'
+            }
+        except socket.error as e:
+            return {
+                'success': False,
+                'status': 'socket_error',
+                'message': f'خطأ شبكة أثناء الاتصال بالراوتر: {str(e)}'
             }
         finally:
             sock.close()

@@ -54,11 +54,12 @@ def sync_package_to_radius(package_id):
 
     # 4. Volume Quota Limits are handled dynamically per-user in SQL authorize_reply_query (Remaining Quota)
 
-    # 5. Hotspot User Profile Binding (Mikrotik-Group VSA)
-    if pkg.get('mikrotik_group') and str(pkg['mikrotik_group']).strip():
+    # 5. Hotspot User Profile Binding (Mikrotik-Group VSA from package definition)
+    mgroup = pkg.get('mikrotik_group') and str(pkg['mikrotik_group']).strip()
+    if mgroup:
         execute_write(
             'INSERT INTO radgroupreply (groupname, attribute, op, value) VALUES (?, ?, ?, ?)',
-            (groupname, 'Mikrotik-Group', '=', str(pkg['mikrotik_group']).strip())
+            (groupname, 'Mikrotik-Group', '=', str(mgroup))
         )
         
     return True
@@ -66,7 +67,7 @@ def sync_package_to_radius(package_id):
 def sync_subscriber_to_radius(subscriber_id):
     """Syncs a subscriber credentials and attributes to radcheck, radreply, radusergroup."""
     sub = query_one('''
-        SELECT s.*, p.name as package_name 
+        SELECT s.*, p.name as package_name, p.mikrotik_group as pkg_mikrotik_group 
         FROM wisp_subscribers s 
         JOIN wisp_packages p ON s.package_id = p.id 
         WHERE s.id = ?
@@ -111,7 +112,15 @@ def sync_subscriber_to_radius(subscriber_id):
         (username, sub['package_name'], 1)
     )
     
-    # 5. Expiration attribute if active and has expiry
+    # 5. Mikrotik-Group from Subscriber or Package
+    mgroup = (sub.get('mikrotik_group') and str(sub['mikrotik_group']).strip()) or (sub.get('pkg_mikrotik_group') and str(sub['pkg_mikrotik_group']).strip())
+    if mgroup:
+        execute_write(
+            'INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ?, ?)',
+            (username, 'Mikrotik-Group', ':=', str(mgroup))
+        )
+
+    # 6. Expiration attribute if active and has expiry
     if sub.get('expires_at'):
         try:
             import datetime
@@ -181,8 +190,8 @@ def sync_voucher_to_radius(voucher_id):
             (username, 'Acct-Interim-Interval', ':=', '180')
         )
 
-        # Hotspot User Profile Binding (Mikrotik-Group VSA)
-        mgroup = v.get('snap_mikrotik_group') or v.get('pkg_mikrotik_group')
+        # Hotspot User Profile Binding (Mikrotik-Group VSA from Voucher or Package)
+        mgroup = v.get('snap_mikrotik_group') or (v.get('pkg_mikrotik_group') and str(v['pkg_mikrotik_group']).strip())
         if mgroup and str(mgroup).strip():
             execute_write(
                 'INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ?, ?)',

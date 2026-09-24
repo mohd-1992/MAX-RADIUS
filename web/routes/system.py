@@ -644,16 +644,16 @@ def export_sales():
 
 
 @system_bp.route('/settings', endpoint="settings")
-
 def settings():
     settings_rows = query_all('SELECT `key`, `value`, `description` FROM wisp_system_settings')
+    settings_dict = {r['key']: r['value'] for r in settings_rows} if settings_rows else {}
+    speed_options = get_portal_speed_options(settings_dict)
     audit_logs = query_all('SELECT * FROM wisp_audit_logs ORDER BY id DESC LIMIT 30')
     admins = query_all('SELECT id, username, full_name, role, is_active, created_at FROM wisp_admins')
-    return render_template('settings.html', settings_list=settings_rows, audit_logs=audit_logs, admins=admins)
+    return render_template('settings.html', settings_list=settings_rows, audit_logs=audit_logs, admins=admins, speed_options=speed_options)
 
 
 @system_bp.route('/settings/update', methods=['POST'], endpoint="update_settings_action")
-
 def update_settings_action():
     try:
         f = request.form
@@ -713,10 +713,36 @@ def update_settings_action():
             'portal_allow_registration': '1' if f.get('portal_allow_registration') in ('1', 'on', 'true', True, 1) else '0',
             'portal_allow_package_change': '1' if f.get('portal_allow_package_change') in ('1', 'on', 'true', True, 1) else '0',
             'portal_allow_password_change': '1' if f.get('portal_allow_password_change') in ('1', 'on', 'true', True, 1) else '0',
+            'portal_login_username_only': '1' if f.get('portal_login_username_only') in ('1', 'on', 'true', True, 1) else '0',
+            'portal_enable_speed_selector': '1' if f.get('portal_enable_speed_selector') in ('1', 'on', 'true', True, 1) else '0',
+            'portal_speed_eco': f.get('portal_speed_eco', '4M').strip() or '4M',
+            'portal_speed_balanced': f.get('portal_speed_balanced', '10M').strip() or '10M',
+            'portal_speed_turbo': f.get('portal_speed_turbo', '25M').strip() or '25M',
+            'portal_parent_queue': f.get('portal_parent_queue', '').strip(),
+            'portal_welcome_title': f.get('portal_welcome_title', 'بوابة المصادقة الآمنة والذكية').strip(),
+            'portal_network_subtitle': f.get('portal_network_subtitle', 'نقطة بث Wi-Fi 6 فائقة السرعة • نظام MAX RADIUS').strip(),
+            'portal_about_text': f.get('portal_about_text', '').strip(),
+            'portal_whatsapp': f.get('portal_whatsapp', '').strip(),
+            'portal_support_phone': f.get('portal_support_phone', '').strip(),
+            'portal_show_pricing': '1' if f.get('portal_show_pricing', '1') in ('1', 'on', 'true', True, 1) else '0',
+            'portal_show_speedtest': '1' if f.get('portal_show_speedtest', '1') in ('1', 'on', 'true', True, 1) else '0',
+            'portal_show_network_tab': '1' if f.get('portal_show_network_tab', '1') in ('1', 'on', 'true', True, 1) else '0',
+            'portal_show_support_tab': '1' if f.get('portal_show_support_tab', '1') in ('1', 'on', 'true', True, 1) else '0',
+            'portal_default_theme': f.get('portal_default_theme', 'dark').strip(),
             'allow_data_loan': '1' if f.get('allow_data_loan') in ('1', 'on', 'true', True, 1) else '0',
             'loan_amount_mb': str(max(10, int(f.get('loan_amount_mb', '1024').strip()))) if f.get('loan_amount_mb', '').strip().isdigit() else '1024',
             'loan_threshold_mb': str(max(1, int(f.get('loan_threshold_mb', '100').strip()))) if f.get('loan_threshold_mb', '').strip().isdigit() else '100'
         }
+
+        # Dynamic Speed Options list
+        custom_speeds_raw = f.get('portal_speed_options', '').strip()
+        if custom_speeds_raw:
+            try:
+                parsed = json.loads(custom_speeds_raw)
+                if isinstance(parsed, list):
+                    settings_to_save['portal_speed_options'] = json.dumps(parsed, ensure_ascii=False)
+            except Exception as e:
+                logger.warning(f"Error parsing portal_speed_options: {e}")
 
         for k, v in settings_to_save.items():
             existing = query_one('SELECT `key` FROM wisp_system_settings WHERE `key` = ?', (k,))

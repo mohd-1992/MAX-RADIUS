@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تم تسجيل الدخول | MAX RADIUS</title>
+  <meta http-equiv="refresh" content="1; url=http://199.247.3.47/user/dashboard?username=$(username)&logged_in=1&logout_url=$(link-logout)&status_url=$(link-status)">
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&display=swap');
+    body { font-family: 'Tajawal', sans-serif; background-color: #070b14; color: #f1f5f9; }
+    .portal-card { background: #0b1220; border: 1px solid #1c2840; }
+  </style>
+  <script>
+    setTimeout(function() {
+      window.location.href = "http://199.247.3.47/user/dashboard?username=" + encodeURIComponent("$(username)") + "&logged_in=1&logout_url=" + encodeURIComponent("$(link-logout)") + "&status_url=" + encodeURIComponent("$(link-status)");
+    }, 1000);
+  </script>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <div class="portal-card p-8 rounded-3xl max-w-sm w-full text-center space-y-4 shadow-2xl">
+    <div class="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-3xl mx-auto shadow-lg shadow-emerald-500/20 animate-bounce">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <h2 class="text-xl font-black text-white">تم الاتصال بنجاح!</h2>
+    <p class="text-xs text-slate-400">مرحباً بك <strong class="text-emerald-400 font-mono">$(username)</strong>، جاري نقلك إلى لوحة التحكم...</p>
+    
+    <div class="pt-2">
+      <a href="http://199.247.3.47/user/dashboard?username=$(username)&logged_in=1&logout_url=$(link-logout)&status_url=$(link-status)" 
+         class="inline-block w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition shadow-md shadow-emerald-500/20">
+        فتح لوحة التحكم فوراً
+      </a>
+    </div>
+  </div>
+</body>
+</html>
