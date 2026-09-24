@@ -664,7 +664,7 @@ def update_settings_action():
             if file and file.filename:
                 ext = os.path.splitext(file.filename)[1].lower()
                 if ext in ['.png', '.jpg', '.jpeg', '.svg', '.webp', '.ico']:
-                    upload_dir = os.path.join(app.static_folder, 'uploads')
+                    upload_dir = os.path.join(current_app.static_folder, 'uploads')
                     os.makedirs(upload_dir, exist_ok=True)
                     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
                     filename = f"logo_{timestamp}{ext}"

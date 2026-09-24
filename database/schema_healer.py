@@ -12,6 +12,55 @@ from database.db import get_connection, is_mysql_conn, adapt_query
 
 # Schema Definition Registry
 REQUIRED_TABLES = {
+    'wisp_whatsapp_settings': """
+        CREATE TABLE IF NOT EXISTS wisp_whatsapp_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            gateway_provider VARCHAR(40) DEFAULT 'simulator',
+            api_endpoint VARCHAR(255) DEFAULT 'http://localhost:8080',
+            api_key VARCHAR(255) DEFAULT '',
+            instance_name VARCHAR(80) DEFAULT 'max_radius_bot',
+            phone_number VARCHAR(40) DEFAULT '',
+            is_bot_enabled TINYINT(1) DEFAULT 1,
+            is_notifications_enabled TINYINT(1) DEFAULT 1,
+            meta_app_id VARCHAR(80) DEFAULT '',
+            meta_phone_number_id VARCHAR(80) DEFAULT '',
+            meta_access_token TEXT DEFAULT NULL,
+            meta_webhook_verify_token VARCHAR(120) DEFAULT 'max_radius_whatsapp_token_2026',
+            status VARCHAR(30) DEFAULT 'disconnected',
+            qr_code_raw MEDIUMTEXT DEFAULT NULL,
+            last_connected_at DATETIME DEFAULT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'wisp_whatsapp_templates': """
+        CREATE TABLE IF NOT EXISTS wisp_whatsapp_templates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            template_key VARCHAR(60) NOT NULL UNIQUE,
+            title VARCHAR(100) NOT NULL,
+            category VARCHAR(40) DEFAULT 'notification',
+            message_body TEXT NOT NULL,
+            is_active TINYINT(1) DEFAULT 1,
+            variables_hint VARCHAR(255) DEFAULT '',
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'wisp_whatsapp_logs': """
+        CREATE TABLE IF NOT EXISTS wisp_whatsapp_logs (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            recipient_phone VARCHAR(30) NOT NULL,
+            message_type VARCHAR(30) DEFAULT 'text',
+            direction ENUM('inbound', 'outbound') DEFAULT 'outbound',
+            message_body TEXT NOT NULL,
+            status ENUM('pending', 'sent', 'delivered', 'read', 'failed') DEFAULT 'sent',
+            error_message TEXT DEFAULT NULL,
+            entity_type VARCHAR(30) DEFAULT NULL,
+            entity_id INT DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_phone (recipient_phone),
+            INDEX idx_status (status),
+            INDEX idx_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
     'wisp_global_sequence': """
         CREATE TABLE IF NOT EXISTS wisp_global_sequence (
             seq_id BIGINT AUTO_INCREMENT PRIMARY KEY,
