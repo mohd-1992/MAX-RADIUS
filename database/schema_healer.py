@@ -52,15 +52,14 @@ REQUIRED_TABLES = {
             INDEX idx_user (username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """,
-    'wisp_l2tp_tunnels': """
-        CREATE TABLE IF NOT EXISTS wisp_l2tp_tunnels (
+    'wisp_sstp_tunnels': """
+        CREATE TABLE IF NOT EXISTS wisp_sstp_tunnels (
             id INT AUTO_INCREMENT PRIMARY KEY,
             name VARCHAR(80) NOT NULL,
             username VARCHAR(64) NOT NULL UNIQUE,
             password VARCHAR(64) NOT NULL,
             tunnel_ip VARCHAR(45) NOT NULL UNIQUE,
             radius_secret VARCHAR(64) NOT NULL DEFAULT '123',
-            ipsec_secret VARCHAR(64) NOT NULL DEFAULT '',
             reseller_id INT DEFAULT NULL,
             status VARCHAR(20) DEFAULT 'offline',
             is_enabled TINYINT(1) DEFAULT 1,
@@ -68,7 +67,7 @@ REQUIRED_TABLES = {
             last_connected_at DATETIME DEFAULT NULL,
             description TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_l2tp_reseller (reseller_id)
+            INDEX idx_sstp_reseller (reseller_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """
 }
@@ -97,9 +96,9 @@ REQUIRED_COLUMNS = {
         ('snap_validity_days', 'INT DEFAULT 30'),
         ('snap_rate_download', "VARCHAR(50) DEFAULT '0'"),
         ('snap_rate_upload', "VARCHAR(50) DEFAULT '0'"),
+        ('snap_rate_limit_str', "VARCHAR(100) DEFAULT '0/0'"),
         ('snap_simultaneous_sessions', 'INT DEFAULT 1'),
-        ('snap_mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'"),
-        ('balance', 'DECIMAL(10,2) DEFAULT 0.00')
+        ('snap_mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'")
     ],
     'wisp_voucher_batches': [
         ('price', 'DECIMAL(10,2) DEFAULT 0.00'),
@@ -266,11 +265,6 @@ def heal_database_schema():
         conn = get_connection()
         is_mysql = is_mysql_conn(conn)
         cur = conn.cursor()
-        if is_mysql:
-            try:
-                cur.execute("SET SESSION innodb_lock_wait_timeout = 2;")
-            except Exception:
-                pass
 
         # 1. Create any missing tables
         for tbl_name, create_sql in REQUIRED_TABLES.items():
@@ -361,29 +355,33 @@ def heal_database_schema():
         except Exception as e:
             print(f"[Schema Healer] Snap backfill notice: {e}")
 
-        # 5. Ensure performance indexes exist
+        # 5. Ensure Triggers Exist
         try:
             if is_mysql:
-                perf_indexes = [
-                    ('radacct', 'idx_radacct_user_acct', 'CREATE INDEX idx_radacct_user_acct ON radacct(username, acctstoptime, acctupdatetime, acctstarttime)'),
-                    ('radacct', 'idx_radacct_user_session', 'CREATE INDEX idx_radacct_user_session ON radacct(username, nasipaddress, acctsessionid)'),
-                    ('wisp_vouchers', 'idx_voucher_status_id', 'CREATE INDEX idx_voucher_status_id ON wisp_vouchers(status, id DESC)'),
-                    ('wisp_subscribers', 'idx_sub_status_id', 'CREATE INDEX idx_sub_status_id ON wisp_subscribers(status, id DESC)')
-                ]
-                for tbl, idx_name, sql in perf_indexes:
-                    try:
-                        cur.execute(f"SHOW INDEX FROM `{tbl}` WHERE Key_name = '{idx_name}'")
-                        if not cur.fetchall():
-                            cur.execute(sql)
-                            conn.commit()
-                            print(f"[Schema Healer] Created performance index `{idx_name}` on `{tbl}`.")
-                    except Exception as e:
-                        pass
+                cur.execute("DROP TRIGGER IF EXISTS trg_radacct_subscriber_activate")
+                cur.execute(TRIGGER_SUB_SQL)
+                cur.execute("DROP TRIGGER IF EXISTS trg_radacct_activate_voucher")
+                cur.execute(TRIGGER_VOUCHER_SQL)
+                conn.commit()
         except Exception as e:
-            print(f"[Schema Healer] Performance index notice: {e}")
+            print(f"[Schema Healer] Trigger creation notice: {e}")
 
+        # Backfill missing Cleartext-Password in radcheck for subscribers and vouchers
+        try:
+            cur.execute('''
+                INSERT INTO radcheck (username, attribute, op, value)
+                SELECT s.username, 'Cleartext-Password', ':=', s.password
+                FROM wisp_subscribers s
+                WHERE s.status = 'active'
+                AND NOT EXISTS (
+                    SELECT 1 FROM radcheck r WHERE r.username = s.username AND r.attribute = 'Cleartext-Password'
+                );
+            ''')
+            if is_mysql:
+                conn.commit()
+        except Exception:
+            pass
         conn.close()
-        print("[Schema Healer] Database schema verified and healed successfully.")
         return True
     except Exception as e:
         print(f"[Schema Healer Critical Error]: {e}")

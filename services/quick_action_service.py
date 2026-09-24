@@ -360,6 +360,11 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
     if new_fr_exp:
         execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_fr_exp))
         
+    # إعادة تأكيد كلمة المرور في radcheck لضمان قبول المصادقة فوراً إذا كان المشترك منتهي الصلاحية سابقاً
+    user_pwd = entity.get('password') or entity.get('pin_code') or username
+    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Cleartext-Password'", (username,))
+    execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (username, user_pwd))
+        
     # تنظيف أي سمات كوتا زائدة من radcheck (تتم إدارة الكوتا ديناميكياً عبر SQL)
     execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Max-Total-Octets'", (username,))
 
@@ -390,7 +395,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
     return True, res_msg
 
 def action_change_package(entity_type, entity_id, new_package_id, admin_username='admin'):
-    """4. تغيير الباقة مع دعم تراكم التحميل والوقت في حال تفعيل الترحيل"""
+    """4. تغيير الباقة"""
     entity, etype = get_target_entity(entity_type, entity_id)
     if not entity:
         return False, "الحساب أو الكرت غير موجود"
@@ -400,75 +405,16 @@ def action_change_package(entity_type, entity_id, new_package_id, admin_username
         return False, "الباقة الجديدة المحددة غير موجودة"
         
     username = entity['username']
-    now = datetime.datetime.now()
-    
-    # 1. التحقق من تفعيل التراكم في الباقة الحالية أو الجديدة
-    old_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (entity.get('package_id'),))
-    is_rollover_enabled = bool((old_pkg and old_pkg.get('is_rollover_enabled')) or new_pkg.get('is_rollover_enabled'))
-    
-    rem_data_mb = 0.0
-    rem_time_delta = datetime.timedelta(0)
-    
-    if is_rollover_enabled:
-        # أ. حساب البيانات المتبقية (Data Rollover)
-        total_allowed_mb = float((old_pkg.get('volume_quota_mb') if old_pkg else 0) or 0) + float(entity.get('extra_quota_mb') or 0)
-        if total_allowed_mb > 0:
-            cycle_start = entity.get('last_renewed_at') or entity.get('first_used_at') or entity.get('created_at')
-            usage_q = query_one("""
-                SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
-                FROM (
-                    SELECT nasipaddress, acctsessionid,
-                           MAX(acctinputoctets) as total_in,
-                           MAX(acctoutputoctets) as total_out
-                    FROM radacct
-                    WHERE LOWER(username) = LOWER(?)
-                      AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
-                    GROUP BY nasipaddress, acctsessionid
-                ) t
-            """, (username, str(cycle_start)))
-            used_bytes = float(usage_q['total_bytes'] or 0) if usage_q else 0.0
-            used_mb = used_bytes / (1024.0 * 1024.0)
-            rem_data_mb = max(0.0, total_allowed_mb - used_mb)
-            
-        # ب. حساب الوقت المتبقي (Time Rollover)
-        if entity.get('expires_at'):
-            try:
-                exp_str = str(entity['expires_at']).replace('T', ' ').split('.')[0]
-                exp_dt = datetime.datetime.strptime(exp_str, '%Y-%m-%d %H:%M:%S')
-                if exp_dt > now:
-                    rem_time_delta = exp_dt - now
-            except Exception:
-                pass
-                
-    # 2. حساب تاريخ الانتهاء الجديد
-    val = int(new_pkg.get('validity_value') if new_pkg.get('validity_value') is not None else (new_pkg.get('validity_days') or 30))
+    val = new_pkg.get('validity_value') if new_pkg.get('validity_value') is not None else (new_pkg.get('validity_days') or 30)
     unit = new_pkg.get('validity_unit') or 'days'
-    
-    if val <= 0:
-        new_exp_iso = None
-        new_fr_exp = None
-    else:
-        if unit == 'hours':
-            base_delta = datetime.timedelta(hours=val)
-        elif unit == 'minutes':
-            base_delta = datetime.timedelta(minutes=val)
-        elif unit == 'months':
-            base_delta = datetime.timedelta(days=val * 30)
-        else:
-            base_delta = datetime.timedelta(days=val)
-            
-        new_exp_dt = now + base_delta + rem_time_delta
-        new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
-        new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
-        
-    new_extra_mb = round(rem_data_mb, 2) if is_rollover_enabled else 0.0
+    new_exp_iso, new_fr_exp = calculate_package_expiration(val, unit)
     
     if etype == 'subscriber':
         execute_write("""
             UPDATE wisp_subscribers
-            SET package_id = ?, expires_at = ?, extra_quota_mb = ?, last_renewed_at = CURRENT_TIMESTAMP, status = 'active'
+            SET package_id = ?, expires_at = ?, last_renewed_at = CURRENT_TIMESTAMP, status = 'active'
             WHERE id = ?
-        """, (new_pkg['id'], new_exp_iso, new_extra_mb, entity['id']))
+        """, (new_pkg['id'], new_exp_iso, entity['id']))
         # Record invoice
         inv_num = generate_invoice_number(entity['id'])
         execute_write("""
@@ -478,9 +424,9 @@ def action_change_package(entity_type, entity_id, new_package_id, admin_username
     else:
         execute_write("""
             UPDATE wisp_vouchers
-            SET package_id = ?, snap_volume_quota_mb = ?, expires_at = ?, extra_quota_mb = ?, last_renewed_at = CURRENT_TIMESTAMP, status = 'active', expire_reason = ''
+            SET package_id = ?, expires_at = ?, last_renewed_at = CURRENT_TIMESTAMP, status = 'active', expire_reason = ''
             WHERE id = ?
-        """, (new_pkg['id'], new_pkg.get('volume_quota_mb') or 0, new_exp_iso, new_extra_mb, entity['id']))
+        """, (new_pkg['id'], new_exp_iso, entity['id']))
         
     # Update FreeRADIUS radusergroup
     execute_write("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", (username,))
@@ -491,61 +437,48 @@ def action_change_package(entity_type, entity_id, new_package_id, admin_username
     if new_fr_exp:
         execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_fr_exp))
         
-    action_disconnect_user(entity_type, entity_id, admin_username=admin_username)
-    
-    rollover_msg = ""
-    if is_rollover_enabled and (rem_data_mb > 0 or rem_time_delta.total_seconds() > 0):
-        parts = []
-        if rem_data_mb > 0:
-            parts.append(f"{round(rem_data_mb/1024.0, 2) if rem_data_mb>=1024 else rem_data_mb} {'GB' if rem_data_mb>=1024 else 'MB'}")
-        if rem_time_delta.total_seconds() > 0:
-            d = int(rem_time_delta.total_seconds() // 86400)
-            parts.append(f"{d} يوم")
-        rollover_msg = f" (تم ترحيل {' و '.join(parts)} إلى الباقة الجديدة)"
+    # ضمان وجود كلمة المرور في radcheck للمشترك أو الكرت
+    user_pwd = entity.get('password') or entity.get('pin_code') or username
+    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Cleartext-Password'", (username,))
+    execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (username, user_pwd))
         
-    log_audit(1, admin_username, 'CHANGE_PACKAGE', etype, f'Changed package to {new_pkg["name"]} for {username}{rollover_msg}')
-    return True, f"تم تغيير الباقة إلى ({new_pkg['name']}) بنجاح ومزامنة FreeRADIUS{rollover_msg}."
+    action_disconnect_user(entity_type, entity_id, admin_username=admin_username)
+    log_audit(1, admin_username, 'CHANGE_PACKAGE', etype, f'Changed package to {new_pkg["name"]} for {username}')
+    return True, f"تم تغيير الباقة إلى ({new_pkg['name']}) بنجاح ومزامنة FreeRADIUS."
 
 def action_add_quota(entity_type, entity_id, quota_amount, quota_unit='GB', admin_username='admin'):
-    """5. إضافة أو خصم رصيد تحميل (Data Quota)"""
+    """5. إضافة رصيد تحميل (Data Quota)"""
     entity, etype = get_target_entity(entity_type, entity_id)
     if not entity:
         return False, "الحساب أو الكرت غير موجود"
         
     try:
         val = float(quota_amount)
-        if val == 0:
-            return False, "يرجى إدخال قيمة لا تساوي صفراً"
+        if val <= 0:
+            return False, "يرجى إدخال سعة بيانات صحيحة أكبر من 0"
     except (ValueError, TypeError):
         return False, "قيمة السعة المدخلة غير صحيحة"
         
     mb_val = round(val * 1024.0, 2) if str(quota_unit).upper() == 'GB' else round(val, 2)
-    is_addition = (val > 0)
-    abs_val = abs(val)
-    abs_val_str = f"{int(abs_val)}" if abs_val == int(abs_val) else f"{abs_val}"
-    unit_str = 'GB' if str(quota_unit).upper() == 'GB' else 'MB'
-    unit_ar = 'جيجابايت' if unit_str == 'GB' else 'ميجابايت'
-    action_verb = "إضافة" if is_addition else "خصم"
-    action_type = "ADD_DATA_QUOTA" if is_addition else "DEDUCT_DATA_QUOTA"
     
     if etype == 'subscriber':
         execute_write("""
             UPDATE wisp_subscribers
             SET extra_quota_mb = COALESCE(extra_quota_mb, 0) + ?,
-                status = CASE WHEN ? > 0 AND status = 'expired' THEN 'active' ELSE status END
+                status = CASE WHEN status = 'expired' THEN 'active' ELSE status END
             WHERE id = ?
-        """, (mb_val, mb_val, entity['id']))
+        """, (mb_val, entity['id']))
     else:
         execute_write("""
             UPDATE wisp_vouchers
             SET extra_quota_mb = COALESCE(extra_quota_mb, 0) + ?,
-                status = CASE WHEN ? > 0 AND status = 'expired' THEN 'active' ELSE status END,
-                expire_reason = CASE WHEN ? > 0 AND status = 'expired' THEN '' ELSE expire_reason END
+                status = CASE WHEN status = 'expired' THEN 'active' ELSE status END,
+                expire_reason = ''
             WHERE id = ?
-        """, (mb_val, mb_val, mb_val, entity['id']))
+        """, (mb_val, entity['id']))
         
-    log_audit(1, admin_username, action_type, etype, f'{action_verb} {abs_val_str} {unit_str} ({abs(mb_val)} MB) quota for {entity["username"]}')
-    return True, f"تم {action_verb} رصيد كوتا بمقدار {abs_val_str} {unit_ar} ({abs(mb_val)} ميجابايت) بنجاح."
+    log_audit(1, admin_username, 'ADD_DATA_QUOTA', etype, f'Added {val} {quota_unit} ({mb_val} MB) quota to {entity["username"]}')
+    return True, f"تمت إضافة رصيد تحميل بمقدار {val} {quota_unit} ({mb_val} MB) بنجاح."
 
 def action_get_usage_history(entity_type, entity_id):
     """6. استعراض سجل الاستهلاك والجلسات"""
@@ -663,22 +596,57 @@ def action_deduct_wallet_balance(entity_type, entity_id, amount, notes='', admin
     return True, f"تم خصم/سحب {val} من رصيد المحفظة بنجاح. الرصيد المتبقي: {curr_balance - val}"
 
 def action_disconnect_user(entity_type, entity_id, admin_username='admin'):
-    """9. قطع الاتصال وطرد المشترك عبر CoA Disconnect-Request أو MikroTik API"""
+    """9. قطع الاتصال وطرد المشترك عبر CoA Disconnect-Request"""
     entity, etype = get_target_entity(entity_type, entity_id)
     if not entity:
         return False, "الحساب أو الكرت غير موجود"
         
     username = entity['username']
     
-    from services.subscriber_service import disconnect_subscriber_session
-    res = disconnect_subscriber_session(username, admin_username=admin_username)
+    # 1. Look up active session
+    active_session = query_one("""
+        SELECT nasipaddress, acctsessionid, framedipaddress, callingstationid
+        FROM radacct
+        WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL
+        ORDER BY radacctid DESC
+        LIMIT 1
+    """, (username,))
     
-    if res.get('success'):
-        msg = res.get('message') or f"تم قطع اتصال وطرد المشترك [{username}] بنجاح."
-        return True, msg
+    nas_ip = '127.0.0.1'
+    session_id = None
+    framed_ip = None
+    calling_station_id = None
+    
+    if active_session:
+        nas_ip = active_session['nasipaddress'] or '127.0.0.1'
+        session_id = active_session['acctsessionid']
+        framed_ip = active_session['framedipaddress']
+        calling_station_id = active_session['callingstationid']
+        
+        # Find NAS secret
+        nas_row = query_one("SELECT secret FROM nas WHERE nasname = ?", (nas_ip,))
+        secret = nas_row['secret'] if nas_row else 'testing123'
+        
+        client = RadiusCoaClient(nas_ip=nas_ip, secret=secret, timeout=1.5)
+        try:
+            res = client.disconnect_user(
+                username=username,
+                framed_ip=framed_ip,
+                session_id=session_id,
+                mac_address=calling_station_id
+            )
+        except Exception as coa_err:
+            res = {'status': 'error', 'message': str(coa_err)}
+            
+        execute_write("""
+            UPDATE radacct
+            SET acctstoptime = CURRENT_TIMESTAMP,
+                acctterminatecause = 'Admin-Reset-CoA'
+            WHERE nasipaddress = ? AND acctsessionid = ? AND acctstoptime IS NULL
+        """, (active_session['nasipaddress'], active_session['acctsessionid']))
+        
+        log_audit(1, admin_username, 'DISCONNECT_USER', etype, f'Sent CoA Disconnect for active user {username} on NAS {nas_ip}. Status: {res.get("status")}')
+        return True, f"تم إرسال أمر قطع الاتصال (CoA Disconnect) للمشترك النشط إلى الميكروتيك ({nas_ip}) بنجاح."
     else:
-        status = res.get('status')
-        if status == 'no_active_session':
-            return True, f"المشترك [{username}] غير متصل حالياً (لا توجد جلسة نشطة)."
-        else:
-            return False, res.get('message') or f"فشل قطع اتصال المشترك [{username}]."
+        log_audit(1, admin_username, 'DISCONNECT_USER', etype, f'Disconnect called for offline user {username}.')
+        return True, f"المشترك [{username}] غير متصل حالياً (لا توجد جلسة نشطة)."

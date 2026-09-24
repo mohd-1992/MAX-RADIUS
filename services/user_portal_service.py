@@ -151,55 +151,25 @@ def format_mb_or_gb(val_mb):
         else:
             return f"{val_float:.2f}".rstrip('0').rstrip('.') + " MB"
 
-def authenticate_portal_user(username, password=None, allow_username_only=False):
+def authenticate_portal_user(username, password):
     """
     Authenticate against FreeRADIUS radcheck table or subscribers/vouchers.
-    Supports single-field username-only authentication if enabled in settings or requested.
     """
     username = (username or '').strip()
-    password = (password or '').strip() if password is not None else ''
+    password = (password or '').strip()
+    if not username or not password:
+        return None, "يرجى إدخال اسم المستخدم وكلمة المرور"
 
-    if not username:
-        return None, "يرجى إدخال اسم المستخدم أو رقم الكرت"
-
-    # Check system setting if allow_username_only was not explicitly passed
-    if not allow_username_only and not password:
-        settings_rows = query_all("SELECT `key`, `value` FROM wisp_system_settings WHERE `key` = 'portal_login_username_only'")
-        if settings_rows and settings_rows[0]['value'] in ('1', 'true', 'True', 1, True):
-            allow_username_only = True
-
-    if not password and not allow_username_only:
-        return None, "يرجى إدخال كلمة المرور"
-
-    # 1. Single field / Username only login
-    if allow_username_only and not password:
-        # Check subscribers
-        sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (username,))
-        if sub:
-            return {'username': sub['username'], 'type': 'subscriber', 'id': sub['id']}, None
-
-        # Check vouchers
-        v = query_one("SELECT * FROM wisp_vouchers WHERE LOWER(username) = LOWER(?) OR pin_code = ?", (username, username))
-        if v:
-            return {'username': v['username'], 'type': 'voucher', 'id': v['id']}, None
-
-        # Check radcheck
-        rad_row = query_one("SELECT * FROM radcheck WHERE LOWER(username) = LOWER(?) LIMIT 1", (username,))
-        if rad_row:
-            return {'username': rad_row['username'], 'type': 'radius_user', 'id': None}, None
-
-        return None, "اسم المستخدم أو رقم الكرت غير مسجل في النظام"
-
-    # 2. Standard username + password authentication
-    # Check radcheck
+    # 1. Check radcheck
     rad_row = query_one(
         "SELECT * FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute IN ('Cleartext-Password', 'User-Password', 'MD5-Password')",
         (username,)
     )
     if rad_row:
         stored_pwd = rad_row['value']
-        if stored_pwd == password or (stored_pwd == username and password == username):
+        if stored_pwd == password:
             actual_username = rad_row['username']
+            # Determine user type
             sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (actual_username,))
             if sub:
                 return {'username': sub['username'], 'type': 'subscriber', 'id': sub['id']}, None
@@ -208,12 +178,12 @@ def authenticate_portal_user(username, password=None, allow_username_only=False)
                 return {'username': v['username'], 'type': 'voucher', 'id': v['id']}, None
             return {'username': actual_username, 'type': 'radius_user', 'id': None}, None
 
-    # Check wisp_subscribers
+    # 2. Check wisp_subscribers
     sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (username,))
     if sub and sub['password'] == password:
         return {'username': sub['username'], 'type': 'subscriber', 'id': sub['id']}, None
 
-    # Check wisp_vouchers
+    # 3. Check wisp_vouchers
     v = query_one("SELECT * FROM wisp_vouchers WHERE (LOWER(username) = LOWER(?) OR pin_code = ?)", (username, username))
     if v and (v['password'] == password or v['pin_code'] == password or v['username'] == password):
         return {'username': v['username'], 'type': 'voucher', 'id': v['id']}, None
@@ -282,7 +252,7 @@ def get_portal_user_data(username):
             user_info = {
                 'type': 'voucher',
                 'username': v_card['username'],
-                'full_name': v_card['username'],
+                'full_name': f"كرت إنترنت ({v_card['batch_name']})",
                 'phone': '',
                 'service_type': 'hotspot',
                 'balance': float(v_card.get('balance') or 0.0),
@@ -348,10 +318,10 @@ def get_portal_user_data(username):
         user_info['nas_ip'] = '-'
 
     cycle_start = None
-    if sub and sub.get('last_renewed_at'):
-        cycle_start = sub['last_renewed_at']
-    elif v_card and v_card.get('last_renewed_at'):
-        cycle_start = v_card['last_renewed_at']
+    if sub:
+        cycle_start = sub.get('last_renewed_at') or sub.get('created_at')
+    elif v_card:
+        cycle_start = v_card.get('last_renewed_at') or v_card.get('first_used_at') or v_card.get('created_at')
 
     # 3. Calculate current cycle consumption (deduplicated by session)
     if cycle_start:
@@ -398,11 +368,9 @@ def get_portal_user_data(username):
     # Quota calculations
     base_quota_mb = float(user_info.get('volume_quota_mb') or 0)
     extra_quota_mb = float(user_info.get('extra_quota_mb') or 0)
-    is_limited_package = (base_quota_mb > 0)
+    total_allowed_quota_mb = base_quota_mb + extra_quota_mb
 
-    user_info['has_quota'] = bool(is_limited_package or extra_quota_mb > 0)
-    if user_info['has_quota']:
-        total_allowed_quota_mb = max(0.0, base_quota_mb + extra_quota_mb)
+    if total_allowed_quota_mb > 0 and (base_quota_mb > 0 or extra_quota_mb > 0):
         total_used_mb = float(raw_in + raw_out) / (1024.0 * 1024.0)
         rem_mb = max(0.0, total_allowed_quota_mb - total_used_mb)
         user_info['quota_used_mb'] = round(total_used_mb, 2)
@@ -411,10 +379,7 @@ def get_portal_user_data(username):
         user_info['quota_used_str'] = format_mb_or_gb(total_used_mb)
         user_info['quota_total_str'] = format_mb_or_gb(total_allowed_quota_mb)
         user_info['quota_rem_str'] = format_mb_or_gb(rem_mb)
-        if total_allowed_quota_mb > 0:
-            user_info['quota_percent'] = min(100.0, round((total_used_mb / total_allowed_quota_mb) * 100.0, 1))
-        else:
-            user_info['quota_percent'] = 100.0
+        user_info['quota_percent'] = min(100.0, round((total_used_mb / total_allowed_quota_mb) * 100.0, 1))
     else:
         user_info['quota_used_mb'] = 0.00
         user_info['quota_total_mb'] = 'غير محدود (Unlimited)'
@@ -449,7 +414,7 @@ def get_portal_user_data(username):
             quota_is_low = True
         elif isinstance(rem_val, (int, float)) and rem_val <= threshold_mb:
             quota_is_low = True
-        elif str(user_info.get('quota_rem_str')) in ('0 MB', '0.00 B', '0 B', '0'):
+        elif str(user_info.get('quota_rem_str')) == '0 MB':
             quota_is_low = True
 
         allow_loan = settings_dict.get('allow_data_loan', '1') in ('1', 'true', 'True', 1, True)
@@ -516,129 +481,11 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
 
     card_value = float(card['card_price'] or 0.0)
 
-    # 2. Check if subscriber or voucher card user exists
+    # 2. Check if subscriber exists
     sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (username,))
-    v_user = None
     if not sub:
-        v_user = query_one("SELECT * FROM wisp_vouchers WHERE LOWER(username) = LOWER(?) OR pin_code = ?", (username, username))
-        if not v_user:
-            return False, "حساب المشترك أو الكرت غير مسجل في النظام."
+        return False, "حساب المشترك غير مسجل في قائمة الاشتراكات."
 
-    if v_user:
-        # ---------- شحن وتمديد لمشترك كرت إنترنت (Voucher User) ----------
-        add_quota_mb = float(card.get('volume_quota_mb') or 0.0)
-        
-        # Calculate validity delta from card's package
-        val = card.get('validity_value') if card.get('validity_value') is not None else (card.get('validity_days') or 30)
-        unit = str(card.get('validity_unit') or 'days').lower().strip()
-        
-        if unit in ['minutes', 'minute', 'دقائق', 'دقيقة']:
-            delta = datetime.timedelta(minutes=int(val))
-        elif unit in ['hours', 'hour', 'ساعات', 'ساعة']:
-            delta = datetime.timedelta(hours=int(val))
-        elif unit in ['months', 'month', 'أشهر', 'شهر']:
-            delta = datetime.timedelta(days=int(val) * 30)
-        else: # days
-            delta = datetime.timedelta(days=int(val))
-            
-        now = datetime.datetime.now()
-        current_exp = v_user.get('expires_at')
-        current_exp_dt = None
-        if current_exp and isinstance(current_exp, str):
-            try:
-                current_exp_dt = datetime.datetime.strptime(current_exp.split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
-            except Exception:
-                current_exp_dt = None
-        elif isinstance(current_exp, datetime.datetime):
-            current_exp_dt = current_exp
-
-        if current_exp_dt and current_exp_dt > now and v_user.get('status') == 'active':
-            new_exp_dt = current_exp_dt + delta
-        else:
-            new_exp_dt = now + delta
-
-        # Check rollover on current voucher or card
-        v_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (v_user.get('package_id'),))
-        card_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (card.get('package_id'),))
-        is_rollover = bool((v_pkg and v_pkg.get('is_rollover_enabled')) or (card_pkg and card_pkg.get('is_rollover_enabled')))
-        
-        rem_data_mb = 0.0
-        if is_rollover:
-            total_allowed_mb = float(v_user.get('snap_volume_quota_mb') or (v_pkg.get('volume_quota_mb') if v_pkg else 0) or 0) + float(v_user.get('extra_quota_mb') or 0)
-            if total_allowed_mb > 0:
-                cycle_start = v_user.get('last_renewed_at') or v_user.get('first_used_at') or v_user.get('created_at')
-                usage_q = query_one("""
-                    SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
-                    FROM (
-                        SELECT nasipaddress, acctsessionid,
-                               MAX(acctinputoctets) as total_in,
-                               MAX(acctoutputoctets) as total_out
-                        FROM radacct
-                        WHERE LOWER(username) = LOWER(?)
-                          AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
-                        GROUP BY nasipaddress, acctsessionid
-                    ) t
-                """, (v_user['username'], str(cycle_start)))
-                used_bytes = float(usage_q['total_bytes'] or 0) if usage_q else 0.0
-                used_mb = used_bytes / (1024.0 * 1024.0)
-                rem_data_mb = max(0.0, total_allowed_mb - used_mb)
-        
-        card_base_mb = float(card.get('volume_quota_mb') or (card_pkg.get('volume_quota_mb') if card_pkg else 0) or 0)
-        new_extra_quota = round(rem_data_mb, 2)
-
-        # Update current voucher card
-        execute_write("""
-            UPDATE wisp_vouchers SET
-                status = 'active',
-                package_id = COALESCE(?, package_id),
-                snap_volume_quota_mb = ?,
-                extra_quota_mb = ?,
-                expires_at = ?,
-                last_renewed_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (card.get('package_id'), card_base_mb, new_extra_quota, new_exp_iso, v_user['id']))
-
-        # Update radcheck Expiration
-        execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", (v_user['username'],))
-        execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (v_user['username'], new_fr_exp))
-
-        # Mark consumed recharge card as recharged / disabled
-        execute_write("""
-            UPDATE wisp_vouchers SET
-                status = 'recharged',
-                expire_reason = ?,
-                first_used_at = CURRENT_TIMESTAMP,
-                bound_mac = ?
-            WHERE id = ?
-        """, (f"تم استخدامه لتمديد الكرت {v_user['username']}", f"TOPUP:{v_user['username']}"[:28], card['id']))
-
-        # Remove used card from RADIUS
-        try:
-            delete_user_from_radius(card['username'])
-        except Exception:
-            pass
-
-        # Record in sales
-        try:
-            execute_write("""
-                INSERT INTO wisp_voucher_sales (
-                    voucher_id, batch_id, batch_name, username, serial_number,
-                    package_name, price, cost, reseller_id, activated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, NULL, CURRENT_TIMESTAMP)
-            """, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value))
-        except Exception:
-            pass
-
-        # Disconnect active session so limits update immediately
-        try:
-            disconnect_subscriber_session(v_user['username'])
-        except Exception:
-            pass
-
-        log_user_audit('voucher', v_user['id'], v_user['username'], 'UserPortal', 'CARD_RECHARGE', f'تم تمديد الكرت بإضافة {format_mb_or_gb(add_quota_mb)} عبر كرت الشحن {card["username"]}')
-        return True, f"تم شحن الكرت بنجاح! تمت إضافة {format_mb_or_gb(add_quota_mb)} بيانات وتمديد الصلاحية حتى {new_exp_iso}."
-
-    # ---------- شحن للمشتركين الدائمين (Subscribers) ----------
     loan_mb = int(sub.get('loan_balance_mb') or 0)
     loan_status = int(sub.get('loan_status') or 0)
     has_active_loan = (loan_status == 1 or loan_mb > 0)
@@ -696,36 +543,11 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
         new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
         
-        # Check rollover on current subscriber package or card package
-        curr_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (sub.get('package_id'),))
-        card_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (card.get('package_id'),))
-        is_rollover = bool((curr_pkg and curr_pkg.get('is_rollover_enabled')) or (card_pkg and card_pkg.get('is_rollover_enabled')))
+        # Under Option 1: The card grants strictly its purchased capacity and validity duration
+        # Update package to the recharged card's package and set quota adjustments
+        card_extra_quota = -deducted_loan_mb if deducted_loan_mb > 0 else 0
         
-        rem_data_mb = 0.0
-        if is_rollover:
-            total_allowed_mb = float((curr_pkg.get('volume_quota_mb') if curr_pkg else 0) or 0) + float(sub.get('extra_quota_mb') or 0)
-            if total_allowed_mb > 0:
-                cycle_start = sub.get('last_renewed_at') or sub.get('created_at')
-                usage_q = query_one("""
-                    SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
-                    FROM (
-                        SELECT nasipaddress, acctsessionid,
-                               MAX(acctinputoctets) as total_in,
-                               MAX(acctoutputoctets) as total_out
-                        FROM radacct
-                        WHERE LOWER(username) = LOWER(?)
-                          AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
-                        GROUP BY nasipaddress, acctsessionid
-                    ) t
-                """, (username, str(cycle_start)))
-                used_bytes = float(usage_q['total_bytes'] or 0) if usage_q else 0.0
-                used_mb = used_bytes / (1024.0 * 1024.0)
-                rem_data_mb = max(0.0, total_allowed_mb - used_mb)
-            if has_active_loan and deducted_loan_mb > 0:
-                rem_data_mb = max(0.0, rem_data_mb - deducted_loan_mb)
-        
-        card_extra_quota = round(rem_data_mb, 2)
-        
+        # Update subscriber: activate, extend expiry, set package to card package, set exact net quota, reset loan
         execute_write("""
             UPDATE wisp_subscribers SET
                 status = 'active',
@@ -883,7 +705,7 @@ def request_data_loan(username):
     loan_str = format_mb_or_gb(loan_amount_mb)
     if int(sub.get('loan_status') or 0) == 1 or int(sub.get('loan_balance_mb') or 0) > 0:
         existing_loan = int(sub.get('loan_balance_mb') or loan_amount_mb)
-        return False, f"لديك سلفة نشطة مسبقاً بقيمة {format_mb_or_gb(existing_loan)} لم يتم سدادها بعد. يرجى تجديد الباقة لسداد السلفة."
+        return False, f"لديك سلفة نشطة مسبقاً بقيمة {format_mb_or_gb(existing_loan)} لم يتم سدادها بعد. يرجى شحن كرت لسداد السلفة."
 
     # Verify quota or expiry condition
     user_info = get_portal_user_data(username)
@@ -1046,32 +868,20 @@ def renew_or_change_package(username, new_pkg_id):
         new_expiry = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
         new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
 
-    # 2.1 معالجة وخصم السلفة السابقة إن وجدت
-    loan_mb = int(sub.get('loan_balance_mb') or 0)
-    loan_status = int(sub.get('loan_status') or 0)
-    has_active_loan = (loan_status == 1 or loan_mb > 0)
-
-    if has_active_loan and is_rollover_enabled:
-        rem_data_mb = max(0.0, rem_data_mb - loan_mb)
-
     new_extra_mb = round(rem_data_mb, 2) if is_rollover_enabled else 0.0
     new_balance = user_balance - pkg_price
 
-    # 3. تحديث حساب المشترك وتصفير عداد الدورة وحالة السلفة
-    pkg_service_type = pkg.get('service_type') or sub.get('service_type') or 'hotspot'
+    # 3. تحديث حساب المشترك وتصفير عداد الدورة
     execute_write("""
         UPDATE wisp_subscribers SET
             balance = ?,
             package_id = ?,
-            service_type = ?,
             status = 'active',
             last_renewed_at = CURRENT_TIMESTAMP,
             extra_quota_mb = ?,
-            loan_balance_mb = 0,
-            loan_status = 0,
             expires_at = ?
         WHERE id = ?
-    """, (new_balance, pkg['id'], pkg_service_type, new_extra_mb, new_expiry, sub['id']))
+    """, (new_balance, pkg['id'], new_extra_mb, new_expiry, sub['id']))
 
     # 4. تحديث FreeRADIUS radusergroup و radcheck
     execute_write("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", (username,))
@@ -1106,15 +916,13 @@ def renew_or_change_package(username, new_pkg_id):
     elif rem_hours > 0:
         rollover_parts.append(f"{rem_hours} {'ساعات' if 3 <= rem_hours <= 10 else 'ساعة'}")
 
-    loan_msg_suffix = f" (تم سداد سلفة سابقة بقيمة {format_mb_or_gb(loan_mb)})" if loan_mb > 0 else ""
-
     if is_rollover_enabled and rollover_parts:
         rollover_text = " و ".join(rollover_parts)
-        ret_msg = f"تم تجديد باقة [{pkg['name']}] بنجاح مع ترحيل {rollover_text}! تم خصم {pkg_price:.2f} من رصيدك{loan_msg_suffix}. الصلاحية الجديدة حتى {new_expiry}."
-        audit_change = f"تم تجديد الباقة عبر بوابة المشترك مع ترحيل الرصيد ({rollover_text}){loan_msg_suffix}"
+        ret_msg = f"تم تجديد باقة [{pkg['name']}] بنجاح مع ترحيل {rollover_text}! تم خصم {pkg_price:.2f} من رصيدك. الصلاحية الجديدة حتى {new_expiry}."
+        audit_change = f"تم تجديد الباقة عبر بوابة المشترك مع ترحيل الرصيد ({rollover_text})"
     else:
-        ret_msg = f"تم تفعيل باقة [{pkg['name']}] بنجاح! تم خصم {pkg_price:.2f} من رصيدك{loan_msg_suffix}. صلاحية الباقة حتى {new_expiry}."
-        audit_change = f"تجديد الباقة عبر بوابة المشترك [{pkg['name']}]{loan_msg_suffix}"
+        ret_msg = f"تم تفعيل باقة [{pkg['name']}] بنجاح! تم خصم {pkg_price:.2f} من رصيدك. صلاحية الباقة حتى {new_expiry}."
+        audit_change = f"تجديد الباقة عبر بوابة المشترك [{pkg['name']}]"
 
     from database.db import log_user_audit
     log_user_audit('subscriber', sub['id'], sub['username'], 'UserPortal', 'RENEW_PACKAGE', audit_change)
@@ -1292,66 +1100,28 @@ def register_portal_subscriber(form_data):
 
 def change_portal_password(username, old_password, new_password, confirm_password):
     """
-    Changes password for subscriber or voucher card from user portal.
+    Changes password for subscriber from user portal.
     """
     username = (username or '').strip()
-    old_password = (old_password or '').strip()
-    new_password = (new_password or '').strip()
-    confirm_password = (confirm_password or '').strip()
+    sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (username,))
+    if not sub:
+        return False, "حساب المشترك غير مسجل في قائمة المشتركين."
 
-    if not new_password or len(new_password) < 3:
-        return False, "كلمة المرور الجديدة يجب أن تتكون من 3 خانات على الأقل."
+    if sub['password'] != old_password:
+        return False, "كلمة المرور الحالية غير صحيحة."
+
+    if not new_password or len(new_password) < 4:
+        return False, "كلمة المرور الجديدة يجب أن تتكون من 4 خانات على الأقل."
 
     if new_password != confirm_password:
         return False, "كلمة المرور الجديدة وتأكيدها غير متطابقين."
 
-    # 1. Check subscriber
-    sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (username,))
-    if sub:
-        if sub['password'] != old_password:
-            return False, "كلمة المرور الحالية غير صحيحة."
+    execute_write("UPDATE wisp_subscribers SET password = ? WHERE id = ?", (new_password, sub['id']))
+    execute_write("""
+        UPDATE radcheck SET value = ?
+        WHERE LOWER(username) = LOWER(?) AND attribute IN ('Cleartext-Password', 'User-Password')
+    """, (new_password, username))
 
-        execute_write("UPDATE wisp_subscribers SET password = ? WHERE id = ?", (new_password, sub['id']))
-        execute_write("""
-            UPDATE radcheck SET value = ?
-            WHERE LOWER(username) = LOWER(?) AND attribute IN ('Cleartext-Password', 'User-Password')
-        """, (new_password, username))
-
-        log_user_audit('subscriber', sub['id'], sub['username'], 'UserPortal', 'CHANGE_PASSWORD', 'تعديل كلمة المرور عبر بوابة المشترك')
-        return True, "تم تغيير كلمة المرور بنجاح."
-
-    # 2. Check voucher card
-    card = query_one("SELECT * FROM wisp_vouchers WHERE LOWER(username) = LOWER(?) OR pin_code = ?", (username, username))
-    if card:
-        if card['password'] != old_password and card['pin_code'] != old_password and card['username'] != old_password:
-            return False, "كلمة المرور أو رمز الدخول الحالي غير صحيح."
-
-        execute_write("UPDATE wisp_vouchers SET password = ?, pin_code = ? WHERE id = ?", (new_password, new_password, card['id']))
-        execute_write("""
-            UPDATE radcheck SET value = ?
-            WHERE LOWER(username) = LOWER(?) AND attribute IN ('Cleartext-Password', 'User-Password')
-        """, (new_password, card['username']))
-
-        log_user_audit('voucher', card['id'], card['username'], 'UserPortal', 'CHANGE_PASSWORD', 'تعديل رمز الدخول للكرت عبر بوابة المشترك')
-        return True, "تم تغيير رمز دخول الكرت بنجاح."
-
-    return False, "حساب المشترك أو الكرت غير مسجل في قائمة الاشتراكات."
-
-
-def disconnect_my_active_session(username):
-    """
-    Self-service session disconnect / refresh for the authenticated user from the client portal.
-    """
-    username = (username or '').strip()
-    sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (username,))
-    user_id = sub['id'] if sub else 0
-    
-    res = disconnect_subscriber_session(username, admin_username=f"portal_{username}")
-    if res.get('success'):
-        log_user_audit('subscriber', user_id, username, 'UserPortal', 'SELF_DISCONNECT', 'إعادة تنشيط وفصل الجلسة الذاتية عبر البوابة')
-        return True, "تم إرسال أمر فصل الجلسة وإعادة تنشيط الاتصال بنجاح. يمكنك الآن إعادة الاتصال بالشبكة."
-    else:
-        msg = res.get('message') or "لا توجد جلسة نشطة حالياً أو تعذر الاتصال ببرج البث."
-        return False, msg
-
+    log_user_audit('subscriber', sub['id'], sub['username'], 'UserPortal', 'CHANGE_PASSWORD', 'تعديل كلمة المرور عبر بوابة المشترك')
+    return True, "تم تغيير كلمة المرور بنجاح."
 
