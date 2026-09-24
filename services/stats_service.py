@@ -222,15 +222,15 @@ def _collect_db_metrics_internal():
     act_valid_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE status IN ('active', 'used') AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)")
     active_subscribers = act_valid_q['c'] if act_valid_q else 0
 
-    # 3. Online Live Vouchers & Subscribers via Index with Heartbeat
-    # Broadband / PPPoE
+    # 3. Online Live Sessions strictly separated by protocol:
+    # A. Broadband / PPPoE: Only sessions with framedprotocol = 'PPP' or PPPoE port
     online_sub_q = query_one('''
         SELECT 
             COUNT(DISTINCT a.username) as unique_users,
             COUNT(a.radacctid) as total_devices
         FROM radacct a
-        INNER JOIN wisp_subscribers s ON a.username = s.username
         WHERE a.acctstoptime IS NULL
+          AND (a.framedprotocol = 'PPP' OR a.nasporttype IN ('Virtual', 'PPPoE'))
           AND (
             (a.acctupdatetime IS NOT NULL AND a.acctupdatetime >= ?)
             OR
@@ -240,14 +240,15 @@ def _collect_db_metrics_internal():
     online_subscribers = online_sub_q['unique_users'] if online_sub_q else 0
     online_subscriber_devices = online_sub_q['total_devices'] if online_sub_q else 0
     
-    # Hotspot Vouchers
+    # B. Hotspot: All other active live sessions (Hotspot wireless / web-login)
     online_vch_q = query_one('''
         SELECT 
             COUNT(DISTINCT a.username) as unique_cards,
             COUNT(a.radacctid) as total_devices
         FROM radacct a
-        INNER JOIN wisp_vouchers v ON a.username = v.username
         WHERE a.acctstoptime IS NULL
+          AND (a.framedprotocol IS NULL OR a.framedprotocol != 'PPP')
+          AND (a.nasporttype IS NULL OR a.nasporttype NOT IN ('Virtual', 'PPPoE'))
           AND (
             (a.acctupdatetime IS NOT NULL AND a.acctupdatetime >= ?)
             OR
