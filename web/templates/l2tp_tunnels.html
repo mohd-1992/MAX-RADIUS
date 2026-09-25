@@ -242,9 +242,12 @@
                             </td>
                             <td class="px-5 py-4 text-center" id="status-cell-{{ t.id }}">
                                 {% if t.is_online %}
-                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="الراوتر متصل بنجاح">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="الراوتر متصل بنجاح">
                                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                     <span>متصل</span>
+                                    {% if t.latency_ms is not none and t.latency_ms > 0 %}
+                                    <span class="font-mono text-[11px] text-emerald-300 font-normal">({{ t.latency_ms }} ms)</span>
+                                    {% endif %}
                                 </span>
                                 {% else %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800/80 text-slate-400 border border-slate-700/60">
@@ -482,9 +485,12 @@
                             </td>
                             <td class="px-5 py-4 text-center" id="wg-status-cell-{{ t.id }}">
                                 {% if t.is_online %}
-                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="متصل بالخادم بنجاح">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="متصل بالخادم بنجاح">
                                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                     <span>متصل</span>
+                                    {% if t.latency_ms is not none and t.latency_ms > 0 %}
+                                    <span class="font-mono text-[11px] text-emerald-300 font-normal">({{ t.latency_ms }} ms)</span>
+                                    {% endif %}
                                 </span>
                                 {% else %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800/80 text-slate-400 border border-slate-700/60">
@@ -1189,10 +1195,12 @@ function fetchL2tpLiveStatus(manual = false) {
                     if (row) row.setAttribute('data-online', t.is_online ? 'true' : 'false');
                     if (cell) {
                         if (t.is_online) {
+                            const latStr = (t.latency_ms !== null && t.latency_ms !== undefined && t.latency_ms > 0) ? `<span class="font-mono text-[11px] text-emerald-300 font-normal">(${t.latency_ms} ms)</span>` : '';
                             cell.innerHTML = `
-                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="متصل بنجاح">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="الراوتر متصل بنجاح">
                                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                     <span>متصل</span>
+                                    ${latStr}
                                 </span>
                             `;
                         } else {
@@ -1223,20 +1231,6 @@ function fetchL2tpLiveStatus(manual = false) {
         });
 }
 
-
-// -------------------------------------------------------------
-// WireGuard Logic
-// -------------------------------------------------------------
-function openAddWgModal() {
-    const m = document.getElementById('addWgModal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
-
-    // Auto generate keys if empty
-    if (!document.getElementById('add_wg_public_key').value) {
-        generateNewWgKeys();
-    }
-}
 
 function closeAddWgModal() {
     const m = document.getElementById('addWgModal');
@@ -1444,10 +1438,12 @@ function fetchWireguardLiveStatus(manual = false) {
 
                     if (cell) {
                         if (t.is_online) {
+                            const latStr = (t.latency_ms !== null && t.latency_ms !== undefined && t.latency_ms > 0) ? `<span class="font-mono text-[11px] text-emerald-300 font-normal">(${t.latency_ms} ms)</span>` : '';
                             cell.innerHTML = `
-                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="متصل بنجاح">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="متصل بالخادم بنجاح">
                                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                     <span>متصل</span>
+                                    ${latStr}
                                 </span>
                             `;
                         } else {
@@ -1477,15 +1473,7 @@ function fetchWireguardLiveStatus(manual = false) {
             if (icon) icon.classList.remove('fa-spin');
         });
 }
-
-// Polling interval
-setInterval(() => {
-    if (currentVpnTab === 'wireguard') {
-        fetchWireguardLiveStatus(false);
-    } else {
-        fetchL2tpLiveStatus(false);
-    }
-}, 20000);
+, 20000);
 
 document.addEventListener('DOMContentLoaded', function() {
     if (currentVpnTab === 'wireguard') {
