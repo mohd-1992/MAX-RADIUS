@@ -1,0 +1,101 @@
+{% extends "user_portal/user_base.html" %}
+
+{% block title %}تسجيل الدخول - بوابة المشتركين{% endblock %}
+
+{% block content %}
+<div class="min-h-[75vh] flex items-center justify-center py-6">
+    <div class="w-full max-w-md portal-card border rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+        
+        <!-- Logo & Header -->
+        <div class="text-center space-y-2">
+            {% if logo_url %}
+            <img src="{{ logo_url }}" alt="Logo" class="w-20 h-20 rounded-2xl object-contain shadow-xl shadow-blue-500/20 p-2 mx-auto bg-[#070b14] border border-blue-500/30">
+            {% else %}
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-3xl shadow-xl shadow-blue-500/30 mx-auto">
+                <i class="fa-solid fa-tower-broadcast"></i>
+            </div>
+            {% endif %}
+            <h2 class="text-2xl font-black text-white tracking-wider">{{ network_name }}</h2>
+            <p class="text-xs text-slate-400 font-medium">بوابة المشتركين الذكية - تسجيل الدخول للاستعلام وشحن الرصيد والتجديد</p>
+        </div>
+
+        <!-- Login Form -->
+        <form method="POST" action="{{ url_for('user_login_action') }}" class="space-y-4">
+            <!-- Username / Card PIN Input -->
+            <div>
+                <label class="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-user text-blue-400"></i>
+                    <span>اسم المستخدم أو رقم الكرت (Username / PIN)</span>
+                </label>
+                <div class="relative">
+                    <input type="text" name="username" required autofocus placeholder="مثال: 770000000 أو رقم الكرت" 
+                           class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-blue-500 focus:outline-none transition text-center sm:text-right">
+                </div>
+            </div>
+
+            <!-- Password Input (Only when portal_login_username_only is NOT enabled) -->
+            {% if settings.get('portal_login_username_only', '0') != '1' %}
+            <div>
+                <label class="block text-xs font-bold text-slate-200 mb-1.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-key text-amber-400"></i>
+                    <span>كلمة المرور (Password)</span>
+                </label>
+                <div class="relative">
+                    <input type="password" id="loginPassword" name="password" required placeholder="••••••••" 
+                           class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-blue-500 focus:outline-none transition">
+                    <button type="button" onclick="togglePasswordVisibility()" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-sm">
+                        <i id="togglePwdIcon" class="fa-solid fa-eye"></i>
+                    </button>
+                </div>
+                <span class="text-[11px] text-slate-400 mt-1 block">لمستخدمي الكروت بنظام PIN فقط، أدخل نفس رقم الكرت في الحقلين</span>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition flex items-center justify-center gap-2 text-sm cursor-pointer">
+                <i class="fa-solid fa-right-to-bracket"></i>
+                <span>دخول إلى حسابي</span>
+            </button>
+        </form>
+
+        <!-- Self-Registration Button (Shown if enabled by Admin) -->
+        {% if settings.get('portal_allow_registration', '1') == '1' %}
+        <div class="text-center pt-2 border-t border-[#1c2840]">
+            <p class="text-xs text-slate-400">ليس لديك حساب بعد؟</p>
+            <a href="{{ url_for('user_register') }}" class="mt-2 inline-flex items-center justify-center gap-2 w-full py-3 bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 font-bold rounded-xl border border-emerald-500/30 transition text-xs shadow-sm">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>إنشاء حساب جديد (تسجيل ذاتي)</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Help & Notice Info -->
+        <div class="bg-[#070b14] p-4 rounded-xl border border-[#162136] text-xs text-slate-400 space-y-1.5">
+            <div class="flex items-center gap-2 font-bold text-slate-300">
+                <i class="fa-solid fa-circle-question text-blue-400"></i>
+                <span>هل تواجه مشكلة في تسجيل الدخول؟</span>
+            </div>
+            <p class="text-[11px] leading-relaxed">
+                تأكد من إدخال اسم المستخدم وكلمة المرور الخاصة باشتراكك أو كرتك بدقة. للتواصل مع الدعم الفني: 
+                <strong class="font-mono text-emerald-400 dir-ltr">{{ support_phone }}</strong>
+            </p>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function togglePasswordVisibility() {
+        const input = document.getElementById('loginPassword');
+        const icon = document.getElementById('togglePwdIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'fa-solid fa-eye-slash text-blue-400';
+        } else {
+            input.type = 'password';
+            icon.className = 'fa-solid fa-eye text-slate-400';
+        }
+    }
+</script>
+{% endblock %}

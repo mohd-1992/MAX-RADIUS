@@ -39,6 +39,11 @@ from services.card_design_service import *
 from services.reseller_service import *
 from services.nas_service import *
 from services.l2tp_service import *
+from services.wireguard_service import (
+    get_all_wireguard_tunnels, get_wireguard_tunnel, get_available_wireguard_ip,
+    get_wireguard_server_keys, generate_wg_keypair, add_wireguard_tunnel,
+    update_wireguard_tunnel, delete_wireguard_tunnel, generate_mikrotik_wireguard_script
+)
 from services.stats_service import *
 from services.user_portal_service import *
 from services.import_service import *
@@ -60,7 +65,6 @@ nas_bp = Blueprint('nas_bp', __name__)
 
 
 @nas_bp.route('/nas', endpoint="nas")
-
 @login_required
 def nas():
     require_permission('nas_view')
@@ -70,26 +74,23 @@ def nas():
 
 
 @nas_bp.route('/nas/add', methods=['GET', 'POST'], endpoint="add_nas_action")
-
 @nas_bp.route('/nas/new', methods=['GET', 'POST'], endpoint="add_nas_action")
-
 def add_nas_action():
     if request.method == 'GET':
         return render_template('nas_add.html')
     try:
         add_nas_device(request.form)
-        flash('تمت إضافة راوتر MikroTik بنجاح وتوثيقه في قائمة RADIUS NAS.', 'success')
+        flash('تمت إضافة راوتر MikroTik بنجاح وتوليد إعدادات RADIUS NAS.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء إضافة الراوتر: {str(e)}', 'danger')
     return redirect(url_for('nas'))
 
 
 @nas_bp.route('/nas/<int:nas_id>', endpoint="nas_details_page")
-
 def nas_details_page(nas_id):
     device = query_one('SELECT * FROM wisp_nas_devices WHERE id = ?', (nas_id,))
     if not device:
-        flash('جهاز الراوتر المطلوب غير موجود.', 'danger')
+        flash('الراوتر غير موجود.', 'danger')
         return redirect(url_for('nas'))
         
     from core.mikrotik_api import fetch_single_nas_status
@@ -119,94 +120,111 @@ def nas_details_page(nas_id):
             GROUP BY acctsessionid
         ) AS t
     ''', (device['ip_address'],))
-
     
-    total_down_str = format_bytes(traffic['down'] if traffic else 0)
-    total_up_str = format_bytes(traffic['up'] if traffic else 0)
+    total_up = traffic['up'] if traffic else 0
+    total_down = traffic['down'] if traffic else 0
     
-    return render_template('nas_details.html',
-                           device=device,
-                           live_status=status_info.get('status', 'offline'),
-                           latency_ms=status_info.get('latency_ms', 0),
-                           status_info=status_info,
-                           active_sessions=active_sessions,
-                           total_download_str=total_down_str,
-                           total_upload_str=total_up_str)
+    return render_template(
+        'nas_details.html',
+        device=device,
+        status_info=status_info,
+        active_sessions=active_sessions,
+        total_upload_str=format_bytes(total_up),
+        total_download_str=format_bytes(total_down)
+    )
 
 
-@nas_bp.route('/nas/edit/<int:nas_id>', methods=['POST'], endpoint="edit_nas_action")
-
+@nas_bp.route('/nas/<int:nas_id>/edit', methods=['GET', 'POST'], endpoint="edit_nas_action")
 def edit_nas_action(nas_id):
+    device = query_one('SELECT * FROM wisp_nas_devices WHERE id = ?', (nas_id,))
+    if not device:
+        flash('الراوتر غير موجود.', 'danger')
+        return redirect(url_for('nas'))
+        
+    if request.method == 'GET':
+        return render_template('nas_edit.html', device=device)
+        
     try:
         update_nas_device(nas_id, request.form)
-        flash('تم حفظ وتحديث إعدادات الراوتر ومزامنتها في FreeRADIUS بنجاح.', 'success')
+        flash('تم تحديث بيانات الراوتر بنجاح.', 'success')
     except Exception as e:
-        flash(f'خطأ أثناء حفظ تعديلات الراوتر: {str(e)}', 'danger')
+        flash(f'خطأ أثناء التحديث: {str(e)}', 'danger')
     return redirect(url_for('nas_details_page', nas_id=nas_id))
 
 
-@nas_bp.route('/nas/delete/<int:nas_id>', methods=['POST'], endpoint="delete_nas_action")
-
+@nas_bp.route('/nas/<int:nas_id>/delete', methods=['POST'], endpoint="delete_nas_action")
 def delete_nas_action(nas_id):
     try:
-        admin_user = session.get('user', {}).get('username') or session.get('admin_username') or 'admin'
-        delete_nas_device(nas_id, admin_username=admin_user)
-        flash('تم حذف الراوتر ومسحه من FreeRADIUS بنجاح.', 'warning')
+        delete_nas_device(nas_id)
+        flash('تم حذف الراوتر وجميع ارتباطاته في الراديوس بنجاح.', 'warning')
     except Exception as e:
-        flash(f'خطأ أثناء حذف الراوتر: {str(e)}', 'danger')
+        flash(f'خطأ أثناء الحذف: {str(e)}', 'danger')
     return redirect(url_for('nas'))
 
 
-@nas_bp.route('/api/nas/test-coa/<int:nas_id>', methods=['POST'], endpoint="api_test_coa")
-
-@nas_bp.route('/api/nas/<int:nas_id>/test-coa', methods=['POST'], endpoint="api_test_coa")
-
-def api_test_coa(nas_id):
-    res = test_nas_coa(nas_id)
-    return jsonify(res)
-
-
-@nas_bp.route('/api/nas-status', endpoint="api_nas_live_status")
-
-@nas_bp.route('/api/nas/live-status', endpoint="api_nas_live_status")
-
-def api_nas_live_status():
-    from core.mikrotik_api import get_all_nas_live_status
-    force = request.args.get('force') == '1' or request.args.get('refresh') == 'true'
-    devices_status = get_all_nas_live_status(force_refresh=force)
-    return jsonify({
-        'success': True,
-        'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'total_routers': len(devices_status),
-        'online_routers': sum(1 for d in devices_status if d.get('is_online')),
-        'devices': devices_status
-    })
-
-
-@nas_bp.route('/api/nas/<int:nas_id>/status', endpoint="api_single_nas_status")
-
-def api_single_nas_status(nas_id):
-    from core.mikrotik_api import fetch_single_nas_status
+@nas_bp.route('/nas/<int:nas_id>/script', endpoint="nas_setup_script_page")
+def nas_setup_script_page(nas_id):
     device = query_one('SELECT * FROM wisp_nas_devices WHERE id = ?', (nas_id,))
     if not device:
-        return jsonify({'success': False, 'message': 'جهاز الراوتر غير موجود.'}), 404
+        flash('الراوتر غير موجود.', 'danger')
+        return redirect(url_for('nas'))
+        
+    vps_ip = detect_vps_public_ip()
+    script = generate_nas_script(device, vps_ip)
+    
+    return render_template(
+        'nas_script.html',
+        device=device,
+        script=script,
+        vps_ip=vps_ip
+    )
+
+
+@nas_bp.route('/nas/<int:nas_id>/download-script', endpoint="download_nas_script_file")
+def download_nas_script_file(nas_id):
+    device = query_one('SELECT * FROM wisp_nas_devices WHERE id = ?', (nas_id,))
+    if not device:
+        flash('الراوتر غير موجود.', 'danger')
+        return redirect(url_for('nas'))
+        
+    vps_ip = detect_vps_public_ip()
+    script = generate_nas_script(device, vps_ip)
+    
+    return Response(
+        script,
+        mimetype="text/plain",
+        headers={"Content-disposition": f"attachment; filename=setup_nas_{device['name']}.rsc"}
+    )
+
+
+@nas_bp.route('/api/nas/<int:nas_id>/live-status', endpoint="api_nas_live_status")
+def api_nas_live_status(nas_id):
+    device = query_one('SELECT * FROM wisp_nas_devices WHERE id = ?', (nas_id,))
+    if not device:
+        return jsonify({'success': False, 'message': 'الراوتر غير موجود.'}), 404
+    from core.mikrotik_api import fetch_single_nas_status
     status_data = fetch_single_nas_status(device)
     return jsonify({'success': True, 'data': status_data})
 
 
-@nas_bp.route('/nas/l2tp', endpoint="l2tp_tunnels_page")
+# ==============================================================================
+# DUAL-PROTOCOL VPN MANAGEMENT: L2TP/IPSEC & WIREGUARD
+# ==============================================================================
 
+@nas_bp.route('/nas/l2tp', endpoint="l2tp_tunnels_page")
 @login_required
 def l2tp_tunnels_page():
     import ipaddress
     tunnels = get_l2tp_tunnels(fast_db_only=False)
+    wg_tunnels = get_all_wireguard_tunnels(fast_db_only=False)
     vps_ip = detect_vps_public_ip()
     settings = get_l2tp_network_settings()
+    wg_server = get_wireguard_server_keys()
 
-    gw_ip = settings.get('l2tp_gateway_ip', '10.10.0.1')
+    gw_ip = settings.get('l2tp_gateway_ip', '192.168.44.1')
     mask = settings.get('l2tp_mask', '255.255.255.0')
-    pool_start = settings.get('l2tp_pool_start', '10.10.0.10')
-    pool_end = settings.get('l2tp_pool_end', '10.10.0.250')
+    pool_start = settings.get('l2tp_pool_start', '192.168.44.10')
+    pool_end = settings.get('l2tp_pool_end', '192.168.44.250')
     port = settings.get('l2tp_server_port', 1701)
     ipsec_secret = settings.get('l2tp_ipsec_secret', '')
 
@@ -228,9 +246,13 @@ def l2tp_tunnels_page():
         prefix = '.'.join(pool_start.split('.')[:3])
         next_ip = f"{prefix}.20"
 
+    wg_suggested_ip = get_available_wireguard_ip()
+    active_tab = request.args.get('tab', 'l2tp').strip().lower()
+
     return render_template(
         'l2tp_tunnels.html',
         tunnels=tunnels,
+        wg_tunnels=wg_tunnels,
         vps_detected_ip=vps_ip,
         l2tp_settings=settings,
         l2tp_gateway_ip=gw_ip,
@@ -239,12 +261,14 @@ def l2tp_tunnels_page():
         l2tp_pool_end=pool_end,
         l2tp_port=port,
         l2tp_ipsec_secret=ipsec_secret,
-        next_suggested_ip=next_ip
+        next_suggested_ip=next_ip,
+        wg_server=wg_server,
+        wg_suggested_ip=wg_suggested_ip,
+        active_tab=active_tab
     )
 
 
 @nas_bp.route('/nas/l2tp/settings', methods=['POST'], endpoint="l2tp_save_settings_action")
-
 @login_required
 def l2tp_save_settings_action():
     try:
@@ -254,11 +278,10 @@ def l2tp_save_settings_action():
         flash('تم حفظ وتطبيق إعدادات شبكة L2TP/IPsec VPN وإعادة تشغيل خادم النفق بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء حفظ إعدادات شبكة VPN: {str(e)}', 'danger')
-    return redirect(url_for('l2tp_tunnels_page'))
+    return redirect(url_for('l2tp_tunnels_page', tab='l2tp'))
 
 
 @nas_bp.route('/api/nas/l2tp/settings', methods=['GET', 'POST'], endpoint="api_l2tp_settings")
-
 @login_required
 def api_l2tp_settings():
     if request.method == 'POST':
@@ -276,7 +299,6 @@ def api_l2tp_settings():
 
 
 @nas_bp.route('/nas/l2tp/add', methods=['POST'], endpoint="l2tp_add_tunnel_action")
-
 @login_required
 def l2tp_add_tunnel_action():
     try:
@@ -286,11 +308,10 @@ def l2tp_add_tunnel_action():
         flash('تمت إضافة نفق راوتر L2TP/IPsec واعتماده في FreeRADIUS وسيرفر النفق بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء إضافة راوتر النفق: {str(e)}', 'danger')
-    return redirect(url_for('l2tp_tunnels_page'))
+    return redirect(url_for('l2tp_tunnels_page', tab='l2tp'))
 
 
 @nas_bp.route('/nas/l2tp/edit/<int:tunnel_id>', methods=['POST'], endpoint="l2tp_edit_tunnel_action")
-
 @login_required
 def l2tp_edit_tunnel_action(tunnel_id):
     try:
@@ -300,11 +321,10 @@ def l2tp_edit_tunnel_action(tunnel_id):
         flash('تم حفظ تعديلات نفق الراوتر بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء تعديل النفق: {str(e)}', 'danger')
-    return redirect(url_for('l2tp_tunnels_page'))
+    return redirect(url_for('l2tp_tunnels_page', tab='l2tp'))
 
 
 @nas_bp.route('/nas/l2tp/delete/<int:tunnel_id>', methods=['POST'], endpoint="l2tp_delete_tunnel_action")
-
 @login_required
 def l2tp_delete_tunnel_action(tunnel_id):
     try:
@@ -314,11 +334,10 @@ def l2tp_delete_tunnel_action(tunnel_id):
         flash('تم حذف نفق الراوتر ومسحه من الراديوس بنجاح.', 'warning')
     except Exception as e:
         flash(f'خطأ أثناء حذف النفق: {str(e)}', 'danger')
-    return redirect(url_for('l2tp_tunnels_page'))
+    return redirect(url_for('l2tp_tunnels_page', tab='l2tp'))
 
 
 @nas_bp.route('/api/nas/l2tp/live-status', endpoint="api_l2tp_live_status")
-
 @login_required
 def api_l2tp_live_status():
     tunnels = get_l2tp_tunnels(fast_db_only=False)
@@ -333,7 +352,6 @@ def api_l2tp_live_status():
 
 
 @nas_bp.route('/api/nas/l2tp/<int:tunnel_id>/script', endpoint="api_l2tp_mikrotik_script")
-
 @login_required
 def api_l2tp_mikrotik_script(tunnel_id):
     vps_host = request.args.get('host')
@@ -344,15 +362,13 @@ def api_l2tp_mikrotik_script(tunnel_id):
 
 
 @nas_bp.route('/nas/l2tp/<int:tunnel_id>/download-script', endpoint="download_l2tp_mikrotik_script")
-
 @login_required
 def download_l2tp_mikrotik_script(tunnel_id):
-    from flask import Response
     vps_host = request.args.get('host')
     script = generate_mikrotik_rsc_script(tunnel_id, vps_host=vps_host)
     if not script:
         flash('النفق غير موجود.', 'danger')
-        return redirect(url_for('l2tp_tunnels_page'))
+        return redirect(url_for('l2tp_tunnels_page', tab='l2tp'))
     return Response(
         script,
         mimetype="text/plain",
@@ -360,8 +376,104 @@ def download_l2tp_mikrotik_script(tunnel_id):
     )
 
 
-@nas_bp.route('/tools/nas-diagnostics', endpoint="nas_diagnostics_page")
+# ==============================================================================
+# WIREGUARD VPN ROUTES
+# ==============================================================================
 
+@nas_bp.route('/nas/wireguard/add', methods=['POST'], endpoint="wireguard_add_tunnel_action")
+@login_required
+def wireguard_add_tunnel_action():
+    try:
+        current_mgr = get_current_manager()
+        admin_user = current_mgr['username'] if current_mgr else 'admin'
+        add_wireguard_tunnel(request.form, admin_username=admin_user)
+        flash('تمت إضافة نفق WireGuard وتسجيله في النواة وFreeRADIUS بنجاح.', 'success')
+    except Exception as e:
+        flash(f'خطأ أثناء إضافة راوتر WireGuard: {str(e)}', 'danger')
+    return redirect(url_for('l2tp_tunnels_page', tab='wireguard'))
+
+
+@nas_bp.route('/nas/wireguard/edit/<int:tunnel_id>', methods=['POST'], endpoint="wireguard_edit_tunnel_action")
+@login_required
+def wireguard_edit_tunnel_action(tunnel_id):
+    try:
+        current_mgr = get_current_manager()
+        admin_user = current_mgr['username'] if current_mgr else 'admin'
+        update_wireguard_tunnel(tunnel_id, request.form, admin_username=admin_user)
+        flash('تم حفظ تعديلات نفق WireGuard وتحديث النواة بنجاح.', 'success')
+    except Exception as e:
+        flash(f'خطأ أثناء تعديل نفق WireGuard: {str(e)}', 'danger')
+    return redirect(url_for('l2tp_tunnels_page', tab='wireguard'))
+
+
+@nas_bp.route('/nas/wireguard/delete/<int:tunnel_id>', methods=['POST'], endpoint="wireguard_delete_tunnel_action")
+@login_required
+def wireguard_delete_tunnel_action(tunnel_id):
+    try:
+        current_mgr = get_current_manager()
+        admin_user = current_mgr['username'] if current_mgr else 'admin'
+        delete_wireguard_tunnel(tunnel_id, admin_username=admin_user)
+        flash('تم حذف نفق WireGuard ومسحه من النواة والراديوس بنجاح.', 'warning')
+    except Exception as e:
+        flash(f'خطأ أثناء حذف نفق WireGuard: {str(e)}', 'danger')
+    return redirect(url_for('l2tp_tunnels_page', tab='wireguard'))
+
+
+@nas_bp.route('/api/nas/wireguard/live-status', endpoint="api_wireguard_live_status")
+@login_required
+def api_wireguard_live_status():
+    wg_tunnels = get_all_wireguard_tunnels(fast_db_only=False)
+    online_count = len([t for t in wg_tunnels if t.get('is_online')])
+    return jsonify({
+        'success': True,
+        'tunnels': wg_tunnels,
+        'total_count': len(wg_tunnels),
+        'online_count': online_count,
+        'offline_count': len(wg_tunnels) - online_count
+    })
+
+
+@nas_bp.route('/api/nas/wireguard/<int:tunnel_id>/script', endpoint="api_wireguard_mikrotik_script")
+@login_required
+def api_wireguard_mikrotik_script(tunnel_id):
+    vps_host = request.args.get('host')
+    script = generate_mikrotik_wireguard_script(tunnel_id, vps_host=vps_host)
+    if not script:
+        return jsonify({'success': False, 'message': 'النفق غير موجود'}), 404
+    return jsonify({'success': True, 'script': script})
+
+
+@nas_bp.route('/nas/wireguard/<int:tunnel_id>/download-script', endpoint="download_wireguard_mikrotik_script")
+@login_required
+def download_wireguard_mikrotik_script(tunnel_id):
+    vps_host = request.args.get('host')
+    script = generate_mikrotik_wireguard_script(tunnel_id, vps_host=vps_host)
+    if not script:
+        flash('النفق غير موجود.', 'danger')
+        return redirect(url_for('l2tp_tunnels_page', tab='wireguard'))
+    return Response(
+        script,
+        mimetype="text/plain",
+        headers={"Content-disposition": f"attachment; filename=mikrotik_wireguard_{tunnel_id}.rsc"}
+    )
+
+
+@nas_bp.route('/api/nas/wireguard/generate-keys', endpoint="api_wireguard_generate_keys")
+@login_required
+def api_wireguard_generate_keys():
+    priv, pub = generate_wg_keypair()
+    return jsonify({
+        'success': bool(priv and pub),
+        'private_key': priv or '',
+        'public_key': pub or ''
+    })
+
+
+# ==============================================================================
+# NAS DIAGNOSTICS & MIKROTIK IMPORT TOOLS
+# ==============================================================================
+
+@nas_bp.route('/tools/nas-diagnostics', endpoint="nas_diagnostics_page")
 def nas_diagnostics_page():
     from services.nas_diagnostics_service import get_nas_diagnostics_overview
     data = get_nas_diagnostics_overview(skip_live_probe=False)
@@ -369,7 +481,6 @@ def nas_diagnostics_page():
 
 
 @nas_bp.route('/api/tools/nas-diagnostics/status', endpoint="api_nas_diagnostics_status")
-
 def api_nas_diagnostics_status():
     from services.nas_diagnostics_service import get_nas_diagnostics_overview
     data = get_nas_diagnostics_overview(skip_live_probe=False)
@@ -377,7 +488,6 @@ def api_nas_diagnostics_status():
 
 
 @nas_bp.route('/api/tools/nas-diagnostics/test-coa-port', methods=['POST'], endpoint="api_nas_diagnostics_coa_port")
-
 def api_nas_diagnostics_coa_port():
     ip = request.form.get('ip', '').strip()
     port = int(request.form.get('port', 3799) or 3799)
@@ -388,7 +498,6 @@ def api_nas_diagnostics_coa_port():
 
 
 @nas_bp.route('/api/tools/nas-diagnostics/send-coa-disconnect', methods=['POST'], endpoint="api_nas_diagnostics_coa_disconnect")
-
 def api_nas_diagnostics_coa_disconnect():
     ip = request.form.get('ip', '').strip()
     secret = request.form.get('secret', '').strip() or None
@@ -399,30 +508,27 @@ def api_nas_diagnostics_coa_disconnect():
 
 
 @nas_bp.route('/tools/mikrotik-import', endpoint="mikrotik_userman_import_page")
-
 @login_required
 def mikrotik_userman_import_page():
     return redirect(url_for('import_data_page', tab='mikrotik'))
 
 
 @nas_bp.route('/api/tools/mikrotik-import/analyze-rsc', methods=['POST'], endpoint="api_mikrotik_userman_analyze_rsc")
-
 @login_required
 def api_mikrotik_userman_analyze_rsc():
     from services.mikrotik_userman_importer import parse_rsc_content
     if 'rsc_file' not in request.files or not request.files['rsc_file'].filename:
-        return jsonify({'success': False, 'error': 'لم يتم تحديد ملف السكربت'}), 400
+        return jsonify({'success': False, 'error': 'لم يتم اختيار ملف'}), 400
     try:
         f = request.files['rsc_file']
         raw_text = f.read().decode('utf-8', errors='ignore')
         parsed = parse_rsc_content(raw_text)
         return jsonify({'success': True, 'data': parsed})
     except Exception as e:
-        return jsonify({'success': False, 'error': f'فشل قراءة الملف: {str(e)}'}), 500
+        return jsonify({'success': False, 'error': f'خطأ أثناء تحليل الملف: {str(e)}'}), 500
 
 
 @nas_bp.route('/api/tools/mikrotik-import/test-api', methods=['POST'], endpoint="api_mikrotik_userman_test_api")
-
 @login_required
 def api_mikrotik_userman_test_api():
     from services.mikrotik_userman_importer import fetch_userman_via_api
@@ -434,7 +540,7 @@ def api_mikrotik_userman_test_api():
     use_ssl = bool(data.get('use_ssl', False))
 
     if not host or not user:
-        return jsonify({'success': False, 'error': 'يرجى تزويد عنوان IP واسم المستخدم'}), 400
+        return jsonify({'success': False, 'error': 'يرجى إدخال عنوان IP واسم المستخدم'}), 400
 
     try:
         parsed = fetch_userman_via_api(host=host, username=user, password=pwd, port=port, use_ssl=use_ssl)
@@ -444,7 +550,6 @@ def api_mikrotik_userman_test_api():
 
 
 @nas_bp.route('/api/tools/mikrotik-import/execute', methods=['POST'], endpoint="api_mikrotik_userman_execute")
-
 @login_required
 def api_mikrotik_userman_execute():
     from services.mikrotik_userman_importer import execute_userman_import
@@ -559,6 +664,3 @@ def download_hotspot_generator_script():
             'Content-Disposition': f'attachment; filename=setup_hotspot_{folder_name}.rsc'
         }
     )
-
-
-

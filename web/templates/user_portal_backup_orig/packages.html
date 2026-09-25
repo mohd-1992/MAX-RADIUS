@@ -1,0 +1,118 @@
+{% extends "user_portal/user_base.html" %}
+
+{% block title %}إدارة الباقات والتجديد - بوابة المشتركين{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Header Banner -->
+    <div class="portal-card border rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-bolt text-yellow-400"></i>
+                <span>الباقات والسرعات المتاحة للتجديد والترقية</span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">جدد باقتك الحالية أو قم بالترقية لباقة أعلى خصماً من رصيد محفظتك المالي</p>
+        </div>
+        <div class="bg-[#070b14] px-4 py-2.5 rounded-xl border border-[#162136] text-right">
+            <span class="text-[11px] text-slate-400 block mb-0.5">رصيدك المتاح:</span>
+            <strong class="text-lg font-black text-emerald-400 font-mono">{{ "%.2f"|format(user.balance) }} {{ currency_symbol }}</strong>
+        </div>
+    </div>
+
+    <!-- Packages Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {% for pkg in packages %}
+        {% set is_current = (user.package_id == pkg.id) %}
+        {% set can_afford = (user.balance|float >= pkg.price|float) %}
+        <div class="portal-card border rounded-2xl p-6 shadow-sm flex flex-col justify-between relative overflow-hidden transition hover:border-blue-500/50 {% if is_current %}border-blue-500 ring-1 ring-blue-500/50{% endif %}">
+            
+            {% if is_current %}
+            <div class="absolute top-3 left-3 bg-blue-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow">
+                باقتك الحالية
+            </div>
+            {% endif %}
+
+            <div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-xl border border-blue-500/20">
+                        <i class="fa-solid fa-gauge-simple-high"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-base">{{ pkg.name }}</h3>
+                        <span class="text-xs text-purple-400 font-mono uppercase bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20 font-bold">{{ pkg.service_type }}</span>
+                    </div>
+                </div>
+
+                <!-- Price Tag -->
+                <div class="mb-4 bg-[#070b14] p-3 rounded-xl border border-[#162136] flex items-baseline justify-between">
+                    <span class="text-xs text-slate-400">سعر الاشتراك:</span>
+                    <div>
+                        <span class="text-2xl font-black text-emerald-400 font-mono">{{ "%.2f"|format(pkg.price) }}</span>
+                        <span class="text-xs font-bold text-slate-400 mr-1">{{ currency_symbol }}</span>
+                    </div>
+                </div>
+
+                <!-- Specs List -->
+                <ul class="space-y-2.5 text-xs text-slate-300 mb-6">
+                    <li class="flex items-center justify-between pb-2 border-b border-[#1c2840]">
+                        <span class="text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-download text-emerald-400"></i>سرعة التحميل (Download):</span>
+                        <strong class="font-mono text-white">{{ pkg.rate_download|format_speed }}</strong>
+                    </li>
+                    <li class="flex items-center justify-between pb-2 border-b border-[#1c2840]">
+                        <span class="text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-upload text-sky-400"></i>سرعة الرفع (Upload):</span>
+                        <strong class="font-mono text-white">{{ pkg.rate_upload|format_speed }}</strong>
+                    </li>
+                    <li class="flex items-center justify-between pb-2 border-b border-[#1c2840]">
+                        <span class="text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-calendar text-amber-400"></i>مدة الصلاحية:</span>
+                        <strong class="font-mono text-white">{{ pkg.validity_value or pkg.validity_days or 30 }} {% if pkg.validity_unit == 'hours' %}ساعة{% elif pkg.validity_unit == 'minutes' %}دقيقة{% elif pkg.validity_unit == 'months' %}أشهر{% else %}يوم{% endif %}</strong>
+                    </li>
+                    <li class="flex items-center justify-between">
+                        <span class="text-slate-400 flex items-center gap-1.5"><i class="fa-solid fa-database text-purple-400"></i>سعة البيانات (Quota):</span>
+                        <strong class="font-mono text-white">
+                            {% if pkg.volume_quota_mb and pkg.volume_quota_mb > 0 %}{{ pkg.volume_quota_mb|format_mb }}{% else %}غير محدود{% endif %}
+                        </strong>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Action Button -->
+            <div>
+                {% if is_current %}
+                    <form method="POST" action="{{ url_for('user_renew_package_action') }}" onsubmit="return confirmAction('تأكيد تجديد باقتك الحالية', 'سيتم خصم {{ pkg.price }} {{ currency_symbol }} من محفظتك وتمديد صلاحية الباقة.')">
+                        <input type="hidden" name="package_id" value="{{ pkg.id }}">
+                        <button type="submit" {% if not can_afford %}disabled{% endif %} class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2 text-xs">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                            <span>تجديد الباقة الحالية</span>
+                        </button>
+                    </form>
+                {% else %}
+                    <form method="POST" action="{{ url_for('user_change_package_action') }}" onsubmit="return confirmAction('تأكيد تغيير الباقة', 'هل ترغب في الترقية إلى باقة [{{ pkg.name }}] بقيمة {{ pkg.price }} {{ currency_symbol }}؟')">
+                        <input type="hidden" name="package_id" value="{{ pkg.id }}">
+                        <button type="submit" {% if not can_afford %}disabled{% endif %} class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-emerald-500/25 transition flex items-center justify-center gap-2 text-xs">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            <span>ترقية / تغيير إلى هذه الباقة</span>
+                        </button>
+                    </form>
+                {% endif %}
+
+                {% if not can_afford %}
+                <div class="mt-2 text-center">
+                    <span class="text-[11px] text-rose-400 font-semibold">
+                        الرصيد غير كافٍ. <a href="{{ url_for('user_recharge') }}" class="underline font-bold text-amber-400">اشحن رصيدك</a>
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="col-span-full portal-card border rounded-2xl p-12 text-center text-slate-400 space-y-2">
+            <i class="fa-solid fa-box-open text-4xl text-slate-600 block mb-2"></i>
+            <h3 class="text-base font-bold text-white">لا توجد باقات متاحة للعرض حالياً</h3>
+            <p class="text-xs text-slate-400">يرجى مراجعة إدارة الشبكة لإتاحة باقات الاشتراك في البوابة الذكية.</p>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

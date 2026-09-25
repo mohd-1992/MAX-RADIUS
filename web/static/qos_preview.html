@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAX RADIUS - بوابة المشتركين الذكية والتحكم بالسرعات</title>
+
+  <!-- Tailwind CSS Engine -->
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  
+  <!-- FontAwesome 6 Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Google Fonts: Tajawal & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      font-family: 'Tajawal', sans-serif;
+      transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace !important;
+    }
+    
+    /* ================= DARK THEME (DEFAULT) ================= */
+    html.theme-dark body {
+      background-color: #070b14;
+      color: #f1f5f9;
+    }
+    html.theme-dark .system-card {
+      background: #0b0f19;
+      border: 1px solid #1c2840;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px rgba(16, 185, 129, 0.12);
+    }
+    html.theme-dark .sub-card {
+      background: #111827;
+      border: 1px solid #1f293d;
+    }
+    html.theme-dark .sub-card-hover:hover {
+      border-color: #10b981;
+      background: #131d31;
+    }
+    html.theme-dark .system-input {
+      background-color: #070b14;
+      border: 1px solid #1e293b;
+      color: #ffffff;
+    }
+    html.theme-dark .system-input:focus {
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+    html.theme-dark .nav-pill.active {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(13, 148, 136, 0.25));
+      color: #34d399;
+      border-color: rgba(52, 211, 153, 0.45);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+    html.theme-dark .speed-radio:checked + label {
+      border-color: #10b981 !important;
+      background: rgba(16, 185, 129, 0.14) !important;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+    }
+    html.theme-dark .modal-card {
+      background: #0b0f19;
+      border: 1px solid #1c2840;
+    }
+
+    /* ================= LIGHT THEME ================= */
+    html.theme-light body {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%) !important;
+      color: #0f172a !important;
+    }
+    html.theme-light .system-card {
+      background: rgba(255, 255, 255, 0.96) !important;
+      border: 1px solid #e2e8f0 !important;
+      box-shadow: 0 20px 40px -15px rgba(30, 41, 59, 0.08), 0 0 0 1px rgba(226, 232, 240, 0.8) !important;
+    }
+    html.theme-light .sub-card {
+      background: #f8fafc !important;
+      border: 1px solid #e2e8f0 !important;
+    }
+    html.theme-light .sub-card-hover:hover {
+      border-color: #10b981 !important;
+      background: #f0fdf4 !important;
+    }
+    html.theme-light .system-input {
+      background-color: #ffffff !important;
+      border: 1px solid #cbd5e1 !important;
+      color: #0f172a !important;
+    }
+    html.theme-light .system-input:focus {
+      border-color: #10b981 !important;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
+    }
+    html.theme-light .text-white {
+      color: #0f172a !important;
+    }
+    html.theme-light .text-slate-100, 
+    html.theme-light .text-slate-200, 
+    html.theme-light .text-slate-300 {
+      color: #1e293b !important;
+    }
+    html.theme-light .text-slate-400 {
+      color: #64748b !important;
+    }
+    html.theme-light .bg-\[\#070b14\] {
+      background-color: #f1f5f9 !important;
+    }
+    html.theme-light .bg-\[\#111827\] {
+      background-color: #f8fafc !important;
+    }
+    html.theme-light .border-\[\#1c2840\], 
+    html.theme-light .border-\[\#1e293b\], 
+    html.theme-light .border-\[\#1f293d\] {
+      border-color: #e2e8f0 !important;
+    }
+    html.theme-light .nav-pill.active {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(13, 148, 136, 0.2)) !important;
+      color: #059669 !important;
+      border-color: rgba(16, 185, 129, 0.4) !important;
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.12) !important;
+    }
+    html.theme-light .speed-radio:checked + label {
+      border-color: #10b981 !important;
+      background: rgba(16, 185, 129, 0.08) !important;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+    }
+    html.theme-light .modal-card {
+      background: #ffffff !important;
+      border: 1px solid #e2e8f0 !important;
+    }
+    html.theme-light #gauge-bg-track {
+      stroke: rgba(0, 0, 0, 0.06) !important;
+    }
+
+    /* Common */
+    .speed-radio:checked + label .check-icon {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .modal-backdrop {
+      background: rgba(4, 7, 15, 0.82);
+      backdrop-filter: blur(12px);
+    }
+    .gauge-circle {
+      transition: stroke-dashoffset 0.8s ease-out;
+      transform: rotate(-90deg);
+      transform-origin: 50% 50%;
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #64748b; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-3 sm:p-6 select-none relative selection:bg-emerald-500 selection:text-white">
+
+  <!-- Ambient Lighting Glows (Visible in Dark Theme) -->
+  <div id="ambient-glow-1" class="fixed -top-40 -right-40 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none transition-opacity duration-300"></div>
+  <div id="ambient-glow-2" class="fixed -bottom-40 -left-40 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none transition-opacity duration-300"></div>
+
+  <!-- ================= HEADER: BRAND & CONTROLS ================= -->
+  <header class="max-w-xl mx-auto w-full mb-4 relative z-10">
+    <!-- Top System Header Bar with Theme Switcher -->
+    <div class="flex items-center justify-between px-2 mb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-emerald-500/20 text-base border border-emerald-400/40">
+          <i class="fa-solid fa-wifi"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm font-black text-white tracking-wide">MAX RADIUS</h1>
+            <span class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">v2.4 Core</span>
+          </div>
+          <p class="text-[10px] text-slate-400 font-bold">بوابة المشتركين الذكية والتحكم بالسرعات</p>
+        </div>
+      </div>
+
+      <!-- Controls: Theme Toggle & IP Badge -->
+      <div class="flex items-center gap-2">
+        <!-- Theme Toggle Button -->
+        <button type="button" onclick="toggleTheme()" id="themeToggleBtn" class="p-2 rounded-xl system-card text-slate-400 hover:text-emerald-400 transition flex items-center gap-1.5 text-xs font-bold shadow-sm" title="تبديل المظهر (نهاري / ليلي)">
+          <i id="themeIcon" class="fa-solid fa-sun text-amber-400 text-sm"></i>
+          <span id="themeLabel" class="hidden sm:inline text-[11px]">نهاري</span>
+        </button>
+
+        <!-- Live Client IP Badge -->
+        <span class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold system-card text-emerald-400 flex items-center gap-1.5 shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>10.13.0.227</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Main Navigation Bar (5 Modern Tabs) -->
+    <nav class="system-card p-1.5 rounded-2xl shadow-xl overflow-x-auto">
+      <div class="flex items-center gap-1 min-w-max sm:min-w-0 sm:grid sm:grid-cols-5">
+        <button onclick="switchMainTab('portal')" id="nav-tab-portal" class="nav-pill active px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-house text-xs"></i>
+          <span>البوابة</span>
+        </button>
+        <button onclick="switchMainTab('pricing')" id="nav-tab-pricing" class="nav-pill px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white">
+          <i class="fa-solid fa-tags text-xs"></i>
+          <span>الأسعار</span>
+        </button>
+        <button onclick="switchMainTab('speedtest')" id="nav-tab-speedtest" class="nav-pill px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white">
+          <i class="fa-solid fa-gauge-high text-xs"></i>
+          <span>فحص السرعة</span>
+        </button>
+        <button onclick="switchMainTab('network')" id="nav-tab-network" class="nav-pill px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white">
+          <i class="fa-solid fa-circle-info text-xs"></i>
+          <span>عن الشبكة</span>
+        </button>
+        <button onclick="switchMainTab('support')" id="nav-tab-support" class="nav-pill px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 border border-transparent flex items-center justify-center gap-1.5 text-slate-400 hover:text-white">
+          <i class="fa-solid fa-headset text-xs"></i>
+          <span>الدعم</span>
+        </button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ================= MAIN VIEW WRAPPER ================= -->
+  <main class="max-w-xl mx-auto w-full flex-grow flex flex-col justify-center relative z-10">
+
+    <!-- ========================================================== -->
+    <!-- TAB 1: CAPTIVE PORTAL & SUBSCRIBER HUB                     -->
+    <!-- ========================================================== -->
+    <div id="tab-content-portal" class="space-y-4">
+      
+      <!-- Demo View Switcher Pill -->
+      <div class="system-card p-2 rounded-2xl flex items-center justify-between text-xs">
+        <span class="text-slate-400 font-bold px-2 flex items-center gap-1.5">
+          <i class="fa-solid fa-sliders text-emerald-400"></i> معاينة حالة البوابة:
+        </span>
+        <div class="flex items-center gap-1 bg-[#070b14] p-1 rounded-xl border border-[#1e293b]">
+          <button id="btn-subview-login" onclick="switchPortalSubView('login')" class="px-3 py-1 rounded-lg text-xs font-black transition bg-emerald-500 text-slate-950 shadow-md">
+            تسجيل الدخول
+          </button>
+          <button id="btn-subview-status" onclick="switchPortalSubView('status')" class="px-3 py-1 rounded-lg text-xs font-bold transition text-slate-400 hover:text-white">
+            لوحة المتصل
+          </button>
+        </div>
+      </div>
+
+      <!-- 1.1: PRE-LOGIN VIEW WITH CENTERED BRAND LOGO CARD -->
+      <div id="portal-subview-login" class="space-y-4">
+        
+        <div class="system-card rounded-3xl p-6 sm:p-8 space-y-6">
+          
+          <!-- ================= CENTERED BRAND & LOGO HEADER CARD ================= -->
+          <div class="flex flex-col items-center justify-center text-center w-full">
+            <!-- 1. Network Logo Icon -->
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 flex items-center justify-center text-2xl shadow-xl shadow-emerald-500/25 border border-emerald-300/40 mb-3 group hover:scale-105 transition-transform duration-300">
+              <i class="fa-solid fa-tower-broadcast"></i>
+            </div>
+            
+            <!-- 2. Security Badge -->
+            <div class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold mb-2 shadow-sm">
+              <i class="fa-solid fa-shield-halved text-xs"></i>
+              <span>بوابة المصادقة الآمنة والذكية</span>
+            </div>
+
+            <!-- 3. Network Title & Subtitle -->
+            <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">شبكة الفرسان اللاسلكية</h2>
+            <p class="text-xs text-slate-400 mt-1 flex items-center justify-center gap-1.5 font-medium">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+              نقطة بث Wi-Fi 6 فائقة السرعة • نظام MAX RADIUS
+            </p>
+          </div>
+
+          <!-- Input Mode Tabs (Voucher vs Subscriber) -->
+          <div class="grid grid-cols-2 gap-2 bg-[#070b14] p-1.5 rounded-2xl border border-[#1e293b]">
+            <button type="button" id="tab-voucher" onclick="switchLoginMode('voucher')" class="py-2.5 text-xs font-black rounded-xl transition bg-[#111827] text-emerald-400 shadow-sm flex items-center justify-center gap-1.5 border border-emerald-500/30">
+              <i class="fa-solid fa-ticket"></i> كرت هوتسبوت
+            </button>
+            <button type="button" id="tab-member" onclick="switchLoginMode('member')" class="py-2.5 text-xs font-bold rounded-xl transition text-slate-400 hover:text-white flex items-center justify-center gap-1.5 border border-transparent">
+              <i class="fa-solid fa-user-shield"></i> مشترك منزلي / يوزر
+            </button>
+          </div>
+
+          <!-- Login Form -->
+          <form id="loginForm" onsubmit="handleLoginSubmit(event)" class="space-y-4">
+            
+            <!-- Voucher PIN Input -->
+            <div id="input-group-voucher" class="space-y-1.5">
+              <label class="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>رقم الكرت / PIN Code</span>
+                <span class="text-[11px] text-emerald-400 font-normal">أدخل رقم الكرت المطبوع</span>
+              </label>
+              <div class="relative">
+                <input type="text" id="voucher_code" value="662811500" placeholder="أدخل رقم الكرت..." class="system-input w-full px-4 py-3 rounded-2xl text-center text-xl font-black font-mono tracking-widest text-emerald-400 placeholder:text-slate-600 outline-none transition" required>
+                <button type="button" onclick="pasteCardCode()" title="لصق من الحافظة" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-400 p-1.5 transition">
+                  <i class="fa-regular fa-paste text-base"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Subscriber Username & Password (Hidden by default) -->
+            <div id="input-group-member" class="space-y-3 hidden">
+              <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-300">اسم المستخدم (Username)</label>
+                <input type="text" id="sub_username" placeholder="اسم المشترك..." class="system-input w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white outline-none">
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-300">كلمة المرور (Password)</label>
+                <input type="password" id="sub_password" placeholder="••••••••" class="system-input w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white outline-none">
+              </div>
+            </div>
+
+            <!-- ================= QoS SPEED SELECTOR ================= -->
+            <div class="space-y-2.5 pt-2 border-t border-[#1c2840]">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-black text-slate-200 flex items-center gap-1.5">
+                  <i class="fa-solid fa-bolt text-amber-400"></i>
+                  اختر سرعة الاتصال المبدئية (QoS)
+                </span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  مجاناً مع الكرت
+                </span>
+              </div>
+
+              <!-- 3 Clean Aligned Speed Options Cards -->
+              <div class="grid grid-cols-3 gap-2.5">
+                
+                <!-- 1. Eco Mode -->
+                <input type="radio" name="speed_profile" id="speed_eco" value="4M" class="hidden speed-radio">
+                <label for="speed_eco" class="cursor-pointer p-3 rounded-2xl sub-card text-center transition-all duration-200 flex flex-col justify-between items-center relative group sub-card-hover min-w-0">
+                  <span class="check-icon opacity-0 scale-75 transition-all duration-200 absolute top-2 left-2 text-[9px] text-emerald-400 bg-emerald-500/20 w-4 h-4 rounded-full flex items-center justify-center border border-emerald-500/40">
+                    <i class="fa-solid fa-check"></i>
+                  </span>
+                  <div class="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 mb-1.5 group-hover:scale-110 transition">
+                    <i class="fa-solid fa-leaf text-sm"></i>
+                  </div>
+                  <span class="text-xs font-black text-white truncate w-full">توفير</span>
+                  <span class="text-[11px] font-mono font-bold text-emerald-400">4 Mbps</span>
+                  <span class="text-[9px] text-slate-400 mt-1 truncate w-full">توفير البيانات</span>
+                </label>
+
+                <!-- 2. Balanced Mode (Default) -->
+                <input type="radio" name="speed_profile" id="speed_balanced" value="10M" class="hidden speed-radio" checked>
+                <label for="speed_balanced" class="cursor-pointer p-3 rounded-2xl sub-card text-center transition-all duration-200 flex flex-col justify-between items-center relative group sub-card-hover min-w-0">
+                  <span class="check-icon opacity-1 scale-100 transition-all duration-200 absolute top-2 left-2 text-[9px] text-sky-400 bg-sky-500/20 w-4 h-4 rounded-full flex items-center justify-center border border-sky-500/40">
+                    <i class="fa-solid fa-check"></i>
+                  </span>
+                  <div class="w-8 h-8 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-400 mb-1.5 group-hover:scale-110 transition">
+                    <i class="fa-solid fa-play text-sm"></i>
+                  </div>
+                  <span class="text-xs font-black text-white truncate w-full">متوازن</span>
+                  <span class="text-[11px] font-mono font-bold text-sky-400">10 Mbps</span>
+                  <span class="text-[9px] text-slate-400 mt-1 truncate w-full">يوتيوب و HD</span>
+                </label>
+
+                <!-- 3. Turbo Gaming Mode -->
+                <input type="radio" name="speed_profile" id="speed_turbo" value="25M" class="hidden speed-radio">
+                <label for="speed_turbo" class="cursor-pointer p-3 rounded-2xl sub-card text-center transition-all duration-200 flex flex-col justify-between items-center relative group sub-card-hover min-w-0">
+                  <span class="check-icon opacity-0 scale-75 transition-all duration-200 absolute top-2 left-2 text-[9px] text-purple-400 bg-purple-500/20 w-4 h-4 rounded-full flex items-center justify-center border border-purple-500/40">
+                    <i class="fa-solid fa-check"></i>
+                  </span>
+                  <div class="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-1.5 group-hover:scale-110 transition">
+                    <i class="fa-solid fa-gamepad text-sm"></i>
+                  </div>
+                  <span class="text-xs font-black text-white truncate w-full">ألعاب فائقة</span>
+                  <span class="text-[11px] font-mono font-bold text-purple-400">25 Mbps</span>
+                  <span class="text-[9px] text-slate-400 mt-1 truncate w-full">بنج منخفض</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" id="btn-submit-login" class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-2xl font-black text-sm transition-all duration-200 shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2">
+              <span>تسجيل الدخول والاتصال بالإنترنت</span>
+              <i class="fa-solid fa-arrow-left text-xs"></i>
+            </button>
+          </form>
+
+          <!-- Bottom Help Links -->
+          <div class="flex items-center justify-between text-xs text-slate-400 pt-3 border-t border-[#1c2840] font-medium">
+            <button onclick="switchMainTab('pricing')" class="hover:text-emerald-400 transition flex items-center gap-1.5">
+              <i class="fa-solid fa-tags text-emerald-400"></i> أسعار وباقات الكروت
+            </button>
+            <a href="https://wa.me/967773570053" target="_blank" class="hover:text-emerald-400 transition flex items-center gap-1.5">
+              <i class="fa-brands fa-whatsapp text-emerald-400 text-sm"></i> الدعم والشحن الفوري
+            </a>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- 1.2: POST-LOGIN SUBSCRIBER PORTAL & LIVE QoS CONTROLLER -->
+      <div id="portal-subview-status" class="space-y-4 hidden">
+        
+        <!-- Header with Direct Logout Button -->
+        <div class="system-card p-4 rounded-3xl flex items-center justify-between shadow-xl">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl font-black">
+              <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-black text-white" id="live-user-name">662811500</h3>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">متصل الآن</span>
+              </div>
+              <p class="text-xs text-slate-400 font-mono mt-0.5">IP: 10.13.0.227 • باقة 80GB</p>
+            </div>
+          </div>
+          
+          <!-- Direct Logout Button -->
+          <button onclick="handleLogout()" class="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-slate-950 border border-rose-500/30 font-black text-xs flex items-center gap-1.5 transition-all shadow-sm group" title="تسجيل الخروج وقطع الاتصال">
+            <i class="fa-solid fa-power-off text-sm group-hover:rotate-90 transition-transform"></i>
+            <span>تسجيل خروج</span>
+          </button>
+        </div>
+
+        <!-- Quota & Validity Progress Cards -->
+        <div class="grid grid-cols-2 gap-3">
+          <!-- Quota Card -->
+          <div class="system-card p-4 rounded-3xl space-y-2">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-bold">
+              <span>الرصيد المتبقي</span>
+              <i class="fa-solid fa-chart-pie text-emerald-400"></i>
+            </div>
+            <div class="flex items-baseline gap-1">
+              <span class="text-2xl font-black text-white font-mono" id="live-rem-gb">64.5</span>
+              <span class="text-xs text-slate-400 font-bold">GB</span>
+            </div>
+            <div class="w-full h-2 bg-[#070b14] rounded-full overflow-hidden border border-[#1e293b]">
+              <div id="quota-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" style="width: 80%"></div>
+            </div>
+            <p class="text-[10px] text-slate-400 font-medium">مستهلك 15.5 GB من 80 GB</p>
+          </div>
+
+          <!-- Expiry Card -->
+          <div class="system-card p-4 rounded-3xl space-y-2">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-bold">
+              <span>الصلاحية المتبقية</span>
+              <i class="fa-regular fa-clock text-sky-400"></i>
+            </div>
+            <div class="flex items-baseline gap-1">
+              <span class="text-2xl font-black text-sky-400 font-mono" id="live-rem-days">29</span>
+              <span class="text-xs text-slate-400 font-bold">يوماً</span>
+            </div>
+            <div class="w-full h-2 bg-[#070b14] rounded-full overflow-hidden border border-[#1e293b]">
+              <div class="h-full bg-gradient-to-r from-sky-500 to-indigo-400 rounded-full" style="width: 95%"></div>
+            </div>
+            <p class="text-[10px] text-slate-400 font-medium">ينتهي: 24 أكتوبر 2026</p>
+          </div>
+        </div>
+
+        <!-- LIVE SPEED SWITCHER (QoS Dynamic Control) -->
+        <div class="system-card p-5 rounded-3xl space-y-4 shadow-2xl relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <div class="space-y-0.5">
+              <h4 class="text-xs font-black text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-gauge-high text-emerald-400"></i>
+                تغيير السرعة اللحظي (QoS Live Switcher)
+              </h4>
+              <p class="text-[11px] text-slate-400">يتم تطبيق السرعة فوراً بدون فصل الاتصال عبر CoA</p>
+            </div>
+            <span id="active-speed-badge" class="px-2.5 py-1 rounded-full text-xs font-mono font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span id="active-speed-text">10 Mbps</span>
+            </span>
+          </div>
+
+          <!-- Speed Preset Buttons -->
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" onclick="setLiveSpeed('4M', 'وضع التوفير (Eco)')" class="p-3 rounded-2xl sub-card hover:border-emerald-500/60 transition-all text-center flex flex-col items-center group">
+              <i class="fa-solid fa-leaf text-emerald-400 text-sm mb-1 group-hover:scale-110 transition"></i>
+              <span class="text-xs font-black text-white">4 Mbps</span>
+              <span class="text-[9px] text-slate-400">توفير البيانات</span>
+            </button>
+
+            <button type="button" onclick="setLiveSpeed('10M', 'الوضع المتوازن (Balanced)')" class="p-3 rounded-2xl sub-card hover:border-sky-500/60 transition-all text-center flex flex-col items-center group">
+              <i class="fa-solid fa-play text-sky-400 text-sm mb-1 group-hover:scale-110 transition"></i>
+              <span class="text-xs font-black text-white">10 Mbps</span>
+              <span class="text-[9px] text-slate-400">تصفح وفيديو HD</span>
+            </button>
+
+            <button type="button" onclick="setLiveSpeed('25M', 'وضع الألعاب الفائق (Turbo Gaming)')" class="p-3 rounded-2xl sub-card hover:border-purple-500/60 transition-all text-center flex flex-col items-center group">
+              <i class="fa-solid fa-gamepad text-purple-400 text-sm mb-1 group-hover:scale-110 transition"></i>
+              <span class="text-xs font-black text-white">25 Mbps</span>
+              <span class="text-[9px] text-slate-400">أقصى سرعة + بنج</span>
+            </button>
+          </div>
+
+          <!-- Custom Speed Slider -->
+          <div class="space-y-2 pt-2 border-t border-[#1c2840]">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-300 font-bold">أو حدد سرعة مخصصة:</span>
+              <span id="slider-val" class="font-mono font-black text-emerald-400">10 Mbps</span>
+            </div>
+            <input type="range" min="2" max="50" step="2" value="10" id="speedSlider" oninput="updateSliderVal(this.value)" onchange="setLiveSpeed(this.value + 'M', 'سرعة مخصصة')" class="w-full accent-emerald-500 h-2 bg-[#070b14] rounded-lg cursor-pointer">
+          </div>
+        </div>
+
+        <!-- SUBSCRIBER SELF-SERVICE ACTIONS GRID -->
+        <div class="space-y-2">
+          <h4 class="text-xs font-bold text-slate-400 px-1">خدمات المشترك السريعة</h4>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <!-- 1. Emergency Loan -->
+            <button onclick="openLoanModal()" class="p-3.5 rounded-2xl system-card hover:border-amber-500/50 transition-all text-center flex flex-col items-center gap-2 group">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+              </div>
+              <div>
+                <span class="block text-xs font-black text-white">طلب سلفة</span>
+                <span class="block text-[10px] text-amber-300 font-medium">1GB طوارئ</span>
+              </div>
+            </button>
+
+            <!-- 2. Card Recharge -->
+            <button onclick="openRechargeModal()" class="p-3.5 rounded-2xl system-card hover:border-emerald-500/50 transition-all text-center flex flex-col items-center gap-2 group">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                <i class="fa-solid fa-bolt-lightning"></i>
+              </div>
+              <div>
+                <span class="block text-xs font-black text-white">شحن كرت</span>
+                <span class="block text-[10px] text-emerald-300 font-medium">تجديد فوري</span>
+              </div>
+            </button>
+
+            <!-- 3. Usage History -->
+            <button onclick="openUsageModal()" class="p-3.5 rounded-2xl system-card hover:border-sky-500/50 transition-all text-center flex flex-col items-center gap-2 group">
+              <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                <i class="fa-solid fa-chart-line"></i>
+              </div>
+              <div>
+                <span class="block text-xs font-black text-white">سجل الاستهلاك</span>
+                <span class="block text-[10px] text-sky-300 font-medium">الجلسات والبيانات</span>
+              </div>
+            </button>
+
+            <!-- 4. Change Password -->
+            <button onclick="openPassModal()" class="p-3.5 rounded-2xl system-card hover:border-purple-500/50 transition-all text-center flex flex-col items-center gap-2 group">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                <i class="fa-solid fa-key"></i>
+              </div>
+              <div>
+                <span class="block text-xs font-black text-white">كلمة المرور</span>
+                <span class="block text-[10px] text-purple-300 font-medium">تغيير الأمان</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- TAB 2: CARD PRICING & PACKAGES                             -->
+    <!-- ========================================================== -->
+    <div id="tab-content-pricing" class="space-y-4 hidden">
+      <div class="system-card p-5 sm:p-6 rounded-3xl space-y-4 shadow-2xl">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-[#1c2840]">
+          <div>
+            <h3 class="text-base font-black text-white flex items-center gap-2">
+              <i class="fa-solid fa-tags text-emerald-400"></i>
+              باقات وأسعار كروت الإنترنت
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">اختر الباقة المناسبة لشحن كرتك فوراً أو الشراء أونلاين</p>
+          </div>
+          <span class="px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold font-mono">
+            4G+ / Wi-Fi 6
+          </span>
+        </div>
+
+        <!-- Packages List -->
+        <div class="space-y-3">
+          
+          <!-- Package 1: Daily Micro -->
+          <div class="sub-card p-4 rounded-2xl hover:border-emerald-500/50 transition-all flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg font-black font-mono">
+                1D
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-black text-white">كرت يومي - 1 جيجا</h4>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] bg-[#070b14] text-slate-300 border border-[#1e293b]">صلاحية 24 ساعة</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">سرعة تصل إلى 15 Mbps • بدون حد للجلسات</p>
+              </div>
+            </div>
+            <div class="text-left">
+              <span class="block text-base font-black text-emerald-400 font-mono">200 ر.ي</span>
+              <button onclick="orderCardPackage('يومي 1GB - 200 ر.ي')" class="mt-1 px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-black text-xs transition">
+                شراء
+              </button>
+            </div>
+          </div>
+
+          <!-- Package 2: Weekly Gold -->
+          <div class="sub-card p-4 rounded-2xl hover:border-sky-500/50 transition-all flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-lg font-black font-mono">
+                7D
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-black text-white">كرت أسبوعي - 8 جيجا</h4>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] bg-sky-500/20 text-sky-300 border border-sky-500/30 font-bold">الأكثر طلباً</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">سرعة فائقة تصل إلى 25 Mbps • ألعاب وفيديو HD</p>
+              </div>
+            </div>
+            <div class="text-left">
+              <span class="block text-base font-black text-sky-400 font-mono">1,000 ر.ي</span>
+              <button onclick="orderCardPackage('أسبوعي 8GB - 1000 ر.ي')" class="mt-1 px-3 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500 text-sky-300 hover:text-slate-950 font-black text-xs transition">
+                شراء
+              </button>
+            </div>
+          </div>
+
+          <!-- Package 3: Monthly Platinum -->
+          <div class="sub-card p-4 rounded-2xl hover:border-purple-500/50 transition-all flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg font-black font-mono">
+                30D
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-black text-white">كرت شهري - 40 جيجا</h4>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">VIP بلس</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">سرعة مفتوحة حتى 50 Mbps • دعم أولوية QoS</p>
+              </div>
+            </div>
+            <div class="text-left">
+              <span class="block text-base font-black text-purple-400 font-mono">4,500 ر.ي</span>
+              <button onclick="orderCardPackage('شهري 40GB - 4500 ر.ي')" class="mt-1 px-3 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500 text-purple-300 hover:text-slate-950 font-black text-xs transition">
+                شراء
+              </button>
+            </div>
+          </div>
+
+          <!-- Package 4: Home Unlimited Fiber -->
+          <div class="sub-card p-4 rounded-2xl hover:border-amber-500/50 transition-all flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg font-black font-mono">
+                <i class="fa-solid fa-infinity"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-black text-white">باقة منزلية مفتوحة (PPPoE)</h4>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">منزلي</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">تحميل غير محدود • استقرار دائم على مدار الشهر</p>
+              </div>
+            </div>
+            <div class="text-left">
+              <span class="block text-base font-black text-amber-400 font-mono">12,000 ر.ي</span>
+              <button onclick="orderCardPackage('منزلي مفتوح - 12000 ر.ي')" class="mt-1 px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-black text-xs transition">
+                طلب
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Sales Points Info -->
+        <div class="p-3.5 rounded-2xl bg-[#070b14] border border-[#1e293b] text-xs text-slate-300 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-store text-emerald-400"></i>
+            <span>تتوفر الكروت في أكثر من 25 نقطة بيع معتمدة في الحي.</span>
+          </div>
+          <a href="https://wa.me/967773570053?text=أريد%20معرفة%20أقرب%20نقطة%20بيع%20كروت" target="_blank" class="text-emerald-400 hover:underline font-black text-[11px] min-w-max">
+            أقرب نقطة بيع
+          </a>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- TAB 3: REAL-TIME SPEEDTEST & PING                          -->
+    <!-- ========================================================== -->
+    <div id="tab-content-speedtest" class="space-y-4 hidden">
+      <div class="system-card p-5 sm:p-6 rounded-3xl space-y-5 text-center shadow-2xl">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-[#1c2840]">
+          <div class="text-right">
+            <h3 class="text-base font-black text-white flex items-center gap-2">
+              <i class="fa-solid fa-gauge-high text-emerald-400"></i>
+              قياس سرعة الاتصال وجودة البنج
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">فحص مباشر للسرعة ومعدل التأخير (Latency & Jitter)</p>
+          </div>
+          <span id="speedtest-status-pill" class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#070b14] text-slate-400 border border-[#1e293b]">
+            جاهز للفحص
+          </span>
+        </div>
+
+        <!-- Speed Gauge Visualizer -->
+        <div class="relative w-48 h-48 mx-auto flex items-center justify-center my-2">
+          <svg class="w-full h-full" viewBox="0 0 160 160">
+            <circle id="gauge-bg-track" cx="80" cy="80" r="68" stroke="rgba(255,255,255,0.06)" stroke-width="12" fill="none"/>
+            <circle id="gauge-bar" class="gauge-circle" cx="80" cy="80" r="68" stroke="url(#gauge-gradient)" stroke-width="12" stroke-linecap="round" stroke-dasharray="427" stroke-dashoffset="427" fill="none"/>
+            <defs>
+              <linearGradient id="gauge-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#10b981" />
+                <stop offset="50%" stop-color="#0ea5e9" />
+                <stop offset="100%" stop-color="#a855f7" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          <!-- Gauge Center Text -->
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span id="speed-meter-val" class="text-4xl font-black font-mono text-white tracking-tight">0.0</span>
+            <span class="text-xs font-bold text-emerald-400 mt-0.5 font-mono">Mbps</span>
+            <span id="speed-phase-label" class="text-[10px] text-slate-400 mt-1">اضغط بدء القياس</span>
+          </div>
+        </div>
+
+        <!-- Real-time Ping & Jitter Stats -->
+        <div class="grid grid-cols-3 gap-2.5">
+          <!-- Ping -->
+          <div class="sub-card p-3 rounded-2xl text-center">
+            <span class="text-[11px] font-bold text-slate-400 block mb-0.5 flex items-center justify-center gap-1">
+              <i class="fa-solid fa-stopwatch text-sky-400"></i> البنج (Ping)
+            </span>
+            <span id="metric-ping" class="text-lg font-black font-mono text-sky-400">--</span>
+            <span class="text-[10px] text-slate-400 font-mono"> ms</span>
+          </div>
+
+          <!-- Jitter -->
+          <div class="sub-card p-3 rounded-2xl text-center">
+            <span class="text-[11px] font-bold text-slate-400 block mb-0.5 flex items-center justify-center gap-1">
+              <i class="fa-solid fa-wave-square text-purple-400"></i> التذبذب (Jitter)
+            </span>
+            <span id="metric-jitter" class="text-lg font-black font-mono text-purple-400">--</span>
+            <span class="text-[10px] text-slate-400 font-mono"> ms</span>
+          </div>
+
+          <!-- Upload -->
+          <div class="sub-card p-3 rounded-2xl text-center">
+            <span class="text-[11px] font-bold text-slate-400 block mb-0.5 flex items-center justify-center gap-1">
+              <i class="fa-solid fa-cloud-arrow-up text-emerald-400"></i> الرفع (Upload)
+            </span>
+            <span id="metric-upload" class="text-lg font-black font-mono text-emerald-400">--</span>
+            <span class="text-[10px] text-slate-400 font-mono"> Mbps</span>
+          </div>
+        </div>
+
+        <!-- Real-time Ping to Targets -->
+        <div class="p-3.5 rounded-2xl bg-[#070b14] border border-[#1e293b] text-right space-y-2">
+          <div class="flex items-center justify-between text-xs font-bold text-slate-300">
+            <span>فحص الاستجابة المباشر للسيرفرات:</span>
+            <button onclick="pingGlobalTargets()" class="text-emerald-400 hover:text-emerald-300 text-[11px] font-medium flex items-center gap-1">
+              <i class="fa-solid fa-rotate text-[10px]"></i> فحص البنج
+            </button>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-xs">
+            <div class="p-2 rounded-xl bg-[#111827] border border-[#1f293d] flex items-center justify-between">
+              <span class="text-slate-400 font-medium">سيرفر الشبكة</span>
+              <span id="ping-local" class="font-mono font-bold text-emerald-400">2 ms</span>
+            </div>
+            <div class="p-2 rounded-xl bg-[#111827] border border-[#1f293d] flex items-center justify-between">
+              <span class="text-slate-400 font-medium">Google DNS</span>
+              <span id="ping-google" class="font-mono font-bold text-sky-400">24 ms</span>
+            </div>
+            <div class="p-2 rounded-xl bg-[#111827] border border-[#1f293d] flex items-center justify-between">
+              <span class="text-slate-400 font-medium">Cloudflare</span>
+              <span id="ping-cf" class="font-mono font-bold text-amber-400">21 ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Start Test Button -->
+        <button id="btn-start-speedtest" onclick="runLiveSpeedTest()" class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-500 via-teal-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-slate-950 rounded-2xl font-black text-sm transition-all duration-200 shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-circle-play text-base"></i>
+          <span>بدء فحص السرعة والبنج الآن</span>
+        </button>
+
+      </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- TAB 4: ABOUT NETWORK (معلومات عن الشبكة وتغطيتها)          -->
+    <!-- ========================================================== -->
+    <div id="tab-content-network" class="space-y-4 hidden">
+      <div class="system-card p-5 sm:p-6 rounded-3xl space-y-5 shadow-2xl">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-3 border-b border-[#1c2840]">
+          <div>
+            <h3 class="text-base font-black text-white flex items-center gap-2">
+              <i class="fa-solid fa-circle-info text-emerald-400"></i>
+              عن شبكة الفرسان اللاسلكية
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">رؤيتنا، خدماتنا، ومناطق التغطية المعتمدة لخدمتكم</p>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            تغطية نشطة
+          </span>
+        </div>
+
+        <!-- About Intro Card -->
+        <div class="sub-card p-4 rounded-2xl space-y-2">
+          <h4 class="text-xs font-black text-white flex items-center gap-1.5">
+            <i class="fa-solid fa-quote-right text-emerald-400"></i>
+            من نحن:
+          </h4>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            شبكة الفرسان هي شبكة اتصالات لاسلكية رائدة توفر خدمات الإنترنت فائق السرعة بتقنية <strong>Wi-Fi 6</strong> للمنازل والمحلات التجارية والزوار. نهدف إلى تقديم اتصال مستقر مع أقل زمن استجابة (Ping) للألعاب والتصفح والعمل عن بُعد بأعلى جودة وأفضل أسعار.
+          </p>
+        </div>
+
+        <!-- Network Key Features Grid -->
+        <div class="space-y-2">
+          <h4 class="text-xs font-black text-white px-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-star text-amber-400"></i>
+            مميزات شبكة الفرسان:
+          </h4>
+          <div class="grid grid-cols-2 gap-2.5 text-xs">
+            
+            <div class="sub-card p-3 rounded-xl space-y-1">
+              <div class="flex items-center gap-2 text-emerald-400 font-bold">
+                <i class="fa-solid fa-bolt"></i>
+                <span class="text-white font-black">تحكم ذكي بالسرعة</span>
+              </div>
+              <p class="text-[11px] text-slate-400">إمكانية اختيار سرعة الاتصال بحرية (توفير / متوازن / ألعاب) لتوفير الرصيد.</p>
+            </div>
+
+            <div class="sub-card p-3 rounded-xl space-y-1">
+              <div class="flex items-center gap-2 text-sky-400 font-bold">
+                <i class="fa-solid fa-gamepad"></i>
+                <span class="text-white font-black">بنج فائق للألعاب</span>
+              </div>
+              <p class="text-[11px] text-slate-400">مسارات مباشرة لألعاب PUBG و FreeFire بدون تقطيع أو لاج.</p>
+            </div>
+
+            <div class="sub-card p-3 rounded-xl space-y-1">
+              <div class="flex items-center gap-2 text-purple-400 font-bold">
+                <i class="fa-solid fa-hand-holding-dollar"></i>
+                <span class="text-white font-black">سلفة طوارئ مجانية</span>
+              </div>
+              <p class="text-[11px] text-slate-400">إمكانية طلب سلفة 1GB عند نفاد الرصيد بضغطة زر واحدة.</p>
+            </div>
+
+            <div class="sub-card p-3 rounded-xl space-y-1">
+              <div class="flex items-center gap-2 text-amber-400 font-bold">
+                <i class="fa-solid fa-headset"></i>
+                <span class="text-white font-black">دعم فني 24/7</span>
+              </div>
+              <p class="text-[11px] text-slate-400">فريق فني متواجد على مدار الساعة لخدمتكم والشحن الفوري عبر واتساب.</p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Coverage Areas List -->
+        <div class="space-y-2 pt-2 border-t border-[#1c2840]">
+          <h4 class="text-xs font-black text-white flex items-center gap-1.5">
+            <i class="fa-solid fa-map-location-dot text-rose-400"></i>
+            المناطق والأحياء المشمولة بالتغطية:
+          </h4>
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <div class="p-2.5 rounded-xl bg-[#070b14] border border-[#1e293b] flex items-center gap-2">
+              <i class="fa-solid fa-circle-check text-emerald-400 text-xs"></i>
+              <span class="text-slate-200 font-medium">منطقة الشارع العام والمركز التجاري</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-[#070b14] border border-[#1e293b] flex items-center gap-2">
+              <i class="fa-solid fa-circle-check text-emerald-400 text-xs"></i>
+              <span class="text-slate-200 font-medium">حي السلام والمجمع السكني الغربي</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-[#070b14] border border-[#1e293b] flex items-center gap-2">
+              <i class="fa-solid fa-circle-check text-emerald-400 text-xs"></i>
+              <span class="text-slate-200 font-medium">محيط حديقة الألعاب والمطاعم</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-[#070b14] border border-[#1e293b] flex items-center gap-2">
+              <i class="fa-solid fa-circle-check text-emerald-400 text-xs"></i>
+              <span class="text-slate-200 font-medium">الشارع الشرقي ومستشفى الشفاء</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Useful Usage Tips -->
+        <div class="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-slate-300 space-y-1.5">
+          <div class="flex items-center gap-2 text-emerald-400 font-black">
+            <i class="fa-solid fa-lightbulb"></i>
+            <span>نصائح ذهبية للحفاظ على رصيد الكرت:</span>
+          </div>
+          <ul class="text-[11px] text-slate-300 space-y-1 list-disc list-inside mr-1">
+            <li>اضغط على زر <strong>«تسجيل خروج»</strong> عند الانتهاء من التصفح لإيقاف احتساب الجلسة وحفظ الجيجابايت.</li>
+            <li>استخدم وضع <strong>«توفير (4 Mbps)»</strong> لتطبيقات الواتساب والتصفح العادي لتوفير أكثر من 60% من رصيدك.</li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========================================================== -->
+    <!-- TAB 5: TECHNICAL SUPPORT & HELPDESK                        -->
+    <!-- ========================================================== -->
+    <div id="tab-content-support" class="space-y-4 hidden">
+      <div class="system-card p-5 sm:p-6 rounded-3xl space-y-5 shadow-2xl">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-[#1c2840]">
+          <div>
+            <h3 class="text-base font-black text-white flex items-center gap-2">
+              <i class="fa-solid fa-headset text-emerald-400"></i>
+              مركز خدمة المشتركين والدعم الفني
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">نحن هنا لمساعدتك على مدار 24 ساعة طوال أيام الأسبوع</p>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+            متاح الآن
+          </span>
+        </div>
+
+        <!-- Direct Contact Action Cards -->
+        <div class="grid grid-cols-2 gap-3">
+          <!-- WhatsApp Support -->
+          <a href="https://wa.me/967773570053?text=مرحباً%20خدمة%20العملاء%20لدي%20استفسار%20بخصوص%20الشبكة" target="_blank" class="p-4 rounded-2xl sub-card hover:border-emerald-500 hover:bg-emerald-500/10 transition-all flex flex-col items-center text-center gap-2 group">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl group-hover:scale-110 transition">
+              <i class="fa-brands fa-whatsapp"></i>
+            </div>
+            <div>
+              <span class="block text-sm font-black text-white">واتساب الدعم الفني</span>
+              <span class="block text-xs text-emerald-400 font-mono font-bold mt-0.5">773 570 053</span>
+            </div>
+          </a>
+
+          <!-- Direct Phone Call -->
+          <a href="tel:773570053" class="p-4 rounded-2xl sub-card hover:border-sky-500 hover:bg-sky-500/10 transition-all flex flex-col items-center text-center gap-2 group">
+            <div class="w-12 h-12 rounded-2xl bg-sky-500/20 text-sky-400 flex items-center justify-center text-2xl group-hover:scale-110 transition">
+              <i class="fa-solid fa-phone-volume"></i>
+            </div>
+            <div>
+              <span class="block text-sm font-black text-white">الاتصال المباشر</span>
+              <span class="block text-xs text-sky-400 font-mono font-bold mt-0.5">خدمة الطوارئ</span>
+            </div>
+          </a>
+        </div>
+
+        <!-- Quick Complaint / Ticket Submission -->
+        <div class="space-y-3 pt-2 border-t border-[#1c2840]">
+          <h4 class="text-xs font-black text-white flex items-center gap-1.5">
+            <i class="fa-solid fa-paper-plane text-amber-400"></i>
+            إرسال بلاغ أو شكوى سريعة لإدارة الشبكة:
+          </h4>
+          <form onsubmit="submitSupportTicket(event)" class="space-y-2.5">
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" id="ticket_name" placeholder="اسمك الكريم..." class="system-input px-3.5 py-2.5 rounded-xl text-xs text-white outline-none" required>
+              <input type="tel" id="ticket_phone" placeholder="رقم الهاتف..." class="system-input px-3.5 py-2.5 rounded-xl text-xs text-white outline-none" required>
+            </div>
+            <textarea id="ticket_msg" rows="2" placeholder="اكتب مشكلتك أو استفسارك هنا بالتفصيل..." class="system-input w-full px-3.5 py-2.5 rounded-xl text-xs text-white outline-none resize-none" required></textarea>
+            <button type="submit" class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20">
+              <i class="fa-solid fa-paper-plane"></i>
+              <span>إرسال البلاغ فوراً للمهندس المناوب</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Quick FAQ Section -->
+        <div class="space-y-2 pt-2 border-t border-[#1c2840] text-xs">
+          <h4 class="font-black text-slate-300">الأسئلة الشائعة:</h4>
+          <details class="p-2.5 rounded-xl bg-[#070b14] border border-[#1e293b] group">
+            <summary class="font-bold text-slate-200 cursor-pointer list-none flex items-center justify-between">
+              <span>كيف يمكنني توفير استهلاك الرصيد؟</span>
+              <i class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition"></i>
+            </summary>
+            <p class="mt-2 text-slate-400 text-[11px] leading-relaxed">
+              يمكنك اختيار وضع السرعة «توفير (Eco 4Mbps)» من لوحة التحكم، مما يمنع تطبيقات الفيديو من سحب جودات 4K تلقائياً ويوفر أكثر من 60% من رصيدك.
+            </p>
+          </details>
+
+          <details class="p-2.5 rounded-xl bg-[#070b14] border border-[#1e293b] group">
+            <summary class="font-bold text-slate-200 cursor-pointer list-none flex items-center justify-between">
+              <span>ماذا أفعل إذا انقطع الاتصال أو علق الكرت؟</span>
+              <i class="fa-solid fa-chevron-down text-slate-400 group-open:rotate-180 transition"></i>
+            </summary>
+            <p class="mt-2 text-slate-400 text-[11px] leading-relaxed">
+              اضغط على زر «تسجيل خروج» من أعلى اللوحة ثم أعد الدخول مجدداً، حيث يقوم النظام فورياً بإعادة تهيئة جلستك في سيرفر الميكروتك (RADIUS Disconnect).
+            </p>
+          </details>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="max-w-xl mx-auto w-full text-center text-xs text-slate-400 py-4 mt-4 border-t border-[#1c2840] space-y-1 relative z-10">
+    <p class="font-medium">جميع الحقوق محفوظة © 2026 • نظام <span class="font-black text-emerald-400 font-mono">MAX RADIUS</span> لإدارة الشبكات</p>
+  </footer>
+
+  <!-- ================= MODALS & POPUPS ================= -->
+
+  <!-- 1. Emergency Loan Modal -->
+  <div id="modal-loan" class="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4 hidden">
+    <div class="modal-card p-6 rounded-3xl max-w-sm w-full border border-amber-500/30 shadow-2xl space-y-4 text-center">
+      <div class="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl mx-auto">
+        <i class="fa-solid fa-hand-holding-dollar"></i>
+      </div>
+      <h3 class="text-base font-black text-white">طلب سلفة طوارئ (1,000 MB)</h3>
+      <p class="text-xs text-slate-300 leading-relaxed">
+        هل نفد رصيدك وتحتاج للاتصال فوراً؟ يمكنك الحصول على سلفة 1GB صالحة لمدة 24 ساعة، ويتم خصمها تلقائياً عند شحن كرتك القادم.
+      </p>
+      <div class="flex gap-2 pt-2">
+        <button onclick="confirmLoanRequest()" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition">
+          تأكيد طلب السلفة
+        </button>
+        <button onclick="closeModal('modal-loan')" class="px-4 py-2.5 bg-[#111827] hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition border border-[#1f293d]">
+          إلغاء
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Recharge Modal -->
+  <div id="modal-recharge" class="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4 hidden">
+    <div class="modal-card p-6 rounded-3xl max-w-sm w-full border border-emerald-500/30 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-black text-white flex items-center gap-2">
+          <i class="fa-solid fa-bolt-lightning text-emerald-400"></i> شحن كرت إضافي
+        </h3>
+        <button onclick="closeModal('modal-recharge')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p class="text-xs text-slate-400">أدخل رقم كرت الشحن الجديد لإضافة الرصيد إلى حسابك الحالي مباشرة:</p>
+      <input type="text" id="recharge_pin" placeholder="أدخل رقم الكرت الجديد..." class="system-input w-full px-4 py-3 rounded-2xl text-center text-base font-mono font-black text-emerald-400 outline-none">
+      <button onclick="confirmRecharge()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs transition shadow-lg shadow-emerald-500/20">
+        شحن الرصيد وتمديد الصلاحية
+      </button>
+    </div>
+  </div>
+
+  <!-- 3. Usage History Modal -->
+  <div id="modal-usage" class="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4 hidden">
+    <div class="modal-card p-6 rounded-3xl max-w-md w-full shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-black text-white flex items-center gap-2">
+          <i class="fa-solid fa-chart-line text-sky-400"></i> سجل استهلاك البيانات والجلسات
+        </h3>
+        <button onclick="closeModal('modal-usage')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="space-y-2 max-h-60 overflow-y-auto">
+        <div class="p-2.5 rounded-xl bg-[#070b14] border border-[#1e293b] flex items-center justify-between text-xs">
+          <div>
+            <span class="font-bold text-white block">اليوم • جلسة Wi-Fi 6</span>
+            <span class="text-[10px] text-slate-400 font-mono">المدة: 3 ساعات و 24 دقيقة</span>
+          </div>
+          <span class="font-mono font-black text-emerald-400">2.4 GB</span>
+        </div>
+        <div class="p-2.5 rounded-xl bg-[#070b14] border border-[#1e293b] flex items-center justify-between text-xs">
+          <div>
+            <span class="font-bold text-white block">أمس • جلسة مسائية</span>
+            <span class="text-[10px] text-slate-400 font-mono">المدة: 5 ساعات و 10 دقائق</span>
+          </div>
+          <span class="font-mono font-black text-emerald-400">4.1 GB</span>
+        </div>
+      </div>
+      <button onclick="closeModal('modal-usage')" class="w-full py-2.5 bg-[#111827] hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs border border-[#1f293d]">
+        إغلاق
+      </button>
+    </div>
+  </div>
+
+  <!-- 4. Change Password Modal -->
+  <div id="modal-pass" class="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4 hidden">
+    <div class="modal-card p-6 rounded-3xl max-w-sm w-full border border-purple-500/30 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-black text-white flex items-center gap-2">
+          <i class="fa-solid fa-key text-purple-400"></i> تغيير كلمة مرور الحساب
+        </h3>
+        <button onclick="closeModal('modal-pass')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="space-y-2">
+        <input type="password" placeholder="كلمة المرور الحالية..." class="system-input w-full px-3.5 py-2.5 rounded-xl text-xs text-white outline-none">
+        <input type="password" placeholder="كلمة المرور الجديدة..." class="system-input w-full px-3.5 py-2.5 rounded-xl text-xs text-white outline-none">
+      </div>
+      <button onclick="confirmPasswordChange()" class="w-full py-3 bg-purple-500 hover:bg-purple-400 text-white font-black rounded-2xl text-xs transition">
+        حفظ كلمة المرور الجديدة
+      </button>
+    </div>
+  </div>
+
+  <!-- RADIUS CoA Notification Toast -->
+  <div id="coa-toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-2xl system-card border border-emerald-500/50 shadow-2xl text-xs text-slate-100 flex items-center gap-3 hidden transition-all max-w-md w-[92%]">
+    <div class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm shrink-0">
+      <i class="fa-solid fa-bolt"></i>
+    </div>
+    <div id="coa-toast-text" class="flex-1">
+      جاري إرسال حزمة RADIUS CoA لتطبيق السرعة...
+    </div>
+  </div>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    // Theme Management (Light / Dark)
+    let currentTheme = localStorage.getItem('portal_theme') || 'dark';
+
+    function applyTheme(theme) {
+      const html = document.documentElement;
+      const themeIcon = document.getElementById('themeIcon');
+      const themeLabel = document.getElementById('themeLabel');
+      const glow1 = document.getElementById('ambient-glow-1');
+      const glow2 = document.getElementById('ambient-glow-2');
+
+      if (theme === 'light') {
+        html.classList.remove('theme-dark');
+        html.classList.add('theme-light');
+        themeIcon.className = 'fa-solid fa-moon text-indigo-500 text-sm';
+        themeLabel.textContent = 'ليلي';
+        glow1.style.opacity = '0';
+        glow2.style.opacity = '0';
+      } else {
+        html.classList.remove('theme-light');
+        html.classList.add('theme-dark');
+        themeIcon.className = 'fa-solid fa-sun text-amber-400 text-sm';
+        themeLabel.textContent = 'نهاري';
+        glow1.style.opacity = '1';
+        glow2.style.opacity = '1';
+      }
+      currentTheme = theme;
+      localStorage.setItem('portal_theme', theme);
+    }
+
+    function toggleTheme() {
+      applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    }
+
+    // Initialize Theme
+    applyTheme(currentTheme);
+
+    // Tab switching logic
+    function switchMainTab(tabName) {
+      const tabs = ['portal', 'pricing', 'speedtest', 'network', 'support'];
+      tabs.forEach(t => {
+        const content = document.getElementById(`tab-content-${t}`);
+        const btn = document.getElementById(`nav-tab-${t}`);
+        if (t === tabName) {
+          content.classList.remove('hidden');
+          btn.classList.add('active');
+        } else {
+          content.classList.add('hidden');
+          btn.classList.remove('active');
+        }
+      });
+    }
+
+    // Subview inside portal (Login vs Live Status)
+    function switchPortalSubView(subview) {
+      const vLogin = document.getElementById('portal-subview-login');
+      const vStatus = document.getElementById('portal-subview-status');
+      const btnLogin = document.getElementById('btn-subview-login');
+      const btnStatus = document.getElementById('btn-subview-status');
+
+      if (subview === 'login') {
+        vLogin.classList.remove('hidden');
+        vStatus.classList.add('hidden');
+        btnLogin.className = "px-3 py-1 rounded-lg text-xs font-black transition bg-emerald-500 text-slate-950 shadow-md";
+        btnStatus.className = "px-3 py-1 rounded-lg text-xs font-bold transition text-slate-400 hover:text-white";
+      } else {
+        vLogin.classList.add('hidden');
+        vStatus.classList.remove('hidden');
+        btnStatus.className = "px-3 py-1 rounded-lg text-xs font-black transition bg-emerald-500 text-slate-950 shadow-md";
+        btnLogin.className = "px-3 py-1 rounded-lg text-xs font-bold transition text-slate-400 hover:text-white";
+      }
+    }
+
+    // Login mode tabs (Voucher vs Member)
+    function switchLoginMode(mode) {
+      const vGroup = document.getElementById('input-group-voucher');
+      const mGroup = document.getElementById('input-group-member');
+      const tabV = document.getElementById('tab-voucher');
+      const tabM = document.getElementById('tab-member');
+
+      if (mode === 'voucher') {
+        vGroup.classList.remove('hidden');
+        mGroup.classList.add('hidden');
+        tabV.className = "py-2.5 text-xs font-black rounded-xl transition bg-[#111827] text-emerald-400 shadow-sm flex items-center justify-center gap-1.5 border border-emerald-500/30";
+        tabM.className = "py-2.5 text-xs font-bold rounded-xl transition text-slate-400 hover:text-white flex items-center justify-center gap-1.5 border border-transparent";
+      } else {
+        vGroup.classList.add('hidden');
+        mGroup.classList.remove('hidden');
+        tabM.className = "py-2.5 text-xs font-black rounded-xl transition bg-[#111827] text-purple-400 shadow-sm flex items-center justify-center gap-1.5 border border-purple-500/30";
+        tabV.className = "py-2.5 text-xs font-bold rounded-xl transition text-slate-400 hover:text-white flex items-center justify-center gap-1.5 border border-transparent";
+      }
+    }
+
+    // Login Handler
+    function handleLoginSubmit(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-submit-login');
+      const selectedSpeed = document.querySelector('input[name="speed_profile"]:checked').value;
+
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> جاري المصادقة وتطبيق سرعة ${selectedSpeed}...`;
+
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = `<span>تسجيل الدخول والاتصال بالإنترنت</span> <i class="fa-solid fa-arrow-left text-xs"></i>`;
+        
+        document.getElementById('active-speed-text').textContent = selectedSpeed + 'bps';
+        document.getElementById('slider-val').textContent = selectedSpeed + 'bps';
+        switchPortalSubView('status');
+      }, 900);
+    }
+
+    // Slider handler
+    function updateSliderVal(val) {
+      document.getElementById('slider-val').textContent = val + ' Mbps';
+    }
+
+    // Live QoS Speed switch (Simulation of CoA)
+    function setLiveSpeed(speedStr, label) {
+      const toast = document.getElementById('coa-toast');
+      const toastText = document.getElementById('coa-toast-text');
+      const badgeText = document.getElementById('active-speed-text');
+      
+      toast.classList.remove('hidden');
+      toastText.textContent = `⚡ جاري إرسال حزمة RADIUS CoA للميكروتك لتطبيق ${label} (${speedStr}bps)...`;
+
+      setTimeout(() => {
+        badgeText.textContent = speedStr + (speedStr.endsWith('M') ? 'bps' : '');
+        toastText.innerHTML = `✅ <strong>تم التحديث فوراً!</strong> سرعتك الحالية الآن <strong>${speedStr}bps</strong> بدون أي فصل للاتصال.`;
+      }, 700);
+
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 4000);
+    }
+
+    // Logout handler
+    function handleLogout() {
+      if (confirm("هل ترغب فعلاً في تسجيل الخروج وقطع جلسة الاتصال بالإنترنت؟")) {
+        alert("🔒 تم تسجيل الخروج بنجاح وطرد الجلسة عبر RADIUS Disconnect. تم حفظ رصيد الجيجابايت المتبقي.");
+        switchPortalSubView('login');
+      }
+    }
+
+    // Speedtest Simulation
+    let isTesting = false;
+    function runLiveSpeedTest() {
+      if (isTesting) return;
+      isTesting = true;
+
+      const btn = document.getElementById('btn-start-speedtest');
+      const pill = document.getElementById('speedtest-status-pill');
+      const gaugeBar = document.getElementById('gauge-bar');
+      const meterVal = document.getElementById('speed-meter-val');
+      const phaseLabel = document.getElementById('speed-phase-label');
+      const metricPing = document.getElementById('metric-ping');
+      const metricJitter = document.getElementById('metric-jitter');
+      const metricUpload = document.getElementById('metric-upload');
+
+      btn.disabled = true;
+      btn.classList.add('opacity-70');
+      btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> جاري الاختبار المباشر...`;
+      pill.textContent = "جاري الفحص...";
+      pill.className = "px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30";
+
+      // Step 1: Ping & Jitter
+      phaseLabel.textContent = "فحص البنج والتذبذب...";
+      let ping = Math.floor(Math.random() * 8) + 16; // 16 - 24 ms
+      let jitter = Math.floor(Math.random() * 3) + 1; // 1 - 3 ms
+      metricPing.textContent = ping;
+      metricJitter.textContent = jitter;
+
+      // Step 2: Download Test Animation
+      setTimeout(() => {
+        phaseLabel.textContent = "قياس سرعة التنزيل (Download)...";
+        let currentSpeed = 0;
+        const targetSpeed = 24.8;
+        const totalLength = 427; // stroke-dasharray
+
+        const interval = setInterval(() => {
+          if (currentSpeed < targetSpeed) {
+            currentSpeed += 1.2;
+            meterVal.textContent = currentSpeed.toFixed(1);
+            const progress = Math.min(currentSpeed / 40, 1);
+            gaugeBar.style.strokeDashoffset = totalLength - (progress * totalLength);
+          } else {
+            clearInterval(interval);
+            meterVal.textContent = targetSpeed.toFixed(1);
+
+            // Step 3: Upload Test
+            phaseLabel.textContent = "قياس سرعة الرفع (Upload)...";
+            setTimeout(() => {
+              const uploadSpeed = (targetSpeed * 0.45).toFixed(1);
+              metricUpload.textContent = uploadSpeed;
+
+              // Completion
+              phaseLabel.textContent = "اكتمل الفحص بنجاح!";
+              pill.textContent = "ممتاز (Ultra Fast)";
+              pill.className = "px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+              btn.disabled = false;
+              btn.classList.remove('opacity-70');
+              btn.innerHTML = `<i class="fa-solid fa-rotate text-sm"></i> <span>إعادة الفحص مرة أخرى</span>`;
+              isTesting = false;
+            }, 1000);
+          }
+        }, 50);
+
+      }, 800);
+    }
+
+    function pingGlobalTargets() {
+      document.getElementById('ping-local').textContent = (Math.floor(Math.random() * 2) + 1) + " ms";
+      document.getElementById('ping-google').textContent = (Math.floor(Math.random() * 6) + 21) + " ms";
+      document.getElementById('ping-cf').textContent = (Math.floor(Math.random() * 5) + 19) + " ms";
+    }
+
+    // Modal Handlers
+    function openLoanModal() { document.getElementById('modal-loan').classList.remove('hidden'); }
+    function openRechargeModal() { document.getElementById('modal-recharge').classList.remove('hidden'); }
+    function openUsageModal() { document.getElementById('modal-usage').classList.remove('hidden'); }
+    function openPassModal() { document.getElementById('modal-pass').classList.remove('hidden'); }
+    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function confirmLoanRequest() {
+      closeModal('modal-loan');
+      alert("🎉 مبروك! تمت الموافقة على السلفة وإضافة 1,000 MB إلى رصيدك فورياً.");
+      document.getElementById('live-rem-gb').textContent = "65.5";
+    }
+
+    function confirmRecharge() {
+      const pin = document.getElementById('recharge_pin').value;
+      if (!pin) { alert("يرجى إدخال رقم كرت الشحن"); return; }
+      closeModal('modal-recharge');
+      alert(`✅ تم شحن الكرت [${pin}] بنجاح وتمديد الرصيد والصلاحية!`);
+    }
+
+    function confirmPasswordChange() {
+      closeModal('modal-pass');
+      alert("🔐 تم تغيير كلمة المرور وتحديثها في سيرفر الراديوس (radcheck) بنجاح!");
+    }
+
+    function orderCardPackage(pkgName) {
+      window.open(`https://wa.me/967773570053?text=مرحباً%20أريد%20شراء%20باقة%20[${encodeURIComponent(pkgName)}]`, '_blank');
+    }
+
+    function submitSupportTicket(e) {
+      e.preventDefault();
+      const name = document.getElementById('ticket_name').value;
+      alert(`شكراً لك يا ${name}! تم تسجيل بلاغك برقم تذكرة #TK-9824 وسيتم التواصل معك خلال دقائق.`);
+      document.getElementById('ticket_name').value = '';
+      document.getElementById('ticket_phone').value = '';
+      document.getElementById('ticket_msg').value = '';
+    }
+
+    function pasteCardCode() {
+      navigator.clipboard.readText().then(text => {
+        if (text) document.getElementById('voucher_code').value = text.trim();
+      }).catch(() => {
+        alert("يرجى لصق رقم الكرت يدوياً في الخانة.");
+      });
+    }
+  </script>
+</body>
+</html>
