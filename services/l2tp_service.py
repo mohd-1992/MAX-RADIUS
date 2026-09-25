@@ -32,8 +32,9 @@ _tunnels_live_cache = {'data': None, 'timestamp': 0}
 _cache_lock = threading.Lock()
 
 L2TP_CONTAINER_NAME = os.environ.get('L2TP_CONTAINER', 'max_radius_l2tp')
-L2TP_GATEWAY_IP = '192.168.44.1'
-L2TP_SERVER_PORT = 1701
+L2TP_GATEWAY_IP = os.environ.get('L2TP_GATEWAY_IP', '192.168.44.1')
+L2TP_SUBNET = os.environ.get('L2TP_SUBNET', '192.168.44.0/24')
+L2TP_SERVER_PORT = int(os.environ.get('L2TP_SERVER_PORT', '1701'))
 
 
 def get_l2tp_network_settings():
@@ -601,10 +602,10 @@ add name="l2tp-maxradius" connect-to="{vps_ip}" user="{tun_user}" password="{tun
 /radius
 :do {{ remove [find comment="MAX_RADIUS_CORE"] }} on-error={{}}
 :do {{
-    add address=192.168.44.1 secret="{radius_secret}" service=hotspot,login,wireless,ppp \\
+    add address={L2TP_GATEWAY_IP} secret="{radius_secret}" service=hotspot,login,wireless,ppp \\
         authentication-port=1812 accounting-port=1813 timeout=3s require-message-auth=no comment="MAX_RADIUS_CORE"
 }} on-error={{
-    add address=192.168.44.1 secret="{radius_secret}" service=hotspot,login,wireless,ppp \\
+    add address={L2TP_GATEWAY_IP} secret="{radius_secret}" service=hotspot,login,wireless,ppp \\
         authentication-port=1812 accounting-port=1813 timeout=3s comment="MAX_RADIUS_CORE"
 }}
 

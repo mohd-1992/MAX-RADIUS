@@ -4,11 +4,11 @@ services/wireguard_service.py
 ------------------------------
 Ultra-High-Performance Linux Kernel Native WireGuard VPN Engine for MAX RADIUS 2.0.
 Provides:
-1. Kernel-Level Crypto Routing (chacha20-poly1305) on Port 51820 UDP.
+1. Kernel-Level Crypto Routing (chacha20-poly1305) on dynamic WireGuard port.
 2. Dynamic, sub-millisecond Peer Registration without interface restarts or traffic interruption.
 3. Live WireGuard Peer Telemetry (Handshake timestamps, Rx/Tx counters, Real-time ping latency).
 4. Automated FreeRADIUS NAS Client Synchronization & MikroTik API credentials generation.
-5. 1-Click RouterOS v7+ Native WireGuard Setup Script Generator.
+5. 1-Click RouterOS v7+ Native WireGuard Setup Script Generator with dynamic Gateway and Subnet.
 """
 
 import os
@@ -31,88 +31,97 @@ logger = logging.getLogger('wireguard_service')
 
 WG_SOCK_PATH = os.environ.get('WG_SOCK_PATH', '/app/storage/wg_bridge.sock')
 if not os.path.exists(WG_SOCK_PATH):
-    # Fallback to host path if running outside container
     if os.path.exists('/opt/max-radius/storage/wg_bridge.sock'):
         WG_SOCK_PATH = '/opt/max-radius/storage/wg_bridge.sock'
 
-WG_GATEWAY_IP = '192.168.45.1'
-WG_SERVER_PORT = 51820
-WG_SERVER_PUBKEY = 'aTFUO75Lr9Z9KXW/kPT9rH8x+BDA+VuYE1qfUcD6GnA='
+WG_GATEWAY_IP = os.environ.get('WG_GATEWAY_IP', '192.168.45.1')
+WG_SUBNET = os.environ.get('WG_SUBNET', '192.168.45.0/24')
+WG_SERVER_PORT = int(os.environ.get('WG_SERVER_PORT', '51820'))
+WG_SERVER_PUBKEY = os.environ.get('WG_SERVER_PUBKEY', 'aTFUO75Lr9Z9KXW/kPT9rH8x+BDA+VuYE1qfUcD6GnA=')
 
 _wg_live_cache = {'data': None, 'timestamp': 0}
 _wg_cache_lock = threading.Lock()
 
 
 def _query_wg_bridge(action, payload=None, timeout=2.0):
-    """Communicates with the host WireGuard Bridge Daemon via Unix Domain Socket."""
-    req = {'action': action}
-    if payload:
-        req.update(payload)
+    """Communicates with the host wg_bridge_daemon UNIX socket."""
+    if not os.path.exists(WG_SOCK_PATH):
+        logger.debug(f"WG socket not found at {WG_SOCK_PATH}")
+        return {'success': False, 'error': f"Socket not found at {WG_SOCK_PATH}"}
 
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(timeout)
         sock.connect(WG_SOCK_PATH)
+
+        req = {'action': action}
+        if payload:
+            req.update(payload)
+
         sock.sendall(json.dumps(req).encode('utf-8'))
-        
         raw_data = b""
         while True:
-            chunk = sock.recv(16384)
+            chunk = sock.recv(65536)
             if not chunk:
                 break
             raw_data += chunk
-            if len(chunk) < 16384:
-                break
-        sock.close()
 
-        if not raw_data:
-            return {'success': False, 'error': 'Empty response from WireGuard Bridge'}
+        sock.close()
         return json.loads(raw_data.decode('utf-8'))
     except Exception as e:
-        logger.warning(f"[WireGuard Engine] Bridge communication error: {e}")
+        logger.error(f"[WG Bridge Error] Failed to communicate for action '{action}': {e}")
         return {'success': False, 'error': str(e)}
 
 
-def get_wireguard_server_keys():
-    """Returns the WireGuard server public key, gateway IP, and UDP port."""
-    return {
-        'public_key': WG_SERVER_PUBKEY,
-        'gateway_ip': WG_GATEWAY_IP,
-        'listen_port': WG_SERVER_PORT,
-        'subnet': '192.168.45.0/24'
-    }
-
-
 def generate_wg_keypair():
-    """Generates a secure WireGuard private/public keypair."""
+    """Generates a Curve25519 private/public keypair via kernel engine."""
     res = _query_wg_bridge('genkey')
     if res.get('success'):
-        return res.get('private_key'), res.get('public_key')
-    
-    # Fallback key generation if bridge is unavailable
+        return res['private_key'], res['public_key']
+
+    # Fallback to local python generation if daemon is unreachable
     try:
-        from cryptography.hazmat.primitives.asymmetric import x25519
-        import base64
-        priv_key = x25519.X25519PrivateKey.generate()
-        pub_key = priv_key.public_key()
-        priv_b64 = base64.b64encode(priv_key.private_bytes_raw()).decode('ascii')
-        pub_b64 = base64.b64encode(pub_key.public_bytes_raw()).decode('ascii')
-        return priv_b64, pub_b64
+        import subprocess
+        priv = subprocess.check_output(['wg', 'genkey'], text=True).strip()
+        pub = subprocess.check_output(['wg', 'pubkey'], input=priv, text=True).strip()
+        return priv, pub
     except Exception as e:
-        logger.error(f"[WireGuard Engine] Keypair generation failed: {e}")
+        logger.error(f"Fallback key generation failed: {e}")
         return None, None
 
 
+
+def get_wireguard_server_keys():
+    """Returns server-side public key, port, and gateway parameters."""
+    return {
+        'public_key': WG_SERVER_PUBKEY,
+        'port': WG_SERVER_PORT,
+        'gateway_ip': WG_GATEWAY_IP,
+        'subnet': WG_SUBNET
+    }
+
+def get_wireguard_server_info():
+    """Returns server-side WireGuard connection parameters for admin dashboard."""
+    return {
+        'public_key': WG_SERVER_PUBKEY,
+        'port': WG_SERVER_PORT,
+        'gateway_ip': WG_GATEWAY_IP,
+        'subnet': WG_SUBNET,
+        'detected_vps_ip': get_public_vps_ip()
+    }
+
+
 def get_available_wireguard_ip():
-    """Allocates the next available static IP address in 192.168.45.0/24 subnet."""
+    """Allocates the next available static IP address in active WireGuard subnet."""
+    prefix = WG_GATEWAY_IP.rsplit('.', 1)[0]
     used_rows = query_all("SELECT tunnel_ip FROM wisp_wireguard_tunnels WHERE tunnel_ip IS NOT NULL")
     used_ips = {r['tunnel_ip'].strip() for r in (used_rows or []) if r.get('tunnel_ip')}
-    
+
     for i in range(10, 251):
-        candidate = f"192.168.45.{i}"
+        candidate = f"{prefix}.{i}"
         if candidate not in used_ips and candidate != WG_GATEWAY_IP:
             return candidate
-    return '192.168.45.50'
+    return f"{prefix}.50"
 
 
 def apply_peer_to_kernel(public_key, allowed_ip, preshared_key=None):
@@ -135,293 +144,172 @@ def remove_peer_from_kernel(public_key):
     return res.get('success', False)
 
 
-def get_active_wireguard_peers():
-    """
-    Fetches raw WireGuard dump from kernel and returns a dict indexed by public_key and allowed_ip.
-    """
-    res = _query_wg_bridge('dump')
-    if not res.get('success'):
-        return {}
-
-    peers = res.get('peers', [])
-    now = int(time.time())
-    active_map = {}
-
-    for p in peers:
-        pub = p.get('public_key', '').strip()
-        ips_str = p.get('allowed_ips', '').strip()
-        last_hs = int(p.get('latest_handshake', 0))
-        rx = int(p.get('transfer_rx', 0))
-        tx = int(p.get('transfer_tx', 0))
-        
-        # Consider online if handshake occurred within last 180 seconds
-        is_online = (last_hs > 0) and ((now - last_hs) < 180)
-        
-        # Extract IP without subnet mask
-        ip = ips_str.split('/')[0].strip() if ips_str else ''
-
-        info = {
-            'public_key': pub,
-            'allowed_ip': ip,
-            'endpoint': p.get('endpoint', ''),
-            'latest_handshake': last_hs,
-            'last_handshake_human': datetime.datetime.fromtimestamp(last_hs).strftime('%Y-%m-%d %H:%M:%S') if last_hs > 0 else 'Never',
-            'is_online': is_online,
-            'rx_bytes': rx,
-            'tx_bytes': tx,
-            'rx_human': _format_bytes(rx),
-            'tx_human': _format_bytes(tx)
-        }
-        if pub:
-            active_map[pub] = info
-        if ip:
-            active_map[ip] = info
-
-    return active_map
+def sync_all_wireguard_peers_to_kernel():
+    """Syncs all active WireGuard peers from MySQL to the kernel."""
+    res = _query_wg_bridge('sync_all')
+    return res.get('success', False)
 
 
+def ping_wireguard_peer(tunnel_ip, timeout_sec=0.4):
+    """Performs sub-second ICMP ping to verify router reachability."""
+    if not tunnel_ip:
+        return {'is_online': False, 'latency_ms': 0}
 
-def measure_real_latency(ip, timeout_sec=0.8):
-    """
-    Measures TRUE network round-trip time (RTT in ms) to a tunnel IP via ICMP/TCP probe.
-    Returns float (e.g. 18.5) or None if unreachable.
-    """
-    if not ip:
-        return None
+    import subprocess
     try:
-        import subprocess, re
-        cmd = ['ping', '-c', '1', '-W', '1', str(ip).strip()]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout_sec)
-        if res.returncode == 0 and res.stdout:
-            m = re.search(r'time=([\d\.]+)\s*ms', res.stdout)
-            if m:
-                return round(float(m.group(1)), 1)
-            m2 = re.search(r'rtt min/avg/max/mdev\s*=\s*[\d\.]+/([\d\.]+)/', res.stdout)
-            if m2:
-                return round(float(m2.group(1)), 1)
+        cmd = ['ping', '-c', '1', '-W', str(int(timeout_sec)), str(tunnel_ip)]
+        r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout_sec + 0.2)
+        if r.returncode == 0:
+            import re
+            m = re.search(r'time=([0-9.]+)\s*ms', r.stdout)
+            lat = int(float(m.group(1))) if m else 1
+            return {'is_online': True, 'latency_ms': max(1, lat)}
     except Exception:
         pass
-
-    for test_port in [8728, 80, 22, 443]:
-        try:
-            t0 = time.perf_counter()
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(0.3)
-            err = s.connect_ex((ip, test_port))
-            s.close()
-            if err in (0, 111):
-                rtt = (time.perf_counter() - t0) * 1000
-                if rtt > 0.05:
-                    return round(rtt, 1)
-        except Exception:
-            continue
-    return None
+    return {'is_online': False, 'latency_ms': 0}
 
 
-def _format_bytes(num_bytes):
-    """Helper to format byte counts to KB, MB, GB."""
-    if not num_bytes:
-        return '0 B'
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-        if abs(num_bytes) < 1024.0:
-            return f"{num_bytes:3.1f} {unit}"
-        num_bytes /= 1024.0
-    return f"{num_bytes:.1f} PB"
-
-
-def get_all_wireguard_tunnels(force_fresh=False, fast_db_only=False):
-    """
-    Retrieves all configured WireGuard tunnels, merges live kernel telemetry & socket probing.
-    """
+def get_all_wireguard_tunnels(fast_db_only=False):
+    """Retrieves all WireGuard tunnels from DB merged with kernel metrics."""
     global _wg_live_cache
     now = time.time()
 
     with _wg_cache_lock:
-        if not force_fresh and _wg_live_cache['data'] is not None and (now - _wg_live_cache['timestamp'] < 8):
+        if not fast_db_only and _wg_live_cache['data'] is not None and (now - _wg_live_cache['timestamp'] < 2.0):
             return _wg_live_cache['data']
 
-    tunnels = query_all("""
-        SELECT t.*, 
-               COALESCE(n.name, t.name) as router_name,
-               COALESCE(n.ip_address, t.tunnel_ip) as router_ip,
-               n.secret as radius_secret,
-               n.api_port,
-               n.api_username,
-               n.api_password
+    rows = query_all("""
+        SELECT t.*, n.id as nas_id, n.api_port, n.api_username
         FROM wisp_wireguard_tunnels t
         LEFT JOIN wisp_nas_devices n ON t.tunnel_ip = n.ip_address
         ORDER BY t.id ASC
-    """)
+    """) or []
 
-    if fast_db_only or not tunnels:
-        return tunnels or []
+    if fast_db_only:
+        for r in rows:
+            r['is_online'] = (r.get('status') == 'online')
+            r['latency_ms'] = r.get('latency_ms') or 0
+        return rows
 
-    active_peers = get_active_wireguard_peers()
-    vps_ip = get_public_vps_ip()
+    res = _query_wg_bridge('dump')
+    kernel_peers = {}
+    if res.get('success') and 'peers' in res:
+        for p in res['peers']:
+            kernel_peers[p['public_key']] = p
 
-    def probe_tunnel(tun):
-        ip = tun.get('tunnel_ip')
-        pub = tun.get('public_key')
-        
-        peer_info = active_peers.get(pub) or active_peers.get(ip) or {}
-        is_online = peer_info.get('is_online', False)
-        
-        latency = None
-        if is_online and ip:
-            latency = measure_real_latency(ip)
+    tunnels = []
+    ping_futures = {}
 
-        tun['is_online'] = is_online
-        tun['server_public_ip'] = vps_ip
-        tun['latency_ms'] = latency
-        tun['rx_bytes'] = peer_info.get('rx_bytes', 0)
-        tun['tx_bytes'] = peer_info.get('tx_bytes', 0)
-        tun['rx_human'] = peer_info.get('rx_human', '0 B')
-        tun['tx_human'] = peer_info.get('tx_human', '0 B')
-        tun['endpoint'] = peer_info.get('endpoint', '—')
-        tun['last_handshake_human'] = peer_info.get('last_handshake_human', '—')
-        return tun
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        for r in rows:
+            tun = dict(r)
+            pub = tun.get('public_key')
+            kinfo = kernel_peers.get(pub, {})
 
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        results = list(executor.map(probe_tunnel, tunnels))
+            tun['rx_bytes'] = kinfo.get('transfer_rx', 0)
+            tun['tx_bytes'] = kinfo.get('transfer_tx', 0)
+            tun['endpoint'] = kinfo.get('endpoint', 'غير متصل')
+            tun['latest_handshake'] = kinfo.get('latest_handshake', 0)
+
+            last_hs = tun['latest_handshake']
+            hs_active = (last_hs > 0) and ((int(time.time()) - last_hs) < 180)
+
+            if hs_active or tun.get('tunnel_ip'):
+                ping_futures[tun['id']] = executor.submit(ping_wireguard_peer, tun['tunnel_ip'])
+            else:
+                tun['is_online'] = False
+                tun['latency_ms'] = 0
+
+            tunnels.append(tun)
+
+        for tun in tunnels:
+            tid = tun['id']
+            if tid in ping_futures:
+                try:
+                    probe = ping_futures[tid].result()
+                    tun['is_online'] = probe['is_online']
+                    tun['latency_ms'] = probe['latency_ms']
+                except Exception:
+                    tun['is_online'] = False
+                    tun['latency_ms'] = 0
+            tun['status'] = 'online' if tun['is_online'] else 'offline'
 
     with _wg_cache_lock:
-        _wg_live_cache['data'] = results
+        _wg_live_cache['data'] = tunnels
         _wg_live_cache['timestamp'] = now
 
-    return results
+    return tunnels
 
 
 def get_wireguard_tunnel(tunnel_id):
-    """Fetches a single WireGuard tunnel record with enriched NAS properties."""
-    if not tunnel_id:
-        return None
-    tun = query_one("""
-        SELECT t.*, 
-               COALESCE(n.name, t.name) as router_name,
-               COALESCE(n.ip_address, t.tunnel_ip) as router_ip,
-               n.secret as radius_secret,
-               n.api_port,
-               n.api_username,
-               n.api_password
+    """Retrieves a single WireGuard tunnel by ID."""
+    return query_one("""
+        SELECT t.*, n.id as nas_id, n.api_port, n.api_username
         FROM wisp_wireguard_tunnels t
         LEFT JOIN wisp_nas_devices n ON t.tunnel_ip = n.ip_address
         WHERE t.id = ?
-    """, (int(tunnel_id),))
-    return tun
+    """, (tunnel_id,))
 
 
 def add_wireguard_tunnel(form_or_data, admin_username='admin'):
-    """
-    Creates a new WireGuard VPN tunnel:
-    1. Enforces NAS license quota.
-    2. Auto-generates client WireGuard keypair if not provided.
-    3. Allocates static IP in 192.168.45.0/24.
-    4. Auto-generates secure random API credentials.
-    5. Inserts into wisp_wireguard_tunnels, wisp_nas_devices, and FreeRADIUS nas table.
-    6. Applies peer to Linux WireGuard kernel interface instantly.
-    7. Reloads FreeRADIUS clients.
-    """
-    try:
-        from services.license_guard_service import check_nas_quota
-        allowed, err_msg, cur_nas, max_nas = check_nas_quota(1)
-        if not allowed:
-            raise ValueError(err_msg or f"تم الوصول إلى الحد الأقصى لعدد الراوترات في باقة الترخيص الحالية ({max_nas} راوتر).")
-    except ImportError:
-        pass
-
+    """Creates a new WireGuard tunnel record, adds to Linux kernel, and provisions FreeRADIUS NAS."""
     data = form_or_data
-    name = str(data.get('name') or '').strip()
+    name = data.get('name', '').strip()
+    tunnel_ip = data.get('tunnel_ip', '').strip()
+    radius_secret = data.get('radius_secret', 'max123').strip() or 'max123'
+    description = data.get('description', '').strip()
+    preshared_key = data.get('preshared_key', '').strip() or None
+
     if not name:
         raise ValueError("اسم الراوتر مطلوب.")
-
-    tunnel_ip = str(data.get('tunnel_ip') or '').strip()
     if not tunnel_ip:
         tunnel_ip = get_available_wireguard_ip()
 
-    radius_secret = str(data.get('radius_secret') or 'max123').strip()
-    description = str(data.get('description') or '').strip()
-    preshared_key = str(data.get('preshared_key') or '').strip() or None
+    existing = query_one("SELECT id FROM wisp_wireguard_tunnels WHERE tunnel_ip = ?", (tunnel_ip,))
+    if existing:
+        raise ValueError(f"عنوان IP النفق ({tunnel_ip}) مستخدم بالفعل لراوتر آخر.")
 
-    client_priv = str(data.get('private_key') or '').strip()
-    client_pub = str(data.get('public_key') or '').strip()
+    client_priv = data.get('private_key', '').strip()
+    client_pub = data.get('public_key', '').strip()
 
     if not client_priv or not client_pub:
-        gen_priv, gen_pub = generate_wg_keypair()
-        client_priv = client_priv or gen_priv
-        client_pub = client_pub or gen_pub
+        client_priv, client_pub = generate_wg_keypair()
+        if not client_priv or not client_pub:
+            raise ValueError("فشل توليد مفاتيح WireGuard المشفرة.")
 
-    if not client_pub:
-        raise ValueError("تعذر إنشاء مفاتيح WireGuard للراوتر.")
+    api_port = random.randint(22000, 29999)
+    api_user = f"api_wg_{random.randint(100, 999)}"
+    api_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
 
-    # Generate secure random API port and credentials
-    if not data.get('api_port') or str(data.get('api_port')).strip() in ('8728', '0', ''):
-        api_port = random.randint(11000, 58000)
-    else:
-        api_port = int(data.get('api_port'))
-
-    raw_user = str(data.get('api_username') or data.get('api_user') or '').strip()
-    if not raw_user or raw_user.lower() in ('admin', ''):
-        rand_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
-        api_user = f"api_{rand_suffix}"
-    else:
-        api_user = raw_user
-
-    raw_pass = str(data.get('api_password') or data.get('api_pass') or '').strip()
-    if not raw_pass:
-        api_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-    else:
-        api_pass = raw_pass
-
-    # 1. Insert into wisp_wireguard_tunnels
     execute_write("""
-        INSERT INTO wisp_wireguard_tunnels (name, public_key, private_key, preshared_key, tunnel_ip, radius_secret, listen_port, status, is_enabled, description, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 13231, 'offline', 1, ?, CURRENT_TIMESTAMP)
-        ON DUPLICATE KEY UPDATE name = VALUES(name), public_key = VALUES(public_key), private_key = VALUES(private_key),
-                                preshared_key = VALUES(preshared_key), radius_secret = VALUES(radius_secret),
-                                description = VALUES(description), is_enabled = 1
-    """, (name, client_pub, client_priv, preshared_key, tunnel_ip, radius_secret, description))
+        INSERT INTO wisp_wireguard_tunnels
+        (name, public_key, private_key, preshared_key, tunnel_ip, radius_secret, listen_port, status, is_enabled, description, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'offline', 1, ?, NOW())
+    """, (name, client_pub, client_priv, preshared_key, tunnel_ip, radius_secret, 13231, description))
 
-    # 2. Insert into wisp_nas_devices
+    tun = query_one("SELECT id FROM wisp_wireguard_tunnels WHERE tunnel_ip = ?", (tunnel_ip,))
+    tunnel_id = tun['id'] if tun else None
+
     execute_write("""
-        INSERT INTO wisp_nas_devices (name, ip_address, nas_type, secret, api_port, coa_port, api_username, api_password, description, status, created_at)
-        VALUES (?, ?, 'mikrotik', ?, ?, 3799, ?, ?, ?, 'offline', CURRENT_TIMESTAMP)
-        ON DUPLICATE KEY UPDATE name = VALUES(name), secret = VALUES(secret), api_port = VALUES(api_port),
-                                api_username = VALUES(api_username), api_password = VALUES(api_password), description = VALUES(description)
-    """, (name, tunnel_ip, radius_secret, api_port, api_user, api_pass, description))
+        INSERT INTO wisp_nas_devices (name, ip_address, secret, description, api_port, api_username, api_password, is_active, is_online, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, NOW())
+        ON DUPLICATE KEY UPDATE secret = VALUES(secret), description = VALUES(description), api_port = VALUES(api_port), api_username = VALUES(api_username), api_password = VALUES(api_password)
+    """, (name, tunnel_ip, radius_secret, description, api_port, api_user, api_pass))
 
-    # 3. Insert into FreeRADIUS nas table
     execute_write("""
         INSERT INTO nas (nasname, shortname, type, secret, description)
-        VALUES (?, ?, 'mikrotik', ?, ?)
+        VALUES (?, ?, 'other', ?, ?)
         ON DUPLICATE KEY UPDATE secret = VALUES(secret), description = VALUES(description)
     """, (tunnel_ip, f"wg_{name}", radius_secret, f"WireGuard Router: {name}"))
 
-    # 4. Register peer in Linux Kernel WireGuard interface
     apply_peer_to_kernel(client_pub, tunnel_ip, preshared_key)
     reload_freeradius_clients()
 
     with _wg_cache_lock:
         _wg_live_cache['data'] = None
 
-    log_audit(1, admin_username, 'CREATE_WIREGUARD_TUNNEL', 'wireguard', f'Created WireGuard tunnel {name} with IP {tunnel_ip} (API Port: {api_port})')
-    return True
-
-
-def create_wireguard_tunnel(name, tunnel_ip=None, public_key=None, private_key=None,
-                            radius_secret='max123', api_port=None, api_user=None, api_pass=None, admin_username='admin'):
-    """Keyword argument wrapper for add_wireguard_tunnel."""
-    data = {
-        'name': name,
-        'tunnel_ip': tunnel_ip,
-        'public_key': public_key,
-        'private_key': private_key,
-        'radius_secret': radius_secret,
-        'api_port': api_port,
-        'api_username': api_user,
-        'api_password': api_pass
-    }
-    return add_wireguard_tunnel(data, admin_username=admin_username)
+    log_audit(1, admin_username, 'CREATE_WIREGUARD_TUNNEL', 'wireguard', f'Created WireGuard tunnel {name} (IP: {tunnel_ip})')
+    return tunnel_id
 
 
 def update_wireguard_tunnel(tunnel_id, form_or_data, admin_username='admin'):
@@ -457,7 +345,6 @@ def update_wireguard_tunnel(tunnel_id, form_or_data, admin_username='admin'):
         WHERE nasname = ?
     """, (tunnel_ip, f"wg_{name}", radius_secret, f"WireGuard Router: {name}", old['tunnel_ip']))
 
-    # If public key changed, remove old peer from kernel
     if old['public_key'] != client_pub:
         remove_peer_from_kernel(old['public_key'])
 
@@ -500,13 +387,6 @@ def delete_wireguard_tunnel(tunnel_id, admin_username='admin'):
 def generate_mikrotik_wireguard_script(tunnel_id, vps_host=None):
     """
     Generates a 100% reliable 1-Click RouterOS v7+ Native WireGuard Setup Script.
-    - Configures `/interface wireguard` with client private key and MTU 1420.
-    - Adds peer pointing to VPS endpoint `vps_ip:51820` with `allowed-address=192.168.45.0/24` and `persistent-keepalive=25s`.
-    - Assigns static IP `tunnel_ip/24` to the wireguard interface.
-    - Configures FreeRADIUS client on `192.168.45.1` with `require-message-auth=no`.
-    - Enables RADIUS incoming CoA on port 3799.
-    - Enables Hotspot RADIUS accounting.
-    - Activates API service on a dedicated random port with full security user.
     """
     tun = get_wireguard_tunnel(tunnel_id)
     if not tun:
@@ -520,6 +400,7 @@ def generate_mikrotik_wireguard_script(tunnel_id, vps_host=None):
     client_pub = tun['public_key']
     server_pub = WG_SERVER_PUBKEY
     server_port = WG_SERVER_PORT
+    prefix = WG_GATEWAY_IP.rsplit('.', 1)[0]
 
     api_port = (nas_dev.get('api_port') if nas_dev else None) or 25354
     api_user = (nas_dev.get('api_username') if nas_dev else None) or 'api_user'
@@ -528,7 +409,7 @@ def generate_mikrotik_wireguard_script(tunnel_id, vps_host=None):
     script = f"""###############################################################################
 #  ⚡ MAX RADIUS 2.0 - 1-Click RouterOS v7+ WireGuard Setup Script
 #  📡 Router: {tun['name']}
-#  🌐 Dedicated Tunnel IP: {tunnel_ip}/24 (Gateway: 192.168.45.1)
+#  🌐 Dedicated Tunnel IP: {tunnel_ip}/24 (Gateway: {WG_GATEWAY_IP})
 #  🚀 Protocol: Native WireGuard Kernel VPN (Port {server_port} UDP)
 #  🔒 API Security: Port {api_port} | User: {api_user}
 ###############################################################################
@@ -547,16 +428,16 @@ add name="wg-maxradius" listen-port=13231 mtu=1420 private-key="{client_priv}" c
 # 2. Configure WireGuard Peer Connection to MAX RADIUS VPS Server
 /interface wireguard peers
 :do {{ remove [find interface="wg-maxradius"] }} on-error={{}}
-add interface="wg-maxradius" public-key="{server_pub}" \\
-    endpoint-address="{vps_ip}" endpoint-port={server_port} \\
-    allowed-address=192.168.45.0/24 persistent-keepalive=25s comment="MAX RADIUS Server Peer"
+add interface="wg-maxradius" public-key="{server_pub}" \
+    endpoint-address="{vps_ip}" endpoint-port={server_port} \
+    allowed-address={WG_SUBNET} persistent-keepalive=25s comment="MAX RADIUS Server Peer"
 
 :put "✔ WireGuard Server Peer Configured."
 
 # 3. Assign Dedicated Static IP to WireGuard Interface
 /ip address
 :do {{ remove [find interface="wg-maxradius"] }} on-error={{}}
-add address={tunnel_ip}/24 interface="wg-maxradius" network=192.168.45.0 comment="MAX RADIUS WireGuard Static IP"
+add address={tunnel_ip}/24 interface="wg-maxradius" network={prefix}.0 comment="MAX RADIUS WireGuard Static IP"
 
 :put "✔ Static IP {tunnel_ip} Assigned to Interface."
 
@@ -564,10 +445,10 @@ add address={tunnel_ip}/24 interface="wg-maxradius" network=192.168.45.0 comment
 /radius
 :do {{ remove [find comment="MAX_RADIUS_CORE"] }} on-error={{}}
 :do {{
-    add address=192.168.45.1 secret="{radius_secret}" service=hotspot,login,wireless,ppp \\
+    add address={WG_GATEWAY_IP} secret="{radius_secret}" service=hotspot,login,wireless,ppp \
         authentication-port=1812 accounting-port=1813 timeout=3s require-message-auth=no comment="MAX_RADIUS_CORE"
 }} on-error={{
-    add address=192.168.45.1 secret="{radius_secret}" service=hotspot,login,wireless,ppp \\
+    add address={WG_GATEWAY_IP} secret="{radius_secret}" service=hotspot,login,wireless,ppp \
         authentication-port=1812 accounting-port=1813 timeout=3s comment="MAX_RADIUS_CORE"
 }}
 
