@@ -121,12 +121,10 @@ def _docker_exec_run(container_name, cmd, timeout=3.0):
 
 
 def ensure_l2tp_host_route():
-    """
-    Ensures that the L2TP VPN client subnet (192.168.44.0/24) is routed to the L2TP container gateway (172.18.0.10).
-    """
+    """Ensures L2TP route (192.168.44.0/24 via 172.18.0.10) is active."""
     try:
-        subprocess.run(['ip', 'route', 'replace', '192.168.44.0/24', 'via', '172.18.0.10'], 
-                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+        import subprocess
+        subprocess.run(['ip', 'route', 'replace', '192.168.44.0/24', 'via', '172.18.0.10'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
 

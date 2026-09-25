@@ -142,7 +142,8 @@ def edit_nas_action(nas_id):
         return redirect(url_for('nas'))
         
     if request.method == 'GET':
-        return render_template('nas_edit.html', device=device)
+        flash('تعديل الراوتر متاح مباشرة عبر نافذة التعديل السريع في صفحة الراوترات.', 'info')
+        return redirect(url_for('nas_details_page', nas_id=nas_id))
         
     try:
         update_nas_device(nas_id, request.form)
@@ -172,12 +173,7 @@ def nas_setup_script_page(nas_id):
     vps_ip = detect_vps_public_ip()
     script = generate_nas_script(device, vps_ip)
     
-    return render_template(
-        'nas_script.html',
-        device=device,
-        script=script,
-        vps_ip=vps_ip
-    )
+    return Response(script, mimetype='text/plain')
 
 
 @nas_bp.route('/nas/<int:nas_id>/download-script', endpoint="download_nas_script_file")
@@ -205,6 +201,14 @@ def api_nas_live_status(nas_id):
     from core.mikrotik_api import fetch_single_nas_status
     status_data = fetch_single_nas_status(device)
     return jsonify({'success': True, 'data': status_data})
+
+@nas_bp.route('/api/nas/test-coa/<int:nas_id>', methods=['POST'], endpoint="api_nas_test_coa")
+@login_required
+def api_nas_test_coa(nas_id):
+    from services.nas_service import test_nas_coa
+    res = test_nas_coa(nas_id)
+    return jsonify(res)
+
 
 
 # ==============================================================================
@@ -489,9 +493,10 @@ def api_nas_diagnostics_status():
 
 @nas_bp.route('/api/tools/nas-diagnostics/test-coa-port', methods=['POST'], endpoint="api_nas_diagnostics_coa_port")
 def api_nas_diagnostics_coa_port():
-    ip = request.form.get('ip', '').strip()
-    port = int(request.form.get('port', 3799) or 3799)
-    secret = request.form.get('secret', '').strip() or None
+    payload = request.get_json(silent=True) or request.form
+    ip = (payload.get('ip') or '').strip()
+    port = int(payload.get('port', 3799) or 3799)
+    secret = (payload.get('secret') or '').strip() or None
     from services.nas_diagnostics_service import test_coa_port
     ok, res = test_coa_port(ip, port=port, secret=secret)
     return jsonify({'success': ok, 'data': res, 'message': res})
@@ -664,3 +669,31 @@ def download_hotspot_generator_script():
             'Content-Disposition': f'attachment; filename=setup_hotspot_{folder_name}.rsc'
         }
     )
+
+
+@nas_bp.route('/api/nas-status', endpoint="api_nas_status_compat")
+@login_required
+def api_nas_status_compat():
+    from services.nas_service import get_nas_devices
+    devices = get_nas_devices(skip_live_probe=False)
+    online_count = sum(1 for d in devices if d.get('is_online'))
+    total_users = sum(d.get('active_users', 0) for d in devices)
+    return jsonify({
+        'success': True,
+        'devices': devices,
+        'total_routers': len(devices),
+        'online_routers': online_count,
+        'offline_routers': len(devices) - online_count,
+        'total_active_users': total_users
+    })
+
+
+@nas_bp.route('/api/nas/<int:nas_id>/status', endpoint="api_nas_single_status_compat")
+@login_required
+def api_nas_single_status_compat(nas_id):
+    device = query_one('SELECT * FROM wisp_nas_devices WHERE id = ?', (nas_id,))
+    if not device:
+        return jsonify({'success': False, 'message': 'الراوتر غير موجود.'}), 404
+    from core.mikrotik_api import fetch_single_nas_status
+    status_data = fetch_single_nas_status(device)
+    return jsonify({'success': True, 'data': status_data, 'status': status_data})

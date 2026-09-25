@@ -77,6 +77,8 @@ services:
     image: mohd777/max-radius-web:latest
     container_name: max_radius_web
     restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
     depends_on:
       - mariadb
       - freeradius
@@ -95,7 +97,6 @@ services:
       - DEFAULT_TIMEZONE=Asia/Riyadh
     ports:
       - "5090:5090/tcp"
-      - "80:5090"
     volumes:
       - ./storage:/app/storage
       - ./storage/uploads:/app/web/static/uploads
