@@ -7,9 +7,9 @@ import socket
 import subprocess
 import threading
 import logging
+import time
 
 SOCK_PATH = "/opt/max-radius/storage/wg_bridge.sock"
-WG_CONF = "/etc/wireguard/wg0.conf"
 WG_IFACE = "wg0"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -40,7 +40,6 @@ def get_wg_dump():
         return []
     peers = []
     lines = out.strip().splitlines()
-    # Line 0 is interface info: private-key public-key listen-port fwmark
     for line in lines[1:]:
         parts = line.strip().split("\t")
         if len(parts) >= 8:
@@ -59,7 +58,6 @@ def get_wg_dump():
 def add_peer(pubkey, allowed_ip, preshared_key=None):
     cmd = ["wg", "set", WG_IFACE, "peer", pubkey, "allowed-ips", f"{allowed_ip}/32"]
     if preshared_key:
-        # write temp psk file
         import tempfile
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as tf:
             tf.write(preshared_key)
@@ -71,7 +69,6 @@ def add_peer(pubkey, allowed_ip, preshared_key=None):
     else:
         ok, res = run_cmd(cmd)
     
-    # Also save to config file if needed
     run_cmd(["bash", "-c", f"wg-quick save {WG_IFACE} 2>/dev/null || true"])
     return ok, res
 
@@ -79,6 +76,30 @@ def remove_peer(pubkey):
     ok, res = run_cmd(["wg", "set", WG_IFACE, "peer", pubkey, "remove"])
     run_cmd(["bash", "-c", f"wg-quick save {WG_IFACE} 2>/dev/null || true"])
     return ok, res
+
+def sync_peers_from_db():
+    """Syncs all active WireGuard peers from MariaDB container into Linux kernel wg0."""
+    try:
+        cmd = [
+            "docker", "exec", "max_radius_db",
+            "mariadb", "-u", "root", "-prootpass", "radius_wisp", "-N", "-e",
+            "SELECT public_key, tunnel_ip, IFNULL(preshared_key, '') FROM wisp_wireguard_tunnels WHERE public_key IS NOT NULL AND tunnel_ip IS NOT NULL;"
+        ]
+        ok, out = run_cmd(cmd)
+        if ok and out:
+            count = 0
+            for line in out.strip().splitlines():
+                parts = line.split("\t")
+                if len(parts) >= 2:
+                    pub = parts[0].strip()
+                    ip = parts[1].strip()
+                    psk = parts[2].strip() if len(parts) > 2 and parts[2].strip() else None
+                    if pub and ip:
+                        add_peer(pub, ip, psk)
+                        count += 1
+            logging.info(f"Successfully synced {count} WireGuard peers from DB to kernel {WG_IFACE}.")
+    except Exception as e:
+        logging.warning(f"Could not sync peers from DB: {e}")
 
 def handle_client(conn):
     try:
@@ -107,6 +128,9 @@ def handle_client(conn):
             pub = req.get("public_key")
             ok, msg = remove_peer(pub)
             response = {"success": ok, "message": msg}
+        elif action == "sync_all":
+            sync_peers_from_db()
+            response = {"success": True, "peers": get_wg_dump()}
         elif action == "status":
             ok, out = run_cmd(["wg", "show", WG_IFACE])
             response = {"success": ok, "output": out}
@@ -120,6 +144,7 @@ def handle_client(conn):
         conn.close()
 
 def main():
+    os.makedirs(os.path.dirname(SOCK_PATH), exist_ok=True)
     if os.path.exists(SOCK_PATH):
         try:
             os.remove(SOCK_PATH)
@@ -131,6 +156,12 @@ def main():
     os.chmod(SOCK_PATH, 0o666)
     server.listen(32)
     logging.info(f"WireGuard Bridge Daemon listening on {SOCK_PATH}")
+
+    # Initial sync from DB in a background thread once DB is ready
+    def delayed_sync():
+        time.sleep(3)
+        sync_peers_from_db()
+    threading.Thread(target=delayed_sync, daemon=True).start()
 
     while True:
         try:
