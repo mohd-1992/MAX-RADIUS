@@ -244,7 +244,7 @@
                                 {% if t.is_online %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="الراوتر متصل بنجاح">
                                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span>{{ t.latency_ms or 1 }} ms</span>
+                                    <span>متصل</span>
                                 </span>
                                 {% else %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800/80 text-slate-400 border border-slate-700/60">
@@ -484,7 +484,7 @@
                                 {% if t.is_online %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="متصل بالخادم بنجاح">
                                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span>{{ t.latency_ms or 1 }} ms</span>
+                                    <span>متصل</span>
                                 </span>
                                 {% else %}
                                 <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800/80 text-slate-400 border border-slate-700/60">
@@ -1189,11 +1189,10 @@ function fetchL2tpLiveStatus(manual = false) {
                     if (row) row.setAttribute('data-online', t.is_online ? 'true' : 'false');
                     if (cell) {
                         if (t.is_online) {
-                            const lat = t.latency_ms || 1;
                             cell.innerHTML = `
-                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="متصل بنجاح">
                                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span>${lat} ms</span>
+                                    <span>متصل</span>
                                 </span>
                             `;
                         } else {
@@ -1445,11 +1444,10 @@ function fetchWireguardLiveStatus(manual = false) {
 
                     if (cell) {
                         if (t.is_online) {
-                            const lat = t.latency_ms || 1;
                             cell.innerHTML = `
-                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-sm" title="متصل بنجاح">
                                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span>${lat} ms</span>
+                                    <span>متصل</span>
                                 </span>
                             `;
                         } else {

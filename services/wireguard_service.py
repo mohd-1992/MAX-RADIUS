@@ -180,6 +180,44 @@ def get_active_wireguard_peers():
     return active_map
 
 
+
+def measure_real_latency(ip, timeout_sec=0.8):
+    """
+    Measures TRUE network round-trip time (RTT in ms) to a tunnel IP via ICMP/TCP probe.
+    Returns float (e.g. 18.5) or None if unreachable.
+    """
+    if not ip:
+        return None
+    try:
+        import subprocess, re
+        cmd = ['ping', '-c', '1', '-W', '1', str(ip).strip()]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout_sec)
+        if res.returncode == 0 and res.stdout:
+            m = re.search(r'time=([\d\.]+)\s*ms', res.stdout)
+            if m:
+                return round(float(m.group(1)), 1)
+            m2 = re.search(r'rtt min/avg/max/mdev\s*=\s*[\d\.]+/([\d\.]+)/', res.stdout)
+            if m2:
+                return round(float(m2.group(1)), 1)
+    except Exception:
+        pass
+
+    for test_port in [8728, 80, 22, 443]:
+        try:
+            t0 = time.perf_counter()
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.3)
+            err = s.connect_ex((ip, test_port))
+            s.close()
+            if err in (0, 111):
+                rtt = (time.perf_counter() - t0) * 1000
+                if rtt > 0.05:
+                    return round(rtt, 1)
+        except Exception:
+            continue
+    return None
+
+
 def _format_bytes(num_bytes):
     """Helper to format byte counts to KB, MB, GB."""
     if not num_bytes:
@@ -230,16 +268,7 @@ def get_all_wireguard_tunnels(force_fresh=False, fast_db_only=False):
         
         latency = None
         if is_online and ip:
-            try:
-                t0 = time.time()
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.3)
-                port = int(tun.get('api_port') or 8728)
-                s.connect((ip, port))
-                s.close()
-                latency = round((time.time() - t0) * 1000, 1)
-            except Exception:
-                latency = 1.0
+            latency = measure_real_latency(ip)
 
         tun['is_online'] = is_online
         tun['server_public_ip'] = vps_ip
