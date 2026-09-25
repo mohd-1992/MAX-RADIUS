@@ -653,8 +653,8 @@ def get_portal_user_data(username):
                    COALESCE(SUM(total_time), 0) as total_time
             FROM (
                 SELECT nasipaddress, acctsessionid,
-                       MAX(acctinputoctets) as total_in,
-                       MAX(acctoutputoctets) as total_out,
+                       MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
+                       MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out,
                        MAX(acctsessiontime) as total_time
                 FROM radacct
                 WHERE username = ?
@@ -669,8 +669,8 @@ def get_portal_user_data(username):
                    COALESCE(SUM(total_time), 0) as total_time
             FROM (
                 SELECT nasipaddress, acctsessionid,
-                       MAX(acctinputoctets) as total_in,
-                       MAX(acctoutputoctets) as total_out,
+                       MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
+                       MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out,
                        MAX(acctsessiontime) as total_time
                 FROM radacct
                 WHERE username = ?
@@ -926,14 +926,16 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
             
         # Mark card as recharged / disabled
         card_expire_msg = f"تم استخدامه في شحن الباقة (تم سداد سلفة {format_mb_or_gb(deducted_loan_mb)})" if deducted_loan_mb > 0 else "تم استخدامه في شحن الباقة والوقت"
-        execute_write("""
+        affected = execute_update("""
             UPDATE wisp_vouchers SET
                 status = 'recharged',
                 expire_reason = ?,
                 first_used_at = CURRENT_TIMESTAMP,
                 bound_mac = ?
-            WHERE id = ?
+            WHERE id = ? AND status = 'unused'
         """, (card_expire_msg, f"TOPUP:{username}"[:28], card['id']))
+        if affected != 1:
+            return False, "عذراً، هذا الكرت تم استخدامه في نفس اللحظة أو لم يعد متاحاً."
         
         # Remove used card from RADIUS
         try:
@@ -972,14 +974,16 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         execute_write("UPDATE wisp_subscribers SET balance = ? WHERE id = ?", (new_balance, sub['id']))
         
         # Mark card as recharged / disabled and remove from FreeRADIUS
-        execute_write("""
+        affected = execute_update("""
             UPDATE wisp_vouchers SET
                 status = 'recharged',
                 expire_reason = 'تم استخدامه في شحن الرصيد',
                 first_used_at = CURRENT_TIMESTAMP,
                 bound_mac = ?
-            WHERE id = ?
+            WHERE id = ? AND status = 'unused'
         """, (f"RECHARGE:{username}"[:28], card['id']))
+        if affected != 1:
+            return False, "عذراً، هذا الكرت تم استخدامه في نفس اللحظة أو لم يعد متاحاً."
 
         # Remove used card from FreeRADIUS tables so it cannot be used to login
         try:
@@ -1172,8 +1176,8 @@ def renew_or_change_package(username, new_pkg_id):
                 SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
                 FROM (
                     SELECT nasipaddress, acctsessionid,
-                           MAX(acctinputoctets) as total_in,
-                           MAX(acctoutputoctets) as total_out
+                           MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
+                           MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out
                     FROM radacct
                     WHERE LOWER(username) = LOWER(?)
                       AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
@@ -1291,9 +1295,11 @@ def get_user_sessions_history(username, limit=30):
     """, (username, limit))
 
     for s in sessions:
-        s['download_str'] = format_bytes(s['acctoutputoctets'] or 0)
-        s['upload_str'] = format_bytes(s['acctinputoctets'] or 0)
-        s['total_str'] = format_bytes((s['acctoutputoctets'] or 0) + (s['acctinputoctets'] or 0))
+        d_bytes = (int(s.get('acctoutputgigawords') or 0) * 4294967296) + int(s.get('acctoutputoctets') or 0)
+        u_bytes = (int(s.get('acctinputgigawords') or 0) * 4294967296) + int(s.get('acctinputoctets') or 0)
+        s['download_str'] = format_bytes(d_bytes)
+        s['upload_str'] = format_bytes(u_bytes)
+        s['total_str'] = format_bytes(d_bytes + u_bytes)
         s['duration_str'] = format_duration(s['acctsessiontime'] or 0)
         s['is_active'] = (s['acctstoptime'] is None)
 

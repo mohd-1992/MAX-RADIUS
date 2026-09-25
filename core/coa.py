@@ -70,7 +70,7 @@ def encode_ip_attribute(attr_type, ip_str):
     return struct.pack('!BB', attr_type, 6) + ip_bytes
 
 class RadiusCoaClient:
-    def __init__(self, nas_ip, secret, port=3799, timeout=3.0):
+    def __init__(self, nas_ip, secret, port=3799, timeout=1.5):
         self.nas_ip = nas_ip
         self.secret = secret.encode('utf-8') if isinstance(secret, str) else secret
         self.port = int(port)

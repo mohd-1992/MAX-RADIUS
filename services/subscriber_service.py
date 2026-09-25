@@ -34,8 +34,8 @@ def get_user_usage_analytics(username, days=30):
         stats = query_all('''
             SELECT 
                 DATE(acctstarttime) as usage_date,
-                COALESCE(SUM(acctoutputoctets), 0) as down_bytes,
-                COALESCE(SUM(acctinputoctets), 0) as up_bytes,
+                COALESCE(SUM((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as down_bytes,
+                COALESCE(SUM((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) as up_bytes,
                 COALESCE(SUM(acctsessiontime), 0) as duration_sec,
                 COUNT(*) as session_count
             FROM radacct
@@ -247,8 +247,8 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
             FROM wisp_subscribers s
             LEFT JOIN (
                 SELECT username, nasipaddress, acctsessionid,
-                       MAX(acctinputoctets) as max_in,
-                       MAX(acctoutputoctets) as max_out,
+                       MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as max_in,
+                       MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as max_out,
                        MIN(COALESCE(acctstarttime, acctupdatetime)) as sess_start
                 FROM radacct
                 WHERE username IN ({placeholders})
@@ -528,8 +528,8 @@ def get_subscriber_sessions(username, limit=15):
     ''', (username, limit))
     
     for s in sessions:
-        down_bytes = float(s.get('acctoutputoctets') or 0)
-        up_bytes = float(s.get('acctinputoctets') or 0)
+        down_bytes = float((int(s.get('acctoutputgigawords') or 0) * 4294967296) + int(s.get('acctoutputoctets') or 0))
+        up_bytes = float((int(s.get('acctinputgigawords') or 0) * 4294967296) + int(s.get('acctinputoctets') or 0))
         s['download_str'] = format_bytes(down_bytes)
         s['upload_str'] = format_bytes(up_bytes)
         s['total_str'] = format_bytes(down_bytes + up_bytes)
