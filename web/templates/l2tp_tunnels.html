@@ -756,7 +756,7 @@
                     <span>تحميل ملف السكربت (.rsc)</span>
                 </button>
                 <div class="w-full sm:w-auto flex gap-2">
-                    <button type="button" onclick="closeScriptModal()" class="flex-1 sm:flex-initial px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">إغلاق</button>
+                    <button type="button" onclick="closeScriptModal()" class="flex-1 sm:flex-initial px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">إلغاء</button>
                     <button type="button" onclick="copyScript()" id="copyBtn" class="flex-1 sm:flex-initial px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2 cursor-pointer">
                         <i class="fa-solid fa-copy"></i>
                         <span>نسخ الكود بالكامل</span>
@@ -936,7 +936,7 @@
                     <span>تحميل ملف السكربت (.rsc)</span>
                 </button>
                 <div class="w-full sm:w-auto flex gap-2">
-                    <button type="button" onclick="closeWgScriptModal()" class="flex-1 sm:flex-initial px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">إغلاق</button>
+                    <button type="button" onclick="closeWgScriptModal()" class="flex-1 sm:flex-initial px-4 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer">إلغاء</button>
                     <button type="button" onclick="copyWgScript()" id="copyWgBtn" class="flex-1 sm:flex-initial px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-500/25 transition flex items-center justify-center gap-2 cursor-pointer">
                         <i class="fa-solid fa-copy"></i>
                         <span>نسخ الكود بالكامل</span>
@@ -966,28 +966,31 @@ function switchVpnTab(tab) {
     const secWg = document.getElementById('sectionWireguard');
 
     if (tab === 'wireguard') {
-        secL2tp.classList.add('hidden');
-        secWg.classList.remove('hidden');
+        if (secL2tp) secL2tp.classList.add('hidden');
+        if (secWg) secWg.classList.remove('hidden');
 
-        btnWg.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2.5 cursor-pointer bg-amber-600 text-white shadow-lg shadow-amber-500/20 border border-amber-500/30';
-        btnL2tp.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2.5 cursor-pointer bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]';
+        if (btnWg) btnWg.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2.5 cursor-pointer bg-amber-600 text-white shadow-lg shadow-amber-500/20 border border-amber-500/30';
+        if (btnL2tp) btnL2tp.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2.5 cursor-pointer bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]';
         
-        // Update URL param without page reload
-        const url = new URL(window.location);
-        url.searchParams.set('tab', 'wireguard');
-        window.history.replaceState({}, '', url);
+        try {
+            const url = new URL(window.location);
+            url.searchParams.set('tab', 'wireguard');
+            window.history.replaceState({}, '', url);
+        } catch(e) {}
         
         fetchWireguardLiveStatus(false);
     } else {
-        secWg.classList.add('hidden');
-        secL2tp.classList.remove('hidden');
+        if (secWg) secWg.classList.add('hidden');
+        if (secL2tp) secL2tp.classList.remove('hidden');
 
-        btnL2tp.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2.5 cursor-pointer bg-blue-600 text-white shadow-lg shadow-blue-500/20 border border-blue-500/30';
-        btnWg.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2.5 cursor-pointer bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]';
+        if (btnL2tp) btnL2tp.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2.5 cursor-pointer bg-blue-600 text-white shadow-lg shadow-blue-500/20 border border-blue-500/30';
+        if (btnWg) btnWg.className = 'flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2.5 cursor-pointer bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]';
 
-        const url = new URL(window.location);
-        url.searchParams.set('tab', 'l2tp');
-        window.history.replaceState({}, '', url);
+        try {
+            const url = new URL(window.location);
+            url.searchParams.set('tab', 'l2tp');
+            window.history.replaceState({}, '', url);
+        } catch(e) {}
 
         fetchL2tpLiveStatus(false);
     }
@@ -998,26 +1001,34 @@ function switchVpnTab(tab) {
 // -------------------------------------------------------------
 function openAddModal() {
     const m = document.getElementById('addModal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
+    if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    }
 }
 
 function closeAddModal() {
     const m = document.getElementById('addModal');
-    m.classList.add('hidden');
-    m.classList.remove('flex');
+    if (m) {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+    }
 }
 
 function openSettingsModal() {
     const m = document.getElementById('settingsModal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
+    if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    }
 }
 
 function closeSettingsModal() {
     const m = document.getElementById('settingsModal');
-    m.classList.add('hidden');
-    m.classList.remove('flex');
+    if (m) {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+    }
 }
 
 function openEditModal(id, name, user, pass, ip, secret, ipsec_secret, desc) {
@@ -1031,14 +1042,18 @@ function openEditModal(id, name, user, pass, ip, secret, ipsec_secret, desc) {
     document.getElementById('edit_description').value = desc || '';
     
     const m = document.getElementById('editModal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
+    if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    }
 }
 
 function closeEditModal() {
     const m = document.getElementById('editModal');
-    m.classList.add('hidden');
-    m.classList.remove('flex');
+    if (m) {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+    }
 }
 
 function openScriptModal(tunnelId, tunnelName) {
@@ -1048,16 +1063,20 @@ function openScriptModal(tunnelId, tunnelName) {
     document.getElementById('scriptContent').value = '# جاري توليد سكربت L2TP / IPsec مخصص للراوتر...';
     
     const m = document.getElementById('scriptModal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
+    if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    }
 
     loadScriptContent();
 }
 
 function closeScriptModal() {
     const m = document.getElementById('scriptModal');
-    m.classList.add('hidden');
-    m.classList.remove('flex');
+    if (m) {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+    }
 }
 
 function loadScriptContent() {
@@ -1232,10 +1251,28 @@ function fetchL2tpLiveStatus(manual = false) {
 }
 
 
+// -------------------------------------------------------------
+// WireGuard Logic
+// -------------------------------------------------------------
+function openAddWgModal() {
+    const m = document.getElementById('addWgModal');
+    if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    }
+
+    // Auto generate keys if empty
+    if (!document.getElementById('add_wg_public_key').value) {
+        generateNewWgKeys();
+    }
+}
+
 function closeAddWgModal() {
     const m = document.getElementById('addWgModal');
-    m.classList.add('hidden');
-    m.classList.remove('flex');
+    if (m) {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+    }
 }
 
 function generateNewWgKeys() {
@@ -1266,14 +1303,18 @@ function openEditWgModal(id, name, ip, pub, priv, secret, desc) {
     document.getElementById('edit_wg_description').value = desc || '';
 
     const m = document.getElementById('editWgModal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
+    if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    }
 }
 
 function closeEditWgModal() {
     const m = document.getElementById('editWgModal');
-    m.classList.add('hidden');
-    m.classList.remove('flex');
+    if (m) {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+    }
 }
 
 function openWgScriptModal(tunnelId, tunnelName) {
@@ -1283,16 +1324,20 @@ function openWgScriptModal(tunnelId, tunnelName) {
     document.getElementById('scriptWgContent').value = '# جاري توليد سكربت WireGuard مخصص لـ RouterOS v7+...';
 
     const m = document.getElementById('scriptWgModal');
-    m.classList.remove('hidden');
-    m.classList.add('flex');
+    if (m) {
+        m.classList.remove('hidden');
+        m.classList.add('flex');
+    }
 
     loadWgScriptContent();
 }
 
 function closeWgScriptModal() {
     const m = document.getElementById('scriptWgModal');
-    m.classList.add('hidden');
-    m.classList.remove('flex');
+    if (m) {
+        m.classList.add('hidden');
+        m.classList.remove('flex');
+    }
 }
 
 function loadWgScriptContent() {
@@ -1473,13 +1518,21 @@ function fetchWireguardLiveStatus(manual = false) {
             if (icon) icon.classList.remove('fa-spin');
         });
 }
-, 20000);
 
-document.addEventListener('DOMContentLoaded', function() {
+// Polling interval
+setInterval(() => {
     if (currentVpnTab === 'wireguard') {
         fetchWireguardLiveStatus(false);
     } else {
         fetchL2tpLiveStatus(false);
+    }
+}, 20000);
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (currentVpnTab === 'wireguard') {
+        switchVpnTab('wireguard');
+    } else {
+        switchVpnTab('l2tp');
     }
 });
 
