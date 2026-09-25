@@ -560,14 +560,14 @@ def purge_stale_zombie_sessions(timeout_minutes=None):
         if count > 0:
             execute_update("""
                 UPDATE radacct
-                SET acctstoptime = ?,
+                SET acctstoptime = COALESCE(acctupdatetime, acctstarttime),
                     acctterminatecause = 'Watchdog-Autoheal-Timeout'
                 WHERE acctstoptime IS NULL
                   AND (
                       (acctupdatetime IS NOT NULL AND acctupdatetime < ?)
                       OR (acctupdatetime IS NULL AND acctstarttime < ?)
                   )
-            """, (now_utc, cutoff_utc, cutoff_utc))
+            """, (cutoff_utc, cutoff_utc))
 
             log_system_alert(
                 alert_type='ZOMBIE_SESSIONS_PURGED',

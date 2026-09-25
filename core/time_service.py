@@ -268,14 +268,14 @@ def get_utc_now_str(fmt='%Y-%m-%d %H:%M:%S'):
 
 def get_utc_cutoff_str(timeout_minutes=5):
     """
-    Returns UTC timestamp string for database queries (radacct, sessions, heartbeats)
-    which matches MariaDB/FreeRADIUS UTC clock.
+    Returns timestamp string for database queries (radacct, sessions, heartbeats)
+    which accurately matches the active MariaDB/FreeRADIUS timestamp clock.
     """
     try:
-        utc_now = get_real_utc_now()
+        now_dt = get_system_now()
     except Exception:
-        utc_now = datetime.datetime.now(datetime.timezone.utc)
-    return (utc_now - datetime.timedelta(minutes=int(timeout_minutes))).strftime('%Y-%m-%d %H:%M:%S')
+        now_dt = datetime.datetime.now()
+    return (now_dt - datetime.timedelta(minutes=int(timeout_minutes))).strftime('%Y-%m-%d %H:%M:%S')
 
 
 def get_system_now_str(fmt='%Y-%m-%d %H:%M:%S', tz_name=None):
