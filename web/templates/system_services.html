@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}خدمات ومحركات النظام{% endblock %}
+{% block page_title %}لوحة إدارة خدمات ومحركات النظام{% endblock %}
+
+{% block container_class %}max-w-full px-3 sm:px-6 2xl:px-8{% endblock %}
+{% block footer_container_class %}max-w-full px-3 sm:px-6 2xl:px-8{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Banner -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-server"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    خدمات ومحركات النظام (System Services & Engines)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">مراقبة حية لمحركات النظام، زمن التشغيل (Uptime)، والتحكم المباشر في التشغيل وإعادة التشغيل</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+            <button onclick="runManualWatchdogCheck()" class="px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-stethoscope"></i>
+                <span>فحص صحي فوري (Probe)</span>
+            </button>
+            <button onclick="refreshServicesStatus()" id="btnRefresh" class="px-4 py-2.5 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 hover:border-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i id="refreshIcon" class="fa-solid fa-arrows-rotate text-emerald-400"></i>
+                <span>تحديث الحالة الحية</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Quick Overview Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Web Backend Status -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">خادم الويب والبرنامج</span>
+                <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-base border border-blue-500/20">
+                    <i class="fa-solid fa-server"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <h4 class="text-base font-black text-white">Python Waitress</h4>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>المنفذ:</span>
+                    <span class="font-mono text-blue-400 font-bold">5090 TCP</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. FreeRADIUS Status -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">محرك FreeRADIUS</span>
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/20">
+                    <i class="fa-solid fa-tower-broadcast"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <h4 class="text-base font-black text-emerald-400">FreeRADIUS 3.2</h4>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>المنافذ:</span>
+                    <span class="font-mono text-emerald-400 font-bold">1812 / 1813 UDP</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. MariaDB Size -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">قاعدة البيانات MariaDB</span>
+                <div class="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-base border border-sky-500/20">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-baseline gap-1.5">
+                    <h4 id="topDbSize" class="text-xl font-black text-sky-400 font-mono tracking-tight">{{ status_data.db_metrics.size_mb }}</h4>
+                    <span class="text-xs font-semibold text-slate-400 font-mono">MB</span>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>الجداول:</span>
+                    <span id="topDbTables" class="font-mono text-sky-400 font-bold">{{ status_data.db_metrics.table_count }} جدول</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Autoheal Watchdog -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">التعافي التلقائي (Autoheal)</span>
+                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse"></span>
+                    <h4 class="text-base font-black text-purple-400">Docker Watchdog</h4>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>فحص الحاويات:</span>
+                    <span class="font-mono text-purple-400 font-bold">كل 10 ثوانٍ</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed System Service Engine Cards -->
+    <div class="space-y-4">
+        {% for svc in status_data.services %}
+        <div id="card-{{ svc.id }}" class="bg-[#0b0f19] border border-[#1c2840] hover:border-slate-700 rounded-2xl p-6 shadow-sm transition">
+            <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                
+                <!-- Left: Engine Icon & Title -->
+                <div class="flex items-start sm:items-center gap-4">
+                    <div class="w-14 h-14 rounded-2xl {% if svc.color == 'blue' %}bg-blue-500/10 text-blue-400 border border-blue-500/20{% elif svc.color == 'emerald' %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% elif svc.color == 'purple' %}bg-purple-500/10 text-purple-400 border border-purple-500/20{% elif svc.color == 'amber' %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% else %}bg-sky-500/10 text-sky-400 border border-sky-500/20{% endif %} flex items-center justify-center text-2xl flex-shrink-0">
+                        <i class="{{ svc.icon }}"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2.5 flex-wrap">
+                            <h3 class="text-base font-black text-white">{{ svc.name }}</h3>
+                            <span id="badge-{{ svc.id }}" class="px-2.5 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1.5 {% if svc.is_running %}bg-emerald-500/10 text-emerald-400 border border-emerald-500/20{% else %}bg-rose-500/10 text-rose-400 border border-rose-500/20{% endif %}">
+                                <span class="w-2 h-2 rounded-full {% if svc.is_running %}bg-emerald-400 animate-pulse{% else %}bg-rose-400{% endif %}"></span>
+                                <span id="badge-text-{{ svc.id }}">{{ svc.status_text }}</span>
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">{{ svc.subname }}</p>
+                        <p class="text-[11px] text-slate-500 mt-0.5 font-mono">{{ svc.details }}</p>
+                    </div>
+                </div>
+
+                <!-- Middle: Live Metrics (Uptime & DB Size) -->
+                <div class="flex items-center gap-6 sm:gap-8 bg-[#070b14] border border-[#162136] px-5 py-3 rounded-2xl w-full lg:w-auto justify-between sm:justify-start">
+                    <!-- Uptime Metric -->
+                    <div>
+                        <span class="block text-[11px] text-slate-400">مدة العمل المستمر (Uptime)</span>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <i class="fa-solid fa-clock-rotate-left text-xs text-blue-400"></i>
+                            <span id="uptime-{{ svc.id }}" class="text-xs font-bold text-slate-200 font-mono">{{ svc.uptime }}</span>
+                        </div>
+                    </div>
+
+                    {% if svc.id == 'mariadb' %}
+                    <!-- Database Size Metric (Specific to MySQL) -->
+                    <div class="border-r border-[#1c2840] pr-6">
+                        <span class="block text-[11px] text-slate-400">حجم البيانات (DB Size)</span>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <i class="fa-solid fa-hard-drive text-xs text-sky-400"></i>
+                            <span id="dbsize-val" class="text-xs font-bold text-sky-400 font-mono">{{ svc.size_mb }} MB</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Right: Control Actions -->
+                <div class="flex items-center gap-2.5 w-full lg:w-auto justify-end">
+                    <!-- Restart Button -->
+                    <button type="button" onclick="triggerServiceAction('{{ svc.id }}', 'restart', '{{ svc.name }}')" class="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-rotate-right text-xs"></i>
+                        <span>إعادة تشغيل</span>
+                    </button>
+
+                    {% if svc.id != 'web' %}
+                    <!-- Stop / Start Button -->
+                    {% if svc.is_running %}
+                    <button type="button" onclick="triggerServiceAction('{{ svc.id }}', 'stop', '{{ svc.name }}')" class="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-power-off text-xs"></i>
+                        <span>إيقاف</span>
+                    </button>
+                    {% else %}
+                    <button type="button" onclick="triggerServiceAction('{{ svc.id }}', 'start', '{{ svc.name }}')" class="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-play text-xs"></i>
+                        <span>تشغيل</span>
+                    </button>
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 1. Refresh Services Status
+    function refreshServicesStatus() {
+        const icon = document.getElementById('refreshIcon');
+        if (icon) icon.classList.add('fa-spin');
+
+        fetch('/api/system-services/status')
+            .then(r => r.json())
+            .then(data => {
+                if (icon) icon.classList.remove('fa-spin');
+                if (data.success && data.data) {
+                    const services = data.data.services || [];
+                    services.forEach(svc => {
+                        const uptimeEl = document.getElementById(`uptime-${svc.id}`);
+                        if (uptimeEl) uptimeEl.innerText = svc.uptime;
+
+                        const badgeEl = document.getElementById(`badge-${svc.id}`);
+                        const badgeText = document.getElementById(`badge-text-${svc.id}`);
+                        if (badgeEl && badgeText) {
+                            badgeText.innerText = svc.status_text;
+                            if (svc.is_running) {
+                                badgeEl.className = "px-2.5 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                            } else {
+                                badgeEl.className = "px-2.5 py-0.5 rounded-lg text-xs font-bold flex items-center gap-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20";
+                            }
+                        }
+                    });
+
+                    if (data.data.db_metrics) {
+                        const topSize = document.getElementById('topDbSize');
+                        const topTables = document.getElementById('topDbTables');
+                        const dbSizeVal = document.getElementById('dbsize-val');
+                        if (topSize) topSize.innerText = data.data.db_metrics.size_mb;
+                        if (topTables) topTables.innerText = `${data.data.db_metrics.table_count} جدول (${data.data.db_metrics.total_rows} سجل)`;
+                        if (dbSizeVal) dbSizeVal.innerText = `${data.data.db_metrics.size_mb} MB`;
+                    }
+                }
+            })
+            .catch(err => {
+                if (icon) icon.classList.remove('fa-spin');
+            });
+    }
+
+    // Auto refresh every 15 seconds
+    setInterval(refreshServicesStatus, 15000);
+
+    // 2. Trigger Service Action with Confirmation
+    function triggerServiceAction(serviceId, action, serviceName) {
+        const actionLabels = {
+            'restart': 'إعادة تشغيل',
+            'stop': 'إيقاف',
+            'start': 'تشغيل'
+        };
+        const actionLabel = actionLabels[action] || action;
+        const isDangerous = action === 'stop';
+
+        Swal.fire({
+            title: `تأكيد ${actionLabel} الخدمة`,
+            html: `
+                <div class="text-right text-xs space-y-2 text-slate-300">
+                    <p>هل أنت متأكد من رغبتك في تنفيذ <strong class="text-blue-400 font-bold">${actionLabel}</strong> على المحرك التالي؟</p>
+                    <p class="font-bold text-white bg-slate-800 p-2.5 rounded-xl border border-slate-700">${serviceName}</p>
+                    ${serviceId === 'web' ? '<p class="text-amber-400">💡 ستتم إعادة تحميل الواجهة تلقائياً بعد اكتمال إعادة تشغيل خادم الويب.</p>' : ''}
+                    ${serviceId === 'mariadb' ? '<p class="text-rose-400">⚠️ قد يؤثر إيقاف قاعدة البيانات مؤقتاً على عمليات المصادقة والمحاسبة.</p>' : ''}
+                </div>
+            `,
+            icon: isDangerous ? 'warning' : 'question',
+            showCancelButton: true,
+            confirmButtonColor: isDangerous ? '#e11d48' : '#2563eb',
+            cancelButtonColor: '#475569',
+            confirmButtonText: `نعم، ${actionLabel} الآن`,
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                Swal.fire({
+                    title: `جارٍ ${actionLabel} الخدمة...`,
+                    text: 'يرجى الانتظار حتى استجابة محرك النظام...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                const fd = new FormData();
+                fd.append('service_id', serviceId);
+                fd.append('action', action);
+
+                fetch('/api/system-services/action', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire({
+                                title: 'تم بنجاح',
+                                text: data.message,
+                                icon: 'success',
+                                timer: serviceId === 'web' ? 4000 : 2000,
+                                showConfirmButton: true
+                            }).then(() => {
+                                if (serviceId === 'web') {
+                                    setTimeout(() => location.reload(), 2000);
+                                } else {
+                                    refreshServicesStatus();
+                                }
+                            });
+                        } else {
+                            Swal.fire('خطأ في العملية', data.message || 'فشل تنفيذ الأمر', 'error');
+                        }
+                    })
+                    .catch(err => {
+                        if (serviceId === 'web' && action === 'restart') {
+                            setTimeout(() => location.reload(), 3000);
+                        } else {
+                            Swal.fire('خطأ غير متوقع', err.message, 'error');
+                        }
+                    });
+            }
+        });
+    }
+
+    // 3. Run Manual Watchdog Check
+    function runManualWatchdogCheck() {
+        Swal.fire({
+            title: 'جارٍ فحص الصحة الذاتية...',
+            text: 'يتم الآن فحص اتصال MariaDB، منفذ FreeRADIUS، ومساحة التخزين...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        fetch('/api/system-services/watchdog/check', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({
+                        title: 'اكتمل الفحص الصحي',
+                        html: `
+                            <div class="text-right text-xs space-y-2 text-slate-200">
+                                <p>✅ قاعدة البيانات: <strong class="${data.data.db_healthy ? 'text-emerald-400' : 'text-rose-400'}">${data.data.db_healthy ? 'متصلة وصحية' : 'تعذر الاتصال'}</strong></p>
+                                <p>✅ محرك FreeRADIUS: <strong class="${data.data.radius_healthy ? 'text-emerald-400' : 'text-rose-400'}">${data.data.radius_healthy ? 'يستجيب للطلبات' : 'غير مستجيب'}</strong></p>
+                                <p>💾 مساحة التخزين المتبقية: <strong class="text-sky-400 font-mono">${data.data.disk_free_pct}%</strong></p>
+                            </div>
+                        `,
+                        icon: 'success'
+                    }).then(() => refreshServicesStatus());
+                } else {
+                    Swal.fire('خطأ', data.message, 'error');
+                }
+            })
+            .catch(err => {
+                Swal.fire('خطأ', err.message, 'error');
+            });
+    }
+</script>
+{% endblock %}

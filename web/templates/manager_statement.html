@@ -1,0 +1,465 @@
+{% extends "base.html" %}
+
+{% block title %}كشف حساب المدير / الموزع: {{ manager.full_name }}{% endblock %}
+{% block page_title %}كشف حساب مالي (Statement of Account){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Breadcrumb & Top Bar -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+            <a href="{{ url_for('managers_page') }}" class="hover:text-blue-400 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-arrow-right"></i>
+                <span>العودة لقائمة المدراء والموزعين</span>
+            </a>
+            <span>/</span>
+            <span class="text-slate-200 font-semibold">كشف حساب [{{ manager.full_name }}]</span>
+        </div>
+
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <button onclick="openDepositModal({{ manager.id }}, '{{ manager.full_name }}', {{ manager.wallet_balance }}, {{ stats.net_outstanding_debt }})" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/25 transition flex items-center gap-2">
+                <i class="fa-solid fa-circle-plus"></i>
+                <span>شحن رصيد جديد</span>
+            </button>
+
+            {% if stats.net_outstanding_debt > 0 %}
+            <button onclick="openSettleDebtModal({{ manager.id }}, '{{ manager.full_name }}', {{ stats.net_outstanding_debt }})" class="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-500/25 transition flex items-center gap-2">
+                <i class="fa-solid fa-handshake"></i>
+                <span>سداد ذمة / سند قبض</span>
+            </button>
+            {% endif %}
+
+            <button onclick="window.print()" class="px-4 py-2 bg-[#0b0f19] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-print text-blue-400"></i>
+                <span>طباعة كشف الحساب</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Manager Info Header Card -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm">
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-2xl font-bold flex-shrink-0">
+                    <i class="fa-solid fa-user-tie"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <h2 class="text-xl font-black text-white">{{ manager.full_name }}</h2>
+                        <span class="text-xs font-mono font-bold text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded-full border border-blue-500/20">@{{ manager.username }}</span>
+                        <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">{{ manager.role_name }}</span>
+                    </div>
+                    <div class="flex items-center gap-4 mt-2 text-xs text-slate-400 flex-wrap">
+                        <span><i class="fa-solid fa-phone text-slate-500 ml-1"></i>{{ manager.phone or 'لا يوجد هاتف' }}</span>
+                        <span><i class="fa-solid fa-envelope text-slate-500 ml-1"></i>{{ manager.email or 'لا يوجد بريد' }}</span>
+                        <span><i class="fa-solid fa-percent text-slate-500 ml-1"></i>عمولة: <strong class="text-slate-200 font-mono">{{ manager.commission_percent }}%</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div class="text-left md:text-right bg-[#070b14] p-4 rounded-xl border border-[#162136] min-w-[160px]">
+                    <span class="text-xs text-slate-400 block mb-0.5">رصيد المحفظة المتاح</span>
+                    <h3 class="text-2xl font-black {% if manager.wallet_balance > 0 %}text-emerald-400{% elif manager.wallet_balance < 0 %}text-rose-400{% else %}text-slate-200{% endif %} font-mono">
+                        {{ "{:,.2f}".format(manager.wallet_balance) }} <span class="text-xs font-sans font-normal text-slate-400">{{ currency_symbol }}</span>
+                    </h3>
+                </div>
+
+                <div class="text-left md:text-right bg-[#070b14] p-4 rounded-xl border border-[#162136] min-w-[160px]">
+                    <span class="text-xs text-slate-400 block mb-0.5">صافي الذمة المستحقة</span>
+                    <h3 class="text-2xl font-black {% if stats.net_outstanding_debt > 0 %}text-amber-400{% else %}text-slate-400{% endif %} font-mono">
+                        {{ "{:,.2f}".format(stats.net_outstanding_debt) }} <span class="text-xs font-sans font-normal text-slate-400">{{ currency_symbol }}</span>
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4 Ledger KPIs -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Total Cash Inflows -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-sky-500/40 transition">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400">إجمالي الإيداعات النقدية</span>
+                <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-lg border border-sky-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-money-bill-wave"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-sky-400 font-mono">
+                    {{ "{:,.2f}".format(stats.total_cash_deposits) }} <span class="text-xs font-sans font-bold text-slate-400">{{ currency_symbol }}</span>
+                </h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>طريقة الدفع:</span>
+                    <span class="text-sky-400 font-bold">دفع نقدي مستلم</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Total Credit Deposits & Repayments -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-amber-500/40 transition">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400">إجمالي الآجل المسدد والذمم</span>
+                <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg border border-amber-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-handshake"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-amber-400 font-mono">
+                    {{ "{:,.2f}".format(stats.total_credit_deposits) }} <span class="text-xs font-sans font-bold text-slate-400">{{ currency_symbol }}</span>
+                </h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>المسدد منها (سندات قبض):</span>
+                    <span class="text-emerald-400 font-bold font-mono">{{ "{:,.2f}".format(stats.total_debt_payments) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Total Card Purchases -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-purple-500/40 transition">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400">إجمالي مشتريات الكروت</span>
+                <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg border border-purple-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-ticket"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-purple-400 font-mono">
+                    {{ "{:,.2f}".format(stats.total_card_purchases) }} <span class="text-xs font-sans font-bold text-slate-400">{{ currency_symbol }}</span>
+                </h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>خصومات أخرى:</span>
+                    <span class="text-rose-400 font-bold font-mono">{{ "{:,.2f}".format(stats.total_deductions) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Total Operations -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between hover:border-blue-500/40 transition">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-400">إجمالي القيود المسجلة</span>
+                <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-lg border border-blue-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-receipt"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-blue-400 font-mono">{{ stats.total_transactions }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>استرجاعات ملغاة:</span>
+                    <span class="text-teal-400 font-bold font-mono">{{ "{:,.2f}".format(stats.total_refunds) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statement Filter & Table -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-sm overflow-hidden">
+        
+        <!-- Filter Header -->
+        <form method="GET" action="" class="p-4 border-b border-[#1c2840] bg-[#070b14]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2.5 flex-wrap">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-400">من تاريخ:</span>
+                    <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}" class="bg-[#070b14] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white">
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-400">إلى تاريخ:</span>
+                    <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}" class="bg-[#070b14] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white">
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-400">نوع الحركة:</span>
+                    <select name="transaction_type" class="bg-[#070b14] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white">
+                        <option value="all" {% if not request.args.get('transaction_type') or request.args.get('transaction_type') == 'all' %}selected{% endif %}>جميع الحركات</option>
+                        <option value="deposit" {% if request.args.get('transaction_type') == 'deposit' %}selected{% endif %}>إيداع رصيد</option>
+                        <option value="debt_payment" {% if request.args.get('transaction_type') == 'debt_payment' %}selected{% endif %}>سداد ذمة (سند قبض)</option>
+                        <option value="card_purchase" {% if request.args.get('transaction_type') == 'card_purchase' %}selected{% endif %}>شراء كروت</option>
+                        <option value="deduction" {% if request.args.get('transaction_type') == 'deduction' %}selected{% endif %}>خصم رصيد</option>
+                        <option value="refund" {% if request.args.get('transaction_type') == 'refund' %}selected{% endif %}>استرجاع كروت</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-slate-400">نوع الدفع:</span>
+                    <select name="payment_type" class="bg-[#070b14] border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-white">
+                        <option value="all" {% if not request.args.get('payment_type') or request.args.get('payment_type') == 'all' %}selected{% endif %}>جميع طرق الدفع</option>
+                        <option value="cash" {% if request.args.get('payment_type') == 'cash' %}selected{% endif %}>💵 نقدي فقط</option>
+                        <option value="credit" {% if request.args.get('payment_type') == 'credit' %}selected{% endif %}>📝 آجل (ذمم) فقط</option>
+                        <option value="transfer" {% if request.args.get('payment_type') == 'transfer' %}selected{% endif %}>💳 تحويل بنكي</option>
+                    </select>
+                </div>
+                <button type="submit" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition">
+                    تصفية
+                </button>
+            </div>
+            
+            <a href="{{ url_for('manager_statement_page', manager_id=manager.id) }}" class="text-slate-400 hover:text-white transition">
+                إعادة ضبط الفلتر
+            </a>
+        </form>
+
+        <!-- Statement Table -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-[#070b14] text-slate-400 border-b border-[#162136]">
+                    <tr>
+                        <th class="p-3.5">رقم القيد / الفاتورة</th>
+                        <th class="p-3.5">التاريخ والوقت</th>
+                        <th class="p-3.5">نوع العملية</th>
+                        <th class="p-3.5">طريقة الدفع</th>
+                        <th class="p-3.5">المبلغ</th>
+                        <th class="p-3.5">الرصيد قبل</th>
+                        <th class="p-3.5">الرصيد بعد</th>
+                        <th class="p-3.5">البيان والملاحظات</th>
+                        <th class="p-3.5">بواسطة</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#162136]">
+                    {% for inv in invoices %}
+                    <tr class="hover:bg-[#11192b]/40 transition {% if inv.is_voided %}opacity-45 line-through bg-rose-950/10{% endif %}">
+                        
+                        <!-- Invoice Number -->
+                        <td class="p-3.5 font-mono font-bold text-white">
+                            {{ inv.invoice_number }}
+                            {% if inv.is_voided %}
+                            <span class="no-underline block text-[10px] text-rose-400 font-sans font-normal">(قيد ملغي)</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Date -->
+                        <td class="p-3.5 font-mono text-slate-400 text-[11px]">
+                            {{ inv.created_at }}
+                        </td>
+
+                        <!-- Transaction Type -->
+                        <td class="p-3.5">
+                            {% if inv.transaction_type == 'deposit' %}
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <i class="fa-solid fa-arrow-down-long"></i> إيداع رصيد
+                            </span>
+                            {% elif inv.transaction_type == 'debt_payment' %}
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                                <i class="fa-solid fa-handshake"></i> سداد ذمة (قبض)
+                            </span>
+                            {% elif inv.transaction_type == 'card_purchase' %}
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                <i class="fa-solid fa-ticket"></i> شراء كروت
+                            </span>
+                            {% elif inv.transaction_type == 'deduction' %}
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                <i class="fa-solid fa-arrow-up-long"></i> خصم رصيد
+                            </span>
+                            {% elif inv.transaction_type == 'refund' %}
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                                <i class="fa-solid fa-rotate-left"></i> استرجاع كروت
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                {{ inv.transaction_type }}
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Payment Type -->
+                        <td class="p-3.5">
+                            {% if inv.payment_type == 'cash' %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                                💵 نقدي (Cash)
+                            </span>
+                            {% elif inv.payment_type == 'credit' %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                                📝 آجل (ذمة)
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-slate-500/10 text-slate-300 border border-slate-500/20">
+                                💳 {{ inv.payment_type }}
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Amount -->
+                        <td class="p-3.5 font-mono font-black text-sm {% if inv.transaction_type in ('deposit', 'refund') %}text-emerald-400{% elif inv.transaction_type == 'debt_payment' %}text-amber-300{% else %}text-rose-400{% endif %}">
+                            {% if inv.transaction_type in ('deposit', 'refund') %}+{% elif inv.transaction_type in ('deduction', 'card_purchase') %}-{% endif %}{{ "{:,.2f}".format(inv.amount) }} <span class="text-[10px] font-normal text-slate-400">{{ currency_symbol }}</span>
+                        </td>
+
+                        <!-- Balance Before -->
+                        <td class="p-3.5 font-mono text-slate-400 text-xs">
+                            {{ "{:,.2f}".format(inv.balance_before) }}
+                        </td>
+
+                        <!-- Balance After -->
+                        <td class="p-3.5 font-mono font-bold text-white text-xs">
+                            {{ "{:,.2f}".format(inv.balance_after) }}
+                        </td>
+
+                        <!-- Notes -->
+                        <td class="p-3.5 text-slate-300 max-w-[220px] truncate" title="{{ inv.notes }}{% if inv.void_reason %} | سبب الإلغاء: {{ inv.void_reason }}{% endif %}">
+                            {{ inv.notes or '-' }}
+                            {% if inv.void_reason %}
+                            <span class="block text-[10px] text-rose-400 font-sans mt-0.5">{{ inv.void_reason }}</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Created By -->
+                        <td class="p-3.5 font-mono text-slate-400 text-[11px]">
+                            {{ inv.created_by }}
+                        </td>
+
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="py-12 text-center text-slate-500">
+                            لا توجد حركات مالية مسجلة لهذا الحساب خلال الفترة المحددة.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Deposit Modal Include -->
+<div id="depositModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="fa-solid fa-money-bill-transfer text-emerald-400"></i>شحن وإيداع رصيد المحفظة
+            </h3>
+            <button onclick="closeModal('depositModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <form method="POST" id="depositForm" action="/managers/{{ manager.id }}/deposit" class="space-y-4 text-xs">
+            <div class="bg-[#070b14] p-3 rounded-xl border border-[#162136]">
+                <span class="text-slate-400 block">الموزع:</span>
+                <span class="font-bold text-white text-sm block mt-0.5">{{ manager.full_name }}</span>
+                <div class="flex items-center justify-between mt-2 pt-2 border-t border-slate-800 text-[11px]">
+                    <span class="text-slate-400">الرصيد الحالي: <strong class="text-emerald-400 font-mono font-bold">{{ "{:,.2f}".format(manager.wallet_balance) }} {{ currency_symbol }}</strong></span>
+                    <span class="text-slate-400">الذمة الحالية: <strong class="text-amber-400 font-mono font-bold">{{ "{:,.2f}".format(stats.net_outstanding_debt) }} {{ currency_symbol }}</strong></span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">المبلغ المراد شحنه (Amount) <span class="text-rose-400">*</span></label>
+                <input type="number" step="0.01" name="amount" required placeholder="0.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-emerald-400 font-mono font-black focus:border-emerald-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">نوع الدفع المحاسبي (Payment Type) <span class="text-rose-400">*</span></label>
+                <div class="grid grid-cols-3 gap-2">
+                    <label class="flex flex-col items-center justify-center p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-emerald-500 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
+                        <input type="radio" name="payment_type" value="cash" checked class="hidden">
+                        <i class="fa-solid fa-money-bill text-emerald-400 text-sm mb-1"></i>
+                        <span class="font-bold text-slate-200 text-[11px]">نقدي</span>
+                    </label>
+
+                    <label class="flex flex-col items-center justify-center p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-amber-500 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/10 transition">
+                        <input type="radio" name="payment_type" value="credit" class="hidden">
+                        <i class="fa-solid fa-handshake text-amber-400 text-sm mb-1"></i>
+                        <span class="font-bold text-slate-200 text-[11px]">آجل (ذمة)</span>
+                    </label>
+
+                    <label class="flex flex-col items-center justify-center p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-sky-500 has-[:checked]:border-sky-500 has-[:checked]:bg-sky-500/10 transition">
+                        <input type="radio" name="payment_type" value="transfer" class="hidden">
+                        <i class="fa-solid fa-building-columns text-sky-400 text-sm mb-1"></i>
+                        <span class="font-bold text-slate-200 text-[11px]">تحويل</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">البيان / ملاحظات الفاتورة</label>
+                <input type="text" name="notes" placeholder="شحن رصيد كروت / دفعة إضافية" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('depositModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/30 cursor-pointer">تأكيد الإيداع</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Settle Debt Modal Include -->
+<div id="settleDebtModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="fa-solid fa-handshake text-amber-400"></i>
+                <span>سند قبض / سداد ذمة مالية</span>
+            </h3>
+            <button type="button" onclick="closeModal('settleDebtModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <form method="POST" id="settleDebtForm" action="/managers/{{ manager.id }}/settle-debt" class="space-y-4 text-xs">
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136]">
+                <span class="text-slate-400 block">الموزع / المدين:</span>
+                <span class="font-bold text-white text-sm block mt-0.5">{{ manager.full_name }}</span>
+                <div class="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between">
+                    <span class="text-xs text-slate-400">إجمالي الذمة المستحقة:</span>
+                    <strong class="text-amber-400 font-mono font-black text-sm">{{ "{:,.2f}".format(stats.net_outstanding_debt) }} {{ currency_symbol }}</strong>
+                </div>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="block text-slate-300 font-semibold">المبلغ المسدد (Amount) <span class="text-rose-400">*</span></label>
+                    <button type="button" id="btnFullSettlement" class="text-[11px] text-blue-400 hover:underline cursor-pointer">سداد كامل المبلغ</button>
+                </div>
+                <input type="number" step="0.01" id="settleAmountInput" name="amount" value="{{ stats.net_outstanding_debt }}" max="{{ stats.net_outstanding_debt }}" required placeholder="0.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-base text-amber-400 font-mono font-black focus:border-amber-500 focus:outline-none">
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">طريقة القبض / الاستلام <span class="text-rose-400">*</span></label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-center justify-center gap-2 p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-emerald-500 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 transition">
+                        <input type="radio" name="payment_type" value="cash" checked class="hidden">
+                        <i class="fa-solid fa-money-bill text-emerald-400 text-sm"></i>
+                        <span class="font-bold text-slate-200 text-xs">نقدي (Cash)</span>
+                    </label>
+
+                    <label class="flex items-center justify-center gap-2 p-2.5 bg-[#070b14] border border-slate-700 rounded-xl cursor-pointer hover:border-sky-500 has-[:checked]:border-sky-500 has-[:checked]:bg-sky-500/10 transition">
+                        <input type="radio" name="payment_type" value="transfer" class="hidden">
+                        <i class="fa-solid fa-building-columns text-sky-400 text-sm"></i>
+                        <span class="font-bold text-slate-200 text-xs">حوالة / تحويل</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">البيان وملاحظات سند القبض</label>
+                <input type="text" name="notes" placeholder="سند قبض نقدي تسوية ذمة كروت ..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('settleDebtModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-500/30 cursor-pointer">تسجيل سند القبض</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    function openDepositModal(managerId, managerName, currentBal, currentDebt) {
+        document.getElementById('depositModal').classList.remove('hidden');
+    }
+
+    function openSettleDebtModal(managerId, managerName, netDebt) {
+        const amtInput = document.getElementById('settleAmountInput');
+        amtInput.value = Number(netDebt || 0).toFixed(2);
+        amtInput.max = Number(netDebt || 0).toFixed(2);
+
+        document.getElementById('btnFullSettlement').onclick = function() {
+            amtInput.value = Number(netDebt || 0).toFixed(2);
+        };
+
+        document.getElementById('settleDebtModal').classList.remove('hidden');
+    }
+</script>
+{% endblock %}

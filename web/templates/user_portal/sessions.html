@@ -1,0 +1,90 @@
+{% extends "user_portal/user_base.html" %}
+
+{% block title %}سجل الجلسات والاستهلاك - بوابة المشتركين{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Header Card -->
+    <div class="portal-card border rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-xl border border-purple-500/20 flex-shrink-0">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-white">سجل الجلسات والاستهلاك الحي</h2>
+                <p class="text-xs text-slate-400 mt-1">كشف حساب تاريخي بجلسات اتصالك بالشبكة وكمية البيانات المستهلكة من واقع سيرفر FreeRADIUS</p>
+            </div>
+        </div>
+        <div class="text-xs text-slate-400 font-mono bg-[#070b14] px-3.5 py-2 rounded-xl border border-[#162136]">
+            إجمالي الجلسات: <strong class="text-white font-mono">{{ sessions|length }}</strong>
+        </div>
+    </div>
+
+    <!-- Sessions Table -->
+    <div class="portal-card border rounded-2xl overflow-hidden shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-4">الحالة</th>
+                        <th class="py-3.5 px-4">وقت بدء الاتصال</th>
+                        <th class="py-3.5 px-4">وقت انتهاء الاتصال</th>
+                        <th class="py-3.5 px-4">التحميل (Download)</th>
+                        <th class="py-3.5 px-4">الرفع (Upload)</th>
+                        <th class="py-3.5 px-4">إجمالي البيانات</th>
+                        <th class="py-3.5 px-4">مدة الاتصال</th>
+                        <th class="py-3.5 px-4">عنوان IP</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% for s in sessions %}
+                    <tr class="hover:bg-[#11192b] transition">
+                        <!-- Status -->
+                        <td class="py-3 px-4">
+                            {% if s.is_active %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1"></span>متصل الآن
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-700/40 text-slate-400 border border-slate-700">
+                                مكتملة
+                            </span>
+                            {% endif %}
+                        </td>
+                        <!-- Start Time -->
+                        <td class="py-3 px-4 font-mono text-slate-200">{{ s.acctstarttime }}</td>
+                        <!-- Stop Time -->
+                        <td class="py-3 px-4 font-mono text-slate-400">
+                            {% if s.is_active %}
+                            <span class="text-emerald-400 font-bold">جلسة جارية</span>
+                            {% else %}
+                            {{ s.acctstoptime or '-' }}
+                            {% endif %}
+                        </td>
+                        <!-- Download -->
+                        <td class="py-3 px-4 font-mono text-emerald-400 font-semibold">{{ s.download_str }}</td>
+                        <!-- Upload -->
+                        <td class="py-3 px-4 font-mono text-sky-400 font-semibold">{{ s.upload_str }}</td>
+                        <!-- Total -->
+                        <td class="py-3 px-4 font-mono font-bold text-purple-300">{{ s.total_str }}</td>
+                        <!-- Duration -->
+                        <td class="py-3 px-4 font-mono text-amber-400">{{ s.duration_str }}</td>
+                        <!-- IP -->
+                        <td class="py-3 px-4 font-mono text-slate-400">{{ s.framedipaddress or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="py-12 text-center text-slate-400">
+                            <i class="fa-solid fa-folder-open text-3xl mb-2 block text-slate-500"></i>
+                            لا توجد جلسات سابقة مسجلة لهذا الحساب حالياً.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

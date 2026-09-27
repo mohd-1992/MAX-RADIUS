@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}قوالب رسائل الواتساب التلقائية{% endblock %}
+{% block page_title %}قوالب وإشعارات الواتساب (WhatsApp Templates){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header Banner -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                <i class="fa-solid fa-file-code"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    <span>قوالب الرسائل التلقائية الذكية</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    تخصيص نصوص الإشعارات التلقائية لكروت الإنترنت، تنبيهات استهلاك 80%، وشحن المحفظة
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('whatsapp_dashboard') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-arrow-right text-xs"></i>
+                <span>العودة للوحة الواتساب</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Templates Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% for tmpl in templates %}
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-4 relative overflow-hidden group hover:border-indigo-500/30 transition">
+            
+            <div class="space-y-3">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full {% if tmpl.is_enabled %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
+                        <h3 class="text-sm font-bold text-white">{{ tmpl.title }}</h3>
+                    </div>
+                    <span class="font-mono text-[10px] text-slate-500 bg-[#070b14] px-2 py-0.5 rounded border border-slate-800">{{ tmpl.event_key }}</span>
+                </div>
+
+                <!-- Template Body Preview -->
+                <div class="bg-[#070b14] p-3.5 rounded-xl border border-slate-800/80 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed select-all">
+{{ tmpl.template_text }}
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-[#1c2840]/60">
+                <span class="text-[11px] {% if tmpl.is_enabled %}text-emerald-400 font-semibold{% else %}text-slate-500{% endif %}">
+                    {% if tmpl.is_enabled %}🟢 القالب مفعل للإرسال الآلي{% else %}⚪ معطل مؤقتاً{% endif %}
+                </span>
+                <button type="button" onclick="openEditTemplateModal({{ tmpl.id }}, '{{ tmpl.title }}', `{{ tmpl.template_text|replace('`', '\\`') }}`, {{ tmpl.is_enabled }})"
+                        class="px-3.5 py-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>تعديل القالب</span>
+                </button>
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<!-- Modal: Edit Template -->
+<div id="editTemplateModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-fade-in relative text-right">
+        
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-indigo-400"></i>
+                <span id="modalTemplateTitle">تعديل قالب الرسالة</span>
+            </h3>
+            <button type="button" onclick="closeEditTemplateModal()" class="text-slate-400 hover:text-white text-base">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <form id="editTemplateForm" onsubmit="saveTemplateChanges(event)" class="space-y-4">
+            <input type="hidden" id="editTemplateId" name="template_id">
+
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold text-slate-300">عنوان القالب:</label>
+                <input type="text" id="editTitle" name="title" required class="w-full px-3 py-2 bg-[#070b14] border border-slate-700 rounded-lg text-xs text-white focus:border-indigo-500 outline-none">
+            </div>
+
+            <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                    <label class="block text-xs font-semibold text-slate-300">نص الرسالة:</label>
+                    <span class="text-[10px] text-slate-400">يدعم تنسيقات الواتساب (*غامق*، _مائل_)</span>
+                </div>
+                <textarea id="editTemplateText" name="template_text" rows="8" required class="w-full p-3 bg-[#070b14] border border-slate-700 rounded-lg text-xs font-mono text-white focus:border-indigo-500 outline-none leading-relaxed"></textarea>
+            </div>
+
+            <!-- Placeholders helper tags -->
+            <div class="bg-[#070b14] p-3 rounded-xl border border-slate-800 space-y-1.5">
+                <span class="text-[11px] font-bold text-slate-400 block">المتغيرات المتاحة للنسخ والإدراج:</span>
+                <div class="flex flex-wrap gap-1.5 text-[10px] font-mono">
+                    <span onclick="insertPlaceholder('{username}')" class="px-2 py-0.5 bg-slate-800 text-indigo-300 rounded border border-slate-700 cursor-pointer hover:bg-slate-700">{username}</span>
+                    <span onclick="insertPlaceholder('{password}')" class="px-2 py-0.5 bg-slate-800 text-indigo-300 rounded border border-slate-700 cursor-pointer hover:bg-slate-700">{password}</span>
+                    <span onclick="insertPlaceholder('{package_name}')" class="px-2 py-0.5 bg-slate-800 text-indigo-300 rounded border border-slate-700 cursor-pointer hover:bg-slate-700">{package_name}</span>
+                    <span onclick="insertPlaceholder('{quota}')" class="px-2 py-0.5 bg-slate-800 text-indigo-300 rounded border border-slate-700 cursor-pointer hover:bg-slate-700">{quota}</span>
+                    <span onclick="insertPlaceholder('{quota_remaining}')" class="px-2 py-0.5 bg-slate-800 text-indigo-300 rounded border border-slate-700 cursor-pointer hover:bg-slate-700">{quota_remaining}</span>
+                    <span onclick="insertPlaceholder('{validity}')" class="px-2 py-0.5 bg-slate-800 text-indigo-300 rounded border border-slate-700 cursor-pointer hover:bg-slate-700">{validity}</span>
+                    <span onclick="insertPlaceholder('{price}')" class="px-2 py-0.5 bg-slate-800 text-indigo-300 rounded border border-slate-700 cursor-pointer hover:bg-slate-700">{price}</span>
+                    <span onclick="insertPlaceholder('{expiry_date}')" class="px-2 py-0.5 bg-slate-800 text-indigo-300 rounded border border-slate-700 cursor-pointer hover:bg-slate-700">{expiry_date}</span>
+                </div>
+            </div>
+
+            <label class="flex items-center gap-2 cursor-pointer pt-1">
+                <input type="checkbox" id="editIsEnabled" name="is_enabled" value="1" class="w-4 h-4 text-indigo-600 rounded bg-[#070b14] border-slate-700">
+                <span class="text-xs font-semibold text-white">تفعيل هذا القالب للإرسال التلقائي</span>
+            </label>
+
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#1c2840]">
+                <button type="button" onclick="closeEditTemplateModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition">إلغاء</button>
+                <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-indigo-600/30">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>حفظ التعديلات</span>
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<!-- SweetAlert2 Vendor -->
+<script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
+
+<script>
+function openEditTemplateModal(id, title, text, isEnabled) {
+    document.getElementById('editTemplateId').value = id;
+    document.getElementById('editTitle').value = title;
+    document.getElementById('editTemplateText').value = text;
+    document.getElementById('editIsEnabled').checked = Boolean(isEnabled);
+    document.getElementById('modalTemplateTitle').innerText = 'تعديل: ' + title;
+    document.getElementById('editTemplateModal').classList.remove('hidden');
+}
+
+function closeEditTemplateModal() {
+    document.getElementById('editTemplateModal').classList.add('hidden');
+}
+
+function insertPlaceholder(tag) {
+    const area = document.getElementById('editTemplateText');
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    area.value = area.value.substring(0, start) + tag + area.value.substring(end);
+    area.focus();
+}
+
+function saveTemplateChanges(e) {
+    e.preventDefault();
+    const form = document.getElementById('editTemplateForm');
+    const formData = new FormData(form);
+
+    fetch('{{ url_for("api_whatsapp_save_template") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            closeEditTemplateModal();
+            Swal.fire({
+                title: 'تم التحديث!',
+                text: data.message,
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false,
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            }).then(() => location.reload());
+        } else {
+            Swal.fire('خطأ', data.message || 'فشل الحفظ', 'error');
+        }
+    })
+    .catch(err => Swal.fire('خطأ في الاتصال', err.message, 'error'));
+}
+</script>
+{% endblock %}

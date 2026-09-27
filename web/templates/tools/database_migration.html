@@ -1,0 +1,850 @@
+{% extends "base.html" %}
+
+{% block title %}استوديو ترحيل واستيراد قواعد البيانات (Migration Studio){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840]">
+        <div>
+            <div class="flex items-center gap-2.5">
+                <span class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-600/20 to-blue-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                    <i class="fa-solid fa-database"></i>
+                </span>
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        استوديو ترحيل قواعد البيانات (Database Migration Studio)
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">SAS4 & SQL Support</span>
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">استيراد وترحيل الباقات، المشتركين، الكروت، والموزعين من نسخ احتياطية خارجية إلى MAX RADIUS مع معمارية اللقطة الثابتة (Snapshotting)</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2.5">
+            <a href="{{ url_for('import_data_page') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-file-excel text-emerald-400"></i>استيراد Excel
+            </a>
+            <a href="{{ url_for('system_services_page') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-arrow-right text-slate-400"></i>أدوات النظام
+            </a>
+        </div>
+    </div>
+
+    <!-- Stepper Navigation -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <!-- Step 1 Nav -->
+            <div id="step-nav-1" onclick="goToStep(1)" class="flex items-center gap-3 p-3 rounded-xl border border-cyan-500/40 bg-cyan-500/10 transition cursor-pointer">
+                <div id="step-badge-1" class="w-7 h-7 rounded-lg bg-cyan-500 text-slate-950 flex items-center justify-center font-bold text-xs">1</div>
+                <div>
+                    <div id="step-title-1" class="text-xs font-bold text-cyan-300">رفع / تحديد الملف</div>
+                    <div class="text-[10px] text-slate-400">ملف .gz أو .sql</div>
+                </div>
+            </div>
+
+            <!-- Step 2 Nav -->
+            <div id="step-nav-2" onclick="goToStep(2)" class="flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-[#070b14] transition opacity-50 cursor-not-allowed">
+                <div id="step-badge-2" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs">2</div>
+                <div>
+                    <div id="step-title-2" class="text-xs font-bold text-slate-400">تقرير الفحص والتحليل</div>
+                    <div class="text-[10px] text-slate-500">حصر الكيانات والباقات</div>
+                </div>
+            </div>
+
+            <!-- Step 3 Nav -->
+            <div id="step-nav-3" onclick="goToStep(3)" class="flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-[#070b14] transition opacity-50 cursor-not-allowed">
+                <div id="step-badge-3" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs">3</div>
+                <div>
+                    <div id="step-title-3" class="text-xs font-bold text-slate-400">مطابقة وتخصيص الباقات</div>
+                    <div class="text-[10px] text-slate-500">Package Mapping</div>
+                </div>
+            </div>
+
+            <!-- Step 4 Nav -->
+            <div id="step-nav-4" onclick="goToStep(4)" class="flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-[#070b14] transition opacity-50 cursor-not-allowed">
+                <div id="step-badge-4" class="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs">4</div>
+                <div>
+                    <div id="step-title-4" class="text-xs font-bold text-slate-400">خيارات الترحيل والتأكيد</div>
+                    <div class="text-[10px] text-slate-500">تطبيق واستيراد البيانات</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 1: Upload & Input Panel -->
+    <div id="step-panel-1" class="space-y-6">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6">
+            <h3 class="text-base font-bold text-white mb-2 flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up text-cyan-400"></i>
+                1. تحديد ملف النسخة الاحتياطية (Backup Archive)
+            </h3>
+            <p class="text-xs text-slate-400 mb-6">قم باختيار ملف النسخة الاحتياطية من جهازك بصيغة GZIP MySQL Dump (.gz) أو SQL (.sql) لبدء الفحص والتحليل الفوري.</p>
+
+            <!-- File Upload Full-Width -->
+            <div class="space-y-3 max-w-2xl mx-auto">
+                <div id="dropZone" class="border-2 border-dashed border-slate-700 hover:border-cyan-500 rounded-2xl p-8 text-center cursor-pointer transition bg-[#070b14]/50 group" onclick="document.getElementById('backupFileInput').click()">
+                    <input type="file" id="backupFileInput" class="hidden" accept=".gz,.sql,.sql.gz,.tar.gz" onchange="handleFileSelected(this.files[0])">
+                    <div class="w-16 h-16 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center text-3xl mx-auto mb-3 group-hover:scale-110 transition">
+                        <i class="fa-solid fa-file-zipper"></i>
+                    </div>
+                    <div id="fileSelectedLabel" class="text-sm font-bold text-white mb-1">اضغط لاختيار الملف أو اسحبه إلى هنا</div>
+                    <div class="text-xs text-slate-500">يدعم صيغ GZIP MySQL Dump (.gz) و SQL حتى 500MB+</div>
+                </div>
+            </div>
+
+            <!-- Action Trigger -->
+            <div class="mt-6 pt-6 border-t border-slate-800 flex justify-end gap-3">
+                <button type="button" id="btnStartAnalysis" onclick="startBackupAnalysis()" class="px-6 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-900/30 transition flex items-center gap-2">
+                    <i class="fa-solid fa-magnifying-glass-chart"></i>
+                    بدء الفحص والتحليل الأولي (Pre-flight Inspection)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive Progress & Cancellation Overlay -->
+    <div id="loadingOverlay" class="hidden bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-8 md:p-12 text-center max-w-2xl mx-auto shadow-2xl space-y-6">
+        <div class="relative w-20 h-20 mx-auto">
+            <div class="w-20 h-20 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin"></div>
+            <div class="absolute inset-0 flex items-center justify-center text-cyan-400 font-bold text-sm" id="progressPercentBadge">0%</div>
+        </div>
+
+        <div>
+            <h4 id="loadingTitle" class="text-lg font-bold text-white mb-1.5">جاري ترحيل وحقن البيانات في MAX RADIUS...</h4>
+            <p id="loadingDesc" class="text-xs text-slate-400">يتم معالجة السجلات بدفعات فائقة السرعة مع المزامنة اللحظية للراديوس.</p>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="space-y-2">
+            <div class="flex justify-between items-center text-xs text-slate-300 font-medium px-1">
+                <span id="progressStageText" class="text-cyan-400 font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-spinner fa-spin"></i> جاري التهيئة...
+                </span>
+                <span id="progressPercentText" class="font-mono text-cyan-300 font-bold">0%</span>
+            </div>
+            <div class="w-full h-3.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5 shadow-inner">
+                <div id="progressBarFill" class="h-full bg-gradient-to-r from-cyan-500 via-blue-500 to-emerald-400 rounded-full transition-all duration-300 shadow-md shadow-cyan-500/50" style="width: 0%"></div>
+            </div>
+            <div class="flex justify-between items-center text-[11px] text-slate-500 px-1">
+                <span>السرعة: فائقة (Ultra-Fast Engine)</span>
+                <span id="progressProcessedText" class="font-mono text-slate-400">0 سجل</span>
+            </div>
+        </div>
+
+        <!-- Cancellation Button -->
+        <div class="pt-4 border-t border-slate-800 flex justify-center gap-3">
+            <button type="button" id="btnCancelMigration" onclick="cancelMigrationAction()" class="px-5 py-2.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-600/40 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-rose-950/30">
+                <i class="fa-solid fa-ban"></i>
+                إلغاء العملية والتراجع (Cancel & Rollback)
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 2: Inspection & Metrics Report -->
+    <div id="step-panel-2" class="hidden space-y-6">
+        <!-- Detection Summary Banner -->
+        <div class="bg-gradient-to-r from-cyan-950/40 via-blue-950/20 to-slate-900/40 border border-cyan-500/30 rounded-2xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center justify-center text-2xl flex-shrink-0">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <div>
+                    <div class="text-xs font-bold text-cyan-400 uppercase tracking-wider">تم فحص الأرشيف والتعرف على البيانات بنجاح</div>
+                    <div id="resSystemType" class="text-lg font-bold text-white mt-0.5">SAS4 (Smart Authentication System)</div>
+                    <div id="resDbName" class="text-xs text-slate-400">قاعدة البيانات: ram_license_22265 | إجمالي الجداول: 69</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" onclick="goToStep(1)" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition">
+                    <i class="fa-solid fa-rotate-left me-1"></i>اختيار ملف آخر
+                </button>
+            </div>
+        </div>
+
+        <!-- Metric Stat Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span>باقات وخطط الخدمة</span>
+                    <i class="fa-solid fa-box text-cyan-400"></i>
+                </div>
+                <div id="statProfilesCount" class="text-2xl font-black text-white">12</div>
+                <div class="text-[11px] text-cyan-400/80 mt-1">جاهزة للمطابقة والإنشاء</div>
+            </div>
+
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span>المشتركون الثابتون</span>
+                    <i class="fa-solid fa-users text-purple-400"></i>
+                </div>
+                <div id="statUsersCount" class="text-2xl font-black text-white">56</div>
+                <div id="statUsersHint" class="text-[11px] text-purple-400/80 mt-1">حسابات PPPoE / Wireless فعلية</div>
+            </div>
+
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span>كروت الشحن والـ Vouchers</span>
+                    <i class="fa-solid fa-id-card text-emerald-400"></i>
+                </div>
+                <div id="statCardsCount" class="text-2xl font-black text-white">28,607</div>
+                <div class="text-[11px] text-emerald-400/80 mt-1">مع اللقطات الثابتة Snapshots</div>
+            </div>
+
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4">
+                <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                    <span>المدراء والموزعون</span>
+                    <i class="fa-solid fa-user-tie text-amber-400"></i>
+                </div>
+                <div id="statAdminsCount" class="text-2xl font-black text-white">4</div>
+                <div class="text-[11px] text-amber-400/80 mt-1">مع محافظ الأرصدة المالية</div>
+            </div>
+        </div>
+
+        <!-- Discovered Breakdown Info -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6">
+            <h3 class="text-base font-bold text-white mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-clipboard-check text-cyan-400"></i>
+                ملخص سلامة ومطابقة الأرشيف
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-300">
+                <div class="p-3.5 rounded-xl bg-[#070b14] border border-slate-800 space-y-1">
+                    <div class="font-bold text-cyan-400">هيكل المصادقة</div>
+                    <p class="text-[11px] text-slate-400">يدعم جدول radcheck وكلمات المرور الواضحة وتحديد الجلسات المتزامنة.</p>
+                </div>
+                <div class="p-3.5 rounded-xl bg-[#070b14] border border-slate-800 space-y-1">
+                    <div class="font-bold text-emerald-400">معمارية الكروت</div>
+                    <p class="text-[11px] text-slate-400">جاهزة لحقن اللقطات الثابتة (Snapshots) مع الأرقام التسلسلية وتواريخ الصلاحية.</p>
+                </div>
+                <div class="p-3.5 rounded-xl bg-[#070b14] border border-slate-800 space-y-1">
+                    <div class="font-bold text-purple-400">الحماية والاستقرار</div>
+                    <p class="text-[11px] text-slate-400">تجاهل الجداول الخدمية غير القياسية لتفادي تلويث قاعدة البيانات الحالية.</p>
+                </div>
+            </div>
+
+            <!-- Step 2 Navigation Actions -->
+            <div class="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
+                <button type="button" onclick="goToStep(1)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition">
+                    <i class="fa-solid fa-arrow-right me-1"></i>السابق: تغيير الملف
+                </button>
+                <button type="button" onclick="goToStep(3)" class="px-6 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-900/30 transition flex items-center gap-2">
+                    التالي: مطابقة وتخصيص الباقات
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Package Mapping Studio -->
+    <div id="step-panel-3" class="hidden space-y-6">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-network-wired text-cyan-400"></i>
+                        3. مصفوفة مطابقة وتخصيص الباقات (Package Mapping Matrix)
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">حدد لكل باقة مكتشفة في النسخة القديمة: هل تريد إنشاء باقة جديدة في MAX RADIUS أم ربطها بباقة موجودة مسبقاً؟</p>
+                </div>
+                <button type="button" onclick="autoSetAllPackages('auto_create')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition flex-shrink-0">
+                    <i class="fa-solid fa-wand-magic-sparkles text-cyan-400 me-1"></i>إنشاء الكل كباقات جديدة تلقائياً
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-right text-xs">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-slate-400 font-bold bg-[#070b14]/50">
+                            <th class="py-3 px-3">#</th>
+                            <th class="py-3 px-3">اسم الباقة المكتشفة (SAS4 Profile)</th>
+                            <th class="py-3 px-3">السعر</th>
+                            <th class="py-3 px-3">حجم البيانات (Quota)</th>
+                            <th class="py-3 px-3">الصلاحية</th>
+                            <th class="py-3 px-3">الإجراء في MAX RADIUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="packageMappingTableBody" class="divide-y divide-slate-800/60 text-slate-200">
+                        <!-- Populated via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Step 3 Navigation Actions -->
+            <div class="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
+                <button type="button" onclick="goToStep(2)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition">
+                    <i class="fa-solid fa-arrow-right me-1"></i>السابق: تقرير الفحص
+                </button>
+                <button type="button" onclick="goToStep(4)" class="px-6 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-cyan-900/30 transition flex items-center gap-2">
+                    التالي: خيارات واستراتيجية الترحيل
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4: Migration Settings & Confirmation -->
+    <div id="step-panel-4" class="hidden space-y-6">
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6">
+            <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-cyan-400"></i>
+                4. خيارات واستراتيجية الترحيل (Migration Settings)
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label class="flex items-start gap-3 p-4 rounded-xl border border-slate-800 bg-[#070b14] hover:border-cyan-500/40 cursor-pointer transition">
+                    <input type="checkbox" id="optSubscribers" checked class="mt-1 rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0">
+                    <div>
+                        <div class="text-xs font-bold text-white">استيراد المشتركين الثابتين (56 مشتركاً فعلياً فقط)</div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">ترحيل حسابات PPPoE / Wireless الثابتة الحقيقية وتفادي خلط كروت الهوتسبوت معهم.</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-3 p-4 rounded-xl border border-slate-800 bg-[#070b14] hover:border-cyan-500/40 cursor-pointer transition">
+                    <input type="checkbox" id="optCards" checked class="mt-1 rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0">
+                    <div>
+                        <div class="text-xs font-bold text-white">استيراد كروت الشحن والـ Vouchers (28,607 كرت مع Snapshots)</div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">توليد حزم الكروت وتثبيت مواصفات الباقات، وتشمل الكروت الجديدة والـ 1,576 كرت المفعلين.</div>
+                    </div>
+                </label>
+
+                <label class="flex items-start gap-3 p-4 rounded-xl border border-slate-800 bg-[#070b14] hover:border-cyan-500/40 cursor-pointer transition">
+                    <input type="checkbox" id="optResellers" checked class="mt-1 rounded bg-slate-900 border-slate-700 text-cyan-500 focus:ring-0">
+                    <div>
+                        <div class="text-xs font-bold text-white">استيراد الموزعين والمدراء وأرصدة المحافظ</div>
+                        <div class="text-[11px] text-slate-400 mt-0.5">إنشاء حسابات الموزعين في النظام ونقل أرصدة محافظهم المالية الحالية.</div>
+                    </div>
+                </label>
+
+                <!-- Session Import Mode Selector -->
+                <div class="p-4 rounded-xl border border-slate-800 bg-[#070b14] space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
+                            استيراد سجلات الاستهلاك وجلسات المحاسبة (Accounting Sessions):
+                        </div>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">112k+ Radacct</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                        <label class="relative flex flex-col p-3 rounded-xl border border-cyan-500/40 bg-cyan-950/20 hover:border-cyan-400 cursor-pointer transition">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-bolt text-amber-400"></i>
+                                    ملخص مدمج (مستحسن)
+                                </span>
+                                <input type="radio" name="session_mode" value="consolidated" checked class="text-cyan-500 focus:ring-0 bg-slate-900 border-slate-700">
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">حساب إجمالي الرفع والتحميل والوقت لكل مستخدم ودمجه في جلسة ملخصة واحدة. سرعة فائقة جداً (3 ثوانٍ).</p>
+                        </label>
+
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-800 bg-slate-900/40 hover:border-slate-700 cursor-pointer transition">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-list text-purple-400"></i>
+                                    كافة الجلسات تفصيلياً
+                                </span>
+                                <input type="radio" name="session_mode" value="full" class="text-cyan-500 focus:ring-0 bg-slate-900 border-slate-700">
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">نقل مئات الآلاف من سجلات الجلسات الفردية حرفياً كما هي في النسخة السابقة.</p>
+                        </label>
+
+                        <label class="relative flex flex-col p-3 rounded-xl border border-slate-800 bg-slate-900/40 hover:border-slate-700 cursor-pointer transition">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-ban text-rose-400"></i>
+                                    تخطي الجلسات
+                                </span>
+                                <input type="radio" name="session_mode" value="none" class="text-cyan-500 focus:ring-0 bg-slate-900 border-slate-700">
+                            </div>
+                            <p class="text-[11px] text-slate-400 leading-relaxed">عدم استيراد أي جلسات سابقة والبدء بسجل محاسبة جديد ونظيف للمستخدمين.</p>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl border border-slate-800 bg-[#070b14] space-y-2">
+                    <label class="block text-xs font-bold text-white">استراتيجية التعامل مع الحسابات المكررة:</label>
+                    <select id="optCollisionStrategy" class="w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-xs focus:border-cyan-500 focus:outline-none">
+                        <option value="skip">تخطي الحسابات المكررة (Skip Duplicates)</option>
+                        <option value="overwrite" selected>تحديث واستبدال الحساب المكرر (Overwrite / Update Existing)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Pre-Execution Notice -->
+            <div class="mt-6 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 flex items-start gap-3 text-amber-200 text-xs">
+                <i class="fa-solid fa-shield-halved text-amber-400 text-base mt-0.5 flex-shrink-0"></i>
+                <div class="leading-relaxed">
+                    <span class="font-bold">حماية المعاملة الذرية (Atomic Commit):</span> لن يتم حفظ أي تعديل في قاعدة بيانات MAX RADIUS إلا بعد نجاح معالجة كافة السجلات بنسبة 100%. في حال حدوث أي خطأ، سيقوم النظام بالتراجع الفوري (Rollback) التلقائي لحماية بيانات الشبكة.
+                </div>
+            </div>
+
+            <!-- Step 4 Execution Actions -->
+            <div class="mt-6 pt-6 border-t border-slate-800 flex items-center justify-between">
+                <button type="button" onclick="goToStep(3)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition">
+                    <i class="fa-solid fa-arrow-right me-1"></i>السابق: مطابقة الباقات
+                </button>
+                <button type="button" id="btnExecuteMigration" onclick="executeMigrationAction()" class="px-8 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-900/30 transition flex items-center gap-2">
+                    <i class="fa-solid fa-bolt"></i>
+                    تأكيد وبدء الترحيل إلى MAX RADIUS الآن
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Execution Success Modal / View -->
+    <div id="executionResultCard" class="hidden bg-[#0b0f19] border border-emerald-500/30 rounded-2xl p-8 text-center space-y-4">
+        <div class="w-16 h-16 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-3xl mx-auto">
+            <i class="fa-solid fa-check-double"></i>
+        </div>
+        <h3 class="text-xl font-bold text-white">تم ترحيل واستيراد قاعدة البيانات بنجاح تام!</h3>
+        <p id="executionResultMessage" class="text-xs text-slate-300 max-w-xl mx-auto leading-relaxed"></p>
+
+        <div id="executionStatsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-2xl mx-auto pt-4 text-right">
+            <!-- Populated via JS -->
+        </div>
+
+        <div class="pt-6 flex justify-center gap-3">
+            <a href="{{ url_for('vouchers') }}" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition">
+                <i class="fa-solid fa-layer-group me-1.5"></i>عرض كروت الشحن
+            </a>
+            <a href="{{ url_for('subscribers') }}" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition">
+                <i class="fa-solid fa-users me-1.5"></i>عرض المشتركين
+            </a>
+            <a href="{{ url_for('system_services_page') }}" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition">
+                العودة للأدوات
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+let g_analysisData = null;
+let g_selectedFile = null;
+let g_currentStep = 1;
+let g_maxUnlockedStep = 1;
+
+function updateStepperUI(activeStep) {
+    g_currentStep = activeStep;
+    if (activeStep > g_maxUnlockedStep) {
+        g_maxUnlockedStep = activeStep;
+    }
+
+    for (let i = 1; i <= 4; i++) {
+        const nav = document.getElementById(`step-nav-${i}`);
+        const badge = document.getElementById(`step-badge-${i}`);
+        const title = document.getElementById(`step-title-${i}`);
+
+        if (i === activeStep) {
+            // Active Step Styling
+            nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-cyan-500/50 bg-cyan-500/15 shadow-lg shadow-cyan-950/40 transition cursor-pointer';
+            badge.className = 'w-7 h-7 rounded-lg bg-cyan-500 text-slate-950 flex items-center justify-center font-bold text-xs';
+            badge.innerHTML = `${i}`;
+            title.className = 'text-xs font-bold text-cyan-300';
+            nav.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else if (i < activeStep || i <= g_maxUnlockedStep) {
+            // Completed / Unlocked Step
+            nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 transition cursor-pointer';
+            badge.className = 'w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center font-bold text-xs';
+            badge.innerHTML = '<i class="fa-solid fa-check"></i>';
+            title.className = 'text-xs font-bold text-emerald-300';
+            nav.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            // Locked Step
+            nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-[#070b14] transition opacity-50 cursor-not-allowed';
+            badge.className = 'w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center font-bold text-xs';
+            badge.innerHTML = `${i}`;
+            title.className = 'text-xs font-bold text-slate-400';
+        }
+    }
+}
+
+function goToStep(step) {
+    if (step > 1 && !g_analysisData) {
+        alert('يرجى اختيار ملف وبدء الفحص والتحليل أولاً.');
+        return;
+    }
+    if (step > g_maxUnlockedStep) {
+        return;
+    }
+
+    // Hide all panels
+    document.getElementById('step-panel-1').classList.add('hidden');
+    document.getElementById('step-panel-2').classList.add('hidden');
+    document.getElementById('step-panel-3').classList.add('hidden');
+    document.getElementById('step-panel-4').classList.add('hidden');
+    document.getElementById('executionResultCard').classList.add('hidden');
+    document.getElementById('loadingOverlay').classList.add('hidden');
+
+    // Show target panel
+    const targetPanel = document.getElementById(`step-panel-${step}`);
+    if (targetPanel) {
+        targetPanel.classList.remove('hidden');
+    }
+
+    updateStepperUI(step);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function handleFileSelected(file) {
+    if (!file) return;
+    g_selectedFile = file;
+    document.getElementById('fileSelectedLabel').innerHTML = `<span class="text-cyan-400 font-bold">${file.name}</span> (${(file.size / (1024*1024)).toFixed(2)} MB)`;
+}
+
+function startBackupAnalysis() {
+    if (!g_selectedFile) {
+        alert('يرجى اختيار ملف النسخة الاحتياطية من جهازك أولاً.');
+        return;
+    }
+
+    document.getElementById('step-panel-1').classList.add('hidden');
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+
+    const formData = new FormData();
+    formData.append('backup_file', g_selectedFile);
+
+    fetch('{{ url_for("api_migration_analyze") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(res => {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        if (res.success) {
+            g_analysisData = res;
+            renderAnalysisResults(res);
+            g_maxUnlockedStep = 4; // Unlock all subsequent steps
+            goToStep(2); // Automatically move to Step 2!
+        } else {
+            alert('حدث خطأ أثناء فحص الملف: ' + (res.error || 'ملف غير صالح'));
+            document.getElementById('step-panel-1').classList.remove('hidden');
+            updateStepperUI(1);
+        }
+    })
+    .catch(err => {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        alert('فشل الاتصال بالخادم: ' + err.message);
+        document.getElementById('step-panel-1').classList.remove('hidden');
+        updateStepperUI(1);
+    });
+}
+
+function renderAnalysisResults(data) {
+    const stats = data.stats || data;
+    const dbName = data.database_name || stats.database_name || 'ram_license_22265';
+    const totalTables = data.total_tables || stats.total_tables || 69;
+    const profilesCount = stats.profiles_count !== undefined ? stats.profiles_count : (data.profiles ? data.profiles.length : 0);
+    const fixedSubscribers = stats.fixed_subscribers_count !== undefined ? stats.fixed_subscribers_count : (stats.users_count || 0);
+    const cardUsersCount = stats.card_users_count || 0;
+    const cardsCount = stats.cards_count || 0;
+    const adminsCount = stats.admins_count !== undefined ? stats.admins_count : (data.admins ? data.admins.length : 0);
+
+    document.getElementById('resSystemType').innerText = data.system_type || 'نظام خارجي';
+    document.getElementById('resDbName').innerText = `قاعدة البيانات: ${dbName} | إجمالي الجداول: ${totalTables}`;
+    document.getElementById('statProfilesCount').innerText = profilesCount;
+    document.getElementById('statUsersCount').innerText = Number(fixedSubscribers).toLocaleString();
+    if (cardUsersCount > 0) {
+        document.getElementById('statUsersHint').innerText = `${fixedSubscribers} مشترك ثابت (تم فرز ${Number(cardUsersCount).toLocaleString()} كرت مفعل للكروت)`;
+    }
+    document.getElementById('statCardsCount').innerText = Number(cardsCount).toLocaleString();
+    document.getElementById('statAdminsCount').innerText = adminsCount;
+
+    const tbody = document.getElementById('packageMappingTableBody');
+    tbody.innerHTML = '';
+
+    const existingPkgs = data.existing_packages || [];
+
+    data.profiles.forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-800/30 transition';
+
+        let optionsHtml = `<option value="auto_create" selected>✨ إنشاء باقة جديدة بنفس الاسم والمواصفات</option>`;
+        existingPkgs.forEach(ep => {
+            optionsHtml += `<option value="${ep.id}">ربط مع [${ep.name}] (${ep.price} YER - ${ep.volume_quota_mb}MB)</option>`;
+        });
+
+        let unitLabel = 'يوم';
+        if (p.validity_unit === 'hours' || p.validity_unit === 'hour' || p.validity_unit === '0') unitLabel = 'ساعة';
+        else if (p.validity_unit === 'months' || p.validity_unit === 'month' || p.validity_unit === '2') unitLabel = 'شهر';
+        else if (p.validity_unit === 'minutes' || p.validity_unit === 'minute') unitLabel = 'دقيقة';
+
+        let trafficDisplay = '<span class="text-slate-500">غير محدود</span>';
+        if (p.traffic_mb > 0) {
+            if (p.traffic_mb >= 1024) {
+                const gbVal = (p.traffic_mb / 1024);
+                trafficDisplay = `${Number(gbVal % 1 === 0 ? gbVal : gbVal.toFixed(1))} GB`;
+            } else {
+                trafficDisplay = `${p.traffic_mb} MB`;
+            }
+        }
+
+        tr.innerHTML = `
+            <td class="py-3 px-3 font-mono text-slate-500">${idx + 1}</td>
+            <td class="py-3 px-3 font-bold text-white">${p.name}</td>
+            <td class="py-3 px-3 text-cyan-300 font-mono">${p.price} YER</td>
+            <td class="py-3 px-3">${trafficDisplay}</td>
+            <td class="py-3 px-3">${p.validity_value} ${unitLabel}</td>
+            <td class="py-3 px-3">
+                <select id="pkg_map_${p.id}" class="w-full px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-200 text-xs focus:border-cyan-500 focus:outline-none">
+                    ${optionsHtml}
+                </select>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function autoSetAllPackages(val) {
+    if (!g_analysisData) return;
+    g_analysisData.profiles.forEach(p => {
+        const select = document.getElementById(`pkg_map_${p.id}`);
+        if (select) select.value = val;
+    });
+}
+
+let g_migrationPollInterval = null;
+
+function executeMigrationAction() {
+    if (!confirm('هل أنت متأكد من رغبتك في بدء ترحيل واستيراد هذه البيانات إلى نظام MAX RADIUS الآن؟')) {
+        return;
+    }
+
+    const packageMapping = {};
+    if (g_analysisData && g_analysisData.profiles) {
+        g_analysisData.profiles.forEach(p => {
+            const select = document.getElementById(`pkg_map_${p.id}`);
+            if (select) {
+                packageMapping[p.id] = select.value;
+            }
+        });
+    }
+
+    const selectedSessionMode = document.querySelector('input[name="session_mode"]:checked') ? document.querySelector('input[name="session_mode"]:checked').value : 'consolidated';
+
+    const payload = {
+        server_path: (g_analysisData && g_analysisData.temp_server_path) ? g_analysisData.temp_server_path : '',
+        temp_server_path: (g_analysisData && g_analysisData.temp_server_path) ? g_analysisData.temp_server_path : '',
+        import_subscribers: document.getElementById('optSubscribers').checked,
+        import_cards: document.getElementById('optCards').checked,
+        import_resellers: document.getElementById('optResellers').checked,
+        session_mode: selectedSessionMode,
+        import_sessions: selectedSessionMode !== 'none',
+        collision_strategy: document.getElementById('optCollisionStrategy').value,
+        package_mapping: packageMapping
+    };
+
+    document.getElementById('step-panel-4').classList.add('hidden');
+    document.getElementById('loadingOverlay').classList.remove('hidden');
+    document.getElementById('loadingTitle').innerText = 'جاري ترحيل وحقن البيانات في MAX RADIUS...';
+    document.getElementById('loadingDesc').innerText = 'يتم معالجة السجلات بدفعات فائقة السرعة مع المزامنة اللحظية للراديوس.';
+    
+    // Reset progress UI
+    updateProgressUI(0, 'جاري بدء الاستيراد...', '0 سجل');
+    const btnCancel = document.getElementById('btnCancelMigration');
+    if (btnCancel) {
+        btnCancel.disabled = false;
+        btnCancel.classList.remove('opacity-50', 'cursor-not-allowed');
+        btnCancel.innerHTML = '<i class="fa-solid fa-ban"></i> إلغاء العملية والتراجع (Cancel & Rollback)';
+    }
+
+    fetch('{{ url_for("api_migration_execute") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(res => {
+        if (res.success) {
+            startPollingMigrationProgress();
+        } else {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            alert('حدث خطأ أثناء بدء الترحيل: ' + (res.error || 'خطأ غير معروف'));
+            goToStep(4);
+        }
+    })
+    .catch(err => {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        alert('فشل الاتصال بالخادم: ' + err.message);
+        goToStep(4);
+    });
+}
+
+function updateProgressUI(pct, stage, processedStr) {
+    const pFill = document.getElementById('progressBarFill');
+    const pText = document.getElementById('progressPercentText');
+    const pBadge = document.getElementById('progressPercentBadge');
+    const pStage = document.getElementById('progressStageText');
+    const pProc = document.getElementById('progressProcessedText');
+
+    if (pFill) pFill.style.width = pct + '%';
+    if (pText) pText.innerText = pct + '%';
+    if (pBadge) pBadge.innerText = pct + '%';
+    if (pStage) pStage.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${stage}`;
+    if (pProc && processedStr) pProc.innerText = processedStr;
+}
+
+function startPollingMigrationProgress() {
+    if (g_migrationPollInterval) clearInterval(g_migrationPollInterval);
+    
+    g_migrationPollInterval = setInterval(() => {
+        fetch('{{ url_for("api_migration_progress") }}')
+        .then(r => r.json())
+        .then(data => {
+            const pct = data.percent || 0;
+            const stage = data.stage || 'جاري المعالجة...';
+            const procCount = Number(data.processed || 0).toLocaleString();
+            const totalCount = Number(data.total || 0).toLocaleString();
+            const procStr = totalCount !== '0' ? `${procCount} / ${totalCount} سجل` : `${procCount} سجل`;
+
+            updateProgressUI(pct, stage, procStr);
+
+            if (data.unauthenticated) {
+                clearInterval(g_migrationPollInterval);
+                g_migrationPollInterval = null;
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                window.location.href = '{{ url_for("login") }}';
+                return;
+            }
+
+            if (data.status === 'completed') {
+                clearInterval(g_migrationPollInterval);
+                g_migrationPollInterval = null;
+                setTimeout(() => {
+                    document.getElementById('loadingOverlay').classList.add('hidden');
+                    showExecutionResult({
+                        success: true,
+                        stats: data.stats || {},
+                        message: data.message || 'اكتمل ترحيل البيانات بنجاح.'
+                    });
+                }, 400);
+            } else if (data.status === 'cancelled') {
+                clearInterval(g_migrationPollInterval);
+                g_migrationPollInterval = null;
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                alert('تم إلغاء عملية الاستيراد والتراجع عن كافة التغييرات بأمان.');
+                goToStep(1);
+            } else if (data.status === 'error') {
+                clearInterval(g_migrationPollInterval);
+                g_migrationPollInterval = null;
+                document.getElementById('loadingOverlay').classList.add('hidden');
+                alert('حدث خطأ أثناء الاستيراد: ' + (data.error || data.message || 'خطأ غير معروف'));
+                goToStep(4);
+            } else if (data.status === 'idle' && pct === 0) {
+                clearInterval(g_migrationPollInterval);
+                g_migrationPollInterval = null;
+                document.getElementById('loadingOverlay').classList.add('hidden');
+            }
+        })
+        .catch(err => {
+            console.error('Polling error:', err);
+        });
+    }, 450);
+}
+
+function cancelMigrationAction() {
+    if (!confirm('هل أنت متأكد من رغبتك في إلغاء عملية الاستيراد الآن والتراجع عن كافة البيانات؟')) {
+        return;
+    }
+
+    const btnCancel = document.getElementById('btnCancelMigration');
+    if (btnCancel) {
+        btnCancel.disabled = true;
+        btnCancel.classList.add('opacity-50', 'cursor-not-allowed');
+        btnCancel.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التراجع والإلغاء...';
+    }
+
+    fetch('{{ url_for("api_migration_cancel") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(res => {
+        // Polling will detect the 'cancelled' state and clean up smoothly
+    })
+    .catch(err => {
+        alert('فشل إرسال طلب الإلغاء: ' + err.message);
+    });
+}
+
+function showExecutionResult(res) {
+    // Hide all step panels
+    for (let i = 1; i <= 4; i++) {
+        document.getElementById(`step-panel-${i}`).classList.add('hidden');
+        const nav = document.getElementById(`step-nav-${i}`);
+        const badge = document.getElementById(`step-badge-${i}`);
+        const title = document.getElementById(`step-title-${i}`);
+        nav.className = 'flex items-center gap-3 p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 transition';
+        badge.className = 'w-7 h-7 rounded-lg bg-emerald-500 text-slate-950 flex items-center justify-center font-bold text-xs';
+        badge.innerHTML = '<i class="fa-solid fa-check"></i>';
+        title.className = 'text-xs font-bold text-emerald-300';
+    }
+
+    document.getElementById('executionResultCard').classList.remove('hidden');
+    document.getElementById('executionResultMessage').innerText = res.message || 'تمت العملية بنجاح.';
+
+    const stats = res.stats || {};
+    const grid = document.getElementById('executionStatsGrid');
+    grid.innerHTML = `
+        <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl">
+            <div class="text-[11px] text-slate-400">باقات جديدة</div>
+            <div class="text-base font-bold text-cyan-400">${stats.packages_created || 0}</div>
+        </div>
+        <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl">
+            <div class="text-[11px] text-slate-400">مشتركون مستوردون</div>
+            <div class="text-base font-bold text-purple-400">${Number(stats.subscribers_imported || 0).toLocaleString()}</div>
+        </div>
+        <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl">
+            <div class="text-[11px] text-slate-400">كروت مع Snapshots</div>
+            <div class="text-base font-bold text-emerald-400">${Number(stats.cards_imported || 0).toLocaleString()}</div>
+        </div>
+        <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl">
+            <div class="text-[11px] text-slate-400">مزامنة FreeRADIUS</div>
+            <div class="text-base font-bold text-blue-400">${Number(stats.radius_synced || 0).toLocaleString()}</div>
+        </div>
+    `;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Seamless Persistent State Restoration on Navigation / Refresh
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('{{ url_for("api_migration_progress") }}')
+    .then(r => r.json())
+    .then(data => {
+        if (data && (data.status === 'running' || data.status === 'cancelling')) {
+            // Hide all wizard step panels
+            for (let i = 1; i <= 4; i++) {
+                const p = document.getElementById(`step-panel-${i}`);
+                if (p) p.classList.add('hidden');
+            }
+            const resCard = document.getElementById('executionResultCard');
+            if (resCard) resCard.classList.add('hidden');
+
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) overlay.classList.remove('hidden');
+
+            const pct = data.percent || 0;
+            const stage = data.stage || 'جاري المعالجة...';
+            const procCount = Number(data.processed || 0).toLocaleString();
+            const totalCount = Number(data.total || 0).toLocaleString();
+            const procStr = totalCount !== '0' ? `${procCount} / ${totalCount} سجل` : `${procCount} سجل`;
+            updateProgressUI(pct, stage, procStr);
+
+            const btnCancel = document.getElementById('btnCancelMigration');
+            if (btnCancel) {
+                btnCancel.disabled = (data.status === 'cancelling');
+                if (data.status === 'cancelling') {
+                    btnCancel.classList.add('opacity-50', 'cursor-not-allowed');
+                    btnCancel.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جاري التراجع والإلغاء...';
+                } else {
+                    btnCancel.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnCancel.innerHTML = '<i class="fa-solid fa-ban"></i> إلغاء العملية والتراجع (Cancel & Rollback)';
+                }
+            }
+            startPollingMigrationProgress();
+        }
+    })
+    .catch(err => {
+        console.log("Migration status check notice:", err);
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,943 @@
+{% extends "base.html" %}
+
+{% block title %}خريطة الأبراج وأجهزة البث - MAX RADIUS{% endblock %}
+{% block page_title %}الخريطة البصرية الحية للأبراج وأجهزة البث (GIS Network Topology){% endblock %}
+
+{% block extra_head %}
+<!-- Local Offline Leaflet CSS & JS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+<style>
+    #map { height: 550px; width: 100%; border-radius: 1.25rem; z-index: 10; }
+    .leaflet-popup-content-wrapper { background: #0b0f19 !important; color: #fff !important; border: 1px solid #1c2840 !important; border-radius: 1rem !important; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5) !important; }
+    .leaflet-popup-tip { background: #0b0f19 !important; }
+    html.theme-light .leaflet-popup-content-wrapper { background: #ffffff !important; color: #0f172a !important; border: 1px solid #cbd5e1 !important; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.12) !important; }
+    html.theme-light .leaflet-popup-tip { background: #ffffff !important; }
+    html.theme-light .leaflet-popup-content-wrapper .border-slate-700 { border-color: #e2e8f0 !important; }
+    html.theme-light .leaflet-popup-content-wrapper .text-slate-300 { color: #334155 !important; }
+    html.theme-light .leaflet-popup-content-wrapper .text-slate-400 { color: #64748b !important; }
+    html.theme-light .leaflet-popup-content-wrapper .bg-slate-800 { background-color: #f1f5f9 !important; color: #334155 !important; border: 1px solid #e2e8f0 !important; }
+    .tab-btn.active { border-color: #06b6d4; color: #38bdf8; background: rgba(6, 182, 212, 0.1); }
+    .custom-tower-icon { display: flex; align-items: center; justify-content: center; background: #0284c7; color: white; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 12px rgba(2, 132, 199, 0.8); font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Banner & Action Buttons -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-map-location-dot"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    الخريطة البصرية لإدارة الأبراج وأجهزة البث (Towers & APs GIS)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">مراقبة جغرافية حية لمواقع الأبراج، السيكتورات، دوائر التغطية، والمشتركين المتصلين لحظياً</p>
+            </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2.5">
+            <button onclick="openAddTowerModal()" class="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-tower-broadcast"></i>
+                <span>إضافة برج جديد</span>
+            </button>
+            <button onclick="openAddApModal()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-satellite-dish"></i>
+                <span>إضافة جهاز بث / سيكتور</span>
+            </button>
+            <button onclick="location.reload()" class="px-3 py-2 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-arrows-rotate text-emerald-400"></i>
+                <span>تحديث</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Total Towers -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">إجمالي الأبراج والمواقع</span>
+                <div class="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-base border border-cyan-500/20">
+                    <i class="fa-solid fa-tower-cell"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-white font-mono">{{ data.total_towers }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>مواقع التوزيع:</span>
+                    <span class="font-bold text-cyan-400">مفعلة بالكامل</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Total Access Points / Sectors -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">أجهزة البث والسيكتورات (APs)</span>
+                <div class="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-base border border-indigo-500/20">
+                    <i class="fa-solid fa-satellite-dish"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-indigo-400 font-mono">{{ data.total_aps }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>القطاعات:</span>
+                    <span class="font-bold text-indigo-300">2.4GHz / 5GHz Sectors</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Active Online Users on Towers -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">المشتركين المتصلين بالأبراج</span>
+                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/20">
+                    <i class="fa-solid fa-users-rays"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-emerald-400 font-mono">{{ data.total_active_users }}</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حالة الراديوس:</span>
+                    <span class="font-bold text-emerald-400">مزامنة حية</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Total Traffic Telemetry -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">استهلاك البيانات على الأبراج</span>
+                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-xl font-black text-purple-400 font-mono">{{ (data.total_traffic_bytes / 1024 / 1024 / 1024) | round(2) }} GB</h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>نظام الإحداثيات:</span>
+                    <span class="font-bold text-slate-300">WGS84 GPS</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 shadow-sm relative">
+        <div class="flex items-center justify-between mb-3 px-1">
+            <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                <i class="fa-solid fa-globe text-cyan-400"></i>
+                خريطة التغطية التفاعلية (يمكنك سحب علامة البرج لتعديل موقعه على الخريطة مباشرة)
+            </span>
+            <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span> برج بث</span>
+                <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400 inline-block"></span> سيكتور / AP</span>
+            </div>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <!-- Tabs Container for Towers & Access Points -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <!-- Tab Headers -->
+        <div class="p-3 bg-[#070b14] border-b border-[#1c2840] flex items-center gap-2">
+            <button id="tabTowersBtn" onclick="switchTab('towers')" class="tab-btn active px-4 py-2 rounded-xl text-xs font-bold border border-transparent transition flex items-center gap-2">
+                <i class="fa-solid fa-tower-cell"></i>
+                <span>الأبراج والمواقع ({{ data.total_towers }})</span>
+            </button>
+            <button id="tabApsBtn" onclick="switchTab('aps')" class="tab-btn px-4 py-2 rounded-xl text-xs font-bold text-slate-400 border border-transparent hover:text-white transition flex items-center gap-2">
+                <i class="fa-solid fa-satellite-dish"></i>
+                <span>أجهزة البث والسيكتورات ({{ data.total_aps }})</span>
+            </button>
+        </div>
+
+        <!-- Tab 1: Towers Table -->
+        <div id="tabTowersContent" class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-5">اسم البرج / الموقع</th>
+                        <th class="py-3.5 px-5">راوتر المايكروتك (NAS)</th>
+                        <th class="py-3.5 px-5">الإحداثيات (Lat / Lng)</th>
+                        <th class="py-3.5 px-5">نطاق التغطية</th>
+                        <th class="py-3.5 px-5">أجهزة البث التابعة</th>
+                        <th class="py-3.5 px-5">المتصلين الآن</th>
+                        <th class="py-3.5 px-5 text-left">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% for t in data.towers %}
+                    <tr class="hover:bg-[#11192b] transition">
+                        <td class="py-3.5 px-5 font-bold text-white flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+                            <span>{{ t.tower_name }}</span>
+                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{{ t.tower_type }}</span>
+                        </td>
+                        <td class="py-3.5 px-5 font-mono text-cyan-400">
+                            {{ t.nas_ip or 'غير مربوط' }}
+                        </td>
+                        <td class="py-3.5 px-5 font-mono text-slate-300 text-[11px]">
+                            {{ t.latitude | round(5) }}, {{ t.longitude | round(5) }}
+                        </td>
+                        <td class="py-3.5 px-5 font-mono text-slate-400">{{ t.coverage_radius_meters }} متر</td>
+                        <td class="py-3.5 px-5">
+                            <span class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-bold">
+                                {{ t.ap_count }} جهاز بث
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-5 font-mono font-bold text-emerald-400">{{ t.active_users }} متصل</td>
+                        <td class="py-3.5 px-5 text-left">
+                            <div class="flex items-center justify-end gap-1.5">
+                                <button onclick="openAddApModal({{ t.tower_id }})" title="إضافة جهاز بث لهذا البرج" class="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-bold transition">
+                                    <i class="fa-solid fa-plus"></i> AP
+                                </button>
+                                <button onclick="openEditTowerModal({{ t.tower_id }}, '{{ t.tower_name }}', {{ t.latitude }}, {{ t.longitude }}, {{ t.coverage_radius_meters }}, '{{ t.tower_type }}', '{{ t.nas_id or '' }}', '{{ t.nas_ip or '' }}', '{{ t.notes }}')" class="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 rounded-lg text-xs font-bold transition">
+                                    تعديل
+                                </button>
+                                <button onclick="deleteTowerAction({{ t.tower_id }}, '{{ t.tower_name }}')" class="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition">
+                                    حذف
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="py-6 text-center text-slate-400">لا توجد أبراج معرفة في الخريطة بعد.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Tab 2: Access Points Table -->
+        <div id="tabApsContent" class="hidden overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-5">اسم جهاز البث / السيكتور</th>
+                        <th class="py-3.5 px-5">البرج التابع له</th>
+                        <th class="py-3.5 px-5">الموديل / النوع</th>
+                        <th class="py-3.5 px-5">التردد (Frequency)</th>
+                        <th class="py-3.5 px-5">زاوية التوجيه / الفتحة</th>
+                        <th class="py-3.5 px-5">المنفذ / IP</th>
+                        <th class="py-3.5 px-5">الحالة</th>
+                        <th class="py-3.5 px-5 text-left">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% set all_aps = [] %}
+                    {% for t in data.towers %}
+                        {% for ap in t.access_points %}
+                        <tr class="hover:bg-[#11192b] transition">
+                            <td class="py-3.5 px-5 font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-satellite-dish text-indigo-400"></i>
+                                <span>{{ ap.name }}</span>
+                                {% if ap.ssid %}
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">SSID: {{ ap.ssid }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3.5 px-5 text-cyan-400 font-bold">
+                                🗼 {{ t.tower_name }}
+                            </td>
+                            <td class="py-3.5 px-5 text-slate-300">
+                                {{ ap.device_model }}
+                            </td>
+                            <td class="py-3.5 px-5 font-mono text-amber-400">
+                                {{ ap.frequency_mhz }} MHz
+                            </td>
+                            <td class="py-3.5 px-5 font-mono text-slate-300">
+                                {{ ap.azimuth_deg }}° (فتحة {{ ap.beamwidth_deg }}°)
+                            </td>
+                            <td class="py-3.5 px-5 font-mono text-slate-400">
+                                {{ ap.interface_name or ap.ip_address or '-' }}
+                            </td>
+                            <td class="py-3.5 px-5">
+                                {% if ap.status == 'active' %}
+                                <span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-[10px]">نشط</span>
+                                {% elif ap.status == 'maintenance' %}
+                                <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold text-[10px]">صيانة</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold text-[10px]">متوقف</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-3.5 px-5 text-left">
+                                <div class="flex items-center justify-end gap-1.5">
+                                    <button onclick="openEditApModal({{ ap.id }}, {{ ap.tower_id }}, '{{ ap.name }}', '{{ ap.device_model }}', '{{ ap.ip_address }}', '{{ ap.interface_name }}', {{ ap.frequency_mhz }}, {{ ap.azimuth_deg }}, {{ ap.beamwidth_deg }}, '{{ ap.ssid }}', {{ ap.coverage_radius_meters }}, '{{ ap.status }}', '{{ ap.notes }}')" class="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-xs font-bold transition">
+                                        تعديل
+                                    </button>
+                                    <button onclick="deleteApAction({{ ap.id }}, '{{ ap.name }}')" class="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition">
+                                        حذف
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% endfor %}
+                    {% if data.total_aps == 0 %}
+                    <tr>
+                        <td colspan="8" class="py-6 text-center text-slate-400">لا توجد أجهزة بث أو سيكتورات مضافة بعد. اضغط على «إضافة جهاز بث» للبدء.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const towersData = [
+        {% for t in data.towers %}
+        {
+            id: {{ t.tower_id }},
+            name: "{{ t.tower_name }}",
+            ip: "{{ t.nas_ip }}",
+            lat: {{ t.latitude }},
+            lng: {{ t.longitude }},
+            radius: {{ t.coverage_radius_meters }},
+            type: "{{ t.tower_type }}",
+            users: {{ t.active_users }},
+            aps: [
+                {% for ap in t.access_points %}
+                {
+                    id: {{ ap.id }},
+                    name: "{{ ap.name }}",
+                    model: "{{ ap.device_model }}",
+                    freq: {{ ap.frequency_mhz }},
+                    azimuth: {{ ap.azimuth_deg }},
+                    beamwidth: {{ ap.beamwidth_deg }},
+                    radius: {{ ap.coverage_radius_meters }},
+                    status: "{{ ap.status }}"
+                },
+                {% endfor %}
+            ]
+        },
+        {% endfor %}
+    ];
+
+    const nasList = [
+        {% for n in nas_list %}
+        { id: {{ n.id }}, name: "{{ n.name }}", ip: "{{ n.ip_address }}", type: "{{ n.nas_type }}" },
+        {% endfor %}
+    ];
+
+    let map;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const defaultLat = towersData.length > 0 ? towersData[0].lat : 15.369445;
+        const defaultLng = towersData.length > 0 ? towersData[0].lng : 44.191006;
+
+        map = L.map('map').setView([defaultLat, defaultLng], 14);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        towersData.forEach(t => {
+            // Tower Custom Icon
+            const towerIcon = L.divIcon({
+                className: 'custom-tower-icon',
+                html: '<i class="fa-solid fa-tower-broadcast"></i>',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16]
+            });
+
+            // Add Draggable Tower Marker
+            const marker = L.marker([t.lat, t.lng], {
+                icon: towerIcon,
+                draggable: true
+            }).addTo(map);
+
+            let apHtml = '';
+            if (t.aps && t.aps.length > 0) {
+                apHtml = '<div class="mt-2 pt-2 border-t border-slate-700 space-y-1"><p class="font-bold text-indigo-400">📡 أجهزة البث (' + t.aps.length + '):</p>';
+                t.aps.forEach(ap => {
+                    apHtml += `<p class="text-[11px] text-slate-300">• ${ap.name} (${ap.freq} MHz - ${ap.azimuth}°)</p>`;
+                });
+                apHtml += '</div>';
+            }
+
+            marker.bindPopup(`
+                <div class="text-right text-xs space-y-1.5 p-1 min-w-[200px]">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-cyan-400 text-sm">🗼 ${t.name}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${t.type}</span>
+                    </div>
+                    <p class="font-mono text-slate-300">NAS IP: ${t.ip || 'غير محدد'}</p>
+                    <p class="font-bold text-emerald-400">👥 المتصلين الآن: ${t.users} مشترك</p>
+                    <p class="text-slate-400">نطاق التغطية: ${t.radius} متر</p>
+                    ${apHtml}
+                    <div class="pt-2 border-t border-slate-700 flex gap-1">
+                        <button onclick="openAddApModal(${t.id})" class="w-full py-1 bg-indigo-600 text-white rounded text-[11px] font-bold">+ إضافة AP</button>
+                    </div>
+                </div>
+            `);
+
+            // Draggable event
+            marker.on('dragend', function(e) {
+                const newPos = marker.getLatLng();
+                Swal.fire({
+                    title: `تحديث موقع ${t.name}؟`,
+                    text: `الإحداثيات الجديدة: ${newPos.lat.toFixed(6)}, ${newPos.lng.toFixed(6)}`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'نعم، حفظ الإحداثيات',
+                    cancelButtonText: 'إلغاء'
+                }).then(res => {
+                    if (res.isConfirmed) {
+                        const fd = new FormData();
+                        fd.append('tower_id', t.id);
+                        fd.append('tower_name', t.name);
+                        fd.append('latitude', newPos.lat);
+                        fd.append('longitude', newPos.lng);
+                        fd.append('radius', t.radius);
+                        fd.append('tower_type', t.type);
+                        fetch('/api/coverage-map/update', { method: 'POST', body: fd })
+                            .then(r => r.json())
+                            .then(data => {
+                                if (data.success) {
+                                    Swal.fire('تم الحفظ', data.message, 'success');
+                                } else {
+                                    Swal.fire('خطأ', data.message, 'error');
+                                    marker.setLatLng([t.lat, t.lng]);
+                                }
+                            });
+                    } else {
+                        marker.setLatLng([t.lat, t.lng]);
+                    }
+                });
+            });
+
+            // Coverage Circle
+            L.circle([t.lat, t.lng], {
+                color: '#06b6d4',
+                fillColor: '#06b6d4',
+                fillOpacity: 0.12,
+                weight: 1.5,
+                radius: t.radius
+            }).addTo(map);
+
+            // Draw Sector Cones for APs
+            if (t.aps && t.aps.length > 0) {
+                t.aps.forEach(ap => {
+                    if (ap.beamwidth < 360) {
+                        drawSectorCone(map, t.lat, t.lng, ap.radius || (t.radius * 0.8), ap.azimuth, ap.beamwidth, ap.name);
+                    }
+                });
+            }
+        });
+    });
+
+    // Helper to calculate and draw sector wedge on Leaflet
+    function drawSectorCone(mapInstance, centerLat, centerLng, radiusMeters, azimuthDeg, beamwidthDeg, apName) {
+        const earthRadius = 6378137; // meters
+        const startAngle = (azimuthDeg - beamwidthDeg / 2) * (Math.PI / 180);
+        const endAngle = (azimuthDeg + beamwidthDeg / 2) * (Math.PI / 180);
+        const points = [[centerLat, centerLng]];
+
+        const steps = 15;
+        for (let i = 0; i <= steps; i++) {
+            const angle = startAngle + (i / steps) * (endAngle - startAngle);
+            const dLat = (radiusMeters * Math.cos(angle)) / earthRadius;
+            const dLng = (radiusMeters * Math.sin(angle)) / (earthRadius * Math.cos(centerLat * (Math.PI / 180)));
+            const ptLat = centerLat + (dLat * (180 / Math.PI));
+            const ptLng = centerLng + (dLng * (180 / Math.PI));
+            points.push([ptLat, ptLng]);
+        }
+        points.push([centerLat, centerLng]);
+
+        const polygon = L.polygon(points, {
+            color: '#6366f1',
+            fillColor: '#6366f1',
+            fillOpacity: 0.25,
+            weight: 1
+        }).addTo(mapInstance);
+
+        polygon.bindTooltip(`📡 ${apName} (${azimuthDeg}°)`, { sticky: true });
+    }
+
+    function switchTab(tab) {
+        const tabTowersBtn = document.getElementById('tabTowersBtn');
+        const tabApsBtn = document.getElementById('tabApsBtn');
+        const tabTowersContent = document.getElementById('tabTowersContent');
+        const tabApsContent = document.getElementById('tabApsContent');
+
+        if (tab === 'towers') {
+            tabTowersBtn.classList.add('active');
+            tabTowersBtn.classList.remove('text-slate-400');
+            tabApsBtn.classList.remove('active');
+            tabApsBtn.classList.add('text-slate-400');
+            tabTowersContent.classList.remove('hidden');
+            tabApsContent.classList.add('hidden');
+        } else {
+            tabApsBtn.classList.add('active');
+            tabApsBtn.classList.remove('text-slate-400');
+            tabTowersBtn.classList.remove('active');
+            tabTowersBtn.classList.add('text-slate-400');
+            tabApsContent.classList.remove('hidden');
+            tabTowersContent.classList.add('hidden');
+        }
+    }
+
+    // --- Tower Modals ---
+    function openAddTowerModal() {
+        let nasOptions = '<option value="">-- بدون ربط راوتر محدد حالياً --</option>';
+        nasList.forEach(n => {
+            nasOptions += `<option value="${n.id}" data-ip="${n.ip}">${n.name} (${n.ip})</option>`;
+        });
+
+        Swal.fire({
+            title: 'إضافة برج / موقع جديد',
+            html: `
+                <div class="space-y-3 text-right text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">اسم البرج / الموقع: *</label>
+                        <input id="swalTowerName" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs" placeholder="مثال: برج الستين الرئيسي">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">راوتر المايكروتك التابع (NAS):</label>
+                        <select id="swalTowerNas" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs">
+                            ${nasOptions}
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">خط العرض (Lat):</label>
+                            <input id="swalTowerLat" type="number" step="any" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="15.369445">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">خط الطول (Lng):</label>
+                            <input id="swalTowerLng" type="number" step="any" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="44.191006">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">نصف قطر التغطية (متر):</label>
+                            <input id="swalTowerRadius" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" value="500">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">نوع الموقع:</label>
+                            <select id="swalTowerType" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs">
+                                <option value="hotspot">هوتسبوت (Hotspot)</option>
+                                <option value="pppoe_tower">برج اشتراكات منزلية (PPPoE)</option>
+                                <option value="fiber_olt">كابينة ألياف (Fiber OLT)</option>
+                                <option value="relay">نقطة ترحيل (Relay AP)</option>
+                                <option value="backhaul">ربط رئيسي (Backhaul PtP)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">ملاحظات إضافية:</label>
+                        <input id="swalTowerNotes" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" placeholder="ملاحظات حول موقع البرج...">
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'حفظ البرج',
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => {
+                const name = document.getElementById('swalTowerName').value.trim();
+                if (!name) {
+                    Swal.showValidationMessage('يرجى كتابة اسم البرج');
+                    return false;
+                }
+                const nasSelect = document.getElementById('swalTowerNas');
+                const selectedOpt = nasSelect.options[nasSelect.selectedIndex];
+                return {
+                    tower_name: name,
+                    nas_id: nasSelect.value,
+                    nas_ip: selectedOpt ? selectedOpt.getAttribute('data-ip') : '',
+                    latitude: document.getElementById('swalTowerLat').value,
+                    longitude: document.getElementById('swalTowerLng').value,
+                    radius: document.getElementById('swalTowerRadius').value,
+                    tower_type: document.getElementById('swalTowerType').value,
+                    notes: document.getElementById('swalTowerNotes').value
+                };
+            }
+        }).then(res => {
+            if (res.isConfirmed) {
+                const fd = new FormData();
+                Object.keys(res.value).forEach(k => fd.append(k, res.value[k]));
+                fetch('/api/towers/create', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('تمت الإضافة', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('خطأ', data.message, 'error');
+                        }
+                    });
+            }
+        });
+    }
+
+    function openEditTowerModal(id, name, lat, lng, radius, type, nasId, nasIp, notes) {
+        let nasOptions = '<option value="">-- بدون ربط راوتر محدد --</option>';
+        nasList.forEach(n => {
+            const isSel = (String(n.id) === String(nasId) || String(n.ip) === String(nasIp)) ? 'selected' : '';
+            nasOptions += `<option value="${n.id}" data-ip="${n.ip}" ${isSel}>${n.name} (${n.ip})</option>`;
+        });
+
+        Swal.fire({
+            title: `تعديل بيانات البرج: ${name}`,
+            html: `
+                <div class="space-y-3 text-right text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">اسم البرج: *</label>
+                        <input id="swalEditTowerName" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs" value="${name}">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">راوتر المايكروتك التابع (NAS):</label>
+                        <select id="swalEditTowerNas" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs">
+                            ${nasOptions}
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">خط العرض (Lat):</label>
+                            <input id="swalEditTowerLat" type="number" step="any" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="${lat}">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">خط الطول (Lng):</label>
+                            <input id="swalEditTowerLng" type="number" step="any" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="${lng}">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">نصف قطر التغطية (متر):</label>
+                            <input id="swalEditTowerRadius" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" value="${radius}">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">نوع الموقع:</label>
+                            <select id="swalEditTowerType" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs">
+                                <option value="hotspot" ${type==='hotspot'?'selected':''}>هوتسبوت (Hotspot)</option>
+                                <option value="pppoe_tower" ${type==='pppoe_tower'?'selected':''}>برج اشتراكات منزلية (PPPoE)</option>
+                                <option value="fiber_olt" ${type==='fiber_olt'?'selected':''}>كابينة ألياف (Fiber OLT)</option>
+                                <option value="relay" ${type==='relay'?'selected':''}>نقطة ترحيل (Relay AP)</option>
+                                <option value="backhaul" ${type==='backhaul'?'selected':''}>ربط رئيسي (Backhaul PtP)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">ملاحظات:</label>
+                        <input id="swalEditTowerNotes" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" value="${notes || ''}">
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'تحديث البيانات',
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => {
+                const name = document.getElementById('swalEditTowerName').value.trim();
+                if (!name) {
+                    Swal.showValidationMessage('يرجى كتابة اسم البرج');
+                    return false;
+                }
+                const nasSelect = document.getElementById('swalEditTowerNas');
+                const selectedOpt = nasSelect.options[nasSelect.selectedIndex];
+                return {
+                    tower_id: id,
+                    tower_name: name,
+                    nas_id: nasSelect.value,
+                    nas_ip: selectedOpt ? selectedOpt.getAttribute('data-ip') : '',
+                    latitude: document.getElementById('swalEditTowerLat').value,
+                    longitude: document.getElementById('swalEditTowerLng').value,
+                    radius: document.getElementById('swalEditTowerRadius').value,
+                    tower_type: document.getElementById('swalEditTowerType').value,
+                    notes: document.getElementById('swalEditTowerNotes').value
+                };
+            }
+        }).then(res => {
+            if (res.isConfirmed) {
+                const fd = new FormData();
+                Object.keys(res.value).forEach(k => fd.append(k, res.value[k]));
+                fetch('/api/coverage-map/update', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('تم التحديث', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('خطأ', data.message, 'error');
+                        }
+                    });
+            }
+        });
+    }
+
+    function deleteTowerAction(id, name) {
+        Swal.fire({
+            title: `حذف ${name}؟`,
+            text: 'سيتم حذف البرج وكافة أجهزة البث التابعة له من الخريطة بشكل نهائي.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            confirmButtonText: 'نعم، حذف البرج',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                const fd = new FormData();
+                fd.append('tower_id', id);
+                fetch('/api/towers/delete', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('تم الحذف', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('خطأ', data.message, 'error');
+                        }
+                    });
+            }
+        });
+    }
+
+    // --- Access Point Modals ---
+    function openAddApModal(preselectTowerId = null) {
+        if (towersData.length === 0) {
+            Swal.fire('تنبيه', 'يرجى إضافة برج واحد على الأقل قبل إضافة أجهزة البث.', 'warning');
+            return;
+        }
+
+        let towerOptions = '';
+        towersData.forEach(t => {
+            const isSel = (preselectTowerId && String(t.id) === String(preselectTowerId)) ? 'selected' : '';
+            towerOptions += `<option value="${t.id}" ${isSel}>🗼 ${t.name}</option>`;
+        });
+
+        Swal.fire({
+            title: 'إضافة جهاز بث / سيكتور جديد',
+            html: `
+                <div class="space-y-3 text-right text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">البرج التابع له: *</label>
+                        <select id="swalApTower" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs">
+                            ${towerOptions}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">اسم جهاز البث / السيكتور: *</label>
+                        <input id="swalApName" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs" placeholder="مثال: Sector North 5GHz">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">الموديل / الشركة:</label>
+                            <input id="swalApModel" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" value="Ubiquiti Rocket Prism">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">التردد (MHz):</label>
+                            <input id="swalApFreq" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="5800">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">زاوية التوجيه (0-360°):</label>
+                            <input id="swalApAzimuth" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="0">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">زاوية الفتحة (Beamwidth):</label>
+                            <select id="swalApBeamwidth" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs">
+                                <option value="60">60 درجة (Sector)</option>
+                                <option value="90" selected>90 درجة (Sector)</option>
+                                <option value="120">120 درجة (Sector)</option>
+                                <option value="360">360 درجة (Omni دائري)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">منفذ المايكروتك (Interface):</label>
+                            <input id="swalApInterface" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" placeholder="مثال: ether2 أو vlan10">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">عنوان IP الجهاز (SNMP):</label>
+                            <input id="swalApIp" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" placeholder="192.168.1.20">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">اسم الشبكة (SSID):</label>
+                            <input id="swalApSsid" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" placeholder="WiFi-Hotspot-North">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">مدى البث (متر):</label>
+                            <input id="swalApRadius" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="400">
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'حفظ جهاز البث',
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => {
+                const towerId = document.getElementById('swalApTower').value;
+                const name = document.getElementById('swalApName').value.trim();
+                if (!towerId || !name) {
+                    Swal.showValidationMessage('يرجى اختيار البرج وإدخال اسم جهاز البث');
+                    return false;
+                }
+                return {
+                    tower_id: towerId,
+                    name: name,
+                    device_model: document.getElementById('swalApModel').value,
+                    frequency_mhz: document.getElementById('swalApFreq').value,
+                    azimuth_deg: document.getElementById('swalApAzimuth').value,
+                    beamwidth_deg: document.getElementById('swalApBeamwidth').value,
+                    interface_name: document.getElementById('swalApInterface').value,
+                    ip_address: document.getElementById('swalApIp').value,
+                    ssid: document.getElementById('swalApSsid').value,
+                    coverage_radius_meters: document.getElementById('swalApRadius').value
+                };
+            }
+        }).then(res => {
+            if (res.isConfirmed) {
+                const fd = new FormData();
+                Object.keys(res.value).forEach(k => fd.append(k, res.value[k]));
+                fetch('/api/access-points/create', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('تمت الإضافة', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('خطأ', data.message, 'error');
+                        }
+                    });
+            }
+        });
+    }
+
+    function openEditApModal(apId, towerId, name, model, ip, iface, freq, azimuth, beamwidth, ssid, radius, status, notes) {
+        Swal.fire({
+            title: `تعديل جهاز البث: ${name}`,
+            html: `
+                <div class="space-y-3 text-right text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">اسم جهاز البث / السيكتور: *</label>
+                        <input id="swalEditApName" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs" value="${name}">
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">الموديل / الشركة:</label>
+                            <input id="swalEditApModel" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" value="${model || ''}">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">التردد (MHz):</label>
+                            <input id="swalEditApFreq" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="${freq}">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">زاوية التوجيه (0-360°):</label>
+                            <input id="swalEditApAzimuth" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="${azimuth}">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">زاوية الفتحة (Beamwidth):</label>
+                            <select id="swalEditApBeamwidth" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs">
+                                <option value="60" ${beamwidth==60?'selected':''}>60 درجة (Sector)</option>
+                                <option value="90" ${beamwidth==90?'selected':''}>90 درجة (Sector)</option>
+                                <option value="120" ${beamwidth==120?'selected':''}>120 درجة (Sector)</option>
+                                <option value="360" ${beamwidth==360?'selected':''}>360 درجة (Omni دائري)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">منفذ المايكروتك (Interface):</label>
+                            <input id="swalEditApInterface" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="${iface || ''}">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">عنوان IP الجهاز (SNMP):</label>
+                            <input id="swalEditApIp" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="${ip || ''}">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">اسم الشبكة (SSID):</label>
+                            <input id="swalEditApSsid" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" value="${ssid || ''}">
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-300 mb-1">مدى البث (متر):</label>
+                            <input id="swalEditApRadius" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" value="${radius}">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">الحالة التشغيلية:</label>
+                        <select id="swalEditApStatus" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs">
+                            <option value="active" ${status==='active'?'selected':''}>نشط (Active)</option>
+                            <option value="maintenance" ${status==='maintenance'?'selected':''}>صيانة (Maintenance)</option>
+                            <option value="offline" ${status==='offline'?'selected':''}>متوقف (Offline)</option>
+                        </select>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'تحديث جهاز البث',
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => {
+                const name = document.getElementById('swalEditApName').value.trim();
+                if (!name) {
+                    Swal.showValidationMessage('يرجى إدخال اسم جهاز البث');
+                    return false;
+                }
+                return {
+                    ap_id: apId,
+                    name: name,
+                    device_model: document.getElementById('swalEditApModel').value,
+                    frequency_mhz: document.getElementById('swalEditApFreq').value,
+                    azimuth_deg: document.getElementById('swalEditApAzimuth').value,
+                    beamwidth_deg: document.getElementById('swalEditApBeamwidth').value,
+                    interface_name: document.getElementById('swalEditApInterface').value,
+                    ip_address: document.getElementById('swalEditApIp').value,
+                    ssid: document.getElementById('swalEditApSsid').value,
+                    coverage_radius_meters: document.getElementById('swalEditApRadius').value,
+                    status: document.getElementById('swalEditApStatus').value
+                };
+            }
+        }).then(res => {
+            if (res.isConfirmed) {
+                const fd = new FormData();
+                Object.keys(res.value).forEach(k => fd.append(k, res.value[k]));
+                fetch('/api/access-points/update', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('تم التحديث', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('خطأ', data.message, 'error');
+                        }
+                    });
+            }
+        });
+    }
+
+    function deleteApAction(apId, name) {
+        Swal.fire({
+            title: `حذف ${name}؟`,
+            text: 'هل أنت متأكد من رغبتك في حذف جهاز البث هذا؟',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            confirmButtonText: 'نعم، حذف الجهاز',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                const fd = new FormData();
+                fd.append('ap_id', apId);
+                fetch('/api/access-points/delete', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('تم الحذف', data.message, 'success').then(() => location.reload());
+                        } else {
+                            Swal.fire('خطأ', data.message, 'error');
+                        }
+                    });
+            }
+        });
+    }
+</script>
+{% endblock %}
+

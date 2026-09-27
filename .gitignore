@@ -1,0 +1,70 @@
+# ==============================================================================
+# MAX RADIUS - Git Ignore Rules
+# ==============================================================================
+
+# Environments & Secrets
+.env
+.env.*
+*.env
+env/
+.venv/
+venv/
+
+# Security Keys & Machine Identifiers
+storage/machine_id
+storage/instance_id
+storage/keys/master_private_key.pem
+storage/wg_bridge.sock
+storage/l2tp/chap-secrets
+storage/l2tp/pap-secrets
+
+# Python & Cython Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+
+# Large Bundles, Dumps & Backups
+export/
+app_backup/
+*.tar
+*.tar.gz
+*.gz
+*.zip
+*.bak*
+*.old
+*.orig
+database/full_db.sql
+
+# Runtime Storage & Data
+storage/backups/*
+!storage/backups/.gitkeep
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+data/migration_cache/*
+!data/migration_cache/.gitkeep
+data/*
+tmp/
+.tmp/
+.cache/
+.pytest_cache/
+
+# Database Binaries
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# IDE & OS Files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini

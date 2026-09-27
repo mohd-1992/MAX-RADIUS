@@ -1,0 +1,28 @@
+{# Reusable KPI Metric Card Macro #}
+{% macro kpi_card(title, value, icon, color='blue', subtitle='', extra_class='') %}
+<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between transition-all hover:border-slate-700 {{ extra_class }}">
+    <div class="space-y-1">
+        <span class="text-xs text-slate-400 font-medium block">{{ title }}</span>
+        <h4 class="text-2xl font-black text-white font-mono tracking-tight">{{ value }}</h4>
+        {% if subtitle %}
+        <span class="text-[11px] text-slate-400 font-medium block">{{ subtitle }}</span>
+        {% endif %}
+    </div>
+    <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0
+        {% if color == 'emerald' or color == 'green' %}
+            bg-emerald-500/10 text-emerald-400 border border-emerald-500/20
+        {% elif color == 'amber' or color == 'yellow' %}
+            bg-amber-500/10 text-amber-400 border border-amber-500/20
+        {% elif color == 'purple' %}
+            bg-purple-500/10 text-purple-400 border border-purple-500/20
+        {% elif color == 'rose' or color == 'red' %}
+            bg-rose-500/10 text-rose-400 border border-rose-500/20
+        {% elif color == 'cyan' %}
+            bg-cyan-500/10 text-cyan-400 border border-cyan-500/20
+        {% else %}
+            bg-blue-500/10 text-blue-400 border border-blue-500/20
+        {% endif %}">
+        <i class="{{ icon }}"></i>
+    </div>
+</div>
+{% endmacro %}

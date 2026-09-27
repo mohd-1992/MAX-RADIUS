@@ -1,0 +1,441 @@
+# -*- coding: utf-8 -*-
+"""
+database/schema_healer.py
+-------------------------
+Enterprise Self-Healing Database Schema Engine for MAX RADIUS.
+Automatically inspects, repairs, and backfills missing tables, columns, indexes,
+and triggers whenever an old backup is restored or when new features are deployed.
+"""
+
+import sys
+from database.db import get_connection, is_mysql_conn, adapt_query
+
+# Schema Definition Registry
+REQUIRED_TABLES = {
+    'wisp_whatsapp_settings': """
+        CREATE TABLE IF NOT EXISTS wisp_whatsapp_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            gateway_provider VARCHAR(40) DEFAULT 'simulator',
+            api_endpoint VARCHAR(255) DEFAULT 'http://localhost:8080',
+            api_key VARCHAR(255) DEFAULT '',
+            instance_name VARCHAR(80) DEFAULT 'max_radius_bot',
+            phone_number VARCHAR(40) DEFAULT '',
+            is_bot_enabled TINYINT(1) DEFAULT 1,
+            is_notifications_enabled TINYINT(1) DEFAULT 1,
+            meta_app_id VARCHAR(80) DEFAULT '',
+            meta_phone_number_id VARCHAR(80) DEFAULT '',
+            meta_access_token TEXT DEFAULT NULL,
+            meta_webhook_verify_token VARCHAR(120) DEFAULT 'max_radius_whatsapp_token_2026',
+            status VARCHAR(30) DEFAULT 'disconnected',
+            qr_code_raw MEDIUMTEXT DEFAULT NULL,
+            last_connected_at DATETIME DEFAULT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'wisp_whatsapp_templates': """
+        CREATE TABLE IF NOT EXISTS wisp_whatsapp_templates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            template_key VARCHAR(60) NOT NULL UNIQUE,
+            title VARCHAR(100) NOT NULL,
+            category VARCHAR(40) DEFAULT 'notification',
+            message_body TEXT NOT NULL,
+            is_active TINYINT(1) DEFAULT 1,
+            variables_hint VARCHAR(255) DEFAULT '',
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'wisp_whatsapp_logs': """
+        CREATE TABLE IF NOT EXISTS wisp_whatsapp_logs (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            recipient_phone VARCHAR(30) NOT NULL,
+            message_type VARCHAR(30) DEFAULT 'text',
+            direction ENUM('inbound', 'outbound') DEFAULT 'outbound',
+            message_body TEXT NOT NULL,
+            status ENUM('pending', 'sent', 'delivered', 'read', 'failed') DEFAULT 'sent',
+            error_message TEXT DEFAULT NULL,
+            entity_type VARCHAR(30) DEFAULT NULL,
+            entity_id INT DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_phone (recipient_phone),
+            INDEX idx_status (status),
+            INDEX idx_created (created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'wisp_global_sequence': """
+        CREATE TABLE IF NOT EXISTS wisp_global_sequence (
+            seq_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            entity_type VARCHAR(20) NOT NULL,
+            entity_id INT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_entity (entity_type, entity_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'user_audit_logs': """
+        CREATE TABLE IF NOT EXISTS user_audit_logs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            user_type VARCHAR(20) NOT NULL,
+            user_id INT DEFAULT 0,
+            username VARCHAR(100) NOT NULL,
+            admin_name VARCHAR(100) DEFAULT 'Admin',
+            action VARCHAR(50) DEFAULT 'UPDATE_PROFILE',
+            change_details TEXT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_user (user_type, user_id),
+            INDEX idx_username (username)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'wisp_voucher_sales': """
+        CREATE TABLE IF NOT EXISTS wisp_voucher_sales (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            voucher_id INT NOT NULL,
+            batch_id INT NULL,
+            batch_name VARCHAR(100) NULL,
+            username VARCHAR(100) NOT NULL,
+            serial_number VARCHAR(100) NULL,
+            package_name VARCHAR(100) NULL,
+            price DECIMAL(10,2) DEFAULT 0.00,
+            cost DECIMAL(10,2) DEFAULT 0.00,
+            reseller_id INT NULL,
+            activated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_voucher (voucher_id),
+            INDEX idx_user (username)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'wisp_sstp_tunnels': """
+        CREATE TABLE IF NOT EXISTS wisp_sstp_tunnels (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(80) NOT NULL,
+            username VARCHAR(64) NOT NULL UNIQUE,
+            password VARCHAR(64) NOT NULL,
+            tunnel_ip VARCHAR(45) NOT NULL UNIQUE,
+            radius_secret VARCHAR(64) NOT NULL DEFAULT '123',
+            reseller_id INT DEFAULT NULL,
+            status VARCHAR(20) DEFAULT 'offline',
+            is_enabled TINYINT(1) DEFAULT 1,
+            latency_ms INT DEFAULT 0,
+            last_connected_at DATETIME DEFAULT NULL,
+            description TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_sstp_reseller (reseller_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """
+}
+
+REQUIRED_COLUMNS = {
+    'wisp_subscribers': [
+        ('global_seq_id', 'BIGINT NULL AFTER id'),
+        ('email', "VARCHAR(120) DEFAULT '' AFTER phone"),
+        ('notes', "TEXT NULL"),
+        ('first_used_at', "DATETIME NULL"),
+        ('last_renewed_at', "DATETIME NULL"),
+        ('expires_at', "DATETIME NULL")
+    ],
+    'wisp_vouchers': [
+        ('global_seq_id', 'BIGINT NULL AFTER id'),
+        ('first_used_at', 'DATETIME NULL'),
+        ('last_renewed_at', 'DATETIME NULL'),
+        ('expires_at', 'DATETIME NULL'),
+        ('bound_mac', 'VARCHAR(50) DEFAULT NULL'),
+        ('snap_price', 'DECIMAL(10,2) DEFAULT 0.00'),
+        ('snap_cost', 'DECIMAL(10,2) DEFAULT 0.00'),
+        ('snap_volume_quota_mb', 'BIGINT DEFAULT 0'),
+        ('snap_uptime_limit_mins', 'INT DEFAULT 0'),
+        ('snap_validity_value', 'INT DEFAULT 30'),
+        ('snap_validity_unit', "VARCHAR(20) DEFAULT 'days'"),
+        ('snap_validity_days', 'INT DEFAULT 30'),
+        ('snap_rate_download', "VARCHAR(50) DEFAULT '0'"),
+        ('snap_rate_upload', "VARCHAR(50) DEFAULT '0'"),
+        ('snap_rate_limit_str', "VARCHAR(100) DEFAULT '0/0'"),
+        ('snap_simultaneous_sessions', 'INT DEFAULT 1'),
+        ('snap_mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'")
+    ],
+    'wisp_voucher_batches': [
+        ('price', 'DECIMAL(10,2) DEFAULT 0.00'),
+        ('cost', 'DECIMAL(10,2) DEFAULT 0.00'),
+        ('volume_quota_mb', 'BIGINT DEFAULT 0'),
+        ('validity_days', 'INT DEFAULT 30'),
+        ('validity_value', 'INT DEFAULT 30'),
+        ('validity_unit', "VARCHAR(20) DEFAULT 'days'"),
+        ('uptime_limit_mins', 'INT DEFAULT 0'),
+        ('rate_download', "VARCHAR(50) DEFAULT '0'"),
+        ('rate_upload', "VARCHAR(50) DEFAULT '0'"),
+        ('rate_limit_str', "VARCHAR(100) DEFAULT '0/0'"),
+        ('simultaneous_sessions', 'INT DEFAULT 1'),
+        ('mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'"),
+        ('prefix', "VARCHAR(20) DEFAULT ''"),
+        ('pin_only', 'TINYINT(1) DEFAULT 0'),
+        ('reseller_id', 'INT NULL')
+    ],
+    'wisp_packages': [
+        ('show_in_portal', 'TINYINT(1) DEFAULT 1 AFTER is_active'),
+        ('is_rollover_enabled', 'TINYINT(1) DEFAULT 0 AFTER is_active'),
+        ('validity_value', 'INT DEFAULT 30'),
+        ('validity_unit', "VARCHAR(20) DEFAULT 'days'"),
+        ('validity_days', 'INT DEFAULT 30'),
+        ('mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'"),
+        ('cost', 'DECIMAL(10,2) DEFAULT 0.00')
+    ],
+    'wisp_managers': [
+        ('wallet_balance', 'DECIMAL(12,2) DEFAULT 0.00'),
+        ('notes', 'TEXT NULL')
+    ],
+    'radacct': [
+        ('acctinputgigawords', 'BIGINT DEFAULT 0'),
+        ('acctoutputgigawords', 'BIGINT DEFAULT 0')
+    ]
+}
+
+TRIGGER_SUB_SQL = """
+CREATE TRIGGER trg_radacct_subscriber_activate AFTER INSERT ON radacct
+FOR EACH ROW
+BEGIN
+    UPDATE wisp_subscribers s
+    JOIN wisp_packages p ON s.package_id = p.id
+    SET s.status = 'active',
+        s.first_used_at = IFNULL(s.first_used_at, NEW.acctstarttime),
+        s.last_renewed_at = IFNULL(s.last_renewed_at, NEW.acctstarttime),
+        s.expires_at = IFNULL(s.expires_at, 
+            CASE 
+                WHEN p.validity_unit = 'minutes' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) MINUTE)
+                WHEN p.validity_unit = 'hours' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) HOUR)
+                WHEN p.validity_unit = 'months' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) MONTH)
+                ELSE DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, p.validity_days, 1) DAY)
+            END
+        )
+    WHERE s.username = NEW.username AND (s.status = 'inactive' OR s.expires_at IS NULL);
+END;
+"""
+
+TRIGGER_VOUCHER_SQL = """
+CREATE TRIGGER trg_radacct_activate_voucher AFTER INSERT ON radacct
+FOR EACH ROW
+BEGIN
+    DECLARE v_id INT DEFAULT NULL;
+    DECLARE v_batch_id INT DEFAULT NULL;
+    DECLARE v_batch_name VARCHAR(100) DEFAULT NULL;
+    DECLARE v_serial_number VARCHAR(100) DEFAULT NULL;
+    DECLARE v_pkg_name VARCHAR(80) DEFAULT NULL;
+    DECLARE v_pkg_price DECIMAL(10,2) DEFAULT 0.00;
+    DECLARE v_pkg_cost DECIMAL(10,2) DEFAULT 0.00;
+    DECLARE v_reseller_id INT DEFAULT NULL;
+    DECLARE v_val INT DEFAULT 30;
+    DECLARE v_unit VARCHAR(20) DEFAULT 'days';
+    DECLARE v_exp_date DATETIME DEFAULT NULL;
+    DECLARE v_rad_exp VARCHAR(50) DEFAULT NULL;
+    DECLARE v_quota BIGINT DEFAULT 0;
+    DECLARE v_uptime INT DEFAULT 0;
+    DECLARE v_r_down VARCHAR(50) DEFAULT NULL;
+    DECLARE v_r_up VARCHAR(50) DEFAULT NULL;
+    DECLARE v_simul INT DEFAULT 1;
+    DECLARE v_mgroup VARCHAR(100) DEFAULT NULL;
+    DECLARE v_assigned_seq BIGINT DEFAULT NULL;
+    
+    SELECT v.id, v.batch_id, b.name, v.serial_number,
+           p.name, p.price, p.cost, v.reseller_id,
+           COALESCE(p.validity_value, p.validity_days, 30),
+           COALESCE(p.validity_unit, 'days'),
+           COALESCE(p.volume_quota_mb, 0),
+           COALESCE(p.uptime_limit_mins, 0),
+           p.rate_download, p.rate_upload,
+           COALESCE(p.simultaneous_sessions, 1),
+           p.mikrotik_group
+    INTO v_id, v_batch_id, v_batch_name, v_serial_number,
+         v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id,
+         v_val, v_unit, v_quota, v_uptime,
+         v_r_down, v_r_up, v_simul, v_mgroup
+    FROM wisp_vouchers v
+    JOIN wisp_packages p ON v.package_id = p.id
+    JOIN wisp_voucher_batches b ON v.batch_id = b.id
+    WHERE (LOWER(v.username) = LOWER(NEW.username) OR v.pin_code = NEW.username)
+      AND v.status = 'unused'
+    LIMIT 1;
+    
+    IF v_id IS NOT NULL THEN
+        IF v_unit = 'minutes' THEN
+            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val MINUTE);
+        ELSEIF v_unit = 'hours' THEN
+            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val HOUR);
+        ELSEIF v_unit = 'months' THEN
+            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val MONTH);
+        ELSE
+            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val DAY);
+        END IF;
+        
+        SET v_rad_exp = DATE_FORMAT(v_exp_date, '%d %b %Y %H:%i:%s');
+        
+        INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
+        VALUES ('voucher', v_id, CURRENT_TIMESTAMP)
+        ON DUPLICATE KEY UPDATE seq_id = seq_id;
+        
+        SELECT seq_id INTO v_assigned_seq 
+        FROM wisp_global_sequence 
+        WHERE entity_type = 'voucher' AND entity_id = v_id;
+        
+        UPDATE wisp_vouchers
+        SET status = 'active',
+            first_used_at = IFNULL(first_used_at, CURRENT_TIMESTAMP),
+            last_renewed_at = IFNULL(last_renewed_at, CURRENT_TIMESTAMP),
+            expires_at = IFNULL(expires_at, v_exp_date),
+            bound_mac = CASE WHEN (bound_mac IS NULL OR bound_mac = '') AND NEW.callingstationid IS NOT NULL AND NEW.callingstationid != '' THEN NEW.callingstationid ELSE bound_mac END,
+            global_seq_id = IFNULL(global_seq_id, v_assigned_seq),
+            snap_price = COALESCE(NULLIF(snap_price, 0.00), v_pkg_price),
+            snap_cost = COALESCE(NULLIF(snap_cost, 0.00), v_pkg_cost),
+            snap_volume_quota_mb = COALESCE(NULLIF(snap_volume_quota_mb, 0), v_quota),
+            snap_uptime_limit_mins = COALESCE(NULLIF(snap_uptime_limit_mins, 0), v_uptime),
+            snap_validity_value = COALESCE(NULLIF(snap_validity_value, 0), v_val),
+            snap_validity_unit = COALESCE(NULLIF(snap_validity_unit, ''), v_unit),
+            snap_validity_days = COALESCE(NULLIF(snap_validity_days, 0), v_val),
+            snap_rate_download = COALESCE(NULLIF(snap_rate_download, ''), NULLIF(snap_rate_download, '0'), v_r_down),
+            snap_rate_upload = COALESCE(NULLIF(snap_rate_upload, ''), NULLIF(snap_rate_upload, '0'), v_r_up),
+            snap_simultaneous_sessions = COALESCE(NULLIF(snap_simultaneous_sessions, 0), v_simul),
+            snap_mikrotik_group = COALESCE(NULLIF(snap_mikrotik_group, ''), v_mgroup)
+        WHERE id = v_id;
+        
+        IF NOT EXISTS (SELECT 1 FROM wisp_voucher_sales WHERE voucher_id = v_id) THEN
+            INSERT INTO wisp_voucher_sales (
+                voucher_id, batch_id, batch_name, username, serial_number,
+                package_name, price, cost, reseller_id, activated_at
+            ) VALUES (
+                v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
+                v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id, CURRENT_TIMESTAMP
+            );
+        END IF;
+        
+        DELETE FROM radcheck WHERE LOWER(username) = LOWER(NEW.username) AND attribute = 'Expiration';
+        INSERT INTO radcheck (username, attribute, op, value)
+        VALUES (NEW.username, 'Expiration', ':=', v_rad_exp);
+    END IF;
+END;
+"""
+
+def heal_database_schema():
+    """
+    Scans the database schema, compares against REQUIRED_TABLES and REQUIRED_COLUMNS,
+    and executes ALTER / CREATE statements for any missing element.
+    Safe and idempotent.
+    """
+    try:
+        conn = get_connection()
+        is_mysql = is_mysql_conn(conn)
+        cur = conn.cursor()
+
+        # 1. Create any missing tables
+        for tbl_name, create_sql in REQUIRED_TABLES.items():
+            try:
+                if is_mysql:
+                    cur.execute(create_sql)
+            except Exception as e:
+                print(f"[Schema Healer] Table {tbl_name} check notice: {e}")
+
+        # 2. Add missing columns across all registered tables
+        for tbl_name, col_defs in REQUIRED_COLUMNS.items():
+            existing_cols = set()
+            try:
+                if is_mysql:
+                    cur.execute(f"SHOW COLUMNS FROM `{tbl_name}`")
+                    rows = cur.fetchall()
+                    for r in rows:
+                        col_field = r['Field'] if isinstance(r, dict) else r[0]
+                        existing_cols.add(col_field.lower())
+                else:
+                    cur.execute(f"PRAGMA table_info({tbl_name})")
+                    rows = cur.fetchall()
+                    for r in rows:
+                        existing_cols.add(str(r[1]).lower())
+            except Exception:
+                # Table might not exist yet
+                continue
+
+            for col_name, col_spec in col_defs:
+                if col_name.lower() not in existing_cols:
+                    try:
+                        alter_sql = f"ALTER TABLE `{tbl_name}` ADD COLUMN `{col_name}` {col_spec}"
+                        cur.execute(alter_sql)
+                        conn.commit()
+                        print(f"[Schema Healer] Added missing column `{col_name}` to `{tbl_name}`.")
+                    except Exception as e:
+                        print(f"[Schema Healer] Notice adding column `{col_name}` to `{tbl_name}`: {e}")
+
+        # 3. Backfill missing global sequence IDs
+        try:
+            if is_mysql:
+                cur.execute("""
+                    INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
+                    SELECT 'subscriber', id, NOW() FROM wisp_subscribers WHERE global_seq_id IS NULL
+                    ON DUPLICATE KEY UPDATE seq_id = seq_id
+                """)
+                cur.execute("""
+                    UPDATE wisp_subscribers s
+                    JOIN wisp_global_sequence g ON g.entity_type = 'subscriber' AND g.entity_id = s.id
+                    SET s.global_seq_id = g.seq_id
+                    WHERE s.global_seq_id IS NULL
+                """)
+                cur.execute("""
+                    INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
+                    SELECT 'voucher', id, NOW() FROM wisp_vouchers WHERE global_seq_id IS NULL
+                    ON DUPLICATE KEY UPDATE seq_id = seq_id
+                """)
+                cur.execute("""
+                    UPDATE wisp_vouchers v
+                    JOIN wisp_global_sequence g ON g.entity_type = 'voucher' AND g.entity_id = v.id
+                    SET v.global_seq_id = g.seq_id
+                    WHERE v.global_seq_id IS NULL
+                """)
+                conn.commit()
+        except Exception as e:
+            print(f"[Schema Healer] Sequence backfill notice: {e}")
+
+        # 4. Backfill missing snap columns on vouchers from batches / packages
+        try:
+            if is_mysql:
+                cur.execute("""
+                    UPDATE wisp_vouchers v
+                    JOIN wisp_packages p ON v.package_id = p.id
+                    SET v.snap_price = IFNULL(v.snap_price, p.price),
+                        v.snap_cost = IFNULL(v.snap_cost, p.cost),
+                        v.snap_volume_quota_mb = IFNULL(v.snap_volume_quota_mb, p.volume_quota_mb),
+                        v.snap_uptime_limit_mins = IFNULL(v.snap_uptime_limit_mins, p.uptime_limit_mins),
+                        v.snap_validity_value = IFNULL(v.snap_validity_value, p.validity_value),
+                        v.snap_validity_unit = IFNULL(v.snap_validity_unit, p.validity_unit),
+                        v.snap_validity_days = IFNULL(v.snap_validity_days, p.validity_days),
+                        v.snap_rate_download = IFNULL(v.snap_rate_download, p.rate_download),
+                        v.snap_rate_upload = IFNULL(v.snap_rate_upload, p.rate_upload),
+                        v.snap_simultaneous_sessions = IFNULL(v.snap_simultaneous_sessions, p.simultaneous_sessions),
+                        v.snap_mikrotik_group = IFNULL(v.snap_mikrotik_group, p.mikrotik_group)
+                    WHERE v.snap_price IS NULL OR v.snap_price = 0.00
+                """)
+                conn.commit()
+        except Exception as e:
+            print(f"[Schema Healer] Snap backfill notice: {e}")
+
+        # 5. Ensure Triggers Exist
+        try:
+            if is_mysql:
+                cur.execute("DROP TRIGGER IF EXISTS trg_radacct_subscriber_activate")
+                cur.execute(TRIGGER_SUB_SQL)
+                cur.execute("DROP TRIGGER IF EXISTS trg_radacct_activate_voucher")
+                cur.execute(TRIGGER_VOUCHER_SQL)
+                conn.commit()
+        except Exception as e:
+            print(f"[Schema Healer] Trigger creation notice: {e}")
+
+        # Backfill missing Cleartext-Password in radcheck for subscribers and vouchers
+        try:
+            cur.execute('''
+                INSERT INTO radcheck (username, attribute, op, value)
+                SELECT s.username, 'Cleartext-Password', ':=', s.password
+                FROM wisp_subscribers s
+                WHERE s.status = 'active'
+                AND NOT EXISTS (
+                    SELECT 1 FROM radcheck r WHERE r.username = s.username AND r.attribute = 'Cleartext-Password'
+                );
+            ''')
+            if is_mysql:
+                conn.commit()
+        except Exception:
+            pass
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[Schema Healer Critical Error]: {e}")
+        return False

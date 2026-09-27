@@ -1,0 +1,1815 @@
+{% extends "base.html" %}
+
+{% block title %}تصميم وتخصيص كروت الطباعة - MAX RADIUS{% endblock %}
+{% block page_title %}تصميم وتخصيص كروت الطباعة (Voucher Designer){% endblock %}
+
+{% block content %}
+<!-- Top Inline Script to Guarantee Immediate Readiness -->
+<script>
+    window.INITIAL_CONFIG = {{ saved_config_json|tojson|safe if saved_config_json else 'null' }};
+    window.SYSTEM_LOGO_URL = {{ (logo_url or '')|tojson|safe }};
+    window.SYSTEM_ISP_NAME = {{ (system_isp_name or 'شبكة الأفق الذكية')|tojson|safe }};
+    window.SYSTEM_CURRENCY = {{ (system_currency or 'ر.س')|tojson|safe }};
+    window.SYSTEM_DOMAIN = {{ (system_domain or 'wifi.hotspot')|tojson|safe }};
+</script>
+
+<style>
+    /* Card Designer Custom Utilities */
+    .drag-active {
+        cursor: grabbing !important;
+        user-select: none;
+        box-shadow: 0 0 0 2px #3b82f6, 0 8px 20px rgba(0,0,0,0.5) !important;
+        z-index: 50 !important;
+    }
+    .canvas-element {
+        cursor: grab;
+        position: absolute;
+        transition: box-shadow 0.15s ease, transform 0.1s ease;
+        touch-action: none;
+    }
+    .canvas-element:hover {
+        outline: 1.5px dashed rgba(59, 130, 246, 0.8);
+        outline-offset: 2px;
+    }
+    .a4-preview-sheet {
+        aspect-ratio: 210 / 297;
+        width: 100%;
+        max-width: 650px;
+        background: #ffffff;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        transition: transform 0.2s ease;
+        transform-origin: top center;
+    }
+    
+    /* Dedicated Print Styling for Browser Print */
+    @media print {
+        body {
+            background: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            color: black !important;
+        }
+        .no-print, header, aside, nav, footer, #sidebar, #topNav, .app-header {
+            display: none !important;
+        }
+        #printAreaContainer {
+            display: block !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+        .print-a4-page {
+            page-break-after: always;
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            width: 100% !important;
+        }
+        .print-card-box {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+    }
+</style>
+
+<div class="space-y-6">
+
+    <!-- Top Header Banner & Actions -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-pink-500/20 to-purple-500/20 text-pink-400 border border-pink-500/30 flex items-center justify-center text-xl flex-shrink-0 shadow-lg shadow-pink-500/10">
+                <i class="fa-solid fa-palette"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    محرر وتخصيص قوالب الكروت (Voucher Card Designer)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    تخصيص القالب الافتراضي بشعار الشبكة، تصميم الكروت عبر خلفيات مصممة بالكامل، وضبط تخطيط الطباعة A4
+                </p>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <!-- Reset Defaults -->
+            <button type="button" onclick="resetToDefaults()" class="px-3 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5" title="استعادة إعدادات المصنع">
+                <i class="fa-solid fa-rotate-left text-amber-400"></i>
+                <span class="hidden md:inline">استعادة الافتراضي</span>
+            </button>
+
+            <!-- Export JSON -->
+            <button type="button" onclick="exportConfigJson()" class="px-3 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5" title="تصدير ملف الإعدادات">
+                <i class="fa-solid fa-file-export text-cyan-400"></i>
+                <span class="hidden md:inline">تصدير JSON</span>
+            </button>
+
+            <!-- Import JSON -->
+            <button type="button" onclick="document.getElementById('importFileInput').click()" class="px-3 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5" title="استيراد ملف إعدادات">
+                <i class="fa-solid fa-file-import text-purple-400"></i>
+                <span class="hidden md:inline">استيراد JSON</span>
+            </button>
+            <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="importConfigJson(this)">
+
+            <!-- Test Print -->
+            <button type="button" onclick="triggerTestPrint()" class="px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-print"></i>
+                <span>معاينة الطباعة</span>
+            </button>
+
+            <!-- Save Template -->
+            <button type="button" id="btnSaveTemplate" onclick="saveTemplateConfig()" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>حفظ وتطبيق القالب</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Mode Switcher Pill Banner -->
+    <div class="bg-[#0b0f19] p-3 rounded-2xl border border-[#1c2840] flex items-center justify-between flex-wrap gap-3">
+        <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-300 mr-2 flex items-center gap-1.5">
+                <i class="fa-solid fa-sliders text-blue-400"></i>
+                نوع ونمط الكرت:
+            </span>
+            <div class="inline-flex p-1 bg-[#070b14] border border-[#162136] rounded-xl text-xs">
+                <button type="button" id="btnModeDefault" onclick="switchDesignMode('default')" class="px-4 py-1.5 rounded-lg font-bold transition flex items-center gap-2 bg-blue-600 text-white shadow-md">
+                    <i class="fa-solid fa-id-card"></i>
+                    <span>القالب الافتراضي المحدث (Modern Vector)</span>
+                </button>
+                <button type="button" id="btnModeCustom" onclick="switchDesignMode('custom_image')" class="px-4 py-1.5 rounded-lg font-bold transition flex items-center gap-2 text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-image"></i>
+                    <span>تصميم عبر صورة مخصصة (Custom Image)</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3 text-xs text-slate-400">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full font-mono text-[11px]">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>المعاينة الحية نشطة (Live DOM)</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Main Workspace (Split Screen: Controls 7 Cols | Live Preview 5 Cols) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- ============================================================== -->
+        <!-- LEFT PANEL: CONTROLS & SETTINGS TABS (7 Columns)               -->
+        <!-- ============================================================== -->
+        <div class="lg:col-span-7 bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-sm overflow-hidden">
+            
+            <!-- Controls Nav Tabs -->
+            <div class="flex items-center border-b border-[#1c2840] bg-[#070b14] px-4 pt-3 gap-2 overflow-x-auto text-xs">
+                <!-- Tab 1: Layout A4 -->
+                <button type="button" id="tabBtnLayout" onclick="switchSettingsTab('layout')" class="px-4 py-2.5 font-bold border-b-2 border-blue-500 text-blue-400 flex items-center gap-2 transition whitespace-nowrap">
+                    <i class="fa-solid fa-border-all"></i>
+                    <span>تخطيط الطباعة A4</span>
+                </button>
+
+                <!-- Tab 2: Default Card Styling (shown in default mode) -->
+                <button type="button" id="tabBtnDefaultStyle" onclick="switchSettingsTab('default_style')" class="px-4 py-2.5 font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition whitespace-nowrap">
+                    <i class="fa-solid fa-swatchbook"></i>
+                    <span>تخصيص الكرت الافتراضي</span>
+                </button>
+
+                <!-- Tab 3: Custom Image Editor (shown in custom_image mode) -->
+                <button type="button" id="tabBtnCustomImage" onclick="switchSettingsTab('custom_image')" class="px-4 py-2.5 font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition whitespace-nowrap">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span>محرر الصورة والمتغيرات</span>
+                </button>
+            </div>
+
+            <!-- Controls Body -->
+            <div class="p-6 space-y-6">
+
+                <!-- Hidden Form for standard fallback submission -->
+                <form id="designerForm" method="POST" action="{{ url_for('save_card_designer_action') }}" class="hidden">
+                    <input type="hidden" name="template_id" value="{{ template.id or 1 }}">
+                    <input type="hidden" name="name" id="form_name" value="{{ template.name or 'القالب الافتراضي' }}">
+                    <input type="hidden" name="cards_per_row" id="form_cards_per_row" value="2">
+                    <input type="hidden" name="width_mm" id="form_width_mm" value="85">
+                    <input type="hidden" name="height_mm" id="form_height_mm" value="55">
+                    <input type="hidden" name="background_color" id="form_background_color" value="#ffffff">
+                    <input type="hidden" name="border_color" id="form_border_color" value="#cbd5e1">
+                    <input type="hidden" name="header_color" id="form_header_color" value="#1e40af">
+                    <input type="hidden" name="show_qr" id="form_show_qr" value="1">
+                    <input type="hidden" name="show_logo" id="form_show_logo" value="1">
+                    <input type="hidden" name="show_price" id="form_show_price" value="1">
+                    <input type="hidden" name="footer_text" id="form_footer_text" value="">
+                    <input type="hidden" name="config_json" id="form_config_json" value="">
+                </form>
+
+                <!-- ============================================================== -->
+                <!-- SECTION 1: A4 PRINT LAYOUT SETTINGS                            -->
+                <!-- ============================================================== -->
+                <div id="sectionLayout" class="space-y-5">
+                    
+                    <!-- Calculation Banner -->
+                    <div class="bg-gradient-to-r from-blue-950/40 via-[#070b14] to-cyan-950/40 p-4 rounded-xl border border-blue-500/20 flex items-center justify-between flex-wrap gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-file-invoice"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold text-white">إجمالي الكروت في ورقة A4:</h4>
+                                <p id="calcTotalCardsBanner" class="text-sm font-black font-mono text-cyan-400 mt-0.5">2 أعمدة × 5 صفوف = 10 كروت بالصفحة</p>
+                            </div>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-medium">حجم الورقة: A4 قياسي (210 × 297 مم)</span>
+                    </div>
+
+                    <!-- Grid Columns & Rows Controls -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-2">
+                            <label class="block text-xs font-bold text-slate-300">
+                                <i class="fa-solid fa-table-columns text-blue-400 ml-1"></i>
+                                عدد الأعمدة في الورقة (Columns)
+                            </label>
+                            <select id="cfg_cols" onchange="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500">
+                                <option value="1">1 عمود (كروت عريضة جداً)</option>
+                                <option value="2" selected>2 أعمدة (قياسي ومناسب للكروت 85 مم)</option>
+                                <option value="3">3 أعمدة (كروت صغيرة مدمجة)</option>
+                                <option value="4">4 أعمدة (كروت مصغرة)</option>
+                            </select>
+                            <p class="text-[10px] text-slate-500">توزيع الكروت أفقياً على عرض صفحة A4</p>
+                        </div>
+
+                        <div class="bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-2">
+                            <label class="block text-xs font-bold text-slate-300">
+                                <i class="fa-solid fa-bars text-blue-400 ml-1"></i>
+                                عدد الصفوف في الورقة (Rows)
+                            </label>
+                            <select id="cfg_rows" onchange="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500">
+                                <option value="3">3 صفوف</option>
+                                <option value="4">4 صفوف</option>
+                                <option value="5" selected>5 صفوف (قياسي 10 كروت مع عمودين)</option>
+                                <option value="6">6 صفوف</option>
+                                <option value="7">7 صفوف</option>
+                                <option value="8">8 صفوف</option>
+                                <option value="10">10 صفوف (مدمج 20 أو 30 كرت)</option>
+                            </select>
+                            <p class="text-[10px] text-slate-500">توزيع الكروت رأسياً على ارتفاع صفحة A4</p>
+                        </div>
+                    </div>
+
+                    <!-- Margins & Gaps Controls -->
+                    <div class="bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-3">
+                        <span class="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
+                            <i class="fa-solid fa-arrows-to-dot text-cyan-400"></i>
+                            هوامش الورقة والفواصل بين الكروت (Margins & Gaps)
+                        </span>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">الهامش العلوي/السفلي (مم)</label>
+                                <input type="number" id="cfg_margin_y" value="8" min="0" max="30" oninput="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">الهامش الجانبي (مم)</label>
+                                <input type="number" id="cfg_margin_x" value="8" min="0" max="30" oninput="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">تباعد الكروت أفقي (مم)</label>
+                                <input type="number" id="cfg_gap_x" value="2" min="0" max="20" oninput="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">تباعد الكروت رأسي (مم)</label>
+                                <input type="number" id="cfg_gap_y" value="2" min="0" max="20" oninput="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cut Lines / Separators -->
+                    <div class="bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-3">
+                        <span class="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
+                            <i class="fa-solid fa-scissors text-rose-400"></i>
+                            فواصل وخطوط القص والتقطيع (Cut Lines / Separators)
+                        </span>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">نوع خط التقطيع والقص</label>
+                                <select id="cfg_cut_lines" onchange="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500">
+                                    <option value="dashed" selected>خط مقطع (Dashed Line) - الأفضل لمقص الورق</option>
+                                    <option value="dotted">خط منقط (Dotted Line)</option>
+                                    <option value="solid">خط متصل خفيف (Solid Line)</option>
+                                    <option value="none">بدون خطوط قص (None)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">لون خط القص</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" id="cfg_cut_color" value="#94a3b8" oninput="onConfigChange()" class="w-9 h-9 rounded-lg border border-slate-700 bg-transparent cursor-pointer">
+                                    <input type="text" id="cfg_cut_color_hex" value="#94a3b8" oninput="syncColorInput('cfg_cut_color', this.value)" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ============================================================== -->
+                <!-- SECTION 2: DEFAULT CARD STYLING & LOGO (Default Template)      -->
+                <!-- ============================================================== -->
+                <div id="sectionDefaultStyle" class="space-y-5 hidden">
+                    
+                    <!-- Network Logo & Branding Settings -->
+                    <div class="bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-certificate text-yellow-400"></i>
+                                شعار واسم الشبكة في الكرت (Branding & Logo)
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="cfg_show_logo" checked onchange="onConfigChange()" class="sr-only peer">
+                                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center pt-1">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">اسم الشبكة المعروض في الكرت</label>
+                                <input type="text" id="cfg_isp_name" value="{{ system_isp_name or 'شبكة الأفق الذكية' }}" oninput="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500">
+                            </div>
+                            <div class="flex items-center gap-3 bg-[#0b0f19] p-2.5 rounded-xl border border-slate-800">
+                                <div class="w-10 h-10 rounded-lg bg-[#070b14] border border-slate-700 flex items-center justify-center p-1 flex-shrink-0">
+                                    <img id="cfgLogoPreview" src="{{ logo_url if logo_url else '' }}" class="max-w-full max-h-full object-contain {% if not logo_url %}hidden{% endif %}" alt="Logo">
+                                    <i id="cfgLogoIcon" class="fa-solid fa-wifi text-blue-400 text-base {% if logo_url %}hidden{% endif %}"></i>
+                                </div>
+                                <div class="text-[11px] space-y-0.5">
+                                    <span class="text-slate-300 font-semibold block">شعار النظام الحالي</span>
+                                    <span class="text-slate-500 block">يُسحب تلقائياً من إعدادات الهوية والشعار</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Colors & Card Aesthetics -->
+                    <div class="bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-3">
+                        <span class="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
+                            <i class="fa-solid fa-palette text-pink-400"></i>
+                            ألوان وإطارات الكرت الافتراضي
+                        </span>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                            <!-- Background Color -->
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">لون خلفية الكرت</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" id="cfg_bg_color" value="#ffffff" oninput="onConfigChange()" class="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer">
+                                    <input type="text" id="cfg_bg_color_hex" value="#ffffff" oninput="syncColorInput('cfg_bg_color', this.value)" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono">
+                                </div>
+                            </div>
+
+                            <!-- Header Strip Color -->
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">لون شريط العنوان والتمييز</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" id="cfg_header_color" value="#1e40af" oninput="onConfigChange()" class="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer">
+                                    <input type="text" id="cfg_header_color_hex" value="#1e40af" oninput="syncColorInput('cfg_header_color', this.value)" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono">
+                                </div>
+                            </div>
+
+                            <!-- Border Color -->
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">لون إطار الكرت</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="color" id="cfg_border_color" value="#cbd5e1" oninput="onConfigChange()" class="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer">
+                                    <input type="text" id="cfg_border_color_hex" value="#cbd5e1" oninput="syncColorInput('cfg_border_color', this.value)" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Border Radius & Width -->
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">استدارة الزوايا (Radius)</label>
+                                <select id="cfg_border_radius" onchange="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                                    <option value="0px">حادة مستقيمة (0px)</option>
+                                    <option value="6px">خفيفة (6px)</option>
+                                    <option value="12px" selected>عصرية مستديرة (12px)</option>
+                                    <option value="18px">كبيرة مستديرة (18px)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">سُمك الإطار (Border)</label>
+                                <select id="cfg_border_width" onchange="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                                    <option value="1px">رفيع (1px)</option>
+                                    <option value="2px" selected>متوسط (2px)</option>
+                                    <option value="3px">عريض (3px)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">نوع الخط العربي الأساسي</label>
+                                <select id="cfg_font_family" onchange="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white">
+                                    <option value="Tajawal" selected>Tajawal (هندسي مريح)</option>
+                                    <option value="Cairo">Cairo (واضح)</option>
+                                    <option value="Almarai">Almarai (مضغوط ورسمي)</option>
+                                    <option value="monospace">Monospace (تقني)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Visible Components Toggles -->
+                    <div class="bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-3">
+                        <span class="text-xs font-bold text-slate-300 block flex items-center gap-1.5">
+                            <i class="fa-solid fa-eye text-emerald-400"></i>
+                            العناصر والبيانات المعروضة على الكرت
+                        </span>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                            <label class="flex items-center gap-2 text-slate-300 p-2 bg-[#0b0f19] rounded-lg border border-slate-800 cursor-pointer">
+                                <input type="checkbox" id="cfg_show_qr" checked onchange="onConfigChange()" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0">
+                                <span>رمز QR للاتصال</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-slate-300 p-2 bg-[#0b0f19] rounded-lg border border-slate-800 cursor-pointer">
+                                <input type="checkbox" id="cfg_show_price" checked onchange="onConfigChange()" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0">
+                                <span>شارة السعر</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-slate-300 p-2 bg-[#0b0f19] rounded-lg border border-slate-800 cursor-pointer">
+                                <input type="checkbox" id="cfg_show_specs" checked onchange="onConfigChange()" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0">
+                                <span>السرعة والسعة والصلاحية</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-slate-300 p-2 bg-[#0b0f19] rounded-lg border border-slate-800 cursor-pointer">
+                                <input type="checkbox" id="cfg_show_serial" checked onchange="onConfigChange()" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0">
+                                <span>الرقم التسلسلي (SN)</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-slate-300 p-2 bg-[#0b0f19] rounded-lg border border-slate-800 cursor-pointer col-span-2">
+                                <input type="checkbox" id="cfg_show_footer" checked onchange="onConfigChange()" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0">
+                                <span>نص التعليمات السفلي</span>
+                            </label>
+                        </div>
+
+                        <div class="pt-2">
+                            <label class="block text-[11px] text-slate-400 mb-1">نص التعليمات المطبوع في أسفل الكرت</label>
+                            <input type="text" id="cfg_instructions" value="امسح الـ QR أو ادخل الرمز في صفحة الدخول" oninput="onConfigChange()" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500">
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ============================================================== -->
+                <!-- SECTION 3: CUSTOM IMAGE TEMPLATE EDITOR & VARIABLES            -->
+                <!-- ============================================================== -->
+                <div id="sectionCustomImage" class="space-y-5 hidden">
+                    
+                    <!-- Image Upload Zone -->
+                    <div class="bg-[#070b14] p-4 rounded-xl border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-cloud-arrow-up text-blue-400"></i>
+                                رفع صورة خلفية الكرت المصممة (Custom Background Image)
+                            </span>
+                            <button type="button" id="btnClearCustomImage" onclick="clearCustomImage()" class="text-[11px] text-rose-400 hover:text-rose-300 transition hidden">
+                                <i class="fa-solid fa-trash-can mr-1"></i>حذف الصورة
+                            </button>
+                        </div>
+
+                        <!-- Dropzone / Picker -->
+                        <div id="customImageDropzone" onclick="document.getElementById('customImageFileInput').click()" class="border-2 border-dashed border-slate-700 hover:border-blue-500/60 rounded-2xl p-6 text-center cursor-pointer transition bg-[#0b0f19]/60 hover:bg-[#0b0f19]">
+                            <input type="file" id="customImageFileInput" accept="image/png, image/jpeg, image/webp, image/svg+xml" class="hidden" onchange="handleCustomImageUpload(this)">
+                            <div class="space-y-2">
+                                <div class="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-2xl mx-auto">
+                                    <i class="fa-solid fa-image"></i>
+                                </div>
+                                <p class="text-xs font-bold text-white">انقر لرفع صورة الكرت المصممة أو اسحبها هنا</p>
+                                <p class="text-[10px] text-slate-400">صيغ مدعومة: PNG, JPG, WebP, SVG (الأبعاد الموصى بها: 1000 × 650 بكسل أو نسبة 85×55 مم)</p>
+                            </div>
+                        </div>
+
+                        <!-- Image Info Banner -->
+                        <div id="customImageInfo" class="hidden items-center justify-between p-3 bg-blue-950/20 border border-blue-500/20 rounded-xl text-xs">
+                            <div class="flex items-center gap-2 text-cyan-400">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span class="font-bold">تم تحميل صورة القالب بنجاح!</span>
+                            </div>
+                            <span class="text-slate-400 text-[11px]">اسحب النصوص على الكرت أو استخدم الإحداثيات أدناه</span>
+                        </div>
+                    </div>
+
+                    <!-- Drag & Drop Instruction Banner -->
+                    <div class="bg-gradient-to-r from-purple-950/30 to-blue-950/30 p-3.5 rounded-xl border border-purple-500/20 flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-400 flex items-center justify-center text-sm flex-shrink-0">
+                            <i class="fa-solid fa-up-down-left-right"></i>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            <strong class="text-white">تحريك النصوص التفاعلي:</strong> يمكنك سحب وإفلات العناصر مباشرة بالفأرة فوق شاشة المعاينة في اليسار، أو ضبط إحداثيات (X و Y) بدقة أدناه.
+                        </p>
+                    </div>
+
+                    <!-- Dynamic Variables Accordion Controls -->
+                    <div class="space-y-3" id="variableAccordionsContainer">
+                        <!-- Rendered dynamically by JavaScript -->
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- RIGHT PANEL: LIVE INTERACTIVE PREVIEW & CANVAS (5 Columns)    -->
+        <!-- ============================================================== -->
+        <div class="lg:col-span-5 space-y-4 sticky top-6">
+
+            <!-- Live Preview Top Bar & Tabs -->
+            <div class="bg-[#0b0f19] p-4 rounded-2xl border border-[#1c2840] flex items-center justify-between flex-wrap gap-2 shadow-sm">
+                <!-- Preview Switch Tabs -->
+                <div class="inline-flex p-1 bg-[#070b14] border border-[#162136] rounded-xl text-xs">
+                    <button type="button" id="btnPreviewSingle" onclick="switchPreviewTab('single')" class="px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 bg-blue-600 text-white shadow-sm">
+                        <i class="fa-solid fa-id-card"></i>
+                        <span>كرت مفرد</span>
+                    </button>
+                    <button type="button" id="btnPreviewA4" onclick="switchPreviewTab('a4')" class="px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white">
+                        <i class="fa-solid fa-file-invoice"></i>
+                        <span>ورقة A4 كاملة</span>
+                    </button>
+                </div>
+
+                <!-- Zoom Controls -->
+                <div class="flex items-center gap-1.5 text-xs">
+                    <span class="text-slate-400 text-[11px] font-mono" id="lblZoomLevel">100%</span>
+                    <button type="button" onclick="adjustZoom(-10)" class="w-7 h-7 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg flex items-center justify-center transition" title="تصغير">
+                        <i class="fa-solid fa-minus text-[10px]"></i>
+                    </button>
+                    <button type="button" onclick="resetZoom()" class="px-2 h-7 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg flex items-center justify-center text-[10px] transition" title="إعادة التكبير 100%">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                    <button type="button" onclick="adjustZoom(10)" class="w-7 h-7 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg flex items-center justify-center transition" title="تكبير">
+                        <i class="fa-solid fa-plus text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Preview Frame Viewport -->
+            <div id="previewViewport" class="p-6 bg-[#070b14] border border-[#1c2840] rounded-2xl flex items-center justify-center min-h-[460px] overflow-hidden relative shadow-inner">
+                
+                <!-- 1. Single Card Viewport -->
+                <div id="singleCardWrapper" class="w-full flex items-center justify-center transition-transform duration-150">
+                    
+                    <!-- Default Vector Card Preview -->
+                    <div id="defaultCardMockup" class="w-full max-w-sm rounded-xl p-4 shadow-2xl border-2 relative overflow-hidden transition-all duration-200" style="background-color: #ffffff; border-color: #cbd5e1; color: #0f172a; font-family: 'Tajawal', sans-serif; min-height: 210px;">
+                        
+                        <!-- Header Strip -->
+                        <div id="defCardHeader" class="flex items-center justify-between border-b pb-2 mb-2" style="border-color: #e2e8f0;">
+                            <div class="flex items-center gap-2">
+                                <div id="defCardLogoBox" class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center p-1 flex-shrink-0">
+                                    <img id="defCardLogoImg" src="{{ logo_url if logo_url else '' }}" class="max-w-full max-h-full object-contain {% if not logo_url %}hidden{% endif %}" alt="Logo">
+                                    <i id="defCardLogoIcon" class="fa-solid fa-wifi text-xs {% if logo_url %}hidden{% endif %}"></i>
+                                </div>
+                                <div>
+                                    <h4 id="defCardIspName" class="font-black text-xs text-slate-900 leading-tight">{{ system_isp_name or 'شبكة الأفق الذكية' }}</h4>
+                                    <span id="defCardPkgName" class="text-[10px] font-bold text-blue-600 block">باقة توربو 5 ر.س</span>
+                                </div>
+                            </div>
+                            <div id="defCardPriceBox" class="text-left">
+                                <span id="defCardPriceBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">
+                                    5 {{ system_currency or 'ر.س' }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Body Credentials & QR -->
+                        <div class="flex items-center justify-between py-1 gap-3">
+                            <div class="space-y-1 flex-grow">
+                                <div id="defCardPinBox">
+                                    <span class="text-[9px] font-bold text-slate-500 block">رمز الكرت (PIN Code):</span>
+                                    <span id="defCardPinValue" class="text-lg font-black font-mono tracking-wider text-blue-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 inline-block">
+                                        84920194
+                                    </span>
+                                </div>
+                                <div id="defCardSpecsBox" class="text-[10px] text-slate-700 pt-1 space-y-0.5">
+                                    <div>السرعة: <strong>4M / 2M</strong></div>
+                                    <div>السعة: <strong>5 GB</strong> | الصلاحية: <strong>7 يوم</strong></div>
+                                </div>
+                            </div>
+
+                            <!-- QR Box -->
+                            <div id="defCardQrBox" class="flex flex-col items-center justify-center p-1.5 border border-slate-200 rounded-xl bg-slate-50 flex-shrink-0">
+                                <div class="w-14 h-14 bg-slate-900 rounded-lg flex items-center justify-center text-white text-xl">
+                                    <i class="fa-solid fa-qrcode"></i>
+                                </div>
+                                <span class="text-[8px] font-bold text-slate-500 mt-1">امسح للاتصال</span>
+                            </div>
+                        </div>
+
+                        <!-- Footer Strip -->
+                        <div id="defCardFooter" class="border-t pt-1.5 mt-2 flex items-center justify-between text-[8px] text-slate-500" style="border-color: #e2e8f0;">
+                            <span id="defCardSerial">سيريال: <strong class="font-mono text-slate-700">260901842</strong></span>
+                            <span id="defCardFooterInstructions">امسح الـ QR أو ادخل الرمز في صفحة الدخول</span>
+                        </div>
+                    </div>
+
+                    <!-- Custom Image Card Canvas Preview (Draggable Elements Canvas) -->
+                    <div id="customCardMockup" class="w-full max-w-sm rounded-xl shadow-2xl border-2 border-slate-700 relative overflow-hidden hidden" style="aspect-ratio: 85 / 55; background-color: #070b14; background-size: cover; background-position: center;">
+                        
+                        <!-- Empty Canvas Notice if no image uploaded -->
+                        <div id="customCardNoImagePlaceholder" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-500 space-y-2 pointer-events-none">
+                            <i class="fa-solid fa-image text-3xl opacity-40"></i>
+                            <p class="text-xs font-semibold">ارفع صورة قالب الكرت من لوحة الإعدادات لتظهر هنا</p>
+                        </div>
+
+                        <!-- Draggable Elements Overlay Container -->
+                        <div id="customCanvasOverlay" class="absolute inset-0 w-full h-full">
+                            <!-- Injected dynamically by JavaScript -->
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- 2. Full A4 Sheet Simulation Viewport -->
+                <div id="a4SheetWrapper" class="w-full flex items-center justify-center hidden transition-transform duration-150 py-4">
+                    <div id="a4PaperSheet" class="a4-preview-sheet rounded-md overflow-hidden text-slate-900 shadow-2xl relative p-4 flex flex-col justify-between">
+                        <!-- Grid of dummy cards injected dynamically by JavaScript -->
+                        <div id="a4CardsGrid" class="w-full h-full grid gap-1"></div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Preview Footer Note -->
+            <p class="text-[11px] text-slate-400 font-medium text-center leading-relaxed">
+                يتم مزامنة جميع التغييرات لحظياً مع نظام الطباعة وتصدير الكروت A4.
+            </p>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Hidden Dedicated Container for window.print() -->
+<div id="printAreaContainer" class="hidden">
+    <div id="printAreaGrid" class="print-a4-page"></div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // =========================================================================
+    // VOUCHER CARD DESIGNER - FULL INTERACTIVE CONTROLLER (MAX RADIUS 2026)
+    // =========================================================================
+
+    const DEFAULT_VOUCHER_CONFIG = {
+        design_mode: 'default', // 'default' or 'custom_image'
+        name: 'القالب الافتراضي الشبكي',
+        page_layout: {
+            cols: 2,
+            rows: 5,
+            margin_y: 8,
+            margin_x: 8,
+            gap_x: 2,
+            gap_y: 2,
+            cut_lines: 'dashed', // none, dashed, dotted, solid
+            cut_color: '#94a3b8'
+        },
+        card_style: {
+            width_mm: 85,
+            height_mm: 55,
+            bg_color: '#ffffff',
+            header_color: '#1e40af',
+            border_color: '#cbd5e1',
+            border_width: '2px',
+            border_radius: '12px',
+            font_family: 'Tajawal',
+            show_logo: true,
+            show_qr: true,
+            show_price: true,
+            show_specs: true,
+            show_serial: true,
+            show_footer: true,
+            isp_name: window.SYSTEM_ISP_NAME || 'شبكة الأفق الذكية',
+            instructions_ar: 'امسح الـ QR أو ادخل الرمز في صفحة الدخول'
+        },
+        custom_image: {
+            image_url: '',
+            elements: {
+                username: {
+                    id: 'username',
+                    label: 'اسم المستخدم / كود PIN',
+                    visible: true,
+                    sample: '84920194',
+                    prefix: '',
+                    suffix: '',
+                    x: 25, // %
+                    y: 48, // %
+                    font_family: 'monospace',
+                    font_size: 16,
+                    font_weight: 'bold',
+                    color: '#1e40af',
+                    align: 'center',
+                    bg_badge: true,
+                    bg_color: '#f1f5f9',
+                    bg_opacity: 0.95,
+                    padding: 3,
+                    border_radius: 6
+                },
+                password: {
+                    id: 'password',
+                    label: 'كلمة المرور (Password)',
+                    visible: false,
+                    sample: '4829',
+                    prefix: 'Pass: ',
+                    suffix: '',
+                    x: 25,
+                    y: 65,
+                    font_family: 'monospace',
+                    font_size: 13,
+                    font_weight: 'bold',
+                    color: '#0f172a',
+                    align: 'center',
+                    bg_badge: true,
+                    bg_color: '#f1f5f9',
+                    bg_opacity: 0.9,
+                    padding: 2,
+                    border_radius: 4
+                },
+                package_name: {
+                    id: 'package_name',
+                    label: 'اسم الباقة (Profile)',
+                    visible: true,
+                    sample: 'باقة توربو 5 ر.س',
+                    prefix: '',
+                    suffix: '',
+                    x: 10,
+                    y: 12,
+                    font_family: 'Tajawal',
+                    font_size: 13,
+                    font_weight: 'bold',
+                    color: '#1e40af',
+                    align: 'right',
+                    bg_badge: false,
+                    bg_color: '#ffffff',
+                    bg_opacity: 0,
+                    padding: 0,
+                    border_radius: 0
+                },
+                price: {
+                    id: 'price',
+                    label: 'سعر الباقة (Price)',
+                    visible: true,
+                    sample: '5 ر.س',
+                    prefix: '',
+                    suffix: '',
+                    x: 82,
+                    y: 12,
+                    font_family: 'Tajawal',
+                    font_size: 13,
+                    font_weight: 'bold',
+                    color: '#b45309',
+                    align: 'left',
+                    bg_badge: true,
+                    bg_color: '#fef3c7',
+                    bg_opacity: 0.9,
+                    padding: 3,
+                    border_radius: 12
+                },
+                custom_text: {
+                    id: 'custom_text',
+                    label: 'نص حر / هاتف الدعم',
+                    visible: true,
+                    sample: 'للدعم الفني: 777000111',
+                    prefix: '',
+                    suffix: '',
+                    x: 50,
+                    y: 88,
+                    font_family: 'Tajawal',
+                    font_size: 9,
+                    font_weight: 'normal',
+                    color: '#64748b',
+                    align: 'center',
+                    bg_badge: false,
+                    bg_color: '#ffffff',
+                    bg_opacity: 0,
+                    padding: 0,
+                    border_radius: 0
+                },
+                serial: {
+                    id: 'serial',
+                    label: 'الرقم التسلسلي (SN)',
+                    visible: true,
+                    sample: 'SN: 260901842',
+                    prefix: '',
+                    suffix: '',
+                    x: 10,
+                    y: 88,
+                    font_family: 'monospace',
+                    font_size: 8,
+                    font_weight: 'normal',
+                    color: '#94a3b8',
+                    align: 'left',
+                    bg_badge: false,
+                    bg_color: '#ffffff',
+                    bg_opacity: 0,
+                    padding: 0,
+                    border_radius: 0
+                },
+                qr_code: {
+                    id: 'qr_code',
+                    label: 'رمز الاستجابة السريع (QR Code)',
+                    visible: true,
+                    sample: 'QR',
+                    is_qr: true,
+                    x: 75,
+                    y: 42,
+                    size_px: 52,
+                    bg_color: '#ffffff',
+                    padding: 2,
+                    border_radius: 6
+                }
+            }
+        }
+    };
+
+    // Active state object
+    let cardConfig = JSON.parse(JSON.stringify(DEFAULT_VOUCHER_CONFIG));
+    let activeSettingsTab = 'layout';
+    let activePreviewTab = 'single';
+    let currentZoom = 100;
+    let currentlyDraggingId = null;
+
+    // -------------------------------------------------------------
+    // Initializer
+    // -------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', function() {
+        loadConfig();
+        renderVariableAccordions();
+        populateFormControls();
+        updateUI();
+    });
+
+    function loadConfig() {
+        // Priority 1: Server Config
+        if (window.INITIAL_CONFIG) {
+            try {
+                const parsed = typeof window.INITIAL_CONFIG === 'string' ? JSON.parse(window.INITIAL_CONFIG) : window.INITIAL_CONFIG;
+                cardConfig = deepMerge(DEFAULT_VOUCHER_CONFIG, parsed);
+                return;
+            } catch (e) {
+                console.warn('Failed to parse INITIAL_CONFIG:', e);
+            }
+        }
+        // Priority 2: LocalStorage
+        const local = localStorage.getItem('max_radius_voucher_design_config');
+        if (local) {
+            try {
+                cardConfig = deepMerge(DEFAULT_VOUCHER_CONFIG, JSON.parse(local));
+                return;
+            } catch (e) {}
+        }
+    }
+
+    function deepMerge(target, source) {
+        const output = Object.assign({}, target);
+        if (isObject(target) && isObject(source)) {
+            Object.keys(source).forEach(key => {
+                if (isObject(source[key])) {
+                    if (!(key in target)) Object.assign(output, { [key]: source[key] });
+                    else output[key] = deepMerge(target[key], source[key]);
+                } else {
+                    Object.assign(output, { [key]: source[key] });
+                }
+            });
+        }
+        return output;
+    }
+    function isObject(item) {
+        return (item && typeof item === 'object' && !Array.isArray(item));
+    }
+
+    // -------------------------------------------------------------
+    // Tab & Mode Switching
+    // -------------------------------------------------------------
+    function switchDesignMode(mode) {
+        cardConfig.design_mode = mode;
+        const btnDef = document.getElementById('btnModeDefault');
+        const btnCust = document.getElementById('btnModeCustom');
+
+        if (mode === 'default') {
+            btnDef.className = 'px-4 py-1.5 rounded-lg font-bold transition flex items-center gap-2 bg-blue-600 text-white shadow-md';
+            btnCust.className = 'px-4 py-1.5 rounded-lg font-bold transition flex items-center gap-2 text-slate-400 hover:text-white';
+            document.getElementById('tabBtnDefaultStyle').style.display = 'flex';
+            document.getElementById('tabBtnCustomImage').style.display = 'none';
+            switchSettingsTab('default_style');
+        } else {
+            btnCust.className = 'px-4 py-1.5 rounded-lg font-bold transition flex items-center gap-2 bg-blue-600 text-white shadow-md';
+            btnDef.className = 'px-4 py-1.5 rounded-lg font-bold transition flex items-center gap-2 text-slate-400 hover:text-white';
+            document.getElementById('tabBtnDefaultStyle').style.display = 'none';
+            document.getElementById('tabBtnCustomImage').style.display = 'flex';
+            switchSettingsTab('custom_image');
+        }
+        onConfigChange();
+    }
+
+    function switchSettingsTab(tab) {
+        activeSettingsTab = tab;
+        const tabs = ['layout', 'default_style', 'custom_image'];
+        tabs.forEach(t => {
+            const btn = document.getElementById('tabBtn' + capitalize(t));
+            const sec = document.getElementById('section' + capitalize(t));
+            if (btn && sec) {
+                if (t === tab) {
+                    btn.className = 'px-4 py-2.5 font-bold border-b-2 border-blue-500 text-blue-400 flex items-center gap-2 transition whitespace-nowrap';
+                    sec.classList.remove('hidden');
+                } else {
+                    btn.className = 'px-4 py-2.5 font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition whitespace-nowrap';
+                    sec.classList.add('hidden');
+                }
+            }
+        });
+    }
+
+    function switchPreviewTab(tab) {
+        activePreviewTab = tab;
+        const btnSingle = document.getElementById('btnPreviewSingle');
+        const btnA4 = document.getElementById('btnPreviewA4');
+        const singleWrapper = document.getElementById('singleCardWrapper');
+        const a4Wrapper = document.getElementById('a4SheetWrapper');
+
+        if (tab === 'single') {
+            btnSingle.className = 'px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 bg-blue-600 text-white shadow-sm';
+            btnA4.className = 'px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+            singleWrapper.classList.remove('hidden');
+            a4Wrapper.classList.add('hidden');
+        } else {
+            btnA4.className = 'px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 bg-blue-600 text-white shadow-sm';
+            btnSingle.className = 'px-3.5 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 text-slate-400 hover:text-white';
+            a4Wrapper.classList.remove('hidden');
+            singleWrapper.classList.add('hidden');
+            renderA4SheetSimulation();
+        }
+    }
+
+    function capitalize(s) {
+        return s.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('');
+    }
+
+    // -------------------------------------------------------------
+    // Populate Form Controls from State
+    // -------------------------------------------------------------
+    function populateFormControls() {
+        // Layout
+        document.getElementById('cfg_cols').value = cardConfig.page_layout.cols;
+        document.getElementById('cfg_rows').value = cardConfig.page_layout.rows;
+        document.getElementById('cfg_margin_y').value = cardConfig.page_layout.margin_y;
+        document.getElementById('cfg_margin_x').value = cardConfig.page_layout.margin_x;
+        document.getElementById('cfg_gap_x').value = cardConfig.page_layout.gap_x;
+        document.getElementById('cfg_gap_y').value = cardConfig.page_layout.gap_y;
+        document.getElementById('cfg_cut_lines').value = cardConfig.page_layout.cut_lines;
+        document.getElementById('cfg_cut_color').value = cardConfig.page_layout.cut_color;
+        document.getElementById('cfg_cut_color_hex').value = cardConfig.page_layout.cut_color;
+
+        // Default Style
+        document.getElementById('cfg_show_logo').checked = !!cardConfig.card_style.show_logo;
+        document.getElementById('cfg_isp_name').value = cardConfig.card_style.isp_name;
+        document.getElementById('cfg_bg_color').value = cardConfig.card_style.bg_color;
+        document.getElementById('cfg_bg_color_hex').value = cardConfig.card_style.bg_color;
+        document.getElementById('cfg_header_color').value = cardConfig.card_style.header_color;
+        document.getElementById('cfg_header_color_hex').value = cardConfig.card_style.header_color;
+        document.getElementById('cfg_border_color').value = cardConfig.card_style.border_color;
+        document.getElementById('cfg_border_color_hex').value = cardConfig.card_style.border_color;
+        document.getElementById('cfg_border_radius').value = cardConfig.card_style.border_radius;
+        document.getElementById('cfg_border_width').value = cardConfig.card_style.border_width;
+        document.getElementById('cfg_font_family').value = cardConfig.card_style.font_family;
+        document.getElementById('cfg_show_qr').checked = !!cardConfig.card_style.show_qr;
+        document.getElementById('cfg_show_price').checked = !!cardConfig.card_style.show_price;
+        document.getElementById('cfg_show_specs').checked = !!cardConfig.card_style.show_specs;
+        document.getElementById('cfg_show_serial').checked = !!cardConfig.card_style.show_serial;
+        document.getElementById('cfg_show_footer').checked = !!cardConfig.card_style.show_footer;
+        document.getElementById('cfg_instructions').value = cardConfig.card_style.instructions_ar;
+
+        // Mode
+        switchDesignMode(cardConfig.design_mode || 'default');
+    }
+
+    // -------------------------------------------------------------
+    // Dynamic Variable Accordion Generator (Custom Image Mode)
+    // -------------------------------------------------------------
+    function renderVariableAccordions() {
+        const container = document.getElementById('variableAccordionsContainer');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const elements = cardConfig.custom_image.elements;
+        Object.keys(elements).forEach(key => {
+            const el = elements[key];
+            const isQr = !!el.is_qr;
+
+            const accDiv = document.createElement('div');
+            accDiv.className = 'bg-[#070b14] rounded-xl border border-slate-800 overflow-hidden';
+            accDiv.id = `acc_${el.id}`;
+
+            accDiv.innerHTML = `
+                <!-- Accordion Header -->
+                <div class="flex items-center justify-between p-3.5 cursor-pointer hover:bg-[#0b0f19] transition select-none" onclick="toggleAccordion('${el.id}')">
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-2.5 h-2.5 rounded-full ${el.visible ? 'bg-emerald-400' : 'bg-slate-600'}"></span>
+                        <span class="font-bold text-xs text-white">${el.label}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="relative inline-flex items-center cursor-pointer" onclick="event.stopPropagation()">
+                            <input type="checkbox" id="var_vis_${el.id}" ${el.visible ? 'checked' : ''} onchange="updateVarVisibility('${el.id}', this.checked)" class="sr-only peer">
+                            <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                        <i id="acc_arrow_${el.id}" class="fa-solid fa-chevron-down text-slate-500 text-[10px] transition-transform duration-200"></i>
+                    </div>
+                </div>
+
+                <!-- Accordion Body -->
+                <div id="acc_body_${el.id}" class="p-4 border-t border-slate-800 space-y-3.5 bg-[#0b0f19]/40 hidden text-xs">
+                    
+                    <!-- Coordinates X & Y -->
+                    <div class="grid grid-cols-2 gap-3 bg-[#070b14] p-3 rounded-xl border border-slate-800">
+                        <div>
+                            <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                                <span>الموضع الأفقي (X)</span>
+                                <span id="lbl_x_${el.id}" class="font-mono text-cyan-400">${el.x}%</span>
+                            </div>
+                            <input type="range" id="var_x_${el.id}" min="0" max="95" value="${el.x}" oninput="updateVarCoord('${el.id}', 'x', this.value)" class="w-full accent-blue-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[11px] text-slate-400 mb-1">
+                                <span>الموضع الرأسي (Y)</span>
+                                <span id="lbl_y_${el.id}" class="font-mono text-cyan-400">${el.y}%</span>
+                            </div>
+                            <input type="range" id="var_y_${el.id}" min="0" max="95" value="${el.y}" oninput="updateVarCoord('${el.id}', 'y', this.value)" class="w-full accent-blue-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                        </div>
+                    </div>
+
+                    ${!isQr ? `
+                    <!-- Typography & Appearance -->
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">نوع الخط</label>
+                            <select onchange="updateVarProp('${el.id}', 'font_family', this.value)" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white">
+                                <option value="Tajawal" ${el.font_family === 'Tajawal' ? 'selected' : ''}>Tajawal</option>
+                                <option value="Cairo" ${el.font_family === 'Cairo' ? 'selected' : ''}>Cairo</option>
+                                <option value="Almarai" ${el.font_family === 'Almarai' ? 'selected' : ''}>Almarai</option>
+                                <option value="monospace" ${el.font_family === 'monospace' ? 'selected' : ''}>Monospace</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">حجم الخط (${el.font_size}px)</label>
+                            <input type="number" min="7" max="40" value="${el.font_size}" oninput="updateVarProp('${el.id}', 'font_size', parseInt(this.value)||12)" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">وزن الخط</label>
+                            <select onchange="updateVarProp('${el.id}', 'font_weight', this.value)" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white">
+                                <option value="normal" ${el.font_weight === 'normal' ? 'selected' : ''}>عادي</option>
+                                <option value="bold" ${el.font_weight === 'bold' ? 'selected' : ''}>عريض (Bold)</option>
+                                <option value="black" ${el.font_weight === 'black' ? 'selected' : ''}>سميك (Black)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">لون النص</label>
+                            <div class="flex items-center gap-1.5">
+                                <input type="color" value="${el.color}" oninput="updateVarProp('${el.id}', 'color', this.value)" class="w-7 h-7 rounded border border-slate-700 bg-transparent cursor-pointer">
+                                <span class="text-[11px] font-mono text-slate-300">${el.color}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">محاذاة النص</label>
+                            <select onchange="updateVarProp('${el.id}', 'align', this.value)" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white">
+                                <option value="right" ${el.align === 'right' ? 'selected' : ''}>يمين</option>
+                                <option value="center" ${el.align === 'center' ? 'selected' : ''}>وسط</option>
+                                <option value="left" ${el.align === 'left' ? 'selected' : ''}>يسار</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">شارة خلفية (Badge)</label>
+                            <div class="flex items-center gap-2 pt-1">
+                                <input type="checkbox" id="var_bg_${el.id}" ${el.bg_badge ? 'checked' : ''} onchange="updateVarProp('${el.id}', 'bg_badge', this.checked)" class="rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0">
+                                <span class="text-[11px] text-slate-400">تظليل الخلفية</span>
+                            </div>
+                        </div>
+                    </div>
+                    ` : `
+                    <!-- QR Size -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">حجم مربع QR (بكسل)</label>
+                            <input type="number" min="30" max="150" value="${el.size_px || 52}" oninput="updateVarProp('${el.id}', 'size_px', parseInt(this.value)||52)" class="w-full bg-[#070b14] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] text-slate-400 mb-1">لون خلفية QR</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" value="${el.bg_color || '#ffffff'}" oninput="updateVarProp('${el.id}', 'bg_color', this.value)" class="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer">
+                                <span class="text-[11px] font-mono text-slate-300">${el.bg_color || '#ffffff'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    `}
+
+                </div>
+            `;
+            container.appendChild(accDiv);
+        });
+    }
+
+    function toggleAccordion(id) {
+        const body = document.getElementById(`acc_body_${id}`);
+        const arrow = document.getElementById(`acc_arrow_${id}`);
+        if (!body) return;
+        const isHidden = body.classList.contains('hidden');
+        if (isHidden) {
+            body.classList.remove('hidden');
+            if (arrow) arrow.style.transform = 'rotate(180deg)';
+        } else {
+            body.classList.add('hidden');
+            if (arrow) arrow.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    function updateVarVisibility(id, val) {
+        if (cardConfig.custom_image.elements[id]) {
+            cardConfig.custom_image.elements[id].visible = val;
+            onConfigChange();
+        }
+    }
+
+    function updateVarCoord(id, axis, val) {
+        if (cardConfig.custom_image.elements[id]) {
+            cardConfig.custom_image.elements[id][axis] = parseInt(val) || 0;
+            const lbl = document.getElementById(`lbl_${axis}_${id}`);
+            if (lbl) lbl.innerText = `${val}%`;
+            onConfigChange();
+        }
+    }
+
+    function updateVarProp(id, prop, val) {
+        if (cardConfig.custom_image.elements[id]) {
+            cardConfig.custom_image.elements[id][prop] = val;
+            onConfigChange();
+        }
+    }
+
+    function syncColorInput(targetId, hexVal) {
+        const target = document.getElementById(targetId);
+        if (target && /^#[0-9A-F]{6}$/i.test(hexVal)) {
+            target.value = hexVal;
+            onConfigChange();
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Custom Background Image Handler
+    // -------------------------------------------------------------
+    function handleCustomImageUpload(input) {
+        if (input.files && input.files[0]) {
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                cardConfig.custom_image.image_url = e.target.result;
+                document.getElementById('customImageInfo').classList.remove('hidden');
+                document.getElementById('customImageInfo').classList.add('flex');
+                document.getElementById('btnClearCustomImage').classList.remove('hidden');
+                onConfigChange();
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function clearCustomImage() {
+        cardConfig.custom_image.image_url = '';
+        document.getElementById('customImageFileInput').value = '';
+        document.getElementById('customImageInfo').classList.add('hidden');
+        document.getElementById('customImageInfo').classList.remove('flex');
+        document.getElementById('btnClearCustomImage').classList.add('hidden');
+        onConfigChange();
+    }
+
+    // -------------------------------------------------------------
+    // Main Reactive Update Loop
+    // -------------------------------------------------------------
+    function onConfigChange() {
+        readControlsIntoState();
+        updateUI();
+        saveToLocalStorage();
+    }
+
+    function readControlsIntoState() {
+        // Layout
+        cardConfig.page_layout.cols = parseInt(document.getElementById('cfg_cols').value) || 2;
+        cardConfig.page_layout.rows = parseInt(document.getElementById('cfg_rows').value) || 5;
+        cardConfig.page_layout.margin_y = parseInt(document.getElementById('cfg_margin_y').value) || 8;
+        cardConfig.page_layout.margin_x = parseInt(document.getElementById('cfg_margin_x').value) || 8;
+        cardConfig.page_layout.gap_x = parseInt(document.getElementById('cfg_gap_x').value) || 2;
+        cardConfig.page_layout.gap_y = parseInt(document.getElementById('cfg_gap_y').value) || 2;
+        cardConfig.page_layout.cut_lines = document.getElementById('cfg_cut_lines').value;
+        cardConfig.page_layout.cut_color = document.getElementById('cfg_cut_color').value;
+
+        // Default Style
+        cardConfig.card_style.show_logo = document.getElementById('cfg_show_logo').checked;
+        cardConfig.card_style.isp_name = document.getElementById('cfg_isp_name').value;
+        cardConfig.card_style.bg_color = document.getElementById('cfg_bg_color').value;
+        cardConfig.card_style.header_color = document.getElementById('cfg_header_color').value;
+        cardConfig.card_style.border_color = document.getElementById('cfg_border_color').value;
+        cardConfig.card_style.border_radius = document.getElementById('cfg_border_radius').value;
+        cardConfig.card_style.border_width = document.getElementById('cfg_border_width').value;
+        cardConfig.card_style.font_family = document.getElementById('cfg_font_family').value;
+        cardConfig.card_style.show_qr = document.getElementById('cfg_show_qr').checked;
+        cardConfig.card_style.show_price = document.getElementById('cfg_show_price').checked;
+        cardConfig.card_style.show_specs = document.getElementById('cfg_show_specs').checked;
+        cardConfig.card_style.show_serial = document.getElementById('cfg_show_serial').checked;
+        cardConfig.card_style.show_footer = document.getElementById('cfg_show_footer').checked;
+        cardConfig.card_style.instructions_ar = document.getElementById('cfg_instructions').value;
+    }
+
+    function updateUI() {
+        // Calculation Banner
+        const total = cardConfig.page_layout.cols * cardConfig.page_layout.rows;
+        document.getElementById('calcTotalCardsBanner').innerText = `${cardConfig.page_layout.cols} أعمدة × ${cardConfig.page_layout.rows} صفوف = ${total} كرت بالصفحة`;
+
+        // Single Card View Mode Switch
+        const defMock = document.getElementById('defaultCardMockup');
+        const custMock = document.getElementById('customCardMockup');
+
+        if (cardConfig.design_mode === 'default') {
+            defMock.classList.remove('hidden');
+            custMock.classList.add('hidden');
+            renderDefaultCardMockup();
+        } else {
+            defMock.classList.add('hidden');
+            custMock.classList.remove('hidden');
+            renderCustomCardMockup();
+        }
+
+        // If A4 Sheet preview is active, re-render it
+        if (activePreviewTab === 'a4') {
+            renderA4SheetSimulation();
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Render Default Vector Card
+    // -------------------------------------------------------------
+    function renderDefaultCardMockup() {
+        const c = cardConfig.card_style;
+        const card = document.getElementById('defaultCardMockup');
+        if (!card) return;
+
+        card.style.backgroundColor = c.bg_color;
+        card.style.borderColor = c.border_color;
+        card.style.borderWidth = c.border_width;
+        card.style.borderRadius = c.border_radius;
+        card.style.fontFamily = `'${c.font_family}', sans-serif`;
+
+        // Logo
+        const logoBox = document.getElementById('defCardLogoBox');
+        if (logoBox) {
+            logoBox.style.display = c.show_logo ? 'flex' : 'none';
+            logoBox.style.backgroundColor = c.header_color;
+        }
+
+        // ISP Name
+        const ispNameEl = document.getElementById('defCardIspName');
+        if (ispNameEl) ispNameEl.innerText = c.isp_name || 'شبكة الأفق الذكية';
+
+        // Price Badge
+        const priceBox = document.getElementById('defCardPriceBox');
+        const priceBadge = document.getElementById('defCardPriceBadge');
+        if (priceBox) priceBox.style.display = c.show_price ? 'block' : 'none';
+        if (priceBadge) {
+            priceBadge.style.color = c.header_color;
+            priceBadge.style.borderColor = c.border_color;
+        }
+
+        // PIN / Credential
+        const pinVal = document.getElementById('defCardPinValue');
+        if (pinVal) pinVal.style.color = c.header_color;
+
+        // Specs
+        const specsBox = document.getElementById('defCardSpecsBox');
+        if (specsBox) specsBox.style.display = c.show_specs ? 'block' : 'none';
+
+        // QR Box
+        const qrBox = document.getElementById('defCardQrBox');
+        if (qrBox) qrBox.style.display = c.show_qr ? 'flex' : 'none';
+
+        // Footer
+        const serialEl = document.getElementById('defCardSerial');
+        if (serialEl) serialEl.style.display = c.show_serial ? 'inline' : 'none';
+
+        const instEl = document.getElementById('defCardFooterInstructions');
+        if (instEl) {
+            instEl.style.display = c.show_footer ? 'inline' : 'none';
+            instEl.innerText = c.instructions_ar || 'امسح الـ QR أو ادخل الرمز في صفحة الدخول';
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Render Custom Image Card & Interactive Drag/Drop Canvas
+    // -------------------------------------------------------------
+    function renderCustomCardMockup() {
+        const mock = document.getElementById('customCardMockup');
+        const overlay = document.getElementById('customCanvasOverlay');
+        const noImg = document.getElementById('customCardNoImagePlaceholder');
+        if (!mock || !overlay) return;
+
+        const imgUrl = cardConfig.custom_image.image_url;
+        if (imgUrl && imgUrl.trim() !== '') {
+            mock.style.backgroundImage = `url('${imgUrl}')`;
+            if (noImg) noImg.style.display = 'none';
+        } else {
+            mock.style.backgroundImage = 'none';
+            if (noImg) noImg.style.display = 'flex';
+        }
+
+        overlay.innerHTML = '';
+        const elements = cardConfig.custom_image.elements;
+
+        Object.keys(elements).forEach(key => {
+            const el = elements[key];
+            if (!el.visible) return;
+
+            const div = document.createElement('div');
+            div.className = 'canvas-element select-none';
+            div.id = `canvas_el_${el.id}`;
+            div.style.left = `${el.x}%`;
+            div.style.top = `${el.y}%`;
+
+            if (el.is_qr) {
+                div.style.width = `${el.size_px || 52}px`;
+                div.style.height = `${el.size_px || 52}px`;
+                div.style.backgroundColor = el.bg_color || '#ffffff';
+                div.style.padding = `${el.padding || 2}px`;
+                div.style.borderRadius = `${el.border_radius || 6}px`;
+                div.className += ' flex items-center justify-center shadow-lg';
+                div.innerHTML = `<div class="w-full h-full bg-slate-900 rounded flex items-center justify-center text-white text-base"><i class="fa-solid fa-qrcode"></i></div>`;
+            } else {
+                div.style.fontFamily = `'${el.font_family}', sans-serif`;
+                div.style.fontSize = `${el.font_size}px`;
+                div.style.fontWeight = el.font_weight || 'bold';
+                div.style.color = el.color || '#000000';
+                div.style.textAlign = el.align || 'right';
+
+                if (el.bg_badge) {
+                    div.style.backgroundColor = el.bg_color || '#ffffff';
+                    div.style.opacity = el.bg_opacity || 0.95;
+                    div.style.padding = `${el.padding || 3}px 6px`;
+                    div.style.borderRadius = `${el.border_radius || 6}px`;
+                    div.className += ' shadow-sm';
+                }
+
+                div.innerText = `${el.prefix || ''}${el.sample}${el.suffix || ''}`;
+            }
+
+            // Bind Drag & Drop Listeners
+            bindElementDrag(div, el.id, mock);
+            overlay.appendChild(div);
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Drag and Drop Handler for Canvas
+    // -------------------------------------------------------------
+    function bindElementDrag(elem, id, container) {
+        let isDragging = false;
+        let startX, startY;
+        let startLeftPct, startTopPct;
+
+        function onPointerDown(e) {
+            e.preventDefault();
+            isDragging = true;
+            currentlyDraggingId = id;
+            elem.classList.add('drag-active');
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            startX = clientX;
+            startY = clientY;
+
+            startLeftPct = parseFloat(elem.style.left) || 0;
+            startTopPct = parseFloat(elem.style.top) || 0;
+
+            document.addEventListener('mousemove', onPointerMove);
+            document.addEventListener('mouseup', onPointerUp);
+            document.addEventListener('touchmove', onPointerMove, { passive: false });
+            document.addEventListener('touchend', onPointerUp);
+        }
+
+        function onPointerMove(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            const rect = container.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+
+            const deltaX = clientX - startX;
+            const deltaY = clientY - startY;
+
+            const deltaXPct = (deltaX / rect.width) * 100;
+            const deltaYPct = (deltaY / rect.height) * 100;
+
+            let newXPct = Math.min(95, Math.max(0, Math.round(startLeftPct + deltaXPct)));
+            let newYPct = Math.min(95, Math.max(0, Math.round(startTopPct + deltaYPct)));
+
+            elem.style.left = `${newXPct}%`;
+            elem.style.top = `${newYPct}%`;
+
+            // Sync with state & slider inputs
+            if (cardConfig.custom_image.elements[id]) {
+                cardConfig.custom_image.elements[id].x = newXPct;
+                cardConfig.custom_image.elements[id].y = newYPct;
+
+                const sliderX = document.getElementById(`var_x_${id}`);
+                const sliderY = document.getElementById(`var_y_${id}`);
+                const lblX = document.getElementById(`lbl_x_${id}`);
+                const lblY = document.getElementById(`lbl_y_${id}`);
+
+                if (sliderX) sliderX.value = newXPct;
+                if (sliderY) sliderY.value = newYPct;
+                if (lblX) lblX.innerText = `${newXPct}%`;
+                if (lblY) lblY.innerText = `${newYPct}%`;
+            }
+        }
+
+        function onPointerUp(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            elem.classList.remove('drag-active');
+            currentlyDraggingId = null;
+
+            document.removeEventListener('mousemove', onPointerMove);
+            document.removeEventListener('mouseup', onPointerUp);
+            document.removeEventListener('touchmove', onPointerMove);
+            document.removeEventListener('touchend', onPointerUp);
+
+            saveToLocalStorage();
+        }
+
+        elem.addEventListener('mousedown', onPointerDown);
+        elem.addEventListener('touchstart', onPointerDown, { passive: false });
+    }
+
+    // -------------------------------------------------------------
+    // Full A4 Sheet Simulation
+    // -------------------------------------------------------------
+    function renderA4SheetSimulation() {
+        const grid = document.getElementById('a4CardsGrid');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        const cols = cardConfig.page_layout.cols;
+        const rows = cardConfig.page_layout.rows;
+        const total = cols * rows;
+
+        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+        grid.style.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`;
+        grid.style.padding = `${cardConfig.page_layout.margin_y * 1.5}px ${cardConfig.page_layout.margin_x * 1.5}px`;
+        grid.style.gap = `${cardConfig.page_layout.gap_y * 1.5}px ${cardConfig.page_layout.gap_x * 1.5}px`;
+
+        const cutStyle = cardConfig.page_layout.cut_lines;
+        const cutColor = cardConfig.page_layout.cut_color;
+        const borderCss = (cutStyle !== 'none') ? `1px ${cutStyle} ${cutColor}` : 'none';
+
+        for (let i = 0; i < total; i++) {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'w-full h-full relative overflow-hidden rounded-md flex flex-col justify-between p-2';
+            cardDiv.style.border = borderCss;
+
+            if (cardConfig.design_mode === 'default') {
+                const c = cardConfig.card_style;
+                cardDiv.style.backgroundColor = c.bg_color;
+                cardDiv.style.color = '#0f172a';
+                cardDiv.style.fontFamily = `'${c.font_family}', sans-serif`;
+
+                cardDiv.innerHTML = `
+                    <div class="flex items-center justify-between border-b pb-1 text-[8px] font-bold" style="border-color:#e2e8f0;">
+                        <span class="text-slate-800">${c.isp_name || 'شبكة الأفق'}</span>
+                        <span class="text-blue-700">5 ${window.SYSTEM_CURRENCY || 'ر.س'}</span>
+                    </div>
+                    <div class="flex items-center justify-between py-1">
+                        <div>
+                            <span class="text-[7px] text-slate-500 block">PIN:</span>
+                            <span class="text-[10px] font-black font-mono text-blue-700 bg-slate-100 px-1 py-0.5 rounded border border-slate-300">
+                                84920194
+                            </span>
+                        </div>
+                        <div class="w-8 h-8 bg-slate-900 rounded flex items-center justify-center text-white text-xs">
+                            <i class="fa-solid fa-qrcode"></i>
+                        </div>
+                    </div>
+                    <div class="border-t pt-0.5 flex justify-between text-[6px] text-slate-500">
+                        <span>SN: 260901842</span>
+                        <span>امسح للاتصال</span>
+                    </div>
+                `;
+            } else {
+                const imgUrl = cardConfig.custom_image.image_url;
+                if (imgUrl) {
+                    cardDiv.style.backgroundImage = `url('${imgUrl}')`;
+                    cardDiv.style.backgroundSize = 'cover';
+                } else {
+                    cardDiv.style.backgroundColor = '#0b0f19';
+                }
+
+                // Render tiny representations of visible elements
+                const elements = cardConfig.custom_image.elements;
+                let innerHtml = '';
+                Object.keys(elements).forEach(k => {
+                    const el = elements[k];
+                    if (!el.visible) return;
+                    if (el.is_qr) {
+                        innerHtml += `<div style="position:absolute; left:${el.x}%; top:${el.y}%; width:16px; height:16px; background:#fff; border-radius:2px; display:flex; align-items:center; justify-content:center; font-size:9px;"><i class="fa-solid fa-qrcode"></i></div>`;
+                    } else {
+                        innerHtml += `<div style="position:absolute; left:${el.x}%; top:${el.y}%; font-size:7px; font-weight:bold; color:${el.color}; font-family:${el.font_family};">${el.sample}</div>`;
+                    }
+                });
+                cardDiv.innerHTML = innerHtml;
+            }
+
+            grid.appendChild(cardDiv);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Zoom Controls
+    // -------------------------------------------------------------
+    function adjustZoom(delta) {
+        currentZoom = Math.min(150, Math.max(40, currentZoom + delta));
+        applyZoom();
+    }
+
+    function resetZoom() {
+        currentZoom = 100;
+        applyZoom();
+    }
+
+    function applyZoom() {
+        document.getElementById('lblZoomLevel').innerText = `${currentZoom}%`;
+        const singleWrapper = document.getElementById('singleCardWrapper');
+        const a4Wrapper = document.getElementById('a4SheetWrapper');
+        const scale = currentZoom / 100;
+        if (singleWrapper) singleWrapper.style.transform = `scale(${scale})`;
+        if (a4Wrapper) a4Wrapper.style.transform = `scale(${scale})`;
+    }
+
+    // -------------------------------------------------------------
+    // Save to LocalStorage & Server
+    // -------------------------------------------------------------
+    function saveToLocalStorage() {
+        try {
+            localStorage.setItem('max_radius_voucher_design_config', JSON.stringify(cardConfig));
+        } catch (e) {}
+    }
+
+    function saveTemplateConfig() {
+        const btn = document.getElementById('btnSaveTemplate');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>جارٍ الحفظ...</span>';
+        }
+
+        // Fill form fields
+        document.getElementById('form_name').value = cardConfig.name || 'القالب الافتراضي';
+        document.getElementById('form_cards_per_row').value = cardConfig.page_layout.cols;
+        document.getElementById('form_width_mm').value = cardConfig.card_style.width_mm || 85;
+        document.getElementById('form_height_mm').value = cardConfig.card_style.height_mm || 55;
+        document.getElementById('form_background_color').value = cardConfig.card_style.bg_color;
+        document.getElementById('form_border_color').value = cardConfig.card_style.border_color;
+        document.getElementById('form_header_color').value = cardConfig.card_style.header_color;
+        document.getElementById('form_show_qr').value = cardConfig.card_style.show_qr ? '1' : '0';
+        document.getElementById('form_show_logo').value = cardConfig.card_style.show_logo ? '1' : '0';
+        document.getElementById('form_show_price').value = cardConfig.card_style.show_price ? '1' : '0';
+        document.getElementById('form_footer_text').value = cardConfig.card_style.instructions_ar || '';
+        document.getElementById('form_config_json').value = JSON.stringify(cardConfig);
+
+        const payload = {
+            template_id: 1,
+            name: cardConfig.name || 'القالب الافتراضي',
+            cards_per_row: cardConfig.page_layout.cols,
+            width_mm: cardConfig.card_style.width_mm || 85,
+            height_mm: cardConfig.card_style.height_mm || 55,
+            background_color: cardConfig.card_style.bg_color,
+            border_color: cardConfig.card_style.border_color,
+            header_color: cardConfig.card_style.header_color,
+            show_qr: cardConfig.card_style.show_qr ? 1 : 0,
+            show_logo: cardConfig.card_style.show_logo ? 1 : 0,
+            show_price: cardConfig.card_style.show_price ? 1 : 0,
+            footer_text: cardConfig.card_style.instructions_ar || '',
+            config_json: JSON.stringify(cardConfig)
+        };
+
+        fetch('/api/vouchers/designer/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span>حفظ وتطبيق القالب</span>';
+            }
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'تم الحفظ بنجاح!',
+                    text: res.message || 'تم حفظ وتطبيق إعدادات قالب الكروت والطباعة A4 بنجاح.',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                alert('تم حفظ وتطبيق إعدادات القالب بنجاح!');
+            }
+        })
+        .catch(err => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i><span>حفظ وتطبيق القالب</span>';
+            }
+            // Fallback to standard form submit
+            document.getElementById('designerForm').submit();
+        });
+    }
+
+    // -------------------------------------------------------------
+    // Reset Defaults
+    // -------------------------------------------------------------
+    function resetToDefaults() {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'استعادة الإعدادات الافتراضية',
+                text: 'هل أنت متأكد من رغبتك في استعادة إعدادات قالب الكروت إلى الوضع الافتراضي للمصنع؟',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                cancelButtonColor: '#475569',
+                confirmButtonText: 'نعم، استعد الافتراضي',
+                cancelButtonText: 'إلغاء'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    cardConfig = JSON.parse(JSON.stringify(DEFAULT_VOUCHER_CONFIG));
+                    localStorage.removeItem('max_radius_voucher_design_config');
+                    populateFormControls();
+                    renderVariableAccordions();
+                    onConfigChange();
+                    Swal.fire({
+                        title: 'تمت الاستعادة',
+                        text: 'تمت استعادة الإعدادات الافتراضية بنجاح.',
+                        icon: 'success',
+                        timer: 1500,
+                        showConfirmButton: false
+                    });
+                }
+            });
+        } else {
+            window.confirmAction('استعادة الإعدادات الافتراضية', 'هل أنت متأكد من استعادة التصميم الافتراضي؟ سيتم مسح التعديلات غير المحفوظة.', function() {
+                cardConfig = JSON.parse(JSON.stringify(DEFAULT_VOUCHER_CONFIG));
+                populateFormControls();
+                renderVariableAccordions();
+                onConfigChange();
+            });
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Export & Import JSON
+    // -------------------------------------------------------------
+    function exportConfigJson() {
+        const jsonStr = JSON.stringify(cardConfig, null, 2);
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `voucher_template_${new Date().toISOString().slice(0,10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function importConfigJson(input) {
+        if (input.files && input.files[0]) {
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    cardConfig = deepMerge(DEFAULT_VOUCHER_CONFIG, imported);
+                    populateFormControls();
+                    renderVariableAccordions();
+                    onConfigChange();
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'تم الاستيراد بنجاح!',
+                            text: 'تم استيراد قالب الكروت وتطبيقه على الفور.',
+                            icon: 'success',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        alert('تم استيراد القالب بنجاح!');
+                    }
+                } catch (err) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire('خطأ في الملف', 'الملف المحدد غير صالح أو تالف.', 'error');
+                    } else {
+                        alert('الملف المحدد غير صالح!');
+                    }
+                }
+            };
+            reader.readAsText(file);
+        }
+    }
+
+    // -------------------------------------------------------------
+    // Trigger Test Print
+    // -------------------------------------------------------------
+    function triggerTestPrint() {
+        // Populate dedicated print container with authentic A4 simulation
+        const printContainer = document.getElementById('printAreaGrid');
+        if (!printContainer) return;
+        printContainer.innerHTML = '';
+
+        const cols = cardConfig.page_layout.cols;
+        const rows = cardConfig.page_layout.rows;
+        const total = cols * rows;
+
+        printContainer.style.display = 'grid';
+        printContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        printContainer.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+        printContainer.style.padding = `${cardConfig.page_layout.margin_y}mm ${cardConfig.page_layout.margin_x}mm`;
+        printContainer.style.gap = `${cardConfig.page_layout.gap_y}mm ${cardConfig.page_layout.gap_x}mm`;
+
+        const cutStyle = cardConfig.page_layout.cut_lines;
+        const cutColor = cardConfig.page_layout.cut_color;
+        const borderCss = (cutStyle !== 'none') ? `1px ${cutStyle} ${cutColor}` : 'none';
+
+        for (let i = 0; i < total; i++) {
+            const cardBox = document.createElement('div');
+            cardBox.className = 'print-card-box relative overflow-hidden rounded-md flex flex-col justify-between p-3';
+            cardBox.style.border = borderCss;
+            cardBox.style.minHeight = '48mm';
+
+            if (cardConfig.design_mode === 'default') {
+                const c = cardConfig.card_style;
+                cardBox.style.backgroundColor = c.bg_color;
+                cardBox.style.fontFamily = `'${c.font_family}', sans-serif`;
+
+                cardBox.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:4px; font-size:10px; font-weight:bold;">
+                        <span>${c.isp_name || 'شبكة الأفق الذكية'}</span>
+                        <span style="color:#1e40af;">5 ${window.SYSTEM_CURRENCY || 'ر.س'}</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0;">
+                        <div>
+                            <span style="font-size:8px; color:#64748b; display:block;">PIN Code:</span>
+                            <span style="font-size:14px; font-weight:bold; font-family:monospace; color:#1e40af; background:#f1f5f9; padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1;">
+                                ${84920190 + i}
+                            </span>
+                        </div>
+                        <div style="width:42px; height:42px; background:#0f172a; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px;">
+                            <i class="fa-solid fa-qrcode"></i>
+                        </div>
+                    </div>
+                    <div style="border-top:1px solid #e2e8f0; padding-top:2px; display:flex; justify-content:space-between; font-size:8px; color:#64748b;">
+                        <span>SN: ${260901840 + i}</span>
+                        <span>${c.instructions_ar || 'امسح للاتصال'}</span>
+                    </div>
+                `;
+            } else {
+                const imgUrl = cardConfig.custom_image.image_url;
+                if (imgUrl) {
+                    cardBox.style.backgroundImage = `url('${imgUrl}')`;
+                    cardBox.style.backgroundSize = 'cover';
+                }
+                const elements = cardConfig.custom_image.elements;
+                let innerHtml = '';
+                Object.keys(elements).forEach(k => {
+                    const el = elements[k];
+                    if (!el.visible) return;
+                    if (el.is_qr) {
+                        innerHtml += `<div style="position:absolute; left:${el.x}%; top:${el.y}%; width:${el.size_px||45}px; height:${el.size_px||45}px; background:#fff; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:16px;"><i class="fa-solid fa-qrcode"></i></div>`;
+                    } else {
+                        const sampleVal = (k === 'username') ? `${84920190 + i}` : el.sample;
+                        innerHtml += `<div style="position:absolute; left:${el.x}%; top:${el.y}%; font-size:${el.font_size}px; font-weight:${el.font_weight}; color:${el.color}; font-family:${el.font_family}; background:${el.bg_badge ? el.bg_color : 'transparent'}; padding:${el.bg_badge ? '2px 4px' : '0'}; border-radius:${el.bg_badge ? '4px' : '0'};">${el.prefix||''}${sampleVal}${el.suffix||''}</div>`;
+                    }
+                });
+                cardBox.innerHTML = innerHtml;
+            }
+
+            printContainer.appendChild(cardBox);
+        }
+
+        window.print();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,518 @@
+{% extends "user_portal/user_base.html" %}
+
+{% block title %}لوحة المشترك - {{ user.full_name or user.username }}{% endblock %}
+
+{% block content %}
+{% set allow_loan = (settings.get('allow_data_loan', '1') == '1') %}
+{% set loan_amount_mb = settings.get('loan_amount_mb', '1024')|int %}
+{% set loan_amount_str = loan_amount_mb|format_mb %}
+{% set has_active_loan = (user.get('loan_status') == 1 or (user.get('loan_balance_mb') and user.get('loan_balance_mb') > 0)) %}
+{% set active_loan_mb = user.get('loan_balance_mb', loan_amount_mb)|int %}
+
+<div class="max-w-2xl mx-auto w-full py-4 px-2 sm:px-4 space-y-4">
+
+    <!-- ========================================================================= -->
+    <!-- 1. SUBSCRIBER PROFILE HEADER (NO DISCONNECT BUTTON)                       -->
+    <!-- ========================================================================= -->
+    <div class="portal-card p-4 sm:p-5 rounded-3xl border border-[#1c2840] shadow-xl">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-3.5">
+                <div class="w-13 h-13 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-cyan-500/20 flex-shrink-0">
+                    <i class="fa-solid fa-user-check"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="text-base font-black text-white" id="subscriber-name">{{ user.full_name or user.username }}</h3>
+                        {% if user.is_online %}
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span>متصل</span>
+                        </span>
+                        {% else %}
+                        <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                            غير متصل
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-2 text-xs text-slate-400 mt-1 font-mono flex-wrap">
+                        <span>@{{ user.username }}</span>
+                        <span>•</span>
+                        <span>باقة: <strong class="text-cyan-400">{{ user.package_name }}</strong></span>
+                        {% if user.current_ip %}
+                        <span class="hidden sm:inline">•</span>
+                        <span class="hidden sm:inline">IP: {{ user.current_ip }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profile Badge / Account Type -->
+            <div class="flex items-center gap-2">
+                <span class="px-3 py-1.5 rounded-xl bg-[#070b14] border border-[#1c2840] text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                    <i class="fa-solid fa-id-badge text-cyan-400"></i>
+                    <span>{{ 'مشترك دائم' if user.type == 'subscriber' else 'كرت مستخدم' }}</span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 2. ACTIVE LOAN ALERT BANNER (If loan is active)                           -->
+    <!-- ========================================================================= -->
+    {% if has_active_loan %}
+    <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex items-start gap-3 shadow-md">
+        <div class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm flex-shrink-0 mt-0.5">
+            <i class="fa-solid fa-hand-holding-dollar"></i>
+        </div>
+        <div class="text-xs space-y-1">
+            <div class="flex items-center gap-2 font-black text-amber-300">
+                <span>سلفة بيانات نشطة قيد السداد:</span>
+                <span class="font-mono bg-amber-500/20 px-2 py-0.5 rounded text-amber-200 border border-amber-500/30">{{ active_loan_mb|format_mb }}</span>
+            </div>
+            <p class="text-amber-200/80 leading-relaxed text-[11px]">
+                سيتم خصم هذه السلفة تلقائياً عند شحن الكرت القادم. يرجى التأكد من شحن كرت بسعة أكبر من السلفة لتغطية السداد وتفعيل رصيد التصفح فوراً.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ========================================================================= -->
+    <!-- 3. QUOTA, VALIDITY & WALLET PROGRESS CARDS (3-COLUMN GRID)                -->
+    <!-- ========================================================================= -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        
+        <!-- 1. Quota Balance -->
+        <div class="portal-card p-4 rounded-3xl border border-[#1c2840] space-y-2.5 shadow-lg flex flex-col justify-between">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-bold">
+                <span>الرصيد المتبقي</span>
+                <div class="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs">
+                    <i class="fa-solid fa-database"></i>
+                </div>
+            </div>
+            <div>
+                <span class="text-2xl font-black text-white font-mono block">
+                    {{ user.quota_rem_str if (user.has_quota or (user.volume_quota_mb and user.volume_quota_mb > 0)) else 'غير محدود' }}
+                </span>
+                {% if user.has_quota or (user.volume_quota_mb and user.volume_quota_mb > 0) %}
+                <div class="w-full h-2 bg-[#070b14] rounded-full overflow-hidden border border-[#1e293b] mt-2">
+                    <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" style="width: {{ user.quota_percent }}%"></div>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1 font-medium">متبقي {{ user.quota_percent }}% من سعة الباقة ({{ user.quota_total_str }})</p>
+                {% else %}
+                <p class="text-[10px] text-emerald-400 mt-1 font-medium flex items-center gap-1">
+                    <i class="fa-solid fa-infinity"></i>
+                    <span>تحميل مفتوح بدون تحديد سعة</span>
+                </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 2. Validity / Expiry -->
+        <div class="portal-card p-4 rounded-3xl border border-[#1c2840] space-y-2.5 shadow-lg flex flex-col justify-between">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-bold">
+                <span>الصلاحية المتبقية</span>
+                <div class="w-6 h-6 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center text-xs">
+                    <i class="fa-regular fa-clock"></i>
+                </div>
+            </div>
+            <div>
+                <span class="text-2xl font-black text-sky-400 font-mono block">
+                    {{ user.remaining_time or 'غير محدد' }}
+                </span>
+                <div class="w-full h-2 bg-[#070b14] rounded-full overflow-hidden border border-[#1e293b] mt-2">
+                    <div class="h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full" style="width: 80%"></div>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1 font-medium truncate" title="{{ user.expires_at }}">
+                    ينتهي: {{ user.expires_at or 'غير محدد' }}
+                </p>
+            </div>
+        </div>
+
+        <!-- 3. Wallet Balance -->
+        <div class="portal-card p-4 rounded-3xl border border-[#1c2840] space-y-2.5 shadow-lg flex flex-col justify-between">
+            <div class="flex items-center justify-between text-xs text-slate-400 font-bold">
+                <span>رصيد المحفظة</span>
+                <div class="w-6 h-6 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs">
+                    <i class="fa-solid fa-wallet"></i>
+                </div>
+            </div>
+            <div>
+                <div class="flex items-baseline gap-1">
+                    <span class="text-2xl font-black text-purple-400 font-mono">
+                        {{ "%.2f"|format(user.balance or 0.0) }}
+                    </span>
+                    <span class="text-xs font-bold text-slate-400">{{ currency_symbol }}</span>
+                </div>
+                <div class="pt-2">
+                    <button type="button" onclick="openRechargeModal()" class="w-full py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-500/30 text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-plus text-[10px]"></i>
+                        <span>شحن سريع</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 4. SELF-SERVICE ACTION CENTER GRID                                        -->
+    <!-- ========================================================================= -->
+    <div class="space-y-2 pt-1">
+        <h4 class="text-xs font-bold text-slate-400 px-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-grid-2 text-cyan-400"></i>
+            <span>خدمات المشترك السريعة</span>
+        </h4>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            
+            <!-- 1. Emergency Loan Button (Subscribers only) -->
+            {% if user.type == 'subscriber' and allow_loan %}
+                {% if not has_active_loan %}
+                <button type="button" onclick="openLoanModal()" class="p-3.5 rounded-2xl portal-card border border-[#1c2840] hover:border-amber-500/50 hover:bg-amber-500/5 transition-all text-center flex flex-col items-center justify-center gap-2 group shadow-sm min-h-[105px] cursor-pointer">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                        <i class="fa-solid fa-hand-holding-dollar"></i>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-black text-white">طلب سلفة</span>
+                        <span class="block text-[10px] text-amber-400 font-medium">{{ loan_amount_str }} طوارئ</span>
+                    </div>
+                </button>
+                {% else %}
+                <div class="p-3.5 rounded-2xl portal-card border border-amber-500/30 bg-amber-500/5 text-center flex flex-col items-center justify-center gap-2 shadow-sm min-h-[105px] opacity-80 cursor-not-allowed" title="لديك سلفة نشطة قيد السداد">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <div>
+                        <span class="block text-xs font-black text-amber-300">سلفة نشطة</span>
+                        <span class="block text-[10px] text-amber-400 font-medium font-mono">{{ active_loan_mb|format_mb }}</span>
+                    </div>
+                </div>
+                {% endif %}
+            {% endif %}
+
+            <!-- 2. Recharge Voucher -->
+            <button type="button" onclick="openRechargeModal()" class="p-3.5 rounded-2xl portal-card border border-[#1c2840] hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-center flex flex-col items-center justify-center gap-2 group shadow-sm min-h-[105px] cursor-pointer">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                    <i class="fa-solid fa-ticket"></i>
+                </div>
+                <div>
+                    <span class="block text-xs font-black text-white">شحن كرت</span>
+                    <span class="block text-[10px] text-emerald-400 font-medium">تجديد أو رصيد</span>
+                </div>
+            </button>
+
+            <!-- 3. Packages & Upgrade -->
+            {% if settings.get('portal_allow_package_change', '1') == '1' %}
+            <a href="{{ url_for('user_packages') }}" class="p-3.5 rounded-2xl portal-card border border-[#1c2840] hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all text-center flex flex-col items-center justify-center gap-2 group shadow-sm min-h-[105px]">
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                    <i class="fa-solid fa-box-open"></i>
+                </div>
+                <div>
+                    <span class="block text-xs font-black text-white">الباقات</span>
+                    <span class="block text-[10px] text-cyan-400 font-medium">ترقية أو تجديد</span>
+                </div>
+            </a>
+            {% endif %}
+
+            <!-- 4. Usage Sessions History -->
+            <a href="{{ url_for('user_sessions') }}" class="p-3.5 rounded-2xl portal-card border border-[#1c2840] hover:border-sky-500/50 hover:bg-sky-500/5 transition-all text-center flex flex-col items-center justify-center gap-2 group shadow-sm min-h-[105px]">
+                <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <div>
+                    <span class="block text-xs font-black text-white">سجل الاستهلاك</span>
+                    <span class="block text-[10px] text-sky-400 font-medium">الجلسات والبيانات</span>
+                </div>
+            </a>
+
+            <!-- 5. Change Password (If permitted) -->
+            {% if settings.get('portal_allow_password_change', '1') == '1' %}
+            <button type="button" onclick="openPassModal()" class="p-3.5 rounded-2xl portal-card border border-[#1c2840] hover:border-purple-500/50 hover:bg-purple-500/5 transition-all text-center flex flex-col items-center justify-center gap-2 group shadow-sm min-h-[105px] cursor-pointer">
+                <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg group-hover:scale-110 transition">
+                    <i class="fa-solid fa-key"></i>
+                </div>
+                <div>
+                    <span class="block text-xs font-black text-white">كلمة المرور</span>
+                    <span class="block text-[10px] text-purple-400 font-medium">تغيير الأمان</span>
+                </div>
+            </button>
+            {% endif %}
+
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 5. ACTIVE SESSION & NETWORK INFORMATION CARD                              -->
+    <!-- ========================================================================= -->
+    <div class="portal-card p-4 sm:p-5 rounded-3xl border border-[#1c2840] space-y-3 shadow-lg">
+        <div class="flex items-center justify-between border-b border-[#162136] pb-2.5">
+            <h4 class="text-xs font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-network-wired text-cyan-400"></i>
+                <span>تفاصيل الاتصال والجلسة الحالية</span>
+            </h4>
+            <span class="text-[10px] font-mono text-slate-400 bg-[#070b14] px-2.5 py-1 rounded-lg border border-[#162136]">
+                {{ user.mac_address or 'MAC N/A' }}
+            </span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div class="p-2.5 bg-[#070b14] rounded-xl border border-[#162136]">
+                <span class="text-[10px] text-slate-400 block mb-0.5">عنوان IP</span>
+                <span class="font-mono font-bold text-slate-200">{{ user.current_ip or '10.100.10.x' }}</span>
+            </div>
+            <div class="p-2.5 bg-[#070b14] rounded-xl border border-[#162136]">
+                <span class="text-[10px] text-slate-400 block mb-0.5">مدة الاتصال</span>
+                <span class="font-mono font-bold text-emerald-400">{{ user.uptime_str or 'متصل الآن' }}</span>
+            </div>
+            <div class="p-2.5 bg-[#070b14] rounded-xl border border-[#162136]">
+                <span class="text-[10px] text-slate-400 block mb-0.5">البيانات المحملة</span>
+                <span class="font-mono font-bold text-sky-400">{{ user.bytes_out_str or '0 MB' }}</span>
+            </div>
+            <div class="p-2.5 bg-[#070b14] rounded-xl border border-[#162136]">
+                <span class="text-[10px] text-slate-400 block mb-0.5">البيانات المرفوعة</span>
+                <span class="font-mono font-bold text-purple-400">{{ user.bytes_in_str or '0 MB' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- 6. TECHNICAL SUPPORT BAR                                                  -->
+    <!-- ========================================================================= -->
+    {% if settings.get('portal_whatsapp') or settings.get('portal_support_phone') %}
+    <div class="p-3.5 rounded-2xl portal-card border border-[#1c2840] flex items-center justify-between text-xs text-slate-400 shadow-sm flex-wrap gap-2">
+        <span class="flex items-center gap-1.5 font-bold text-white">
+            <i class="fa-solid fa-headset text-emerald-400"></i>
+            <span>هل تواجه مشكلة؟ تواصل مع الدعم الفني:</span>
+        </span>
+        <div class="flex items-center gap-3">
+            {% if settings.get('portal_whatsapp') %}
+            <a href="https://wa.me/{{ settings.get('portal_whatsapp') }}" target="_blank" class="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1.5 transition">
+                <i class="fa-brands fa-whatsapp"></i> <span>واتساب</span>
+            </a>
+            {% endif %}
+            {% if settings.get('portal_support_phone') %}
+            <a href="tel:{{ settings.get('portal_support_phone') }}" class="px-3 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 font-bold flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-phone"></i> <span>اتصال</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 1: EMERGENCY DATA LOAN MODAL                                        -->
+<!-- ========================================================================= -->
+<div id="modal-loan" class="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4 hidden">
+    <div class="portal-card p-6 rounded-3xl max-w-sm w-full border border-amber-500/40 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-hand-holding-dollar text-amber-400"></i>
+                <span>طلب سلفة بيانات الطوارئ</span>
+            </h3>
+            <button onclick="closeModal('modal-loan')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="text-xs text-slate-300 space-y-2 bg-[#070b14] p-3.5 rounded-2xl border border-[#162136]">
+            <p>
+                ستحصل فوراً على سلفة بيانات بحجم <strong class="text-amber-300 font-mono">{{ loan_amount_str }}</strong> صالحة لمدة <strong>24 ساعة</strong> إضافية.
+            </p>
+            <p class="text-[11px] text-slate-400 border-t border-slate-800 pt-2">
+                • يتم سداد السلفة تلقائياً عند شحن الكرت القادم.
+                <br>• تأكد من شحن كرت بسعة أكبر من السلفة لضمان تفعيل رصيدك مباشرة.
+            </p>
+        </div>
+
+        <button type="button" id="btnConfirmLoan" onclick="executeLoanRequest()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl text-xs transition shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-circle-check"></i>
+            <span>تأكيد طلب السلفة الآن</span>
+        </button>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 2: QUICK CARD RECHARGE MODAL                                        -->
+<!-- ========================================================================= -->
+<div id="modal-recharge" class="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4 hidden">
+    <div class="portal-card p-6 rounded-3xl max-w-sm w-full border border-emerald-500/40 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-ticket text-emerald-400"></i>
+                <span>شحن كرت أو قسيمة فورياً</span>
+            </h3>
+            <button onclick="closeModal('modal-recharge')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <form method="POST" action="{{ url_for('user_recharge_action') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-300 mb-2">طريقة الاستفادة من الكرت:</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="p-2.5 rounded-xl bg-[#070b14] border border-slate-700 cursor-pointer flex items-center gap-2 text-xs font-bold text-white has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10">
+                        <input type="radio" name="recharge_type" value="package" checked class="accent-emerald-500">
+                        <span>شحن باقة</span>
+                    </label>
+                    <label class="p-2.5 rounded-xl bg-[#070b14] border border-slate-700 cursor-pointer flex items-center gap-2 text-xs font-bold text-white has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10">
+                        <input type="radio" name="recharge_type" value="balance" class="accent-emerald-500">
+                        <span>رصيد محفظة</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="space-y-1.5">
+                <label class="block text-xs font-bold text-slate-300">رقم الكرت أو القسيمة:</label>
+                <input type="text" name="card_code" required autofocus placeholder="أدخل رقم الكرت هنا..." 
+                       class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-center text-sm font-mono font-bold text-white focus:border-emerald-500 outline-none">
+            </div>
+
+            <button type="submit" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-circle-check"></i>
+                <span>تأكيد وشحن الكرت</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL 3: PASSWORD CHANGE MODAL                                            -->
+<!-- ========================================================================= -->
+<div id="modal-pass" class="fixed inset-0 z-50 modal-backdrop flex items-center justify-center p-4 hidden">
+    <div class="portal-card p-6 rounded-3xl max-w-sm w-full border border-purple-500/30 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between">
+            <h3 class="text-sm font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-key text-purple-400"></i>
+                <span>تغيير كلمة مرور الحساب</span>
+            </h3>
+            <button onclick="closeModal('modal-pass')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form method="POST" action="{{ url_for('user_change_password_action') }}" class="space-y-3">
+            <input type="password" name="old_password" placeholder="كلمة المرور الحالية..." class="w-full bg-[#070b14] border border-[#1e293b] rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-purple-500" required>
+            <input type="password" name="new_password" placeholder="كلمة المرور الجديدة..." class="w-full bg-[#070b14] border border-[#1e293b] rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-purple-500" required>
+            <input type="password" name="confirm_password" placeholder="تأكيد كلمة المرور الجديدة..." class="w-full bg-[#070b14] border border-[#1e293b] rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-purple-500" required>
+            <button type="submit" class="w-full py-3 bg-purple-500 hover:bg-purple-400 text-white font-black rounded-2xl text-xs transition shadow-lg shadow-purple-500/20 cursor-pointer">
+                حفظ كلمة المرور الجديدة
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openModal(id) {
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    function openLoanModal() {
+        openModal('modal-loan');
+    }
+
+    function openRechargeModal() {
+        openModal('modal-recharge');
+    }
+
+    function openPassModal() {
+        openModal('modal-pass');
+    }
+
+    // Execute loan request via AJAX
+    function executeLoanRequest() {
+        const btn = document.getElementById('btnConfirmLoan');
+        const origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> <span>جاري المعالجة...</span>';
+
+        fetch("{{ url_for('user_loan_request_action') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => res.json())
+        .then(data => {
+            closeModal('modal-loan');
+            btn.disabled = false;
+            btn.innerHTML = origText;
+            if (data.success) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تمت الموافقة بنجاح!',
+                        text: data.message,
+                        confirmButtonText: 'حسناً',
+                        customClass: {
+                            popup: 'portal-card rounded-3xl border border-emerald-500/40 text-white',
+                            confirmButton: 'bg-emerald-500 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs'
+                        }
+                    }).then(() => location.reload());
+                } else {
+                    alert(data.message);
+                    location.reload();
+                }
+            } else {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تنبيه',
+                        text: data.message,
+                        confirmButtonText: 'حسناً',
+                        customClass: {
+                            popup: 'portal-card rounded-3xl border border-amber-500/40 text-white',
+                            confirmButton: 'bg-amber-500 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs'
+                        }
+                    });
+                } else {
+                    alert(data.message);
+                }
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = origText;
+            alert('حدث خطأ في الاتصال بالخادم.');
+            console.error(err);
+        });
+    }
+
+    // Real-time Session Heartbeat Poller
+    let heartbeatFailures = 0;
+    setInterval(async () => {
+        try {
+            const res = await fetch('{{ url_for("api_portal_session_status") }}');
+            if (res.ok) {
+                const data = await res.json();
+                if (!data.active) {
+                    heartbeatFailures++;
+                    if (heartbeatFailures >= 2) {
+                        const msg = data.is_quota_depleted ? "لقد انتهت سعة البيانات المخصصة لهذا الحساب." : (data.is_expired ? "عذراً، لقد انتهت فترة الصلاحية." : "تم إنهاء جلسة الاتصال.");
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'تنبيه انتهاء الرصيد',
+                                text: msg,
+                                confirmButtonText: 'شراء كرت جديد / تسجيل الدخول',
+                                customClass: {
+                                    popup: 'portal-card rounded-3xl border border-[#1c2840] text-white',
+                                    confirmButton: 'bg-emerald-500 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs shadow-md shadow-emerald-500/20'
+                                },
+                                allowOutsideClick: false
+                            }).then(() => {
+                                window.location.href = "{{ url_for('user_login') }}";
+                            });
+                        }
+                    }
+                } else {
+                    heartbeatFailures = 0;
+                }
+            }
+        } catch (err) {
+            console.debug('Heartbeat check error:', err);
+        }
+    }, 45000);
+</script>
+{% endblock %}

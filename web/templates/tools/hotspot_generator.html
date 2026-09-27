@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة بوابة المشتركين - MAX RADIUS{% endblock %}
+{% block page_title %}إدارة بوابة المشتركين{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Header Banner -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                <i class="fa-solid fa-users-gear"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2 flex-wrap">
+                    <span>إدارة بوابة المشتركين</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 font-mono">Subscriber Portal Management</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-1">
+                    إدارة وتخصيص بوابة المشتركين الذكية (User Portal)، والتحكم بصلاحيات المشتركين، وسلف الطوارئ، وبيانات الاتصال والدعم الفني.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN PORTAL SETTINGS -->
+    <div class="space-y-6">
+        <form id="portalConfigForm" onsubmit="savePortalSettings(event)" class="space-y-6">
+            
+            <!-- MASTER SWITCH CARD -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm">
+                <div class="flex items-center justify-between flex-wrap gap-4">
+                    <div class="flex items-center gap-3.5">
+                        <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-xl flex-shrink-0">
+                            <i class="fa-solid fa-power-off"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="font-black text-white text-base">تفعيل بوابة المشتركين والخدمات الذاتية (User Portal)</h3>
+                                <span class="text-[10px] bg-indigo-500/20 text-indigo-300 font-bold px-2 py-0.5 rounded-full border border-indigo-500/30">المفتاح الرئيسي</span>
+                                <span id="masterSwitchSaveStatus" class="text-[11px] font-bold text-emerald-400 hidden flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span id="masterSwitchStatusText">تم الحفظ بنجاح</span>
+                                </span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">
+                                تمكين وصول المشتركين إلى بوابتهم لمتابعة الاستهلاك، وتجديد وشحن الباقات، وطلب سلف البيانات.
+                            </p>
+                        </div>
+                    </div>
+
+                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 scale-110">
+                        <input type="checkbox" name="enable_user_portal" id="toggleEnableUserPortal" value="1" 
+                               {% if settings.get('enable_user_portal', '0')|string == '1' %}checked{% endif %} 
+                               onchange="togglePortalMasterSwitch(this.checked)"
+                               class="sr-only peer">
+                        <div class="w-14 h-7 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- DISABLED NOTICE BOX (Shown when portal is OFF) -->
+            <div id="portalDisabledNotice" class="bg-[#0b0f19] border border-dashed border-[#1c2840] rounded-2xl p-8 text-center space-y-3 {% if settings.get('enable_user_portal', '0')|string == '1' %}hidden{% endif %}">
+                <div class="w-14 h-14 rounded-full bg-slate-800/80 text-slate-400 border border-slate-700 flex items-center justify-center text-2xl mx-auto">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h4 class="text-sm font-bold text-white">بوابة المشتركين معطلة حالياً</h4>
+                <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                    عند تفعيل <strong>المفتاح الرئيسي</strong> أعلاه، ستتاح بوابة المشتركين وتظهر جميع خيارات التحكم بالصلاحيات وسلف البيانات وأرقام الدعم.
+                </p>
+            </div>
+
+            <!-- ACTIVE PORTAL SETTINGS CONTAINER (Shown when portal is ON) -->
+            <div id="portalActiveSettings" class="space-y-6 {% if settings.get('enable_user_portal', '0')|string != '1' %}hidden{% endif %}">
+                
+                <!-- 1. Core Permissions Grid -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+                    <div class="border-b border-[#162136] pb-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-white font-black text-sm">
+                            <i class="fa-solid fa-shield-halved text-indigo-400"></i>
+                            <span>الميزات والصلاحيات الأساسية للمشتركين</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-bold">Permissions</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Toggle 1: Self Registration -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-user-plus text-emerald-400"></i>
+                                    <span>إنشاء حساب جديد</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">إظهار خيار التسجيل الذاتي لإنشاء حسابات جديدة للمشتركين.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_allow_registration" value="1" {% if settings.get('portal_allow_registration', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Toggle 2: Package Renewal/Change -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-arrows-rotate text-blue-400"></i>
+                                    <span>تجديد وتغيير الباقة</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">تمكين المشتركين من تجديد باقاتهم أو الترقية لباقة أخرى من رصيد المحفظة.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_allow_package_change" value="1" {% if settings.get('portal_allow_package_change', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Toggle 3: Password Change -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-key text-amber-400"></i>
+                                    <span>تغيير كلمة المرور</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">إتاحة إمكانية تغيير كلمة المرور للمشتركين ذاتياً من داخل حساباتهم.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_allow_password_change" value="1" {% if settings.get('portal_allow_password_change', '1') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Toggle 4: Username Only Login (Single-Field PIN Login) -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-indigo-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-id-card text-sky-400"></i>
+                                    <span>الدخول برقم الكرت فقط</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">إخفاء حقل كلمة المرور والاكتفاء برقم الكرت لتسهيل وسرعة الدخول.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_login_username_only" value="1" {% if settings.get('portal_login_username_only', '0') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-sky-600"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Emergency Data Loan Section -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5">
+                    <div class="flex items-center justify-between border-b border-[#162136] pb-3 flex-wrap gap-2">
+                        <div class="space-y-0.5">
+                            <span class="text-sm font-black text-white flex items-center gap-2">
+                                <i class="fa-solid fa-hand-holding-dollar text-amber-400"></i>
+                                <span>سلفة بيانات الطوارئ (Emergency Data Loan)</span>
+                            </span>
+                            <p class="text-xs text-slate-400">تمكين المشترك من استعارة رصيد بيانات مؤقت عند اقتراب نفاذ رصيده، وتُسدد تلقائياً من الكرت القادم.</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                            <input type="checkbox" name="allow_data_loan" id="toggleAllowDataLoan" value="1" 
+                                   {% if settings.get('allow_data_loan', '1') == '1' %}checked{% endif %} 
+                                   onchange="toggleLoanInputsVisibility(this.checked)"
+                                   class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+
+                    <!-- Loan Inputs Grid (Progressive Disclosure) -->
+                    <div id="loanInputsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1 {% if settings.get('allow_data_loan', '1') != '1' %}hidden{% endif %}">
+                        <!-- Loan Amount Input -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between gap-2.5 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-database text-blue-400"></i>
+                                    <span>حجم السلفة الممنوحة (Loan Size)</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400">سعة السلفة بالميجابايت (مثلاً: 1024 MB تعادل 1 GB).</p>
+                            </div>
+                            <div class="relative">
+                                <input type="number" name="loan_amount_mb" min="10" max="102400" step="1" 
+                                       value="{{ settings.get('loan_amount_mb', '1024') }}" required placeholder="1024" 
+                                       class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl pr-3.5 pl-14 py-2 text-xs text-white font-mono font-bold focus:border-amber-500 focus:outline-none transition">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[11px] text-amber-400 font-bold">MB</span>
+                            </div>
+                        </div>
+
+                        <!-- Loan Threshold Input -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between gap-2.5 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-gauge-simple-high text-emerald-400"></i>
+                                    <span>حد استحقاق السلفة (Threshold)</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400">الحد الأقصى للرصيد المتبقي (MB) الذي تتاح عنده السلفة للمشترك.</p>
+                            </div>
+                            <div class="relative">
+                                <input type="number" name="loan_threshold_mb" min="1" max="10240" step="1" 
+                                       value="{{ settings.get('loan_threshold_mb', '100') }}" required placeholder="100" 
+                                       class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl pr-3.5 pl-14 py-2 text-xs text-white font-mono font-bold focus:border-emerald-500 focus:outline-none transition">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-[11px] text-emerald-400 font-bold">MB</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. Support & Contact Numbers -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4">
+                    <div class="border-b border-[#162136] pb-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-white font-black text-sm">
+                            <i class="fa-solid fa-headset text-sky-400"></i>
+                            <span>أرقام الدعم الفني والشحن وواتساب المعتمد</span>
+                        </div>
+                        <span class="text-[11px] text-slate-400 font-bold">Contact Info</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-brands fa-whatsapp text-emerald-400"></i>
+                                <span>رقم واتساب الشحن والدعم (مع رمز الدولة بدون +):</span>
+                            </label>
+                            <input type="text" name="portal_whatsapp" value="{{ settings.get('portal_whatsapp', settings.get('support_phone', '967773570053')) }}" placeholder="967773570053"
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-bold focus:border-emerald-500">
+                            <span class="text-[10px] text-slate-400">يستخدم لروابط الشراء المباشر عبر واتساب وتواصل المشتركين</span>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-solid fa-phone text-sky-400"></i>
+                                <span>رقم الاتصال المباشر لخدمة العملاء والطوارئ:</span>
+                            </label>
+                            <input type="text" name="portal_support_phone" value="{{ settings.get('portal_support_phone', settings.get('support_phone', '773570053')) }}" placeholder="773570053"
+                                   class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono font-bold focus:border-sky-500">
+                            <span class="text-[10px] text-slate-400">يظهر في زر الاتصال الهاتفي السريع في صفحة الدعم</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Action Buttons Bar -->
+                <div class="flex items-center gap-3 pt-2">
+                    <button type="submit" id="btnSavePortal" class="px-6 py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs flex items-center justify-center gap-2 transition shadow-lg shadow-cyan-600/30">
+                        <i class="fa-solid fa-floppy-disk text-xs"></i>
+                        <span>حفظ إعدادات بوابة المشتركين</span>
+                    </button>
+                    <span id="portalSaveStatus" class="text-xs font-bold text-emerald-400 hidden flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span>تم حفظ إعدادات البوابة بنجاح!</span>
+                    </span>
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Progressive Disclosure for Master Switch
+    function togglePortalMasterSwitch(isEnabled) {
+        const activeSettings = document.getElementById('portalActiveSettings');
+        const disabledNotice = document.getElementById('portalDisabledNotice');
+
+        if (isEnabled) {
+            activeSettings.classList.remove('hidden');
+            disabledNotice.classList.add('hidden');
+        } else {
+            activeSettings.classList.add('hidden');
+            disabledNotice.classList.remove('hidden');
+        }
+
+        // Auto-save master toggle
+        fetch("{{ url_for('api_hotspot_generator_save') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enable_user_portal: isEnabled ? '1' : '0' })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                const statusBox = document.getElementById('masterSwitchSaveStatus');
+                const statusText = document.getElementById('masterSwitchStatusText');
+                if (statusBox && statusText) {
+                    statusText.textContent = isEnabled ? 'تم تفعيل البوابة' : 'تم تعطيل البوابة';
+                    statusBox.classList.remove('hidden');
+                    setTimeout(() => statusBox.classList.add('hidden'), 3000);
+                }
+            }
+        })
+        .catch(err => console.error("Error updating master switch:", err));
+    }
+
+    // Progressive Disclosure for Loan Inputs
+    function toggleLoanInputsVisibility(isEnabled) {
+        const grid = document.getElementById('loanInputsGrid');
+        if (!grid) return;
+        if (isEnabled) {
+            grid.classList.remove('hidden');
+        } else {
+            grid.classList.add('hidden');
+        }
+    }
+
+    // Save All Portal Settings Form
+    function savePortalSettings(e) {
+        e.preventDefault();
+        const form = document.getElementById('portalConfigForm');
+        const formData = new FormData(form);
+        const data = {};
+
+        // Normal inputs
+        formData.forEach((value, key) => {
+            data[key] = value;
+        });
+
+        // Boolean Checkboxes
+        const checkboxes = [
+            'enable_user_portal',
+            'portal_allow_registration',
+            'portal_allow_package_change',
+            'portal_allow_password_change',
+            'portal_login_username_only',
+            'allow_data_loan'
+        ];
+
+        checkboxes.forEach(name => {
+            const el = form.querySelector(`input[name="${name}"]`);
+            if (el) {
+                data[name] = el.checked ? '1' : '0';
+            }
+        });
+
+        const btn = document.getElementById('btnSavePortal');
+        const origContent = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-xs"></i> <span>جاري الحفظ...</span>';
+
+        fetch("{{ url_for('api_hotspot_generator_save') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(res => {
+            btn.disabled = false;
+            btn.innerHTML = origContent;
+            if (res.success) {
+                const status = document.getElementById('portalSaveStatus');
+                status.classList.remove('hidden');
+                setTimeout(() => status.classList.add('hidden'), 4000);
+            } else {
+                alert('حدث خطأ أثناء حفظ الإعدادات: ' + (res.message || 'خطأ غير معروف'));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = origContent;
+            alert('حدث خطأ في الاتصال بالخادم.');
+            console.error(err);
+        });
+    }
+</script>
+{% endblock %}

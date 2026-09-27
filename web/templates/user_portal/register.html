@@ -1,0 +1,226 @@
+{% extends "user_portal/user_base.html" %}
+
+{% block title %}إنشاء حساب جديد - بوابة المشتركين{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center py-6">
+    <div class="w-full max-w-lg portal-card border rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
+        
+        <!-- Logo & Header -->
+        <div class="text-center space-y-2">
+            {% if logo_url %}
+            <img src="{{ logo_url }}" alt="Logo" class="w-20 h-20 rounded-3xl object-contain shadow-xl shadow-blue-500/20 p-2 mx-auto portal-subcard border border-blue-500/30">
+            {% else %}
+            <div class="w-16 h-16 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white text-3xl shadow-xl shadow-emerald-500/30 mx-auto">
+                <i class="fa-solid fa-user-plus"></i>
+            </div>
+            {% endif %}
+            <h2 class="text-2xl font-black text-white tracking-wider">إنشاء حساب مشترك جديد</h2>
+            <p class="text-xs text-slate-400 font-medium">سجل بياناتك للانضمام إلى شبكة {{ network_name }} والتمتع بخدمات الإنترنت</p>
+        </div>
+
+        <!-- Registration Form -->
+        <form id="registerForm" method="POST" action="{{ url_for('user_register_action') }}" class="space-y-4" onsubmit="return validateRegisterForm(event)">
+            
+            <!-- 1. Full Name -->
+            <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-id-card text-blue-400"></i>الاسم الكامل (بالعربي) <span class="text-rose-400">*</span>
+                    </span>
+                    <span id="nameHint" class="text-[10px] text-slate-500 font-normal">الاسم الأول والأخير</span>
+                </label>
+                <div class="relative">
+                    <input type="text" id="inp_fullname" name="full_name" required autofocus 
+                           value="{{ old_form.get('full_name', '') if old_form else '' }}"
+                           placeholder="مثال: أحمد محمد علي" 
+                           class="w-full portal-subcard border rounded-2xl px-4 py-3 text-sm text-white focus:border-blue-500 focus:outline-none transition"
+                           oninput="checkArabicName(this.value)">
+                </div>
+                <p id="nameError" class="text-[11px] text-rose-400 mt-1 hidden flex items-center gap-1">
+                    <i class="fa-solid fa-circle-exclamation"></i><span>يجب كتابة الاسم باللغة العربية ويتكون من مقطعين على الأقل.</span>
+                </p>
+            </div>
+
+            <!-- 2. Username -->
+            <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-user text-emerald-400"></i>اسم المستخدم (رقم الحساب) <span class="text-rose-400">*</span>
+                    </span>
+                    <span id="userCountHint" class="text-[10px] font-mono text-slate-500 font-normal">9 أرقام بالضبط</span>
+                </label>
+                <div class="relative">
+                    <input type="text" id="inp_username" name="username" required maxlength="9" inputmode="numeric"
+                           value="{{ old_form.get('username', '') if old_form else '' }}"
+                           placeholder="مثال: 770123456" 
+                           class="w-full portal-subcard border rounded-2xl px-4 py-3 text-sm text-white font-mono focus:border-emerald-500 focus:outline-none transition"
+                           oninput="checkUsernameDigits(this.value)">
+                </div>
+                <div class="flex items-center justify-between mt-1">
+                    <p id="usernameError" class="text-[11px] text-rose-400 hidden flex items-center gap-1">
+                        <i class="fa-solid fa-circle-exclamation"></i><span>يجب أن يتكون اسم المستخدم من 9 أرقام فقط.</span>
+                    </p>
+                    <span class="text-[10px] text-indigo-400 flex items-center gap-1 mr-auto">
+                        <i class="fa-solid fa-key text-xs"></i>كلمة المرور ستكون مطابقة لاسم المستخدم تلقائياً
+                    </span>
+                </div>
+            </div>
+
+            <!-- 3. Phone Number -->
+            <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span class="flex items-center gap-1.5">
+                        <i class="fa-solid fa-phone text-amber-400"></i>رقم الجوال <span class="text-rose-400">*</span>
+                    </span>
+                    <span class="text-[10px] font-mono text-slate-500 font-normal">يبدأ بـ 7 (9 أرقام)</span>
+                </label>
+                <div class="relative">
+                    <input type="tel" id="inp_phone" name="phone" required maxlength="9" inputmode="numeric"
+                           value="{{ old_form.get('phone', '') if old_form else '' }}"
+                           placeholder="مثال: 771234567" 
+                           class="w-full portal-subcard border rounded-2xl px-4 py-3 text-sm text-white font-mono focus:border-amber-500 focus:outline-none transition"
+                           oninput="checkPhoneNumber(this.value)">
+                </div>
+                <p id="phoneError" class="text-[11px] text-rose-400 mt-1 hidden flex items-center gap-1">
+                    <i class="fa-solid fa-circle-exclamation"></i><span>رقم الجوال يجب أن يتكون من 9 أرقام ويبدأ بالرقم 7.</span>
+                </p>
+            </div>
+
+            <!-- 4. Email (Optional) -->
+            <div>
+                <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-envelope text-sky-400"></i>البريد الإلكتروني <span class="text-slate-500 font-normal text-[11px]">(اختياري)</span>
+                </label>
+                <div class="relative">
+                    <input type="email" id="inp_email" name="email" 
+                           value="{{ old_form.get('email', '') if old_form else '' }}"
+                           placeholder="your-email@domain.com" 
+                           class="w-full portal-subcard border rounded-2xl px-4 py-3 text-sm text-white font-mono focus:border-sky-500 focus:outline-none transition">
+                </div>
+            </div>
+
+            <!-- Notice box -->
+            <div class="portal-subcard p-3.5 rounded-2xl border text-xs text-slate-300 space-y-1">
+                <div class="flex items-center gap-2 font-bold text-emerald-400">
+                    <i class="fa-solid fa-gift"></i>
+                    <span>تفعيل تلقائي بالباقة الأولية المجانية</span>
+                </div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                    عند التسجيل، سيتم إنشاء حسابك وتفعيله بالباقة الأولية مباشرة، لتتمكن من الدخول وشحن رصيدك واختيار باقتك المفضلة فوراً.
+                </p>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" id="btnSubmit" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-2xl shadow-lg shadow-emerald-500/30 transition flex items-center justify-center gap-2 text-sm mt-2">
+                <i class="fa-solid fa-user-check"></i>تأكيد وإنشاء الحساب الآن
+            </button>
+        </form>
+
+        <!-- Back to Login Link -->
+        <div class="text-center pt-2 border-t border-slate-700/50">
+            <p class="text-xs text-slate-400">لديك حساب بالفعل؟</p>
+            <a href="{{ url_for('user_login') }}" class="mt-2 inline-flex items-center justify-center gap-2 w-full py-2.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 font-bold rounded-2xl border border-blue-500/20 transition text-xs">
+                <i class="fa-solid fa-arrow-right"></i>تسجيل الدخول إلى حسابي
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const arabicNameRegex = /^[\u0600-\u06FF]+\s+[\u0600-\u06FF]+.*$/;
+    const usernameRegex = /^\d{9}$/;
+    const phoneRegex = /^7\d{8}$/;
+
+    function checkArabicName(val) {
+        const errorEl = document.getElementById('nameError');
+        const inputEl = document.getElementById('inp_fullname');
+        if (val.trim() && !arabicNameRegex.test(val.trim())) {
+            errorEl.classList.remove('hidden');
+            inputEl.classList.add('border-rose-500');
+        } else {
+            errorEl.classList.add('hidden');
+            inputEl.classList.remove('border-rose-500');
+        }
+    }
+
+    function checkUsernameDigits(val) {
+        const errorEl = document.getElementById('usernameError');
+        const inputEl = document.getElementById('inp_username');
+        const clean = val.replace(/\D/g, '');
+        if (val !== clean) {
+            inputEl.value = clean;
+        }
+        if (clean.length > 0 && clean.length !== 9) {
+            errorEl.classList.remove('hidden');
+            inputEl.classList.add('border-rose-500');
+        } else {
+            errorEl.classList.add('hidden');
+            inputEl.classList.remove('border-rose-500');
+        }
+    }
+
+    function checkPhoneNumber(val) {
+        const errorEl = document.getElementById('phoneError');
+        const inputEl = document.getElementById('inp_phone');
+        const clean = val.replace(/\D/g, '');
+        if (val !== clean) {
+            inputEl.value = clean;
+        }
+        if (clean.length > 0 && (!phoneRegex.test(clean))) {
+            errorEl.classList.remove('hidden');
+            inputEl.classList.add('border-rose-500');
+        } else {
+            errorEl.classList.add('hidden');
+            inputEl.classList.remove('border-rose-500');
+        }
+    }
+
+    function validateRegisterForm(e) {
+        const name = document.getElementById('inp_fullname').value.trim();
+        const username = document.getElementById('inp_username').value.trim();
+        const phone = document.getElementById('inp_phone').value.trim();
+
+        if (!arabicNameRegex.test(name)) {
+            Swal.fire({
+                icon: 'error',
+                title: 'تنبيه في الاسم الكامل',
+                text: 'يجب كتابة الاسم الكامل باللغة العربية ويتكون من مقطعين على الأقل (الاسم الأول والأخير).',
+                confirmButtonText: 'حسناً'
+            });
+            document.getElementById('inp_fullname').focus();
+            return false;
+        }
+
+        if (!usernameRegex.test(username)) {
+            Swal.fire({
+                icon: 'error',
+                title: 'تنبيه في اسم المستخدم',
+                text: 'اسم المستخدم يجب أن يتكون من 9 أرقام بالضبط.',
+                confirmButtonText: 'حسناً'
+            });
+            document.getElementById('inp_username').focus();
+            return false;
+        }
+
+        if (!phoneRegex.test(phone)) {
+            Swal.fire({
+                icon: 'error',
+                title: 'تنبيه في رقم الجوال',
+                text: 'رقم الجوال يجب أن يتكون من 9 أرقام ويبدأ بالرقم 7 (مثال: 770000000).',
+                confirmButtonText: 'حسناً'
+            });
+            document.getElementById('inp_phone').focus();
+            return false;
+        }
+
+        const btn = document.getElementById('btnSubmit');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin ml-2"></i>جاري إنشاء الحساب ومزامنة RADIUS...';
+        return true;
+    }
+</script>
+{% endblock %}

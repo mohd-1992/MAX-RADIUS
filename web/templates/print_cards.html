@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>طباعة كروت الحزمة: {{ batch.name }}</title>
+    <!-- Local Offline Tailwind CSS -->
+    <script src="{{ url_for('static', filename='vendor/tailwind/tailwind.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/tajawal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fontawesome/css/all.min.css') }}">
+    <!-- Local Offline QRCode.js -->
+    <script src="{{ url_for('static', filename='vendor/qrcode/qrcode.min.js') }}"></script>
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background-color: #f1f5f9; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; padding: 0 !important; margin: 0 !important; }
+            .print-page { page-break-after: always; box-shadow: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
+            .card-item { break-inside: avoid; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="p-6">
+
+    <!-- Top Action Toolbar -->
+    <div class="no-print max-w-5xl mx-auto mb-6 bg-slate-900 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between flex-wrap gap-4">
+        <div>
+            <h2 class="font-bold text-lg flex items-center gap-2">
+                <i class="fa-solid fa-print text-blue-400"></i>
+                معاينة وطباعة حزمة الكروت: <span class="text-blue-400">{{ batch.name }}</span>
+            </h2>
+            <p class="text-xs text-slate-400">إجمالي الكروت: <strong>{{ cards|length }}</strong> كرت | الباقة: <strong>{{ batch.package_name }}</strong></p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="window.print()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-print"></i>طباعة فورية (Print)
+            </button>
+            <button onclick="window.close()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm rounded-xl transition cursor-pointer">
+                إغلاق
+            </button>
+        </div>
+    </div>
+
+    <!-- Cards Printing Sheet (Grid) -->
+    <div id="cardsPrintGrid" class="max-w-5xl mx-auto print-page grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {% for c in cards %}
+        <div class="card-item bg-white border-2 border-slate-300 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between text-slate-800" style="min-height: 200px;">
+            <!-- Header Strip -->
+            <div class="flex items-center justify-between border-b pb-2 border-slate-200">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center p-1 flex-shrink-0">
+                        {% if logo_url %}
+                        <img src="{{ logo_url }}" class="max-w-full max-h-full object-contain" alt="Logo">
+                        {% else %}
+                        <i class="fa-solid fa-wifi text-xs"></i>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <h4 class="font-black text-sm text-slate-900 leading-tight">{{ c.isp_name }}</h4>
+                        <span class="text-[10px] text-blue-600 font-bold block">{{ c.package_name }}</span>
+                    </div>
+                </div>
+                <div class="text-left">
+                    <span class="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-black">
+                        {{ c.price }} {{ c.currency }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Body Details -->
+            <div class="flex items-center justify-between py-2 gap-3">
+                <!-- Credentials -->
+                <div class="space-y-1.5 flex-grow">
+                    {% if c.username == c.password %}
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-500 block">رمز الكرت السري (PIN Code):</span>
+                        <span class="text-xl font-black tracking-widest text-blue-700 font-mono select-all bg-slate-100 px-2 py-0.5 rounded border border-slate-300 inline-block">
+                            {{ c.pin_code }}
+                        </span>
+                    </div>
+                    {% else %}
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-500 block">اسم المستخدم (User):</span>
+                        <span class="text-sm font-black font-mono text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 inline-block">{{ c.username }}</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-500 block">كلمة المرور (Pass):</span>
+                        <span class="text-sm font-black font-mono text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300 inline-block">{{ c.password }}</span>
+                    </div>
+                    {% endif %}
+
+                    <!-- Specs -->
+                    <div class="flex items-center gap-3 text-[11px] text-slate-600 pt-1">
+                        <span>السرعة: <strong>{{ c.speed }}</strong></span>
+                        <span>السعة: <strong>{{ c.quota }}</strong></span>
+                        <span>الصلاحية: <strong>{{ c.validity }}</strong></span>
+                    </div>
+                </div>
+
+                <!-- QR Code Box -->
+                <div class="flex flex-col items-center justify-center p-1 border border-slate-200 rounded-lg bg-slate-50 flex-shrink-0">
+                    <div id="qr_{{ c.id }}" class="w-16 h-16"></div>
+                    <span class="text-[8px] font-bold text-slate-500 mt-1">امسح للاتصال</span>
+                </div>
+            </div>
+
+            <!-- Footer Strip -->
+            <div class="border-t pt-1.5 border-slate-200 flex items-center justify-between text-[9px] text-slate-500">
+                <span>سيريال: <strong class="font-mono text-slate-700">{{ c.serial_number }}</strong></span>
+                <span>امسح الـ QR أو ادخل الرمز في صفحة الدخول</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Scripts to generate QR Codes & Apply Custom Layout -->
+    <script>
+        window.SAVED_CONFIG = {{ saved_config_json|tojson|safe if saved_config_json else 'null' }};
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Apply saved layout if available
+            if (window.SAVED_CONFIG) {
+                try {
+                    const cfg = typeof window.SAVED_CONFIG === 'string' ? JSON.parse(window.SAVED_CONFIG) : window.SAVED_CONFIG;
+                    const grid = document.getElementById('cardsPrintGrid');
+                    if (cfg && cfg.page_layout && grid) {
+                        const cols = cfg.page_layout.cols || 2;
+                        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+                        grid.style.gap = `${cfg.page_layout.gap_y || 2}mm ${cfg.page_layout.gap_x || 2}mm`;
+                        grid.style.padding = `${cfg.page_layout.margin_y || 8}mm ${cfg.page_layout.margin_x || 8}mm`;
+
+                        const cutStyle = cfg.page_layout.cut_lines || 'dashed';
+                        const cutColor = cfg.page_layout.cut_color || '#94a3b8';
+                        if (cutStyle !== 'none') {
+                            document.querySelectorAll('.card-item').forEach(card => {
+                                card.style.border = `1px ${cutStyle} ${cutColor}`;
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Could not apply print config:', e);
+                }
+            }
+
+            // QR Codes
+            {% for c in cards %}
+            const qrEl_{{ c.id }} = document.getElementById("qr_{{ c.id }}");
+            if (qrEl_{{ c.id }}) {
+                new QRCode(qrEl_{{ c.id }}, {
+                    text: "{{ c.login_url }}",
+                    width: 64,
+                    height: 64,
+                    colorDark : "#0f172a",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.M
+                });
+            }
+            {% endfor %}
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+[Unit]
+Description=MAX RADIUS First Boot IP Configuration Wizard
+After=network.target max-radius.service
+ConditionPathExists=!/etc/max_radius_configured
+
+[Service]
+Type=oneshot
+ExecStart=/opt/max-radius/deploy/ubuntu/firstboot_maxip.sh
+StandardInput=tty
+StandardOutput=tty
+TTYPath=/dev/tty1
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

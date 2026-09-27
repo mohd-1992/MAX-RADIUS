@@ -1,0 +1,333 @@
+{% extends "base.html" %}
+
+{% block title %}إنشاء باقة سرعة جديدة{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Breadcrumb -->
+    <div class="flex items-center gap-2 text-xs text-slate-400">
+        <a href="{{ url_for('packages') }}" class="hover:text-blue-400 transition flex items-center gap-1.5 font-bold">
+            <i class="fa-solid fa-arrow-right"></i>
+            <span>العودة إلى قائمة الباقات والسرعات</span>
+        </a>
+        <span>/</span>
+        <span class="text-white font-semibold">إنشاء باقة جديدة</span>
+    </div>
+
+    <!-- Header & Action Bar -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-xl flex-shrink-0 shadow-lg shadow-amber-500/10">
+                <i class="fa-solid fa-bolt"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                    <span>إنشاء باقة سرعة وبروفايل جديد (New Profile)</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    تحديد السرعات، مضاعفة البيرست التوربو، الكوتا، ومدة الصلاحية مع المزامنة التلقائية اللحظية في FreeRADIUS وميكروتيك
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('packages') }}" class="px-4 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
+                إلغاء
+            </a>
+            <button type="button" onclick="document.getElementById('addPkgForm').submit()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-plus-circle"></i>
+                <span>حفظ وإنشاء الباقة ومزامنة RADIUS</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Grid: Form (8 cols) & Side Overview (4 cols) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Form Container -->
+        <div class="lg:col-span-8">
+            <form id="addPkgForm" method="POST" action="{{ url_for('add_package_action') }}" class="space-y-5">
+                
+                <!-- Section 1: General & Pricing -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 shadow-sm">
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                        <i class="fa-solid fa-circle-info text-blue-400"></i>البيانات الأساسية والتسعيرة
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">اسم الباقة (Profile Groupname) <span class="text-rose-400">*</span></label>
+                            <input type="text" name="name" required placeholder="مثال: باقة الألياف 20M أو باقة 5G اليومية" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                            <span class="text-[11px] text-slate-500 mt-1 block">يُستخدم كاسم مجموعة في جداول FreeRADIUS (radgroupreply / radgroupcheck)</span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">نوع الخدمة المخصصة</label>
+                            <select name="service_type" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                                <option value="hotspot" selected>Hotspot (شبكات الوايفاي وكروت الإنترنت)</option>
+                                <option value="pppoe">PPPoE (المنزلي / الفايبر / الوايرلس)</option>
+                                <option value="both">مزدوجة (Hotspot + PPPoE)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">سعر البيع للمشترك ({{ settings.get('currency_symbol', 'ر.س') }}) <span class="text-rose-400">*</span></label>
+                            <input type="number" step="0.5" min="0" name="price" value="20" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">سعر التكلفة / الجملة للموزعين</label>
+                            <input type="number" step="0.5" min="0" name="cost" value="15" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- 3 Feature & Status Toggles -->
+                    <div class="space-y-3 pt-2">
+                        <!-- Toggle 1: Package Active Status -->
+                        <div class="bg-[#070b14] border border-[#1c2840] hover:border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between gap-4 transition shadow-sm">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <i class="fa-solid fa-power-off text-emerald-400"></i>
+                                        تفعيل الباقة في النظام (Package Active Status)
+                                    </span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">عند التفعيل، تكون الباقة نشطة ومتاحة لتوليد الكروت وتفعيل الحسابات والاشتراكات في النظام.</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                                <input type="checkbox" name="is_active" value="1" checked class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Toggle 2: Show in User Portal -->
+                        <div class="bg-[#070b14] border border-[#1c2840] hover:border-blue-500/30 rounded-2xl p-4 flex items-center justify-between gap-4 transition shadow-sm">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <i class="fa-solid fa-users text-blue-400"></i>
+                                        إظهار الباقة في بوابة المشتركين (Show in User Portal)
+                                    </span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">تمكين المشتركين من استعراض هذه الباقة واختيارها أو التجديد بها ذاتياً من لوحة المشترك.</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                                <input type="checkbox" name="show_in_portal" value="1" checked class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+
+                        <!-- Toggle 3: Data & Time Rollover -->
+                        <div class="bg-[#070b14] border border-indigo-500/30 hover:border-indigo-500/50 rounded-2xl p-4 flex items-center justify-between gap-4 transition shadow-sm">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                        <i class="fa-solid fa-arrows-rotate text-indigo-400"></i>
+                                        تفعيل ترحيل الرصيد (Data & Time Rollover)
+                                    </span>
+                                    <span class="text-[10px] bg-indigo-500/20 text-indigo-300 font-semibold px-2 py-0.5 rounded border border-indigo-500/30">ميزة ذكية</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">عند التفعيل، سيتم ترحيل الأيام والبيانات المتبقية للمشترك عند التجديد المبكر وإضافتها تلقائياً فوق رصيد الباقة الجديدة.</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                                <input type="checkbox" name="is_rollover_enabled" value="1" class="sr-only peer">
+                                <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1">وصف الباقة ومميزاتها (اختياري)</label>
+                        <textarea name="description" rows="2" placeholder="وصف ترويجي يظهر للمشترك في بوابة الخدمة وعروض الأسعار..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-xs text-white focus:border-blue-500 focus:outline-none"></textarea>
+                    </div>
+                </div>
+
+                <!-- Section 2: Bandwidth & Speeds -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 shadow-sm">
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                        <i class="fa-solid fa-gauge-high text-emerald-400"></i>السرعات الأساسية وتحديد النطاق (Rate Limits)
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">سرعة التحميل الأساسية (Rx / Download) <span class="text-rose-400">*</span></label>
+                            <input type="text" id="inp_rate_down" name="rate_download" value="4M" required placeholder="مثال: 4M أو 512k (0 لسرعة مفتوحة)" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-emerald-400 font-mono font-bold focus:border-blue-500 focus:outline-none" oninput="updateRatePreview()">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">سرعة الرفع الأساسية (Tx / Upload) <span class="text-rose-400">*</span></label>
+                            <input type="text" id="inp_rate_up" name="rate_upload" value="2M" required placeholder="مثال: 2M أو 256k (0 لسرعة مفتوحة)" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-emerald-400 font-mono font-bold focus:border-blue-500 focus:outline-none" oninput="updateRatePreview()">
+                        </div>
+                    </div>
+
+                    <!-- Turbo Burst Speeds Box -->
+                    <div class="p-4 rounded-xl bg-[#070b14] border border-amber-500/20 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-bolt"></i>مضاعفة السرعة التوربو (MikroTik Turbo Burst)
+                            </span>
+                            <span class="text-[11px] text-slate-400">اختياري لمضاعفة السرعة لبضع ثوانٍ لفتح المواقع بسرعة فائقة</span>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">سرعة البيرست تحميل</label>
+                                <input type="text" id="inp_burst_down" name="burst_download" placeholder="مثال: 8M" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 font-mono focus:border-amber-500 focus:outline-none" oninput="updateRatePreview()">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">سرعة البيرست رفع</label>
+                                <input type="text" id="inp_burst_up" name="burst_upload" placeholder="مثال: 4M" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-amber-300 font-mono focus:border-amber-500 focus:outline-none" oninput="updateRatePreview()">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">عتبة البيرست تحميل</label>
+                                <input type="text" id="inp_thresh_down" name="burst_threshold_down" placeholder="مثال: 3M" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 font-mono focus:border-amber-500 focus:outline-none" oninput="updateRatePreview()">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">عتبة البيرست رفع</label>
+                                <input type="text" id="inp_thresh_up" name="burst_threshold_up" placeholder="مثال: 1.5M" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 font-mono focus:border-amber-500 focus:outline-none" oninput="updateRatePreview()">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">مدة البيرست بالثواني (Burst Time)</label>
+                                <input type="number" id="inp_burst_time" name="burst_time" value="16" min="1" max="120" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-amber-500 focus:outline-none" oninput="updateRatePreview()">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-slate-400 mb-1">أولوية المرور في الراوتر (Priority 1-8)</label>
+                                <input type="number" id="inp_priority" name="priority" value="8" min="1" max="8" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-amber-500 focus:outline-none" oninput="updateRatePreview()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Rate-Limit Preview -->
+                    <div class="p-3 bg-[#070b14] rounded-xl border border-slate-800 flex items-center justify-between">
+                        <span class="text-xs text-slate-400">سمة MikroTik-Rate-Limit المتولدة:</span>
+                        <span id="rateLimitPreview" class="text-sm font-black font-mono text-emerald-400 select-all tracking-wide">2M/4M</span>
+                    </div>
+                </div>
+
+                <!-- Section 3: Quota & Validity -->
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 shadow-sm">
+                    <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                        <i class="fa-solid fa-hourglass-half text-sky-400"></i>سعة البيانات (Quota) ومدة الصلاحية (Validity)
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">سعة البيانات بالميجابايت (MB) <span class="text-rose-400">*</span></label>
+                            <input type="number" name="volume_quota_mb" value="0" min="0" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                            <span class="text-[11px] text-slate-500 mt-1 block">0 = غير محدود (Unlimited Quota)</span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">قيمة مدة الصلاحية <span class="text-rose-400">*</span></label>
+                            <input type="number" name="validity_value" value="30" min="1" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">وحدة الصلاحية</label>
+                            <select name="validity_unit" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                                <option value="days" selected>أيام (Days)</option>
+                                <option value="hours">ساعات (Hours)</option>
+                                <option value="minutes">دقائق (Minutes)</option>
+                                <option value="months">أشهر (Months)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">اسم بروفايل ميكروتيك المخصص (MikroTik Group)</label>
+                            <input type="text" name="mikrotik_group" placeholder="مثال: fiber-profile أو hotspot-vip" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none">
+                            <span class="text-[11px] text-slate-500 mt-1 block">يرسل سمة <code class="text-blue-400 font-mono">Mikrotik-Group</code> لتطبيق فلاتر البروفايل في راوتر MikroTik</span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">عدد الجلسات المتزامنة لنفس الحساب</label>
+                            <input type="number" min="1" max="10" name="simultaneous_sessions" value="1" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                            <span class="text-[11px] text-slate-500 mt-1 block">يرسل سمة <code class="text-purple-400 font-mono">Simultaneous-Use</code> في FreeRADIUS</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button Bar -->
+                <div class="flex justify-end gap-3 pt-3">
+                    <a href="{{ url_for('packages') }}" class="px-5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
+                        إلغاء
+                    </a>
+                    <button type="submit" class="px-7 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-plus-circle"></i>
+                        <span>حفظ وإنشاء الباقة ومزامنة RADIUS</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Side Overview & RADIUS Info (4 cols) -->
+        <div class="lg:col-span-4 space-y-5">
+            <!-- 1. FreeRADIUS Auto Attributes Card -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+                <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                    <i class="fa-solid fa-server text-cyan-400"></i>سمات RADIUS المتولدة تلقائياً
+                </h3>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    عند حفظ هذه الباقة، يقوم النظام بإنشاء ومزامنة السمات التالية في FreeRADIUS فوراً:
+                </p>
+                <div class="space-y-2 text-xs font-mono">
+                    <div class="p-2.5 bg-[#070b14] rounded-xl border border-slate-800 space-y-1">
+                        <div class="text-blue-400 font-bold">MikroTik-Rate-Limit (رد)</div>
+                        <div class="text-[11px] text-slate-400">تطبيق السرعة والبيرست وطوابير Simple Queues</div>
+                    </div>
+                    <div class="p-2.5 bg-[#070b14] rounded-xl border border-slate-800 space-y-1">
+                        <div class="text-purple-400 font-bold">ChilliSpot-Max-Total-Octets (رد)</div>
+                        <div class="text-[11px] text-slate-400">تقييد وفصل المشترك تلقائياً عند استهلاك الكوتا</div>
+                    </div>
+                    <div class="p-2.5 bg-[#070b14] rounded-xl border border-slate-800 space-y-1">
+                        <div class="text-amber-400 font-bold">Expiration (فحص)</div>
+                        <div class="text-[11px] text-slate-400">تحديد تاريخ انتهاء الصلاحية فور أول تسجيل دخول</div>
+                    </div>
+                    <div class="p-2.5 bg-[#070b14] rounded-xl border border-slate-800 space-y-1">
+                        <div class="text-emerald-400 font-bold">Mikrotik-Group (رد)</div>
+                        <div class="text-[11px] text-slate-400">ربط المشترك ببروفايل الهوتسبوت في MikroTik Router</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Tips & Best Practices -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+                <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
+                    <i class="fa-solid fa-lightbulb text-yellow-400"></i>إرشادات ضبط الباقات
+                </h3>
+                <ul class="text-xs text-slate-400 space-y-2.5 list-disc list-inside leading-relaxed">
+                    <li><strong class="text-slate-200">السرعة المفتوحة (0):</strong> إذا كتبت 0 في السرعة فلن يتم إنشاء Queue في ميكروتيك.</li>
+                    <li><strong class="text-slate-200">الكوتا غير المحدودة (0):</strong> إدخال 0 في سعة البيانات يمنح المشترك تحميلاً غير محدود.</li>
+                    <li><strong class="text-slate-200">الصلاحية:</strong> يبدأ احتساب الوقت والمدة فور أول اتصال للمشترك أو تفعيل الكرت.</li>
+                    <li><strong class="text-slate-200">التوربو بيرست:</strong> سرعة البيرست يجب أن تكون أعلى من السرعة الأساسية، وعتبة البيرست بينهما.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateRatePreview() {
+        const up = document.getElementById('inp_rate_up').value.trim();
+        const down = document.getElementById('inp_rate_down').value.trim();
+        const b_up = document.getElementById('inp_burst_up').value.trim();
+        const b_down = document.getElementById('inp_burst_down').value.trim();
+        const t_up = document.getElementById('inp_thresh_up').value.trim();
+        const t_down = document.getElementById('inp_thresh_down').value.trim();
+        const b_time = document.getElementById('inp_burst_time').value.trim() || '16';
+        const prio = document.getElementById('inp_priority').value.trim() || '8';
+
+        const previewEl = document.getElementById('rateLimitPreview');
+
+        if (!up || !down || up === '0' || down === '0') {
+            previewEl.innerText = 'سرعة مفتوحة (غير محدود - Unlimited)';
+            previewEl.className = 'text-sm font-black font-mono text-cyan-400 select-all tracking-wide';
+            return;
+        }
+
+        let rate = `${up}/${down}`;
+        if (b_up && b_down && t_up && t_down) {
+            rate += ` ${b_up}/${b_down} ${t_up}/${t_down} ${b_time}/${b_time} ${prio}`;
+        }
+        previewEl.innerText = rate;
+        previewEl.className = 'text-sm font-black font-mono text-emerald-400 select-all tracking-wide';
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        updateRatePreview();
+    });
+</script>
+{% endblock %}

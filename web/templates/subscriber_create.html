@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}إنشاء مشترك جديد{% endblock %}
+
+{% block container_class %}max-w-7xl px-4 sm:px-6 lg:px-8{% endblock %}
+
+{% block content %}
+<div class="space-y-6 pb-12">
+    <!-- Breadcrumb & Top Bar -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3">
+            <a href="{{ url_for('subscribers') }}" class="w-10 h-10 rounded-xl bg-[#070b14] border border-[#1c2840] hover:border-blue-500/40 text-slate-400 hover:text-white flex items-center justify-center transition shadow-sm" title="العودة لإدارة المشتركين">
+                <i class="fa-solid fa-arrow-right text-sm"></i>
+            </a>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2.5">
+                    <i class="fa-solid fa-user-plus text-blue-500"></i>
+                    <span>إنشاء حساب مشترك جديد (Add New Subscriber)</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">إدخال بيانات المشترك، اختيار الباقة، وإعدادات الشبكة ومزامنتها فوراً مع FreeRADIUS</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('subscribers') }}" class="px-4 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition">
+                إلغاء والعودة
+            </a>
+            <button type="submit" form="createSubscriberForm" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2">
+                <i class="fa-solid fa-check"></i>
+                <span>حفظ وإنشاء المشترك</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Creation Form -->
+    <form id="createSubscriberForm" method="POST" action="{{ url_for('subscriber_create_page') }}" class="space-y-6">
+        
+        <!-- Section 1: Credentials & Personal Info (2 Columns) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Card 1: RADIUS Credentials -->
+            <div class="lg:col-span-6 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-blue-400"></i>
+                        <span>بيانات الحساب والمصادقة في الراديوس</span>
+                    </h3>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">FreeRADIUS</span>
+                </div>
+
+                <!-- Username -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-bold text-slate-200">اسم المستخدم للاتصال (Username) <span class="text-rose-400">*</span></label>
+                        <button type="button" onclick="generateUsername()" class="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 transition">
+                            <i class="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
+                            <span>توليد أرقام عشوائية (9 خانات)</span>
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <input type="text" id="usernameInput" name="username" required placeholder="مثال: 771234567" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pr-9 pl-3 py-2.5 text-sm font-mono text-white placeholder-slate-500 transition">
+                        <i class="fa-solid fa-user absolute right-3 top-3.5 text-slate-500 text-xs"></i>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">يُستخدم لتسجيل الدخول في PPPoE أو كود تسجيل الدخول في الهوتسبوت</p>
+                </div>
+
+                <!-- Password -->
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="text-xs font-bold text-slate-200">كلمة المرور (Password) <span class="text-rose-400">*</span></label>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="copyUsernameToPassword()" class="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1 transition" title="جعل كلمة المرور مطابقة لاسم المستخدم">
+                                <i class="fa-solid fa-clone text-[10px]"></i>
+                                <span>نفس اسم المستخدم</span>
+                            </button>
+                            <span class="text-slate-600">|</span>
+                            <button type="button" onclick="generatePassword()" class="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 transition">
+                                <i class="fa-solid fa-key text-[10px]"></i>
+                                <span>توليد (9 أرقام)</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <input type="text" id="passwordInput" name="password" required placeholder="كلمة المرور للاتصال..." class="w-full bg-[#070b14] border border-[#1c2840] focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pr-9 pl-10 py-2.5 text-sm font-mono text-white placeholder-slate-500 transition">
+                        <i class="fa-solid fa-lock absolute right-3 top-3.5 text-slate-500 text-xs"></i>
+                        <button type="button" onclick="togglePasswordVisibility()" class="absolute left-3 top-3 text-slate-400 hover:text-white transition">
+                            <i id="pwdToggleIcon" class="fa-solid fa-eye-slash text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Status & Service Type -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                        <label class="text-xs font-bold text-slate-200 block mb-1.5">حالة الحساب الأولية</label>
+                        <select name="status" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2.5 text-xs text-white focus:border-blue-500">
+                            <option value="active" selected>نشط (Active) - مسموح بالاتصال</option>
+                            <option value="suspended">موقوف مؤقتاً (Suspended)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-200 block mb-1.5">نوع الربط والخدمة <span class="text-rose-400">*</span></label>
+                        <select id="serviceTypeSelect" name="service_type" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2.5 text-xs text-white focus:border-blue-500 font-semibold">
+                            <option value="pppoe" selected>PPPoE المنزلي / DSL / ألياف</option>
+                            <option value="hotspot">Hotspot الوايفاي والشبكات اللاسلكية</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Personal & Contact Info -->
+            <div class="lg:col-span-6 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-address-card text-emerald-400"></i>
+                        <span>البيانات الشخصية ومعلومات العميل</span>
+                    </h3>
+                    <span class="text-[10px] text-slate-400">بيانات المشترك</span>
+                </div>
+
+                <!-- Full Name -->
+                <div>
+                    <label class="text-xs font-bold text-slate-200 block mb-1.5">اسم المشترك الكامل <span class="text-rose-400">*</span></label>
+                    <div class="relative">
+                        <input type="text" name="full_name" required placeholder="مثال: محمد علي العولقي" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-blue-500 rounded-xl pr-9 pl-3 py-2.5 text-sm text-white placeholder-slate-500 transition">
+                        <i class="fa-solid fa-signature absolute right-3 top-3.5 text-slate-500 text-xs"></i>
+                    </div>
+                </div>
+
+                <!-- Phone & Email -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-slate-200 block mb-1.5">رقم الهاتف / الجوال</label>
+                        <div class="relative">
+                            <input type="text" name="phone" placeholder="مثال: 771234567" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-blue-500 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 font-mono transition">
+                            <i class="fa-solid fa-phone absolute right-3 top-3 text-slate-500 text-xs"></i>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-200 block mb-1.5">البريد الإلكتروني</label>
+                        <div class="relative">
+                            <input type="email" name="email" placeholder="example@domain.com" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-blue-500 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 font-mono transition">
+                            <i class="fa-solid fa-envelope absolute right-3 top-3 text-slate-500 text-xs"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Address -->
+                <div>
+                    <label class="text-xs font-bold text-slate-200 block mb-1.5">العنوان السكني / الحي / الشارع</label>
+                    <div class="relative">
+                        <input type="text" name="address" placeholder="المدينة، الحي، رقم المنزل..." class="w-full bg-[#070b14] border border-[#1c2840] focus:border-blue-500 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 transition">
+                        <i class="fa-solid fa-location-dot absolute right-3 top-3 text-slate-500 text-xs"></i>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Section 2: Package Selection Only -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-box-open text-purple-400"></i>
+                    <span>اختيار باقة المشترك</span>
+                </h3>
+                <span class="text-[10px] text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">جميع الباقات المتاحة</span>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Package Select Dropdown -->
+                <div>
+                    <label class="text-xs font-bold text-slate-200 block mb-1.5">اختر الباقة من النظام <span class="text-rose-400">*</span></label>
+                    <select id="packageSelect" name="package_id" required onchange="handlePackageChange(this)" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-sm text-white font-semibold">
+                        <option value="" disabled selected>-- اضغط هنا لاختيار الباقة --</option>
+                        {% for p in packages %}
+                        <option value="{{ p.id }}" 
+                                data-price="{{ p.price }}" 
+                                data-type="{{ p.service_type }}"
+                                data-quota="{{ p.volume_quota_mb }}"
+                                data-val="{{ p.validity_value or p.validity_days or 30 }}"
+                                data-unit="{{ p.validity_unit or 'days' }}"
+                                data-down="{{ p.rate_download }}"
+                                data-up="{{ p.rate_upload }}">
+                            {{ p.name }} — السعر: {{ p.price }} {{ settings.get('currency_symbol', 'ر.ي') }} [نوع الخدمة: {{ p.service_type|upper }}]
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Package Live Summary Card -->
+                <div id="pkgLiveCard" class="hidden bg-[#070b14] border border-purple-500/30 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span id="pkgCardName" class="font-black text-sm text-white flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-purple-400"></i>
+                            <span>-</span>
+                        </span>
+                        <span id="pkgCardPrice" class="font-bold text-emerald-400 font-mono text-sm">-</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#1c2840] text-center text-xs">
+                        <div class="bg-[#0b0f19] p-2.5 rounded-xl border border-[#1c2840]">
+                            <span class="text-[10px] text-slate-400 block mb-0.5">السرعة المحددة</span>
+                            <span id="pkgCardSpeed" class="font-mono font-bold text-slate-200 text-xs">-</span>
+                        </div>
+                        <div class="bg-[#0b0f19] p-2.5 rounded-xl border border-[#1c2840]">
+                            <span class="text-[10px] text-slate-400 block mb-0.5">رصيد الكوتا</span>
+                            <span id="pkgCardQuota" class="font-mono font-bold text-sky-400 text-xs">-</span>
+                        </div>
+                        <div class="bg-[#0b0f19] p-2.5 rounded-xl border border-[#1c2840]">
+                            <span class="text-[10px] text-slate-400 block mb-0.5">الصلاحية التلقائية</span>
+                            <span id="pkgCardValidity" class="font-mono font-bold text-amber-400 text-xs">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 3: Advanced Network & Notes -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-network-wired text-sky-400"></i>
+                    <span>إعدادات الشبكة وميكروتيك والملاحظات</span>
+                </h3>
+                <span class="text-[10px] text-slate-400 font-mono">Static IP & MAC Lock</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Static IP -->
+                <div>
+                    <label class="text-xs font-bold text-slate-200 block mb-1.5">عنوان IP ثابت (Framed-IP-Address)</label>
+                    <div class="relative">
+                        <input type="text" name="static_ip" placeholder="مثال: 10.10.10.50" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-sky-500 rounded-xl pr-9 pl-3 py-2 text-xs font-mono text-white placeholder-slate-500 transition">
+                        <i class="fa-solid fa-globe absolute right-3 top-3 text-slate-500 text-xs"></i>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mt-1">اختياري: لتثبيت عنوان IP محدد للمشترك عند كل اتصال</p>
+                </div>
+
+                <!-- MAC Address Binding -->
+                <div>
+                    <label class="text-xs font-bold text-slate-200 block mb-1.5">قفل الماك (MAC Address Binding)</label>
+                    <div class="relative">
+                        <input type="text" name="mac_binding" placeholder="مثال: 00:1A:2B:3C:4D:5E" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-sky-500 rounded-xl pr-9 pl-3 py-2 text-xs font-mono text-white placeholder-slate-500 transition">
+                        <i class="fa-solid fa-fingerprint absolute right-3 top-3 text-slate-500 text-xs"></i>
+                    </div>
+                    <p class="text-[10px] text-slate-500 mt-1">اختياري: لقفل الحساب على راوتر المشترك ومنع تشغيله على جهاز آخر</p>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div>
+                <label class="text-xs font-bold text-slate-200 block mb-1.5">ملاحظات إدارية عن المشترك</label>
+                <textarea name="notes" rows="2" placeholder="أية ملاحظات إضافية، موقع الصندوق، الكابينة، أو معلومات الفني..." class="w-full bg-[#070b14] border border-[#1c2840] focus:border-blue-500 rounded-xl p-3 text-xs text-white placeholder-slate-500 transition"></textarea>
+            </div>
+        </div>
+
+        <!-- Bottom Action Bar -->
+        <div class="flex items-center justify-between bg-[#0b0f19] border border-[#1c2840] p-4 rounded-2xl shadow-sm">
+            <a href="{{ url_for('subscribers') }}" class="px-5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition">
+                إلغاء والعودة
+            </a>
+            <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2">
+                <i class="fa-solid fa-user-check text-sm"></i>
+                <span>حفظ المشترك وتفعيله في FreeRADIUS</span>
+            </button>
+        </div>
+
+    </form>
+</div>
+
+<!-- Dynamic Form Scripts -->
+<script>
+    // 1. Generate 9-digit random numbers only
+    function generateUsername() {
+        const randNum = Math.floor(100000000 + Math.random() * 900000000);
+        document.getElementById('usernameInput').value = randNum.toString();
+    }
+
+    function generatePassword() {
+        const randNum = Math.floor(100000000 + Math.random() * 900000000);
+        document.getElementById('passwordInput').value = randNum.toString();
+    }
+
+    function copyUsernameToPassword() {
+        const u = document.getElementById('usernameInput').value.trim();
+        if (u) {
+            document.getElementById('passwordInput').value = u;
+        } else {
+            Swal.fire('تنبيه', 'يرجى إدخال اسم المستخدم أولاً لنسخه إلى كلمة المرور', 'info');
+        }
+    }
+
+    function togglePasswordVisibility() {
+        const input = document.getElementById('passwordInput');
+        const icon = document.getElementById('pwdToggleIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'fa-solid fa-eye-slash text-xs';
+        } else {
+            input.type = 'password';
+            icon.className = 'fa-solid fa-eye text-xs';
+        }
+    }
+
+    function handlePackageChange(sel) {
+        const opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) return;
+
+        const card = document.getElementById('pkgLiveCard');
+        card.classList.remove('hidden');
+
+        document.getElementById('pkgCardName').innerHTML = `<i class="fa-solid fa-layer-group text-purple-400"></i> <span>${opt.text}</span>`;
+        document.getElementById('pkgCardPrice').innerText = `${opt.getAttribute('data-price')} {{ settings.get('currency_symbol', 'ر.ي') }}`;
+        
+        const down = opt.getAttribute('data-down');
+        const up = opt.getAttribute('data-up');
+        if (down && down !== '0' && down !== '0M') {
+            document.getElementById('pkgCardSpeed').innerText = `${down} / ${up}`;
+        } else {
+            document.getElementById('pkgCardSpeed').innerText = 'سرعة مفتوحة';
+        }
+
+        const quota = parseFloat(opt.getAttribute('data-quota') || 0);
+        if (quota > 0) {
+            const gb = (quota / 1024).toFixed(1);
+            document.getElementById('pkgCardQuota').innerText = `${gb} GB`;
+        } else {
+            document.getElementById('pkgCardQuota').innerText = 'غير محدود';
+        }
+
+        const val = opt.getAttribute('data-val') || '30';
+        const unit = opt.getAttribute('data-unit') || 'يوم';
+        document.getElementById('pkgCardValidity').innerText = `${val} ${unit}`;
+    }
+</script>
+{% endblock %}

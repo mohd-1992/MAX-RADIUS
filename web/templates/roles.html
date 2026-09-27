@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة مجموعات الصلاحيات والأدوار (RBAC Roles){% endblock %}
+{% block page_title %}صلاحيات ومجموعات المدراء (Roles & Permissions){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Header Banner & Actions -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    مجموعات الصلاحيات والأدوار (RBAC Matrix)
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    تحديد دقيق لما يمكن لكل مدير أو موزع أو نقطة بيع الوصول إليه والتنفيذ في النظام
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+            <a href="{{ url_for('managers_page') }}" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-arrow-right text-blue-400"></i>
+                <span>العودة للمدراء والموزعين</span>
+            </a>
+
+            <button onclick="openAddRoleModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i>
+                <span>إنشاء دور جديد</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Roles Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        {% for r in roles %}
+        <div class="bg-[#0b0f19] border {% if r.is_system %}border-amber-500/30{% else %}border-[#1c2840]{% endif %} rounded-2xl p-5 shadow-sm space-y-4 flex flex-col justify-between hover:border-blue-500/40 transition">
+            <div class="space-y-3">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="w-11 h-11 rounded-xl {% if r.is_system %}bg-amber-500/10 text-amber-400 border border-amber-500/20{% else %}bg-blue-500/10 text-blue-400 border border-blue-500/20{% endif %} flex items-center justify-center text-xl flex-shrink-0">
+                        <i class="fa-solid {% if r.is_system %}fa-crown{% else %}fa-user-shield{% endif %}"></i>
+                    </div>
+                    {% if r.is_system %}
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20">دور نظامي</span>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <h3 class="font-bold text-white text-base">{{ r.name }}</h3>
+                    <span class="text-[11px] font-mono text-slate-400 block mt-0.5">{{ r.code }}</span>
+                    <p class="text-xs text-slate-400 mt-2 leading-relaxed min-h-[36px]">
+                        {{ r.description or 'لا يوجد وصف مخصص لهذا الدور.' }}
+                    </p>
+                </div>
+
+                <!-- Counts Box -->
+                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-[#162136] text-xs">
+                    <div class="bg-[#070b14] p-2 rounded-xl text-center border border-[#162136]">
+                        <span class="text-[10px] text-slate-500 block">الصلاحيات الممنوحة</span>
+                        <strong class="font-mono text-blue-400 font-black text-sm">
+                            {% if r.code == 'superadmin' %}الكل (100%){% else %}{{ r.permissions_count }}{% endif %}
+                        </strong>
+                    </div>
+                    <div class="bg-[#070b14] p-2 rounded-xl text-center border border-[#162136]">
+                        <span class="text-[10px] text-slate-500 block">المدراء المعينون</span>
+                        <strong class="font-mono text-purple-400 font-black text-sm">{{ r.managers_count }}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="border-t border-[#1c2840] pt-3 flex items-center justify-between gap-2">
+                <button type="button" onclick="openEditRoleModal({{ r.id }}, '{{ r.name }}', '{{ r.description }}', {{ r.is_system|int }})" class="w-full py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>تعديل الصلاحيات</span>
+                </button>
+
+                {% if not r.is_system and r.id != 1 %}
+                <button type="button" onclick="confirmDeleteRole({{ r.id }}, '{{ r.name }}')" class="p-1.5 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-xl text-xs transition border border-[#162136]" title="حذف الدور">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+
+<!-- ============================================================== -->
+<!-- Add / Edit Role Modal with Checkbox Permissions Matrix        -->
+<!-- ============================================================== -->
+<div id="roleModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-3xl p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto sidebar-scroll">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 id="roleModalTitle" class="font-bold text-lg text-white flex items-center gap-2">
+                <i class="fa-solid fa-shield-halved text-blue-400"></i>إنشاء دور جديد
+            </h3>
+            <button onclick="closeModal('roleModal')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+
+        <form method="POST" id="roleForm" action="{{ url_for('add_role_action') }}" class="space-y-4 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">اسم الدور <span class="text-rose-400">*</span></label>
+                    <input type="text" name="name" id="role_name_input" required placeholder="مثال: موزع معتمد للمنطقة الشرقية" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-semibold mb-1">رمز الدور (Code)</label>
+                    <input type="text" name="code" id="role_code_input" placeholder="reseller_east" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">الوصف والمهام</label>
+                <textarea name="description" id="role_desc_input" rows="2" placeholder="وصف موجز للمهام والصلاحيات المخولة لهذا الدور" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:border-blue-500"></textarea>
+            </div>
+
+            <!-- Permissions Matrix by Category -->
+            <div class="space-y-3 pt-2">
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-2">
+                    <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-emerald-400"></i>مصفوفة الصلاحيات المتاحة
+                    </h4>
+                    <button type="button" onclick="toggleSelectAllPermissions()" class="text-xs font-bold text-blue-400 hover:text-blue-300">
+                        تحديد / إلغاء تحديد الكل
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    {% for cat_name, perms in grouped_permissions.items() %}
+                    <div class="bg-[#070b14] rounded-xl p-3.5 border border-[#162136] space-y-2.5">
+                        <div class="flex items-center justify-between pb-1.5 border-b border-[#162136]">
+                            <span class="font-bold text-white text-xs flex items-center gap-2">
+                                <i class="fa-solid fa-folder text-amber-400"></i>{{ cat_name }}
+                            </span>
+                            <span class="text-[10px] text-slate-500 font-mono">{{ perms|length }} صلاحية</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                            {% for p in perms %}
+                            <label class="flex items-start gap-2.5 p-2 rounded-xl bg-[#0b0f19] border border-slate-800 hover:border-blue-500/50 cursor-pointer transition select-none">
+                                <input type="checkbox" name="permissions" value="{{ p.id }}" class="perm-checkbox mt-0.5 rounded text-blue-600 focus:ring-blue-500 bg-[#070b14] border-slate-700">
+                                <div>
+                                    <span class="font-semibold text-slate-200 block text-[11px]">{{ p.name }}</span>
+                                    <span class="text-[10px] text-slate-500 font-mono block">{{ p.code }}</span>
+                                </div>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('roleModal')" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold">إلغاء</button>
+                <button type="submit" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30">حفظ الدور والصلاحيات</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openAddRoleModal() {
+        document.getElementById('roleModalTitle').innerHTML = '<i class="fa-solid fa-plus text-blue-400"></i> إنشاء دور جديد';
+        const form = document.getElementById('roleForm');
+        form.action = "{{ url_for('add_role_action') }}";
+        document.getElementById('role_name_input').value = '';
+        document.getElementById('role_code_input').value = '';
+        document.getElementById('role_desc_input').value = '';
+        document.getElementById('role_code_input').disabled = false;
+
+        document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('roleModal').classList.remove('hidden');
+    }
+
+    function openEditRoleModal(roleId, name, desc, isSystem) {
+        document.getElementById('roleModalTitle').innerHTML = `<i class="fa-solid fa-pen-to-square text-blue-400"></i> تعديل صلاحيات: ${name}`;
+        const form = document.getElementById('roleForm');
+        form.action = `/roles/edit/${roleId}`;
+        document.getElementById('role_name_input').value = name;
+        document.getElementById('role_desc_input').value = desc || '';
+        document.getElementById('role_code_input').disabled = isSystem === 1;
+
+        // Fetch assigned permission IDs
+        fetch(`/api/roles/${roleId}/permissions`)
+            .then(r => r.json())
+            .then(data => {
+                const assigned = new Set(data.permission_ids || []);
+                document.querySelectorAll('.perm-checkbox').forEach(cb => {
+                    cb.checked = assigned.has(parseInt(cb.value));
+                });
+                document.getElementById('roleModal').classList.remove('hidden');
+            })
+            .catch(() => {
+                document.getElementById('roleModal').classList.remove('hidden');
+            });
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    let allSelected = false;
+    function toggleSelectAllPermissions() {
+        allSelected = !allSelected;
+        document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = allSelected);
+    }
+
+    function confirmDeleteRole(roleId, name) {
+        Swal.fire({
+            title: 'حذف الدور نهائياً',
+            text: `هل أنت متأكد من حذف دور [${name}]؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، احذف الدور',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                const f = document.createElement('form');
+                f.method = 'POST';
+                f.action = `/roles/delete/${roleId}`;
+                document.body.appendChild(f);
+                f.submit();
+            }
+        });
+    }
+</script>
+{% endblock %}

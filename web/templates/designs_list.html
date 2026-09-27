@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة وتصاميم كروت الإنترنت{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header & Action Bar -->
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 sm:p-6 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-xl shadow-lg shadow-blue-500/25 flex-shrink-0">
+                <i class="fa-solid fa-palette text-white"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2.5 flex-wrap">
+                    <h2 class="text-lg sm:text-xl font-black text-white tracking-tight">
+                        إدارة وتصاميم الكروت (Voucher Designs Studio)
+                    </h2>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                        محرر مرئي A4
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1">تخصيص قوالب طباعة الكروت وقسائم الإنترنت، رفع الصور ومعالجتها، وتحديد مواضع النصوص ورموز QR بدقة</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
+            <a href="{{ url_for('vouchers') }}" class="px-4 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-xs cursor-pointer">
+                <i class="fa-solid fa-layer-group text-amber-400"></i>
+                <span>حزم الكروت</span>
+            </a>
+            <a href="{{ url_for('new_voucher_design') }}" class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer active:scale-95">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>إضافة تصميم جديد (Add New)</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <!-- إجمالي التصاميم -->
+        <div class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي التصاميم المحفوظة</span>
+                <h3 class="text-2xl font-black text-white font-mono">{{ designs|length }}</h3>
+                <span class="text-[11px] text-slate-500 font-medium">قوالب طباعة جاهزة</span>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-lg border border-blue-500/20">
+                <i class="fa-solid fa-file-invoice"></i>
+            </div>
+        </div>
+
+        <!-- التصميم الافتراضي المعتمد -->
+        {% set default_tpl = designs|selectattr('is_default', 'equalto', 1)|first %}
+        <div class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-xs font-bold text-slate-400 block mb-1">التصميم الافتراضي للطباعة</span>
+                <h3 class="text-base sm:text-lg font-bold text-emerald-400 truncate max-w-[180px]">{{ default_tpl.name if default_tpl else 'غير محدد' }}</h3>
+                <span class="text-[11px] text-emerald-400/80 font-medium flex items-center gap-1.5 mt-0.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>معتمد في التوليد السريع
+                </span>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg border border-emerald-500/20">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+        </div>
+
+        <!-- تخطيط الصفحة القياسي -->
+        <div class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-xs font-bold text-slate-400 block mb-1">كثافة الطباعة في صفحة A4</span>
+                <h3 class="text-2xl font-black text-indigo-400 font-mono">{{ default_tpl.cards_per_page if default_tpl else '10' }} <span class="text-xs font-sans text-slate-400 font-normal">كرت / صفحة</span></h3>
+                <span class="text-[11px] text-slate-500 font-medium">أبعاد: {{ default_tpl.width_mm if default_tpl else 85 }}×{{ default_tpl.height_mm if default_tpl else 52 }} مم</span>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-lg border border-indigo-500/20">
+                <i class="fa-solid fa-border-all"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Designs List Table -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+        <div class="p-4 sm:p-5 border-b border-[#1c2840] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+                <h3 class="font-bold text-slate-100 flex items-center gap-2.5 text-sm sm:text-base">
+                    <i class="fa-solid fa-shapes text-blue-400"></i>
+                    <span>سجل تصاميم وقوالب الكروت (Saved Voucher Designs)</span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">يمكنك إنشاء أكثر من تصميم، تخصيص أبعاد ومواضع النصوص، وتعيين القالب المفضل للطباعة</p>
+            </div>
+            <span class="text-xs text-slate-400 font-mono">العدد الإجمالي: <strong class="text-white font-bold">{{ designs|length }}</strong> قالب</span>
+        </div>
+
+        <div class="overflow-x-auto table-responsive">
+            <table class="w-full text-right text-sm">
+                <thead class="bg-[#070b14] text-slate-400 text-xs uppercase font-semibold border-b border-[#1c2840]">
+                    <tr>
+                        <th class="py-3.5 px-5">اسم التصميم</th>
+                        <th class="py-3.5 px-5">نوع التصميم</th>
+                        <th class="py-3.5 px-5 hidden sm:table-cell">تخطيط صفحة A4</th>
+                        <th class="py-3.5 px-5 hidden md:table-cell">الأبعاد (مم)</th>
+                        <th class="py-3.5 px-5 text-center">الحالة</th>
+                        <th class="py-3.5 px-5 hidden lg:table-cell">تاريخ الإنشاء</th>
+                        <th class="py-3.5 px-5 text-center">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#1c2840]">
+                    {% for d in designs %}
+                    <tr class="hover:bg-[#11192b] transition group">
+                        <!-- اسم التصميم ومعاينته -->
+                        <td class="py-3.5 px-5">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-[#070b14] border border-[#1c2840] flex items-center justify-center flex-shrink-0 overflow-hidden shadow-xs">
+                                    {% if d.bg_image %}
+                                    <img src="/static/uploads/card_backgrounds/{{ d.bg_image }}" class="w-full h-full object-cover" alt="{{ d.name }}">
+                                    {% elif d.design_type == 'qr' %}
+                                    <i class="fa-solid fa-qrcode text-indigo-400 text-lg"></i>
+                                    {% else %}
+                                    <i class="fa-solid fa-ticket text-blue-400 text-lg"></i>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <a href="{{ url_for('edit_voucher_design', design_id=d.id) }}" class="font-bold text-white hover:text-blue-400 transition text-sm flex items-center gap-2">
+                                        <span>{{ d.name }}</span>
+                                        {% if d.is_default == 1 %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>افتراضي
+                                        </span>
+                                        {% endif %}
+                                    </a>
+                                    <span class="text-[11px] text-slate-400 block mt-0.5 font-mono">ID: #{{ d.id }}</span>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- نوع التصميم -->
+                        <td class="py-3.5 px-5">
+                            {% if d.design_type == 'image' or d.bg_image %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/25">
+                                <i class="fa-solid fa-image text-xs"></i>
+                                كرت بصورة خلفية
+                            </span>
+                            {% elif d.design_type == 'qr' %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/25">
+                                <i class="fa-solid fa-qrcode text-xs"></i>
+                                كرت QR ذكي
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                                <i class="fa-solid fa-font text-xs"></i>
+                                نصوص قياسي
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- تخطيط الصفحة A4 -->
+                        <td class="py-3.5 px-5 hidden sm:table-cell">
+                            <div class="flex items-center gap-2 text-xs font-mono text-slate-300">
+                                <span class="bg-[#070b14] px-2 py-0.5 rounded-md border border-slate-800">{{ d.cards_per_row }} أعمدة × {{ d.cards_per_col or 5 }} صفوف</span>
+                                <span class="text-slate-500">•</span>
+                                <span class="text-blue-400 font-bold">{{ d.cards_per_page }} كرت</span>
+                            </div>
+                        </td>
+
+                        <!-- الأبعاد -->
+                        <td class="py-3.5 px-5 hidden md:table-cell text-xs font-mono text-slate-300">
+                            {{ d.width_mm }} × {{ d.height_mm }} مم
+                        </td>
+
+                        <!-- الحالة الافتراضية -->
+                        <td class="py-3.5 px-5 text-center">
+                            {% if d.is_default == 1 %}
+                            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-xs">
+                                <i class="fa-solid fa-check-circle"></i>
+                                <span>القالب المعتمد</span>
+                            </span>
+                            {% else %}
+                            <button type="button" onclick="setDefaultDesign({{ d.id }}, '{{ d.name|e }}')" class="px-2.5 py-1 bg-[#070b14] hover:bg-emerald-950/40 text-slate-400 hover:text-emerald-400 border border-slate-800 hover:border-emerald-500/40 rounded-xl text-xs font-semibold transition cursor-pointer" title="جعله القالب الافتراضي لطباعة الكروت">
+                                تعيين كافتراضي
+                            </button>
+                            {% endif %}
+                        </td>
+
+                        <!-- تاريخ الإنشاء -->
+                        <td class="py-3.5 px-5 hidden lg:table-cell text-xs font-mono text-slate-400">
+                            {{ d.created_at_display }}
+                        </td>
+
+                        <!-- الإجراءات -->
+                        <td class="py-3.5 px-5 text-center">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <!-- تعديل -->
+                                <a href="{{ url_for('edit_voucher_design', design_id=d.id) }}" class="px-3 py-1.5 bg-blue-600/15 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5" title="تعديل التصميم والمواضع">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                    <span>تعديل</span>
+                                </a>
+
+                                <!-- تكرار -->
+                                <button type="button" onclick="duplicateDesign({{ d.id }}, '{{ d.name|e }}')" class="p-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs transition border border-slate-800 cursor-pointer" title="تكرار وإنشاء نسخة">
+                                    <i class="fa-solid fa-copy"></i>
+                                </button>
+
+                                <!-- حذف -->
+                                {% if designs|length > 1 %}
+                                <button type="button" onclick="confirmDeleteDesign({{ d.id }}, '{{ d.name|e }}')" class="p-1.5 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-xl text-xs transition border border-slate-800 cursor-pointer" title="حذف التصميم">
+                                    <i class="fa-solid fa-trash"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="py-16 text-center text-slate-500">
+                            <div class="w-16 h-16 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-3xl mx-auto mb-3 border border-blue-500/20">
+                                <i class="fa-solid fa-palette"></i>
+                            </div>
+                            <h4 class="text-base font-bold text-white">لا توجد تصاميم كروت محفوظة حالياً</h4>
+                            <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">ابدأ بإنشاء أول قالب كرت مخصص للشبكة مع إمكانية رفع الخلفيات وتوزيع النصوص</p>
+                            <a href="{{ url_for('new_voucher_design') }}" class="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition">
+                                <i class="fa-solid fa-plus-circle"></i>إنشاء أول تصميم الآن
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function setDefaultDesign(id, name) {
+        window.confirmAction({
+            title: 'تعيين كقالب افتراضي',
+            text: `هل تريد اعتماد التصميم [${name}] ليكون القالب الافتراضي المعتمد في طباعة حزم الكروت؟`,
+            icon: 'question',
+            isDanger: false,
+            confirmText: 'نعم، تعيين كافتراضي',
+            onConfirm: () => {
+                fetch(`/api/vouchers/designs/set-default/${id}`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            window.showToast(res.message, 'success');
+                            setTimeout(() => location.reload(), 300);
+                        } else {
+                            window.showToast(res.message || 'فشلت العملية', 'error');
+                        }
+                    })
+                    .catch(err => window.showToast(err.toString(), 'error'));
+            }
+        });
+    }
+
+    function duplicateDesign(id, name) {
+        window.confirmAction({
+            title: 'تكرار التصميم',
+            text: `هل تريد إنشاء نسخة مطابقة من التصميم [${name}]؟`,
+            icon: 'info',
+            isDanger: false,
+            confirmText: 'نعم، تكرار',
+            onConfirm: () => {
+                fetch(`/api/vouchers/designs/duplicate/${id}`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            window.showToast(res.message, 'success');
+                            setTimeout(() => location.reload(), 300);
+                        } else {
+                            window.showToast(res.message || 'فشلت العملية', 'error');
+                        }
+                    })
+                    .catch(err => window.showToast(err.toString(), 'error'));
+            }
+        });
+    }
+
+    function confirmDeleteDesign(id, name) {
+        window.confirmAction({
+            title: 'حذف تصميم الكرت نهائياً',
+            text: `هل أنت متأكد من حذف التصميم [${name}] نهائياً من النظام؟ لا يمكن التراجع عن هذا الإجراء!`,
+            icon: 'warning',
+            isDanger: true,
+            confirmText: 'نعم، احذف التصميم',
+            onConfirm: () => {
+                fetch(`/api/vouchers/designs/delete/${id}`, { method: 'POST' })
+                    .then(r => r.json())
+                    .then(res => {
+                        if (res.success) {
+                            window.showToast(res.message, 'success');
+                            setTimeout(() => location.reload(), 300);
+                        } else {
+                            window.showToast(res.message || 'فشلت العملية', 'error');
+                        }
+                    })
+                    .catch(err => window.showToast(err.toString(), 'error'));
+            }
+        });
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,575 @@
+{% extends "base.html" %}
+
+{% block title %}بوت وخدمات الواتساب الذكية{% endblock %}
+{% block page_title %}إدارة بوت وخدمات الواتساب (WhatsApp Gateway & Bot){% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header Banner -->
+    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
+        <div class="flex items-center gap-3.5">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-2xl flex-shrink-0 shadow-sm">
+                <i class="fa-brands fa-whatsapp"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-black text-white flex items-center gap-2">
+                    <span>منظومة وبوت الواتساب التفاعلي</span>
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        v{{ app_version }}
+                    </span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    الرد الآلي على استعلامات المشتركين، إرسال الكروت فور الشراء، تنبيهات استهلاك البيانات، والرسائل الجماعية
+                </p>
+            </div>
+        </div>
+
+        <!-- Action Links -->
+        <div class="flex items-center gap-2 flex-wrap">
+            <button type="button" onclick="openQrModal()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30 cursor-pointer">
+                <i class="fa-solid fa-qrcode text-xs"></i>
+                <span>مسح رمز QR للربط</span>
+            </button>
+            <a href="{{ url_for('whatsapp_simulator_page') }}" class="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30">
+                <i class="fa-solid fa-comments text-xs"></i>
+                <span>المحاكي التفاعلي (Live Chat)</span>
+            </a>
+            <a href="{{ url_for('whatsapp_templates_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-file-code text-indigo-400"></i>
+                <span>قوالب الرسائل</span>
+            </a>
+            <a href="{{ url_for('whatsapp_broadcast_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-bullhorn text-amber-400"></i>
+                <span>إرسال جماعي</span>
+            </a>
+            <a href="{{ url_for('whatsapp_logs_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>
+                <span>السجل</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Status Card -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">حالة البوابة</p>
+                <div class="flex items-center gap-2 mt-1">
+                    {% if settings.status == 'connected' %}
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span class="text-base font-black text-emerald-400">متصل (Online)</span>
+                    {% elif settings.status == 'qr_ready' %}
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping"></span>
+                    <span class="text-base font-black text-amber-400">بانتظار مسح QR</span>
+                    {% else %}
+                    <span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span>
+                    <span class="text-base font-black text-rose-400">غير متصل (Offline)</span>
+                    {% endif %}
+                </div>
+                <p class="text-[10px] text-slate-500 mt-1 font-mono">مزود: {{ settings.gateway_provider }}</p>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-signal"></i>
+            </div>
+        </div>
+
+        <!-- Sent Messages -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">الرسائل الصادرة</p>
+                <p class="text-2xl font-black text-white mt-1">{{ stats.sent }}</p>
+                <p class="text-[10px] text-emerald-400 mt-1 flex items-center gap-1 font-semibold">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span>تم التسليم بنجاح</span>
+                </p>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-paper-plane"></i>
+            </div>
+        </div>
+
+        <!-- Received Messages -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">استعلامات المشتركين</p>
+                <p class="text-2xl font-black text-white mt-1">{{ stats.received }}</p>
+                <p class="text-[10px] text-purple-400 mt-1 font-semibold">رد آلي من البوت</p>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-robot"></i>
+            </div>
+        </div>
+
+        <!-- Active Templates -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div>
+                <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">قوالب الإشعارات</p>
+                <p class="text-2xl font-black text-white mt-1">{{ templates|length }}</p>
+                <p class="text-[10px] text-indigo-400 mt-1 font-semibold">جاهزة ومفعلة</p>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center text-lg">
+                <i class="fa-solid fa-layer-group"></i>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Main 2-Column Grid: Settings & Quick Test -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Left 2 Cols: Gateway Configuration -->
+        <div class="lg:col-span-2 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-6">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-4">
+                <div class="flex items-center gap-2.5">
+                    <i class="fa-solid fa-gears text-emerald-400 text-lg"></i>
+                    <h3 class="text-base font-bold text-white">إعدادات بوابة ومزود الواتساب (WhatsApp Gateway Setup)</h3>
+                </div>
+                <span class="text-xs text-slate-400">اختر المزود المناسب لشبكتك</span>
+            </div>
+
+            <form id="whatsappSettingsForm" onsubmit="saveWhatsAppSettings(event)" class="space-y-5">
+                
+                <!-- Gateway Provider Selection -->
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-300">نوع البوابة / طريقة الربط:</label>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        
+                        <label class="relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition {% if settings.gateway_provider == 'simulator' %}bg-emerald-500/10 border-emerald-500/40 text-white{% else %}bg-[#070b14] border-[#1c2840] text-slate-300 hover:border-slate-700{% endif %}" onclick="selectProvider('simulator')">
+                            <input type="radio" name="gateway_provider" value="simulator" class="sr-only" {% if settings.gateway_provider == 'simulator' %}checked{% endif %}>
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-xs">🎮 المحاكي المدمج</span>
+                                <i class="fa-solid fa-laptop-code text-emerald-400"></i>
+                            </div>
+                            <span class="text-[10px] text-slate-400 mt-1">للتجربة والاختبار الفوري بدون هاتف خارجي</span>
+                        </label>
+
+                        <label class="relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition {% if settings.gateway_provider == 'evolution' %}bg-emerald-500/10 border-emerald-500/40 text-white{% else %}bg-[#070b14] border-[#1c2840] text-slate-300 hover:border-slate-700{% endif %}" onclick="selectProvider('evolution')">
+                            <input type="radio" name="gateway_provider" value="evolution" class="sr-only" {% if settings.gateway_provider == 'evolution' %}checked{% endif %}>
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-xs">📷 بوابة QR Code</span>
+                                <i class="fa-solid fa-qrcode text-blue-400"></i>
+                            </div>
+                            <span class="text-[10px] text-slate-400 mt-1">Evolution API / WPPConnect (مجانية ذاتية)</span>
+                        </label>
+
+                        <label class="relative flex flex-col p-3.5 rounded-xl border cursor-pointer transition {% if settings.gateway_provider == 'meta_cloud' %}bg-emerald-500/10 border-emerald-500/40 text-white{% else %}bg-[#070b14] border-[#1c2840] text-slate-300 hover:border-slate-700{% endif %}" onclick="selectProvider('meta_cloud')">
+                            <input type="radio" name="gateway_provider" value="meta_cloud" class="sr-only" {% if settings.gateway_provider == 'meta_cloud' %}checked{% endif %}>
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-xs">🌐 Meta Cloud API</span>
+                                <i class="fa-brands fa-meta text-indigo-400"></i>
+                            </div>
+                            <span class="text-[10px] text-slate-400 mt-1">واجهة Meta الرسمية للأعمال</span>
+                        </label>
+
+                    </div>
+                </div>
+
+                <!-- Provider-specific Configuration Fields -->
+                
+                <!-- 1. Self-hosted Evolution/QR Fields -->
+                <div id="evolutionFields" class="space-y-4 {% if settings.gateway_provider != 'evolution' %}hidden{% endif %} bg-[#070b14] p-4 rounded-xl border border-[#1c2840]">
+                    <div class="flex items-center justify-between flex-wrap gap-2">
+                        <h4 class="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-server"></i>
+                            <span>إعدادات خادم Evolution API / WPPConnect:</span>
+                        </h4>
+                        <button type="button" onclick="openQrModal()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer">
+                            <i class="fa-solid fa-qrcode"></i>
+                            <span>مسح رمز QR للربط الفوري</span>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="block text-[11px] font-semibold text-slate-300">رابط الخادم (API Endpoint):</label>
+                            <input type="text" name="api_endpoint" value="{{ settings.api_endpoint or 'http://max_evolution_whatsapp:8080' }}" class="w-full px-3 py-2 bg-[#0b0f19] border border-slate-700 rounded-lg text-xs text-white focus:border-emerald-500 outline-none">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-[11px] font-semibold text-slate-300">مفتاح الحماية (API Key):</label>
+                            <input type="password" name="api_key" value="{{ settings.api_key or 'max_radius_wa_key_2026' }}" placeholder="Global API Key" class="w-full px-3 py-2 bg-[#0b0f19] border border-slate-700 rounded-lg text-xs text-white focus:border-emerald-500 outline-none">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-[11px] font-semibold text-slate-300">اسم الجلسة (Instance Name):</label>
+                            <input type="text" name="instance_name" value="{{ settings.instance_name or 'max_radius_bot' }}" class="w-full px-3 py-2 bg-[#0b0f19] border border-slate-700 rounded-lg text-xs text-white focus:border-emerald-500 outline-none">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-[11px] font-semibold text-slate-300">رقم هاتف البوت:</label>
+                            <input type="text" name="phone_number" value="{{ settings.phone_number or '' }}" placeholder="+967777000000" class="w-full px-3 py-2 bg-[#0b0f19] border border-slate-700 rounded-lg text-xs text-white focus:border-emerald-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Meta Cloud API Fields -->
+                <div id="metaFields" class="space-y-4 {% if settings.gateway_provider != 'meta_cloud' %}hidden{% endif %} bg-[#070b14] p-4 rounded-xl border border-[#1c2840]">
+                    <h4 class="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+                        <i class="fa-brands fa-meta"></i>
+                        <span>إعدادات Meta WhatsApp Business Cloud API:</span>
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="block text-[11px] font-semibold text-slate-300">Phone Number ID:</label>
+                            <input type="text" name="meta_phone_number_id" value="{{ settings.meta_phone_number_id or '' }}" placeholder="e.g. 10065487654321" class="w-full px-3 py-2 bg-[#0b0f19] border border-slate-700 rounded-lg text-xs text-white focus:border-indigo-500 outline-none font-mono">
+                        </div>
+                        <div class="space-y-1">
+                            <label class="block text-[11px] font-semibold text-slate-300">Webhook Verify Token:</label>
+                            <input type="text" name="meta_webhook_verify_token" value="{{ settings.meta_webhook_verify_token or 'max_radius_whatsapp_token_2026' }}" class="w-full px-3 py-2 bg-[#0b0f19] border border-slate-700 rounded-lg text-xs text-white focus:border-indigo-500 outline-none font-mono">
+                        </div>
+                        <div class="sm:col-span-2 space-y-1">
+                            <label class="block text-[11px] font-semibold text-slate-300">Permanent Access Token (System User Token):</label>
+                            <textarea name="meta_access_token" rows="2" placeholder="EAAB..." class="w-full px-3 py-2 bg-[#0b0f19] border border-slate-700 rounded-lg text-xs text-white focus:border-indigo-500 outline-none font-mono">{{ settings.meta_access_token or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- General Automation Toggles -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <label class="flex items-center gap-3 p-3 bg-[#070b14] border border-[#1c2840] rounded-xl cursor-pointer hover:border-slate-700">
+                        <input type="checkbox" name="is_bot_enabled" value="1" {% if settings.is_bot_enabled %}checked{% endif %} class="w-4 h-4 text-emerald-600 rounded bg-[#0b0f19] border-slate-700">
+                        <div>
+                            <span class="text-xs font-bold text-white block">تفعيل الرد الآلي والمساعد التفاعلي (Bot)</span>
+                            <span class="text-[10px] text-slate-400">الرد التلقائي على أرقام الكروت والاستعلامات</span>
+                        </div>
+                    </label>
+
+                    <label class="flex items-center gap-3 p-3 bg-[#070b14] border border-[#1c2840] rounded-xl cursor-pointer hover:border-slate-700">
+                        <input type="checkbox" name="is_notifications_enabled" value="1" {% if settings.is_notifications_enabled %}checked{% endif %} class="w-4 h-4 text-emerald-600 rounded bg-[#0b0f19] border-slate-700">
+                        <div>
+                            <span class="text-xs font-bold text-white block">تفعيل الإشعارات التلقائية للنظام</span>
+                            <span class="text-[10px] text-slate-400">إرسال الكروت وتنبيهات الاستهلاك 80% وتجديد الباقة</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 pt-2">
+                    <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-600/30 cursor-pointer">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span>حفظ إعدادات البوابة</span>
+                    </button>
+                </div>
+
+            </form>
+        </div>
+
+        <!-- Right 1 Col: Quick Test Message -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5 flex flex-col justify-between">
+            <div class="space-y-4">
+                <div class="flex items-center gap-2 border-b border-[#1c2840] pb-3">
+                    <i class="fa-solid fa-paper-plane text-blue-400 text-base"></i>
+                    <h3 class="text-sm font-bold text-white">إرسال رسالة اختبارية فورية</h3>
+                </div>
+                <p class="text-xs text-slate-400">
+                    أدخل رقم الهاتف لاختبار كفاءة الإرسال عبر البوابة المحددة والتأكد من وصول الرسائل بنجاح.
+                </p>
+
+                <form id="testMessageForm" onsubmit="sendTestMessage(event)" class="space-y-3.5">
+                    <div class="space-y-1">
+                        <label class="block text-[11px] font-semibold text-slate-300">رقم الهاتف المستلم:</label>
+                        <div class="relative">
+                            <input type="text" id="testPhone" placeholder="مثال: 967777123456" required class="w-full pl-3 pr-8 py-2 bg-[#070b14] border border-slate-700 rounded-lg text-xs text-white focus:border-emerald-500 outline-none font-mono">
+                            <i class="fa-solid fa-phone absolute right-2.5 top-2.5 text-slate-500 text-xs"></i>
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="block text-[11px] font-semibold text-slate-300">نص الرسالة:</label>
+                        <textarea id="testMessage" rows="3" class="w-full p-2.5 bg-[#070b14] border border-slate-700 rounded-lg text-xs text-white focus:border-emerald-500 outline-none">🚀 تجربة ناجحة لنظام MAX RADIUS WhatsApp Bot! الرسائل والإشعارات تعمل بكفاءة تامة.</textarea>
+                    </div>
+
+                    <button type="submit" id="btnSendTest" class="w-full py-2.5 bg-[#070b14] hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 hover:border-emerald-500 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>إرسال الآن (Test Send)</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Webhook URL Box -->
+            <div class="bg-[#070b14] p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+                <div class="flex items-center justify-between text-[11px] font-bold text-slate-400">
+                    <span>رابط الـ Webhook للاستقبال:</span>
+                    <i class="fa-solid fa-link text-slate-500"></i>
+                </div>
+                <div class="p-2 bg-[#0b0f19] rounded border border-slate-800 text-[10px] text-slate-300 font-mono break-all select-all">
+                    {{ request.host_url }}api/whatsapp/webhook
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Recent Logs Table Preview -->
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-indigo-400"></i>
+                <h3 class="text-sm font-bold text-white">آخر الرسائل والعمليات المسجلة</h3>
+            </div>
+            <a href="{{ url_for('whatsapp_logs_page') }}" class="text-xs text-emerald-400 hover:underline flex items-center gap-1">
+                <span>عرض السجل بالكامل</span>
+                <i class="fa-solid fa-arrow-left text-[10px]"></i>
+            </a>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead>
+                    <tr class="text-slate-400 border-b border-slate-800">
+                        <th class="py-2.5 px-3">الاتجاه</th>
+                        <th class="py-2.5 px-3">رقم الهاتف</th>
+                        <th class="py-2.5 px-3">نوع الحدث</th>
+                        <th class="py-2.5 px-3">محتوى الرسالة</th>
+                        <th class="py-2.5 px-3">الحالة</th>
+                        <th class="py-2.5 px-3">الوقت</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                    {% for l in recent_logs %}
+                    <tr class="hover:bg-slate-800/30 transition">
+                        <td class="py-2.5 px-3">
+                            {% if l.direction == 'in' %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                                <i class="fa-solid fa-arrow-down-left"></i> واردة
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                                <i class="fa-solid fa-arrow-up-right"></i> صادرة
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-3 font-mono font-bold text-white">{{ l.phone_number }}</td>
+                        <td class="py-2.5 px-3">
+                            <span class="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
+                                {{ l.event_type }}
+                            </span>
+                        </td>
+                        <td class="py-2.5 px-3 max-w-xs truncate text-slate-300" title="{{ l.message_body }}">{{ l.message_body }}</td>
+                        <td class="py-2.5 px-3">
+                            {% if l.status in ('sent', 'delivered') %}
+                            <span class="text-emerald-400 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-circle-check text-[10px]"></i> ناجحة
+                            </span>
+                            {% elif l.status == 'received' %}
+                            <span class="text-purple-400 font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-inbox text-[10px]"></i> تم الاستلام
+                            </span>
+                            {% else %}
+                            <span class="text-rose-400 font-bold flex items-center gap-1" title="{{ l.error_message }}">
+                                <i class="fa-solid fa-circle-xmark text-[10px]"></i> فشلت
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-3 text-slate-500 font-mono text-[11px]">{{ l.created_at }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="py-6 text-center text-slate-500">لا توجد رسائل مسجلة حتى الآن.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- QR Code Connect Modal -->
+<div id="qrModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl relative">
+        <button onclick="closeQrModal()" class="absolute top-4 left-4 text-slate-400 hover:text-white text-lg">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="text-center space-y-1">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-2xl mx-auto mb-2">
+                <i class="fa-solid fa-qrcode"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white">مسح رمز الـ QR للربط الفوري</h3>
+            <p class="text-xs text-slate-400">افتح تطبيق واتساب على هاتفك > الأجهزة المرتبطة > ربط جهاز جديد</p>
+        </div>
+
+        <div id="qrContainer" class="flex flex-col items-center justify-center p-4 bg-white rounded-xl mx-auto w-64 h-64 relative shadow-inner">
+            <div id="qrLoading" class="flex flex-col items-center justify-center gap-2 text-slate-800 text-xs">
+                <i class="fa-solid fa-spinner fa-spin text-2xl text-emerald-600"></i>
+                <span class="font-bold">جاري توليد الرمز...</span>
+            </div>
+            <img id="qrImage" src="" alt="WhatsApp QR Code" class="hidden w-full h-full object-contain">
+        </div>
+
+        <div id="pairingCodeBox" class="hidden p-3 bg-[#070b14] border border-[#1c2840] rounded-xl text-center space-y-1">
+            <span class="text-[11px] text-slate-400 block">كود الاقتران السريع (Pairing Code):</span>
+            <span id="pairingCodeVal" class="text-base font-black font-mono text-emerald-400 tracking-widest select-all"></span>
+        </div>
+
+        <div class="flex items-center justify-between gap-3 pt-2">
+            <button onclick="fetchQrCode()" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-rotate"></i>
+                <span>تحديث الرمز</span>
+            </button>
+            <button onclick="restartInstance()" class="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-power-off"></i>
+                <span>إعادة ضبط الجلسة</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- SweetAlert2 Vendor -->
+<script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
+
+<script>
+let qrPollInterval = null;
+
+function selectProvider(prov) {
+    document.getElementById('evolutionFields').classList.toggle('hidden', prov !== 'evolution');
+    document.getElementById('metaFields').classList.toggle('hidden', prov !== 'meta_cloud');
+}
+
+function openQrModal() {
+    document.getElementById('qrModal').classList.remove('hidden');
+    fetchQrCode();
+    if (qrPollInterval) clearInterval(qrPollInterval);
+    qrPollInterval = setInterval(checkConnectionState, 3000);
+}
+
+function closeQrModal() {
+    document.getElementById('qrModal').classList.add('hidden');
+    if (qrPollInterval) clearInterval(qrPollInterval);
+}
+
+function fetchQrCode() {
+    document.getElementById('qrLoading').classList.remove('hidden');
+    document.getElementById('qrImage').classList.add('hidden');
+    document.getElementById('pairingCodeBox').classList.add('hidden');
+
+    fetch('{{ url_for("api_whatsapp_qrcode") }}')
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('qrLoading').classList.add('hidden');
+        if (data.success && data.base64) {
+            const qrImg = document.getElementById('qrImage');
+            qrImg.src = data.base64.startsWith('data:') ? data.base64 : 'data:image/png;base64,' + data.base64;
+            qrImg.classList.remove('hidden');
+
+            if (data.pairingCode) {
+                document.getElementById('pairingCodeVal').innerText = data.pairingCode;
+                document.getElementById('pairingCodeBox').classList.remove('hidden');
+            }
+        } else {
+            Swal.fire({
+                title: 'تنبيه',
+                text: data.message || 'تعذر جلب رمز QR. يرجى التأكد من تشغيل الحاوية.',
+                icon: 'warning',
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            });
+        }
+    })
+    .catch(err => {
+        document.getElementById('qrLoading').classList.add('hidden');
+        Swal.fire('خطأ في الاتصال', err.message, 'error');
+    });
+}
+
+function checkConnectionState() {
+    fetch('{{ url_for("api_whatsapp_sync_status") }}')
+    .then(r => r.json())
+    .then(data => {
+        if (data.state === 'open' || data.status === 'connected') {
+            clearInterval(qrPollInterval);
+            closeQrModal();
+            Swal.fire({
+                title: 'تم الاتصال بنجاح! 🎉',
+                text: 'تم ربط رقم الواتساب بالمنظومة بنجاح والخدمة أصبحت جاهزة 100%.',
+                icon: 'success',
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            }).then(() => location.reload());
+        }
+    })
+    .catch(() => {});
+}
+
+function restartInstance() {
+    Swal.fire({
+        title: 'إعادة ضبط جلسة الواتساب؟',
+        text: 'سيتم مسح الجلسة وتوليد رمز QR جديد تماماً.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'نعم، إعادة الضبط',
+        cancelButtonText: 'إلغاء',
+        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+    }).then(res => {
+        if (res.isConfirmed) {
+            fetch('{{ url_for("api_whatsapp_restart_instance") }}', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                Swal.fire('تمت الإعادة', data.message, 'success');
+                fetchQrCode();
+            });
+        }
+    });
+}
+
+function saveWhatsAppSettings(e) {
+    e.preventDefault();
+    const form = document.getElementById('whatsappSettingsForm');
+    const formData = new FormData(form);
+
+    fetch('{{ url_for("api_whatsapp_save_settings") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            Swal.fire({
+                title: 'تم الحفظ',
+                text: data.message,
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false,
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            }).then(() => location.reload());
+        } else {
+            Swal.fire('خطأ', data.message || 'فشل الحفظ', 'error');
+        }
+    })
+    .catch(err => Swal.fire('خطأ في الاتصال', err.message, 'error'));
+}
+
+function sendTestMessage(e) {
+    e.preventDefault();
+    const phone = document.getElementById('testPhone').value.trim();
+    const message = document.getElementById('testMessage').value.trim();
+    const btn = document.getElementById('btnSendTest');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>جاري الإرسال...</span>';
+
+    fetch('{{ url_for("api_whatsapp_send_test") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone_number: phone, message: message })
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>إرسال الآن (Test Send)</span>';
+        if (data.success) {
+            Swal.fire({
+                title: 'تم الإرسال بنجاح! 🚀',
+                text: data.message,
+                icon: 'success',
+                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
+            });
+        } else {
+            Swal.fire('تعذر الإرسال', data.message, 'error');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>إرسال الآن (Test Send)</span>';
+        Swal.fire('خطأ', err.message, 'error');
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,148 @@
+{% extends "user_portal/user_base.html" %}
+
+{% block title %}تسجيل الدخول - {{ network_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto w-full py-8 px-4 space-y-6">
+
+    <div class="portal-card rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-[#1c2840]">
+        
+        <!-- Centered Brand Header -->
+        <div class="flex flex-col items-center justify-center text-center w-full">
+            {% if logo_url %}
+            <div class="p-2 rounded-2xl bg-[#070b14] border border-[#1c2840] shadow-xl mb-3">
+                <img src="{{ logo_url }}" alt="Logo" class="h-14 max-h-14 w-auto object-contain block mx-auto">
+            </div>
+            {% else %}
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-500 text-slate-950 flex items-center justify-center text-2xl shadow-xl shadow-cyan-500/25 border border-cyan-300/40 mb-3">
+                <i class="fa-solid fa-users-gear text-white"></i>
+            </div>
+            {% endif %}
+            
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[11px] font-bold mb-2">
+                <i class="fa-solid fa-shield-halved text-xs"></i>
+                <span>بوابة المشتركين الذكية</span>
+            </div>
+
+            <h2 class="text-xl sm:text-2xl font-black text-white tracking-tight">{{ network_name }}</h2>
+            <p class="text-xs text-slate-400 mt-1">تسجيل الدخول وإدارة الحساب والخدمات الذاتية</p>
+        </div>
+
+        <!-- Hotspot/RADIUS Error Alert -->
+        <div id="portalErrorAlert" class="{% if not portal_error %}hidden{% endif %} p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold text-center flex items-center justify-center gap-2 shadow-sm">
+            <i class="fa-solid fa-circle-exclamation text-rose-400 text-sm"></i>
+            <span id="portalErrorText">{{ portal_error or '' }}</span>
+        </div>
+
+        <!-- Login Form -->
+        <form id="portalLoginForm" method="POST" action="{{ url_for('user_login_action') }}" class="space-y-4">
+            
+            <!-- Username / Voucher Code Input -->
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-200 flex items-center justify-between">
+                    <span>اسم المستخدم أو رقم الكرت (PIN / Username)</span>
+                </label>
+                <div class="relative">
+                    <input type="text" name="username" id="loginUsername" required autofocus placeholder="أدخل رقم الكرت أو اسم الحساب..." 
+                           value="{{ prefill_username or '' }}"
+                           class="w-full bg-[#070b14] border border-[#1e293b] rounded-2xl px-4 py-3.5 text-center text-lg font-black font-mono tracking-wider text-cyan-400 placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 outline-none transition">
+                    <button type="button" onclick="pasteVoucherCode()" title="لصق من الحافظة" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-400 p-1.5 transition">
+                        <i class="fa-regular fa-paste text-base"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Password Input (if enabled) -->
+            {% if settings.get('portal_login_username_only', '0') != '1' %}
+            <div class="space-y-1.5">
+                <label class="text-xs font-bold text-slate-200 flex items-center justify-between">
+                    <span>كلمة المرور (Password)</span>
+                </label>
+                <div class="relative">
+                    <input type="password" id="loginPassword" name="password" placeholder="••••••••" 
+                           class="w-full bg-[#070b14] border border-[#1e293b] rounded-2xl px-4 py-3 text-sm text-white font-mono focus:border-cyan-500 outline-none transition">
+                    <button type="button" onclick="togglePasswordVisibility()" class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 text-sm">
+                        <i id="togglePwdIcon" class="fa-solid fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+            {% else %}
+            <input type="hidden" name="password" id="loginPasswordHidden" value="">
+            {% endif %}
+
+            <!-- Login Action Button -->
+            <button type="submit" id="btnDoLogin" class="w-full py-3.5 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-sm transition shadow-lg shadow-cyan-600/30 flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]">
+                <i class="fa-solid fa-right-to-bracket"></i>
+                <span>تسجيل الدخول</span>
+            </button>
+        </form>
+
+        <!-- Self Registration Link (if allowed) -->
+        {% if settings.get('portal_allow_registration', '1') == '1' %}
+        <div class="pt-2 border-t border-[#1c2840] text-center">
+            <p class="text-xs text-slate-400">
+                ليس لديك حساب؟
+                <a href="{{ url_for('user_register') }}" class="text-cyan-400 hover:text-cyan-300 font-bold mr-1">
+                    إنشاء حساب جديد
+                </a>
+            </p>
+        </div>
+        {% endif %}
+
+    </div>
+
+    <!-- Support Footer -->
+    {% if settings.get('portal_whatsapp') or settings.get('portal_support_phone') %}
+    <div class="p-3 rounded-2xl bg-[#0b0f19] border border-[#1c2840] flex items-center justify-center gap-4 text-xs text-slate-400">
+        <span class="flex items-center gap-1 font-bold text-slate-300">
+            <i class="fa-solid fa-headset text-cyan-400"></i> الدعم الفني:
+        </span>
+        {% if settings.get('portal_whatsapp') %}
+        <a href="https://wa.me/{{ settings.get('portal_whatsapp') }}" target="_blank" class="text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1">
+            <i class="fa-brands fa-whatsapp"></i> واتساب
+        </a>
+        {% endif %}
+        {% if settings.get('portal_support_phone') %}
+        <a href="tel:{{ settings.get('portal_support_phone') }}" class="text-sky-400 hover:text-sky-300 font-bold flex items-center gap-1">
+            <i class="fa-solid fa-phone"></i> اتصال
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function togglePasswordVisibility() {
+        const input = document.getElementById('loginPassword');
+        const icon = document.getElementById('togglePwdIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    async function pasteVoucherCode() {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+                const clean = text.trim();
+                document.getElementById('loginUsername').value = clean;
+                const pwd = document.getElementById('loginPassword');
+                if (pwd && !pwd.value) {
+                    pwd.value = clean;
+                }
+            }
+        } catch (err) {
+            console.debug('Clipboard error:', err);
+        }
+    }
+</script>
+{% endblock %}

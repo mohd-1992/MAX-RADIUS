@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}فحص واستعلام كارت إنترنت{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="bg-[#0b0f19] p-5 sm:p-6 rounded-2xl border border-[#1c2840] shadow-sm">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2.5">
+            <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center border border-sky-500/20 text-lg flex-shrink-0">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </div>
+            <span>فحص واستعلام كارت إنترنت (Voucher Card Inspector)</span>
+        </h2>
+        <p class="text-xs text-slate-400 mt-1">البحث الفوري عن أي كرت برقم الـ PIN، اسم المستخدم، أو الرقم التسلسلي ومعاينة حالته في FreeRADIUS واستهلاكه</p>
+    </div>
+
+    <!-- Search Input Hero Box -->
+    <div class="bg-[#0b0f19] p-6 rounded-2xl border border-[#1c2840] shadow-sm">
+        <form method="GET" action="{{ url_for('card_inspect') }}" class="max-w-2xl mx-auto space-y-2">
+            <label class="block text-xs font-bold text-slate-300">ادخل رمز الكرت (PIN)، اسم المستخدم، أو الرقم التسلسلي:</label>
+            <div class="flex gap-2">
+                <div class="relative flex-grow">
+                    <i class="fa-solid fa-ticket absolute right-3.5 top-3.5 text-slate-400"></i>
+                    <input type="text" name="q" value="{{ query }}" autofocus placeholder="مثال: 84920194 أو user_123" class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-4 py-2.5 text-base text-white font-mono placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                </div>
+                <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer flex-shrink-0">
+                    <i class="fa-solid fa-magnifying-glass"></i><span>فحص الكرت</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Inspection Result -->
+    {% if card %}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Card Basic Specifications -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 space-y-4 shadow-sm">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                <div>
+                    <span class="text-xs text-slate-400 block font-medium">رمز الكرت / اسم المستخدم</span>
+                    <h3 class="text-xl font-black font-mono text-white select-all">{{ card.username }}</h3>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-bold border {% if card.status == 'active' %}bg-emerald-500/20 text-emerald-400 border-emerald-500/30{% elif card.status == 'unused' %}bg-blue-500/20 text-blue-400 border-blue-500/30{% elif card.status == 'expired' %}bg-slate-700 text-slate-400 border-slate-600{% else %}bg-rose-500/20 text-rose-400 border-rose-500/30{% endif %}">
+                    {{ card.status|upper }}
+                </span>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div class="flex justify-between py-1.5 border-b border-[#162136]">
+                    <span class="text-slate-400 font-medium">الرقم التسلسلي (Serial):</span>
+                    <span class="font-mono text-slate-200 font-bold">{{ card.serial_number }}</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-[#162136]">
+                    <span class="text-slate-400 font-medium">رمز الـ PIN:</span>
+                    <span class="font-mono text-amber-400 font-bold">{{ card.pin_code }}</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-[#162136]">
+                    <span class="text-slate-400 font-medium">الباقة المخصصة:</span>
+                    <span class="font-bold text-blue-400">{{ card.package_name }} ({{ card.price }} {{ settings.get('currency_symbol', 'ر.س') }})</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-[#162136]">
+                    <span class="text-slate-400 font-medium">السرعة المحددة:</span>
+                    <span class="font-mono text-emerald-400 font-bold">{{ card.rate_download }} / {{ card.rate_upload }}</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-[#162136]">
+                    <span class="text-slate-400 font-medium">تقييد الماك (Bound MAC):</span>
+                    <span class="font-mono text-slate-300">{{ card.bound_mac or 'غير مقيد' }}</span>
+                </div>
+                <div class="flex justify-between py-1.5 border-b border-[#162136]">
+                    <span class="text-slate-400 font-medium">تاريخ أول تسجيل دخول:</span>
+                    <span class="font-mono text-slate-300">{{ card.first_used_at or 'لم يستخدم بعد' }}</span>
+                </div>
+                <div class="flex justify-between py-1.5 {% if card.status == 'expired' and card.expire_reason %}border-b border-[#162136]{% endif %}">
+                    <span class="text-slate-400 font-medium">تاريخ الانتهاء (Expiration):</span>
+                    <span class="font-mono text-slate-300">{{ card.expires_at or 'غير محدد' }}</span>
+                </div>
+                {% if card.status == 'expired' and card.expire_reason %}
+                <div class="flex justify-between py-2 px-3 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                    <span class="text-rose-400 font-bold">سبب الانتهاء:</span>
+                    <span class="font-bold text-rose-300">{{ card.expire_reason }}</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if is_online %}
+            <div class="pt-2">
+                <button onclick="disconnectUser('{{ card.username }}')" class="w-full py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-rose-600/20">
+                    <i class="fa-solid fa-power-off"></i>فصل الجلسة الحالية فوراً (CoA)
+                </button>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Consumption & RADIUS Synchronization Check -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Consumption Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 sm:p-5 shadow-sm">
+                    <span class="text-xs text-slate-400 block mb-1 font-medium">إجمالي التحميل (Download)</span>
+                    <span class="text-2xl font-black text-emerald-400 font-mono">{{ total_down }}</span>
+                </div>
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 sm:p-5 shadow-sm">
+                    <span class="text-xs text-slate-400 block mb-1 font-medium">إجمالي الرفع (Upload)</span>
+                    <span class="text-2xl font-black text-sky-400 font-mono">{{ total_up }}</span>
+                </div>
+                <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 sm:p-5 shadow-sm">
+                    <span class="text-xs text-slate-400 block mb-1 font-medium">عدد الجلسات المسجلة</span>
+                    <span class="text-2xl font-black text-purple-400 font-mono">{{ sessions|length }}</span>
+                </div>
+            </div>
+
+            <!-- Sessions History Table -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+                <div class="p-4 sm:p-5 border-b border-[#1c2840] flex items-center justify-between">
+                    <h4 class="font-bold text-slate-200 text-xs sm:text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>سجل جلسات الاتصال في FreeRADIUS (radacct)
+                    </h4>
+                </div>
+                <div class="overflow-x-auto table-responsive max-h-72">
+                    <table class="w-full text-right text-xs">
+                        <thead class="bg-[#070b14] text-slate-400 uppercase font-semibold sticky top-0">
+                            <tr>
+                                <th class="py-2.5 px-4">تاريخ البدء</th>
+                                <th class="py-2.5 px-4">تاريخ الانتهاء</th>
+                                <th class="py-2.5 px-4">المدة</th>
+                                <th class="py-2.5 px-4">التحميل</th>
+                                <th class="py-2.5 px-4">الرفع</th>
+                                <th class="py-2.5 px-4">عنوان IP</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-[#1c2840]">
+                            {% for s in sessions %}
+                            <tr class="hover:bg-[#11192b] transition">
+                                <td class="py-2.5 px-4 text-slate-300 font-mono">{{ s.acctstarttime }}</td>
+                                <td class="py-2.5 px-4 text-slate-300 font-mono">{{ s.acctstoptime or '<span class="text-emerald-400 font-bold">جلسة حالية نشطة</span>'|safe }}</td>
+                                <td class="py-2.5 px-4 text-slate-300">{{ s.duration_str }}</td>
+                                <td class="py-2.5 px-4 text-emerald-400 font-mono font-bold">{{ s.download_str }}</td>
+                                <td class="py-2.5 px-4 text-sky-400 font-mono font-bold">{{ s.upload_str }}</td>
+                                <td class="py-2.5 px-4 text-slate-400 font-mono">{{ s.framedipaddress or '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="py-6 text-center text-slate-500">لا توجد جلسات سابقة مسجلة في radacct.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% elif query %}
+    <div class="p-8 text-center bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-sm">
+        <i class="fa-solid fa-triangle-exclamation text-amber-400 text-3xl mb-2 block"></i>
+        <h3 class="font-bold text-white text-base">لم يتم العثور على كرت يطابق البحث</h3>
+        <p class="text-xs text-slate-400 mt-1">تأكد من صحة رقم الـ PIN أو اسم المستخدم وحاول مجدداً.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function disconnectUser(username) {
+        Swal.fire({
+            title: 'تأكيد فصل الجلسة (CoA)',
+            text: `هل تريد إرسال حزمة Disconnect-Request للمشترك [${username}] فورياً؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، افصل الجلسة',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch('/api/subscribers/disconnect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: username})
+                })
+                .then(r => r.json())
+                .then(data => {
+                    Swal.fire(data.success ? 'تم بنجاح' : 'إشعار', data.message, data.success ? 'success' : 'info')
+                    .then(() => location.reload());
+                });
+            }
+        });
+    }
+</script>
+{% endblock %}
