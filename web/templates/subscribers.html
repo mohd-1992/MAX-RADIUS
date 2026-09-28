@@ -695,10 +695,23 @@
                     {% endfor %}
                 </select>
                 <span class="text-[11px] text-slate-500 mt-1 block">سيتم تحديث radusergroup، إعادة تعيين الصلاحية والكوتا، وفصل الجلسة لتطبيق السرعة الجديدة</span>
+                <div class="bg-[#070b14] border border-slate-700/60 rounded-xl p-3 flex items-center justify-between gap-3 mt-3">
+                    <div class="space-y-0.5">
+                        <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                            <i class="fa-solid fa-arrows-rotate text-indigo-400"></i>
+                            ترحيل الرصيد المتبقي (Data & Time Rollover)
+                        </span>
+                        <p class="text-[10px] text-slate-400">إضافة الجيجابايت والأيام المتبقية من الباقة الحالية فوق الباقة الجديدة</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                        <input type="checkbox" name="enable_rollover" value="1" class="sr-only peer">
+                        <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                    </label>
+                </div>
             </div>
             <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
                 <button type="button" onclick="closeModal('modalChangePkg')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold">إلغاء</button>
-                <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold">تغيير الباقة والترحيل</button>
+                <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold">تأكيد تغيير الباقة</button>
             </div>
         </form>
     </div>

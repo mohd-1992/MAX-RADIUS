@@ -134,7 +134,7 @@ if [ -f "${CONF_DIR}/sites-available/default" ]; then
 
     # Inject single-field Hotspot fallback if not already injected
     if ! grep -q "HOTSPOT_SINGLE_FIELD_CARD_FALLBACK" ${CONF_DIR}/sites-available/default; then
-        sed -i '/filter_username/a 	# HOTSPOT_SINGLE_FIELD_CARD_FALLBACK\n	if (!User-Name && User-Password) {\n		update request {\n			User-Name := "%{User-Password}"\n		}\n	}\n	if (User-Name && !User-Password && !CHAP-Password) {\n		update request {\n			User-Password := "%{User-Name}"\n		}\n	}' ${CONF_DIR}/sites-available/default
+        sed -i '/filter_username/a 	# HOTSPOT_SINGLE_FIELD_CARD_FALLBACK\n	if (!User-Name && User-Password) {\n		update request {\n			User-Name := "%{User-Password}"\n		}\n	}\n	if (User-Name && (!User-Password || "%{User-Password}" == "") && !CHAP-Password) {\n		update request {\n			User-Password := "%{User-Name}"\n		}\n	}' ${CONF_DIR}/sites-available/default
     fi
 
     # Inject Reply-Message forwarding in Post-Auth-Type REJECT

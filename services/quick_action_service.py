@@ -435,8 +435,8 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
     log_audit(1, admin_username, 'RENEW_PACKAGE', etype, f'Renewed package {pkg["name"]} for {username}: {audit_change}')
     return True, res_msg
 
-def action_change_package(entity_type, entity_id, new_package_id, admin_username='admin'):
-    """4. تغيير الباقة"""
+def action_change_package(entity_type, entity_id, new_package_id, enable_rollover=False, admin_username='admin'):
+    """4. تغيير الباقة مع خيار ترحيل الرصيد الذكي (Data & Time Rollover)"""
     entity, etype = get_target_entity(entity_type, entity_id)
     if not entity:
         return False, "الحساب أو الكرت غير موجود"
@@ -446,16 +446,75 @@ def action_change_package(entity_type, entity_id, new_package_id, admin_username
         return False, "الباقة الجديدة المحددة غير موجودة"
         
     username = entity['username']
+    now = datetime.datetime.now()
+    
+    # حساب الرصيد المتبقي في حال تفعيل خيار الترحيل
+    rem_data_mb = 0.0
+    rem_time_delta = datetime.timedelta(0)
+    rem_days = 0
+    rem_hours = 0
+    
+    if enable_rollover:
+        # أ. حساب البيانات المتبقية (Data Rollover)
+        total_allowed_mb = float(entity.get('snap_volume_quota_mb') or entity.get('volume_quota_mb') or 0) + float(entity.get('extra_quota_mb') or 0)
+        if total_allowed_mb > 0:
+            cycle_start = entity.get('last_renewed_at') or entity.get('first_used_at') or entity.get('created_at')
+            usage_q = query_one("""
+                SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
+                FROM (
+                    SELECT nasipaddress, acctsessionid,
+                           MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
+                           MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out
+                    FROM radacct
+                    WHERE LOWER(username) = LOWER(?)
+                      AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
+                    GROUP BY nasipaddress, acctsessionid
+                ) t
+            """, (username, str(cycle_start)))
+            used_bytes = float(usage_q['total_bytes'] or 0) if usage_q else 0.0
+            used_mb = used_bytes / (1024.0 * 1024.0)
+            rem_data_mb = max(0.0, total_allowed_mb - used_mb)
+
+        # ب. حساب الأيام/الساعات المتبقية (Time Rollover)
+        if entity.get('expires_at'):
+            try:
+                exp_str = str(entity['expires_at']).replace('T', ' ').split('.')[0]
+                exp_dt = datetime.datetime.strptime(exp_str, '%Y-%m-%d %H:%M:%S')
+                if exp_dt > now:
+                    rem_time_delta = exp_dt - now
+                    rem_days = int(rem_time_delta.total_seconds() // 86400)
+                    rem_hours = int((rem_time_delta.total_seconds() % 86400) // 3600)
+            except Exception:
+                pass
+
     val = new_pkg.get('validity_value') if new_pkg.get('validity_value') is not None else (new_pkg.get('validity_days') or 30)
     unit = new_pkg.get('validity_unit') or 'days'
-    new_exp_iso, new_fr_exp = calculate_package_expiration(val, unit)
+    
+    if val <= 0:
+        new_exp_iso = None
+        new_fr_exp = None
+    else:
+        if unit == 'hours':
+            base_delta = datetime.timedelta(hours=val)
+        elif unit == 'minutes':
+            base_delta = datetime.timedelta(minutes=val)
+        elif unit == 'months':
+            base_delta = datetime.timedelta(days=val * 30)
+        else:
+            base_delta = datetime.timedelta(days=val)
+            
+        new_exp_dt = now + base_delta + rem_time_delta
+        new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
+        new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
+
+    new_extra_mb = round(rem_data_mb, 2) if enable_rollover else 0.0
     
     if etype == 'subscriber':
         execute_write("""
             UPDATE wisp_subscribers
-            SET package_id = ?, expires_at = ?, last_renewed_at = CURRENT_TIMESTAMP, status = 'active'
+            SET package_id = ?, expires_at = ?, last_renewed_at = CURRENT_TIMESTAMP, extra_quota_mb = ?, status = 'active'
             WHERE id = ?
-        """, (new_pkg['id'], new_exp_iso, entity['id']))
+        """, (new_pkg['id'], new_exp_iso, new_extra_mb, entity['id']))
         # Record invoice
         inv_num = generate_invoice_number(entity['id'])
         execute_write("""
@@ -468,6 +527,7 @@ def action_change_package(entity_type, entity_id, new_package_id, admin_username
             SET package_id = ?,
                 expires_at = ?,
                 last_renewed_at = CURRENT_TIMESTAMP,
+                extra_quota_mb = ?,
                 status = 'active',
                 expire_reason = '',
                 snap_price = ?,
@@ -484,7 +544,7 @@ def action_change_package(entity_type, entity_id, new_package_id, admin_username
                 snap_mikrotik_group = ?
             WHERE id = ?
         """, (
-            new_pkg['id'], new_exp_iso,
+            new_pkg['id'], new_exp_iso, new_extra_mb,
             float(new_pkg.get('price') or 0.0), float(new_pkg.get('cost') or 0.0), int(new_pkg.get('volume_quota_mb') or 0),
             int(new_pkg.get('uptime_limit_mins') or 0),
             val, unit, int(new_pkg.get('validity_days') or 30),
@@ -510,8 +570,27 @@ def action_change_package(entity_type, entity_id, new_package_id, admin_username
     execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (username, user_pwd))
         
     action_disconnect_user(entity_type, entity_id, admin_username=admin_username)
-    log_audit(1, admin_username, 'CHANGE_PACKAGE', etype, f'Changed package to {new_pkg["name"]} for {username}')
-    return True, f"تم تغيير الباقة إلى ({new_pkg['name']}) بنجاح ومزامنة FreeRADIUS."
+
+    rolled_gb = round(rem_data_mb / 1024.0, 2)
+    rollover_parts = []
+    if rolled_gb > 0:
+        gb_str = f"{int(rolled_gb)}" if rolled_gb.is_integer() else f"{rolled_gb:.2f}"
+        rollover_parts.append(f"{gb_str} جيجابايت")
+    if rem_days > 0:
+        rollover_parts.append(f"{rem_days} {'أيام' if 3 <= rem_days <= 10 else 'يوم'}")
+    elif rem_hours > 0:
+        rollover_parts.append(f"{rem_hours} {'ساعات' if 3 <= rem_hours <= 10 else 'ساعة'}")
+
+    if enable_rollover and rollover_parts:
+        rollover_text = " و ".join(rollover_parts)
+        res_msg = f"تم تغيير الباقة إلى ({new_pkg['name']}) مع ترحيل {rollover_text} بنجاح."
+        audit_note = f"تغيير باقة إلى {new_pkg['name']} مع ترحيل ({rollover_text})"
+    else:
+        res_msg = f"تم تغيير الباقة إلى ({new_pkg['name']}) بنجاح ومزامنة FreeRADIUS."
+        audit_note = f"تغيير باقة إلى {new_pkg['name']}"
+
+    log_audit(1, admin_username, 'CHANGE_PACKAGE', etype, f"{audit_note} for {username}")
+    return True, res_msg
 
 def action_add_quota(entity_type, entity_id, quota_amount, quota_unit='GB', admin_username='admin'):
     """5. إضافة رصيد تحميل (Data Quota)"""
