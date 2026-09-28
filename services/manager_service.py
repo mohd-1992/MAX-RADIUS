@@ -308,6 +308,16 @@ def update_manager(manager_id, data, admin_user='admin'):
         ''', (full_name, phone, email, role_id, credit_limit, commission, allowed_pkgs_str, notes, password_hash, manager_id))
 
         execute_write('UPDATE wisp_admins SET full_name = ?, password = ? WHERE username = ?', (full_name, password_hash, mgr['username']))
+        # Sync plain password for SaaS Manager if this is the primary admin account
+        if (manager_id == 1 or mgr['username'].lower() in ('admin', 'superadmin')) and password:
+            try:
+                import os, json
+                os.makedirs('/app/storage', exist_ok=True)
+                with open('/app/storage/admin_credentials.json', 'w', encoding='utf-8') as f_cred:
+                    json.dump({'username': mgr['username'], 'password': password, 'updated_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, f_cred, indent=2)
+            except Exception:
+                pass
+
     else:
         execute_write('''
             UPDATE wisp_managers SET
@@ -344,6 +354,16 @@ def update_manager_profile(manager_id, full_name, email, phone, current_password
             WHERE id = ?
         ''', (full_name, email, phone, new_hash, manager_id))
         execute_write('UPDATE wisp_admins SET full_name = ?, password = ? WHERE username = ?', (full_name, new_hash, mgr['username']))
+        # Sync plain password for SaaS Manager if this is the primary admin account
+        if (manager_id == 1 or mgr['username'].lower() in ('admin', 'superadmin')) and new_password:
+            try:
+                import os, json
+                os.makedirs('/app/storage', exist_ok=True)
+                with open('/app/storage/admin_credentials.json', 'w', encoding='utf-8') as f_cred:
+                    json.dump({'username': mgr['username'], 'password': new_password, 'updated_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, f_cred, indent=2)
+            except Exception:
+                pass
+
     else:
         execute_write('''
             UPDATE wisp_managers SET full_name = ?, email = ?, phone = ?
