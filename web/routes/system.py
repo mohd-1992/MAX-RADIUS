@@ -111,11 +111,12 @@ def api_renew():
 
 
 @system_bp.route('/api/actions/change-package', methods=['POST'], endpoint="api_change_package")
-
 def api_change_package():
     target_type, ids = _get_target_params()
     new_package_id = request.form.get('new_package_id')
-    success, msg = action_bulk_execute(action_change_package, target_type, ids, new_package_id=new_package_id)
+    raw_ro = request.form.get('enable_rollover')
+    enable_rollover = raw_ro in ('1', 'true', 'on', True, 1)
+    success, msg = action_bulk_execute(action_change_package, target_type, ids, new_package_id=new_package_id, enable_rollover=enable_rollover)
     return jsonify({'success': success, 'message': msg})
 
 
