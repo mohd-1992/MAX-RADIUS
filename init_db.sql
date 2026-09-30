@@ -154,6 +154,8 @@ CREATE TABLE IF NOT EXISTS `wisp_packages` (
     `is_active` TINYINT(1) DEFAULT 1,
     `show_in_portal` TINYINT(1) DEFAULT 1,
     `is_rollover_enabled` TINYINT(1) DEFAULT 0,
+    `is_loyalty_enabled` TINYINT(1) DEFAULT 0,
+    `loyalty_points` INT(11) DEFAULT 0,
     `description` TEXT,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),

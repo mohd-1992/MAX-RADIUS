@@ -169,6 +169,8 @@ REQUIRED_COLUMNS = {
     'wisp_packages': [
         ('show_in_portal', 'TINYINT(1) DEFAULT 1 AFTER is_active'),
         ('is_rollover_enabled', 'TINYINT(1) DEFAULT 0 AFTER is_active'),
+        ('is_loyalty_enabled', 'TINYINT(1) DEFAULT 0 AFTER is_rollover_enabled'),
+        ('loyalty_points', 'INT DEFAULT 0 AFTER is_loyalty_enabled'),
         ('validity_value', 'INT DEFAULT 30'),
         ('validity_unit', "VARCHAR(20) DEFAULT 'days'"),
         ('validity_days', 'INT DEFAULT 30'),

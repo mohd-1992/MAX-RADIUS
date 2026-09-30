@@ -588,6 +588,8 @@ CREATE TABLE `wisp_packages` (
   `is_active` tinyint(1) DEFAULT 1,
   `show_in_portal` tinyint(1) DEFAULT 1,
   `is_rollover_enabled` tinyint(1) DEFAULT 0,
+  `is_loyalty_enabled` tinyint(1) DEFAULT 0,
+  `loyalty_points` int(11) DEFAULT 0,
   `description` text DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),

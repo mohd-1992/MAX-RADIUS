@@ -66,6 +66,8 @@ CREATE TABLE IF NOT EXISTS wisp_packages (
     is_active INTEGER DEFAULT 1,
     show_in_portal INTEGER DEFAULT 1,
     is_rollover_enabled INTEGER DEFAULT 0,
+    is_loyalty_enabled INTEGER DEFAULT 0,
+    loyalty_points INTEGER DEFAULT 0,
     description TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
