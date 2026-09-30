@@ -429,7 +429,10 @@ def user_recharge_action():
     else:
         flash(msg, 'danger')
         
-    return redirect(url_for('user_recharge'))
+    ref = request.referrer or ''
+    if 'recharge' in ref and 'dashboard' not in ref:
+        return redirect(url_for('user_recharge'))
+    return redirect(url_for('user_dashboard'))
 
 
 @portal_bp.route('/user/loan/request', methods=['POST'], endpoint="user_loan_request_action")

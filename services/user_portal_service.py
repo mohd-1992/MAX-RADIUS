@@ -638,8 +638,11 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
     """
     Recharges user balance or directly tops up package data and validity duration using an unused voucher card.
     recharge_type: 'balance' (شحن رصيد مالي) | 'package' (شحن كباقة وإضافة البيانات والوقت)
-    In both cases: The recharged card is marked as 'used' with detailed expire_reason,
-    and credentials are removed from RADIUS tables so it cannot be used to login.
+    Features:
+    - Automatic Data Rollover (ترحيل الرصيد التراكمي المتبقي إذا كانت الباقة تدعم الترحيل)
+    - Automatic Loyalty Points Award (منح نقاط الولاء تلقائياً لمحفظة المشترك إذا كانت الباقة مفعلة بالنقاط)
+    - Supports both PPP/DHCP subscribers (wisp_subscribers) and Hotspot card users (wisp_vouchers)
+    - Concurrency-safe atomic execution & FreeRADIUS sync
     """
     username = (username or '').strip()
     card_code = (card_code or '').strip()
@@ -654,7 +657,7 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
             cursor = conn.cursor()
             lock_clause = "FOR UPDATE" if is_mysql_conn(conn) else ""
             
-            # 1. Lock and find unused card
+            # 1. Lock and find unused card with package details including loyalty & rollover
             sql_card = adapt_query(f"""
                 SELECT v.*, 
                        COALESCE(v.snap_price, p.price) as card_price, 
@@ -663,6 +666,9 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                        COALESCE(v.snap_validity_value, p.validity_value) as validity_value, 
                        COALESCE(v.snap_validity_unit, p.validity_unit) as validity_unit, 
                        COALESCE(v.snap_validity_days, p.validity_days) as validity_days,
+                       COALESCE(p.is_rollover_enabled, 0) as is_rollover_enabled,
+                       COALESCE(p.is_loyalty_enabled, 0) as is_loyalty_enabled,
+                       COALESCE(p.loyalty_points, 0) as loyalty_points,
                        b.name as batch_name
                 FROM wisp_vouchers v
                 JOIN wisp_packages p ON v.package_id = p.id
@@ -681,18 +687,29 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
 
             card_value = float(card['card_price'] or 0.0)
 
-            # 2. Lock subscriber
+            # 2. Lock target user (check wisp_subscribers first, then wisp_vouchers)
             sql_sub = adapt_query(f"SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?) LIMIT 1 {lock_clause}", conn)
             cursor.execute(sql_sub, (username,))
             sub = cursor.fetchone()
-            if not sub:
-                return False, "حساب المشترك غير مسجل في قائمة الاشتراكات."
-            if not isinstance(sub, dict):
+            target_type = 'subscriber'
+            if sub and not isinstance(sub, dict):
                 sub = dict(sub)
+
+            if not sub:
+                sql_voucher = adapt_query(f"SELECT * FROM wisp_vouchers WHERE LOWER(username) = LOWER(?) LIMIT 1 {lock_clause}", conn)
+                cursor.execute(sql_voucher, (username,))
+                v_target = cursor.fetchone()
+                if v_target:
+                    target_type = 'voucher'
+                    sub = dict(v_target) if not isinstance(v_target, dict) else v_target
+                else:
+                    return False, "حساب المشترك غير مسجل في قائمة الاشتراكات أو الكروت."
 
             loan_mb = int(sub.get('loan_balance_mb') or 0)
             loan_status = int(sub.get('loan_status') or 0)
             has_active_loan = (loan_status == 1 or loan_mb > 0)
+            rem_data_mb = 0.0
+            is_rollover = False
 
             if recharge_type == 'package':
                 add_quota_mb = float(card.get('volume_quota_mb') or 0.0)
@@ -704,6 +721,56 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                         return False, f"حجم باقة الكرت ({format_mb_or_gb(add_quota_mb)}) مساوٍ أو أقل من حجم السلفة المستحقة ({format_mb_or_gb(loan_mb)}). يجب استخدام كرت بسعة أكبر من حجم السلفة لسدادها وتوفير رصيد تصفح فعال."
                     deducted_loan_mb = loan_mb
                     net_quota_mb = add_quota_mb - loan_mb
+
+                # --- ROLLOVER DATA CALCULATION ---
+                # Check current package
+                curr_pkg_id = sub.get('package_id')
+                curr_pkg = None
+                if curr_pkg_id:
+                    cursor.execute(adapt_query("SELECT * FROM wisp_packages WHERE id = ?", conn), (curr_pkg_id,))
+                    curr_pkg = cursor.fetchone()
+                    if curr_pkg and not isinstance(curr_pkg, dict):
+                        curr_pkg = dict(curr_pkg)
+
+                is_rollover = bool(
+                    (curr_pkg and curr_pkg.get('is_rollover_enabled')) or 
+                    card.get('is_rollover_enabled')
+                )
+
+                if is_rollover:
+                    # Calculate remaining quota from the active cycle
+                    current_base_mb = float((curr_pkg.get('volume_quota_mb') if curr_pkg else 0) or 0)
+                    current_extra_mb = float(sub.get('extra_quota_mb') or 0.0)
+                    total_allowed_before = current_base_mb + current_extra_mb
+                    
+                    if total_allowed_before > 0:
+                        cycle_start = sub.get('last_renewed_at') or sub.get('created_at')
+                        usage_sql = adapt_query("""
+                            SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
+                            FROM (
+                                SELECT nasipaddress, acctsessionid,
+                                       MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
+                                       MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out
+                                FROM radacct
+                                WHERE LOWER(username) = LOWER(?)
+                                  AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
+                                GROUP BY nasipaddress, acctsessionid
+                            ) t
+                        """, conn)
+                        cursor.execute(usage_sql, (username, str(cycle_start)))
+                        usage_row = cursor.fetchone()
+                        used_bytes = float(usage_row['total_bytes'] or 0) if usage_row else 0.0
+                        used_mb = used_bytes / (1024.0 * 1024.0)
+                        rem_data_mb = max(0.0, total_allowed_before - used_mb)
+
+                # Total new extra quota:
+                # If rollover is active, carry over rem_data_mb.
+                # If rollover is not active, preserve existing positive extra quota (from rewards) if any:
+                existing_extra_mb = max(0.0, float(sub.get('extra_quota_mb') or 0.0))
+                if is_rollover:
+                    card_extra_quota = round(rem_data_mb - deducted_loan_mb, 2)
+                else:
+                    card_extra_quota = round(existing_extra_mb - deducted_loan_mb, 2)
 
                 val = card.get('validity_value') if card.get('validity_value') is not None else (card.get('validity_days') or 30)
                 unit = str(card.get('validity_unit') or 'days').lower().strip()
@@ -737,7 +804,6 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
 
                 new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
                 new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
-                card_extra_quota = -deducted_loan_mb if deducted_loan_mb > 0 else 0
 
                 # Mark card as recharged first inside transaction
                 card_expire_msg = f"تم استخدامه في شحن الباقة (تم سداد سلفة {format_mb_or_gb(deducted_loan_mb)})" if deducted_loan_mb > 0 else "تم استخدامه في شحن الباقة والوقت"
@@ -754,19 +820,32 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 if cursor.rowcount != 1:
                     return False, "عذراً، هذا الكرت تم استخدامه في نفس اللحظة أو لم يعد متاحاً."
 
-                # Update subscriber inside transaction
-                sql_up_sub = adapt_query("""
-                    UPDATE wisp_subscribers SET
-                        status = 'active',
-                        package_id = ?,
-                        expires_at = ?,
-                        extra_quota_mb = ?,
-                        loan_balance_mb = 0,
-                        loan_status = 0,
-                        last_renewed_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, conn)
-                cursor.execute(sql_up_sub, (card['package_id'], new_exp_iso, card_extra_quota, sub['id']))
+                # Update subscriber / voucher record inside transaction
+                if target_type == 'subscriber':
+                    sql_up_sub = adapt_query("""
+                        UPDATE wisp_subscribers SET
+                            status = 'active',
+                            package_id = ?,
+                            expires_at = ?,
+                            extra_quota_mb = ?,
+                            loan_balance_mb = 0,
+                            loan_status = 0,
+                            last_renewed_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, conn)
+                    cursor.execute(sql_up_sub, (card['package_id'], new_exp_iso, card_extra_quota, sub['id']))
+                else:
+                    sql_up_v = adapt_query("""
+                        UPDATE wisp_vouchers SET
+                            status = 'active',
+                            package_id = ?,
+                            expires_at = ?,
+                            extra_quota_mb = ?,
+                            snap_volume_quota_mb = ?,
+                            last_renewed_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, conn)
+                    cursor.execute(sql_up_v, (card['package_id'], new_exp_iso, card_extra_quota, add_quota_mb, sub['id']))
 
                 # Record in sales inside transaction
                 sql_sales = adapt_query("""
@@ -796,9 +875,13 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 if cursor.rowcount != 1:
                     return False, "عذراً، هذا الكرت تم استخدامه في نفس اللحظة أو لم يعد متاحاً."
 
-                # Update subscriber balance inside transaction
-                sql_up_sub = adapt_query("UPDATE wisp_subscribers SET balance = COALESCE(balance, 0) + ? WHERE id = ?", conn)
-                cursor.execute(sql_up_sub, (card_value, sub['id']))
+                # Update subscriber / voucher balance inside transaction
+                if target_type == 'subscriber':
+                    sql_up_sub = adapt_query("UPDATE wisp_subscribers SET balance = COALESCE(balance, 0) + ? WHERE id = ?", conn)
+                    cursor.execute(sql_up_sub, (card_value, sub['id']))
+                else:
+                    sql_up_v = adapt_query("UPDATE wisp_vouchers SET balance = COALESCE(balance, 0) + ? WHERE id = ?", conn)
+                    cursor.execute(sql_up_v, (card_value, sub['id']))
 
                 # Record in sales inside transaction
                 sql_sales = adapt_query("""
@@ -809,15 +892,33 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 """, conn)
                 cursor.execute(sql_sales, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value))
 
-        # Outside transaction: Post-commit sync & Async Disconnect
+        # Outside transaction: Post-commit sync, Loyalty Points award & Async Disconnect
         try:
             delete_user_from_radius(card['username'])
         except Exception:
             pass
 
+        # Award loyalty points if package has loyalty enabled
+        points_awarded = 0
+        is_loyalty = bool(card.get('is_loyalty_enabled'))
+        pkg_points = int(card.get('loyalty_points') or 0)
+        if is_loyalty and pkg_points > 0:
+            try:
+                from services.loyalty_rewards_service import award_loyalty_points
+                reason_txt = f"شحن كرت باقة: {card['package_name']} ({card['serial_number']})"
+                ok_pts, _ = award_loyalty_points(username, pkg_points, reason=reason_txt)
+                if ok_pts:
+                    points_awarded = pkg_points
+            except Exception as e_pts:
+                print(f"Error awarding loyalty points on card recharge: {e_pts}")
+
+        loyalty_msg = f" وتمت إضافة {points_awarded} نقطة ولاء إلى رصيدك! 🪙" if points_awarded > 0 else ""
+        rollover_msg = f" (تم ترحيل {format_mb_or_gb(rem_data_mb)} من رصيدك السابق)" if is_rollover and rem_data_mb > 0 else ""
+
         if recharge_type == 'package':
             try:
-                sync_subscriber_to_radius(sub['id'])
+                if target_type == 'subscriber':
+                    sync_subscriber_to_radius(sub['id'])
                 execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Max-Total-Octets'", (username,))
                 execute_write("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", (username,))
                 execute_write("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", (username, card['package_name']))
@@ -828,12 +929,12 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
 
             dispatch_async_disconnect(username)
             if deducted_loan_mb > 0:
-                return True, f"تم شحن الباقة بنجاح! تم سداد السلفة السابقة ({format_mb_or_gb(deducted_loan_mb)}) وإضافة السعة الصافية ({format_mb_or_gb(net_quota_mb)}) إلى رصيدك وتمديد الصلاحية حتى {new_exp_iso}."
+                return True, f"تم شحن الباقة بنجاح! تم سداد السلفة السابقة ({format_mb_or_gb(deducted_loan_mb)}) وإضافة السعة الصافية ({format_mb_or_gb(net_quota_mb)}){rollover_msg} وتمديد الصلاحية حتى {new_exp_iso}.{loyalty_msg}"
             else:
-                return True, f"تم شحن الباقة بنجاح! تمت إضافة {format_mb_or_gb(add_quota_mb)} بيانات وتمديد الصلاحية حتى {new_exp_iso}."
+                return True, f"تم شحن الباقة بنجاح! تمت إضافة {format_mb_or_gb(add_quota_mb)} بيانات{rollover_msg} وتمديد الصلاحية حتى {new_exp_iso}.{loyalty_msg}"
         else:
             new_bal = float(sub.get('balance') or 0.0) + card_value
-            return True, f"تم شحن محفظتك بنجاح بمبلغ {card_value:.2f}. رصيدك الحالي أصبح: {new_bal:.2f}"
+            return True, f"تم شحن محفظتك بنجاح بمبلغ {card_value:.2f}. رصيدك الحالي أصبح: {new_bal:.2f}.{loyalty_msg}"
 
     except Exception as ex:
         return False, f"فشل تنفيذ عملية الشحن: {str(ex)}"
@@ -1053,7 +1154,8 @@ def renew_or_change_package(username, new_pkg_id):
         new_expiry = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
         new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
 
-    new_extra_mb = round(rem_data_mb, 2) if is_rollover_enabled else 0.0
+    existing_extra_mb = max(0.0, float(sub.get('extra_quota_mb') or 0.0))
+    new_extra_mb = round(rem_data_mb, 2) if is_rollover_enabled else existing_extra_mb
 
     # 3. تحديث حساب المشترك وتصفير عداد الدورة مع الخصم الذري للرصيد
     updated_rows = execute_update("""
@@ -1094,7 +1196,18 @@ def renew_or_change_package(username, new_pkg_id):
     except Exception:
         pass
 
-    # 6. تجهيز رسالة التنبيه وسجل التدقيق
+    # 6. منح نقاط الولاء إن كانت الباقة تدعم النقاط
+    points_awarded = 0
+    if pkg.get('is_loyalty_enabled') and int(pkg.get('loyalty_points') or 0) > 0:
+        try:
+            from services.loyalty_rewards_service import award_loyalty_points
+            ok_pts, _ = award_loyalty_points(username, int(pkg['loyalty_points']), reason=f"تجديد باقة {pkg['name']} من الرصيد")
+            if ok_pts:
+                points_awarded = int(pkg['loyalty_points'])
+        except Exception as e_pts:
+            print(f"Error awarding points on renew: {e_pts}")
+
+    # 7. تجهيز رسالة التنبيه وسجل التدقيق
     rolled_gb = round(rem_data_mb / 1024.0, 2)
     rollover_parts = []
     if rolled_gb > 0:
@@ -1105,12 +1218,13 @@ def renew_or_change_package(username, new_pkg_id):
     elif rem_hours > 0:
         rollover_parts.append(f"{rem_hours} {'ساعات' if 3 <= rem_hours <= 10 else 'ساعة'}")
 
+    loyalty_text = f" وتمت إضافة {points_awarded} نقطة ولاء إلى رصيدك! 🪙" if points_awarded > 0 else ""
     if is_rollover_enabled and rollover_parts:
         rollover_text = " و ".join(rollover_parts)
-        ret_msg = f"تم تجديد باقة [{pkg['name']}] بنجاح مع ترحيل {rollover_text}! تم خصم {pkg_price:.2f} من رصيدك. الصلاحية الجديدة حتى {new_expiry}."
+        ret_msg = f"تم تجديد باقة [{pkg['name']}] بنجاح مع ترحيل {rollover_text}! تم خصم {pkg_price:.2f} من رصيدك. الصلاحية الجديدة حتى {new_expiry}.{loyalty_text}"
         audit_change = f"تم تجديد الباقة عبر بوابة المشترك مع ترحيل الرصيد ({rollover_text})"
     else:
-        ret_msg = f"تم تفعيل باقة [{pkg['name']}] بنجاح! تم خصم {pkg_price:.2f} من رصيدك. صلاحية الباقة حتى {new_expiry}."
+        ret_msg = f"تم تفعيل باقة [{pkg['name']}] بنجاح! تم خصم {pkg_price:.2f} من رصيدك. صلاحية الباقة حتى {new_expiry}.{loyalty_text}"
         audit_change = f"تجديد الباقة عبر بوابة المشترك [{pkg['name']}]"
 
     from database.db import log_user_audit
