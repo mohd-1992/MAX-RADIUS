@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}نقاط ومكافآت الولاء للمشتركين - MAX RADIUS{% endblock %}
-{% block page_title %}منظومة نقاط ومكافآت الولاء التلقائية للمشتركين{% endblock %}
+{% block title %}إدارة نقاط ومكافآت الولاء - MAX RADIUS{% endblock %}
+{% block page_title %}منظومة نقاط ومكافآت الولاء للمشتركين{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
 
-    <!-- Top Banner -->
+    <!-- Top Action Banner -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
         <div class="flex items-center gap-3.5">
             <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl flex-shrink-0">
@@ -14,25 +14,32 @@
             </div>
             <div>
                 <h2 class="text-xl font-black text-white flex items-center gap-2">
-                    نقاط ومكافآت الولاء (Loyalty Points & Rewards Engine)
+                    برنامج نقاط ومكافآت الولاء
+                    <span class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-normal">
+                        نظام متزامن وشامل
+                    </span>
                 </h2>
-                <p class="text-xs text-slate-400 mt-0.5">منح المشتركين نقاط تلقائية عند شحن الكروت واستبدالها برصيد بيانات مجاني أو تمديد صلاحية</p>
+                <p class="text-xs text-slate-400 mt-0.5">تخصيص كامل للمكافآت وتكلفة النقاط، تفعيل أو تعطيل، ومنح أو خصم النقاط للمشتركين مع الأرشفة الفورية</p>
             </div>
         </div>
-        <div class="flex items-center gap-3">
-            <button onclick="openAwardPointsModal()" class="px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
-                <i class="fa-solid fa-plus"></i>
-                <span>منح نقاط لمشترك (Bonus)</span>
+        <div class="flex flex-wrap items-center gap-3">
+            <button onclick="openAwardPointsModal()" class="px-4 py-2.5 bg-[#162136] hover:bg-[#1c2840] text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-coins"></i>
+                <span>منح / خصم نقاط لمشترك</span>
+            </button>
+            <button onclick="openCreateRewardModal()" class="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl text-xs font-black transition flex items-center gap-2 shadow-md shadow-amber-900/20">
+                <i class="fa-solid fa-plus-circle text-sm"></i>
+                <span>إضافة مكافأة جديدة</span>
             </button>
         </div>
     </div>
 
     <!-- KPI Summary Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- 1. Total Enrolled -->
+        <!-- 1. Enrolled Members -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">المشتركين في برنامج الولاء</span>
+                <span class="text-xs font-semibold text-slate-400">المشتركون بالبرنامج</span>
                 <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-base border border-blue-500/20">
                     <i class="fa-solid fa-users"></i>
                 </div>
@@ -40,8 +47,8 @@
             <div class="mt-3">
                 <h4 class="text-2xl font-black text-white font-mono">{{ data.total_members }}</h4>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>الحالة:</span>
-                    <span class="font-bold text-emerald-400">نشط وتلقائي</span>
+                    <span>حسابات نشطة بالنقاط:</span>
+                    <span class="font-bold text-blue-400">تلقائي مع كل شحن</span>
                 </div>
             </div>
         </div>
@@ -49,7 +56,7 @@
         <!-- 2. Circulating Points -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">إجمالي النقاط المتداولة</span>
+                <span class="text-xs font-semibold text-slate-400">النقاط المتداولة حالياً</span>
                 <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-base border border-amber-500/20">
                     <i class="fa-solid fa-coins"></i>
                 </div>
@@ -57,198 +64,571 @@
             <div class="mt-3">
                 <h4 class="text-2xl font-black text-amber-400 font-mono">{{ "{:,}".format(data.circulating_points) }}</h4>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>معدل الاكتساب:</span>
-                    <span class="font-mono text-slate-300 font-bold">1000 {{ currency_symbol }} = 10 نقاط</span>
+                    <span>رصيد قابل للاستبدال:</span>
+                    <span class="font-mono text-emerald-400 font-bold">جاهز بالبوابة</span>
                 </div>
             </div>
         </div>
 
-        <!-- 3. Available Rewards -->
+        <!-- 3. Redeemed Points -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">كتالوج الجوائز المتاحة</span>
-                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
-                    <i class="fa-solid fa-store"></i>
-                </div>
-            </div>
-            <div class="mt-3">
-                <h4 class="text-2xl font-black text-purple-400 font-mono">{{ data.rewards_catalog|length }} جوائز</h4>
-                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>النوع:</span>
-                    <span class="font-bold text-slate-300">بيانات + صلاحية</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. Tier System -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">مستويات الولاء (Tiers)</span>
+                <span class="text-xs font-semibold text-slate-400">إجمالي النقاط المستبدلة</span>
                 <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/20">
-                    <i class="fa-solid fa-award"></i>
+                    <i class="fa-solid fa-gift"></i>
                 </div>
             </div>
             <div class="mt-3">
-                <h4 class="text-base font-black text-emerald-400">Bronze ➔ VIP</h4>
+                <h4 class="text-2xl font-black text-emerald-400 font-mono">{{ "{:,}".format(data.total_redeemed_points) }}</h4>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>الاستبدال:</span>
-                    <span class="font-bold text-emerald-400">مباشر وفوري</span>
+                    <span>استبدالات ناجحة:</span>
+                    <span class="font-mono text-slate-300 font-bold">بيانات وصلاحية ورصيد</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Active Catalog Rewards -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-400">مكافآت الكتالوج</span>
+                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h4 class="text-2xl font-black text-purple-400 font-mono">{{ data.active_rewards_count }} <span class="text-xs text-slate-500 font-normal">/ {{ data.all_rewards|length }}</span></h4>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
+                    <span>حالة الظهور بالبوابة:</span>
+                    <span class="font-bold text-purple-300">{{ data.active_rewards_count }} مفعّلة حالياً</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Section 2: Rewards Catalog Cards -->
+    <!-- Section: Rewards Catalog Management -->
     <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm">
-        <h3 class="font-bold text-white text-sm mb-4 flex items-center gap-2">
-            <i class="fa-solid fa-gift text-amber-400"></i>
-            كتالوج مكافآت المشتركين القابلة للاستبدال
-        </h3>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {% for r in data.rewards_catalog %}
-            <div class="bg-[#070b14] border border-[#1c2840] hover:border-amber-500/40 p-5 rounded-2xl flex flex-col justify-between transition">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-[#1c2840]">
+            <div>
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-store text-amber-400"></i>
+                    كتالوج مكافآت المشتركين القابلة للتخصيص
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">يمكنك إضافة مكافآت جديدة، تعديل تكلفة النقاط، أو إيقاف وتفعيل أي مكافأة بنقرة واحدة</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openCreateRewardModal()" class="px-3.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i> إضافة مكافأة
+                </button>
+            </div>
+        </div>
+
+        <!-- Rewards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="rewardsContainer">
+            {% for r in data.all_rewards %}
+            <div class="bg-[#070b14] border {% if r.is_active %}border-[#1c2840] hover:border-amber-500/40{% else %}border-red-950/40 opacity-70{% endif %} p-5 rounded-2xl flex flex-col justify-between transition group shadow-sm relative" id="reward-card-{{ r.id }}">
                 <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <span class="text-xs font-bold text-white">{{ r.reward_name }}</span>
-                        <span class="px-2.5 py-1 rounded-lg text-xs font-black font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            {{ r.points_cost }} نقطة
+                    <!-- Top row: Icon & Status Toggle -->
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-lg">
+                            <i class="fa-solid {{ r.icon or 'fa-gift' }}"></i>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <!-- Active Status Toggle -->
+                            <label class="relative inline-flex items-center cursor-pointer" title="تفعيل أو تعطيل ظهور المكافأة في بوابة المشتركين">
+                                <input type="checkbox" class="sr-only peer" onchange="toggleRewardStatus({{ r.id }}, this.checked)" {% if r.is_active %}checked{% endif %}>
+                                <div class="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Reward Title & Cost Badge -->
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <h4 class="text-sm font-bold text-white leading-snug">{{ r.reward_name }}</h4>
+                        <span class="px-2 py-0.5 rounded-lg text-xs font-black font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20 whitespace-nowrap">
+                            🪙 {{ r.points_cost }}
                         </span>
                     </div>
-                    <p class="text-xs text-slate-400">{{ r.description }}</p>
+
+                    <!-- Reward Type Badge & Value -->
+                    <div class="flex items-center gap-2 my-2">
+                        {% if r.reward_type == 'data_bonus_mb' %}
+                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                                <i class="fa-solid fa-wifi text-[9px] mr-1"></i> رصيد بيانات: 
+                                {% if r.reward_value >= 1024 %}{{ (r.reward_value / 1024)|round(1) }} GB{% else %}{{ r.reward_value }} MB{% endif %}
+                            </span>
+                        {% elif r.reward_type == 'validity_days' %}
+                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                <i class="fa-solid fa-calendar-plus text-[9px] mr-1"></i> صلاحية: {{ r.reward_value }} أيام
+                            </span>
+                        {% elif r.reward_type == 'balance_credit' %}
+                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <i class="fa-solid fa-wallet text-[9px] mr-1"></i> رصيد نقدي: {{ r.reward_value }}
+                            </span>
+                        {% else %}
+                            <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                <i class="fa-solid fa-star text-[9px] mr-1"></i> مكافأة مخصصة
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <p class="text-xs text-slate-400 mt-2 line-clamp-2 min-h-[32px]">{{ r.description or 'لا يوجد وصف مضاف' }}</p>
                 </div>
-                <div class="mt-4 pt-3 border-t border-[#162136] flex items-center justify-between text-xs">
-                    <span class="text-slate-500">القيمة: <strong class="text-slate-300 font-mono">{{ r.reward_value }}</strong></span>
-                    <span class="text-emerald-400 font-bold flex items-center gap-1">
-                        <i class="fa-solid fa-circle-check text-[10px]"></i> متاح للاستبدال
-                    </span>
+
+                <!-- Footer Card Actions -->
+                <div class="mt-4 pt-3 border-t border-[#162136] flex items-center justify-between">
+                    <div>
+                        {% if r.is_active %}
+                        <span class="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> متاحة بالبوابة
+                        </span>
+                        {% else %}
+                        <span class="text-[11px] text-slate-500 font-bold flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-slate-600"></span> معطلة
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button onclick="openEditRewardModal({{ r.id }})" class="w-7 h-7 rounded-lg bg-[#162136] hover:bg-[#1c2840] text-slate-300 hover:text-white flex items-center justify-center text-xs transition" title="تعديل المكافأة">
+                            <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button onclick="confirmDeleteReward({{ r.id }}, '{{ r.reward_name }}')" class="w-7 h-7 rounded-lg bg-red-950/20 hover:bg-red-900/40 text-red-400 border border-red-500/20 flex items-center justify-center text-xs transition" title="حذف المكافأة">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
                 </div>
+            </div>
+            {% else %}
+            <div class="col-span-full py-10 text-center text-slate-400">
+                <i class="fa-solid fa-store-slash text-4xl mb-3 text-slate-600"></i>
+                <p>لا توجد مكافآت مضافة في الكتالوج حالياً.</p>
+                <button onclick="openCreateRewardModal()" class="mt-3 px-4 py-2 bg-amber-500/20 text-amber-400 rounded-xl text-xs font-bold">
+                    إضافة أول مكافأة الآن
+                </button>
             </div>
             {% endfor %}
         </div>
     </div>
 
-    <!-- Section 3: Top Members & Recent Transactions -->
+    <!-- Section: Top Members & Recent Transactions -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        <!-- Top Members -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
-            <div class="p-5 border-b border-[#1c2840] flex items-center justify-between">
-                <h3 class="font-bold text-white flex items-center gap-2 text-sm">
-                    <i class="fa-solid fa-crown text-amber-400"></i>
-                    أعلى المشتركين رصيداً في النقاط
-                </h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-right text-xs">
-                    <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
-                        <tr>
-                            <th class="py-3 px-4">المشترك</th>
-                            <th class="py-3 px-4">رصيد النقاط</th>
-                            <th class="py-3 px-4">المستوى</th>
-                            <th class="py-3 px-4">إجمالي المكتسب</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-[#1c2840]">
-                        {% for m in data.top_members %}
-                        <tr class="hover:bg-[#11192b] transition">
-                            <td class="py-3 px-4 font-mono font-bold text-white">{{ m.username }}</td>
-                            <td class="py-3 px-4 font-mono font-black text-amber-400">{{ "{:,}".format(m.points_balance) }} نقطة</td>
-                            <td class="py-3 px-4">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-purple-500/10 text-purple-400 border border-purple-500/20">{{ m.tier_level }}</span>
-                            </td>
-                            <td class="py-3 px-4 font-mono text-slate-400">{{ m.total_points_earned }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="4" class="py-6 text-center text-slate-400">لا يوجد مشتركين في السجل حالياً.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <!-- Top Members with Points -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="p-5 border-b border-[#1c2840] flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+                            <i class="fa-solid fa-crown text-amber-400"></i>
+                            أعلى المشتركين رصيداً في النقاط
+                        </h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5">ترتيب المشتركين حسب رصيد النقاط المتاح مع إمكانية التعديل المباشر</p>
+                    </div>
+                    <span class="text-xs font-mono font-bold text-slate-400 bg-[#070b14] px-2.5 py-1 rounded-lg border border-[#1c2840]">
+                        Top {{ data.top_members|length }}
+                    </span>
+                </div>
+                <div class="overflow-x-auto max-h-[420px]">
+                    <table class="w-full text-right text-xs">
+                        <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840] sticky top-0 z-10">
+                            <tr>
+                                <th class="py-3 px-4">المشترك</th>
+                                <th class="py-3 px-4">الرصيد المتاح</th>
+                                <th class="py-3 px-4">المستوى</th>
+                                <th class="py-3 px-4">إجمالي المكتسب</th>
+                                <th class="py-3 px-4 text-center">إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-[#1c2840]">
+                            {% for m in data.top_members %}
+                            <tr class="hover:bg-[#11192b] transition">
+                                <td class="py-3 px-4 font-mono font-bold text-white flex items-center gap-2">
+                                    <span class="w-6 h-6 rounded-full bg-slate-800 text-slate-300 text-[10px] flex items-center justify-center font-bold">
+                                        {{ loop.index }}
+                                    </span>
+                                    {{ m.username }}
+                                </td>
+                                <td class="py-3 px-4 font-mono font-black text-amber-400">{{ "{:,}".format(m.points_balance) }} 🪙</td>
+                                <td class="py-3 px-4">
+                                    {% if m.tier_level == 'vip' %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30">👑 VIP</span>
+                                    {% elif m.tier_level == 'gold' %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-yellow-500/10 text-yellow-300 border border-yellow-500/20">🥇 Gold</span>
+                                    {% elif m.tier_level == 'silver' %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-400/10 text-slate-300 border border-slate-400/20">🥈 Silver</span>
+                                    {% else %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-orange-500/10 text-orange-400 border border-orange-500/20">🥉 Bronze</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4 font-mono text-slate-400">{{ "{:,}".format(m.total_points_earned) }}</td>
+                                <td class="py-3 px-4 text-center">
+                                    <button onclick="openAwardPointsModal('{{ m.username }}')" class="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 rounded-lg text-[11px] font-bold transition">
+                                        تعديل النقاط
+                                    </button>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="py-8 text-center text-slate-400">لا يوجد مشتركين مسجلين في برنامج الولاء حتى الآن.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <!-- Recent Transactions -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
-            <div class="p-5 border-b border-[#1c2840] flex items-center justify-between">
-                <h3 class="font-bold text-white flex items-center gap-2 text-sm">
-                    <i class="fa-solid fa-receipt text-blue-400"></i>
-                    سجل حركات النقاط والمكافآت الأخيرة
-                </h3>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-right text-xs">
-                    <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
-                        <tr>
-                            <th class="py-3 px-4">المشترك</th>
-                            <th class="py-3 px-4">النوع</th>
-                            <th class="py-3 px-4">النقاط</th>
-                            <th class="py-3 px-4">البيان</th>
-                            <th class="py-3 px-4">التوقيت</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-[#1c2840]">
-                        {% for t in data.recent_transactions %}
-                        <tr class="hover:bg-[#11192b] transition">
-                            <td class="py-3 px-4 font-mono font-bold text-slate-200">{{ t.username }}</td>
-                            <td class="py-3 px-4">
-                                {% if t.transaction_type == 'earn' %}
-                                <span class="text-emerald-400 font-bold text-[11px]">+ اكتساب</span>
-                                {% else %}
-                                <span class="text-amber-400 font-bold text-[11px]">- استبدال</span>
-                                {% endif %}
-                            </td>
-                            <td class="py-3 px-4 font-mono font-bold {% if t.points > 0 %}text-emerald-400{% else %}text-amber-400{% endif %}">
-                                {{ t.points }}
-                            </td>
-                            <td class="py-3 px-4 text-slate-300 text-xs truncate max-w-xs">{{ t.notes }}</td>
-                            <td class="py-3 px-4 font-mono text-slate-400 text-[11px]">{{ t.created_at }}</td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="5" class="py-6 text-center text-slate-400">لا توجد حركات نقاط مسجلة حديثاً.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <!-- Recent Transactions Log -->
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between">
+            <div>
+                <div class="p-5 border-b border-[#1c2840] flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+                            <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>
+                            سجل حركات واستبدال النقاط
+                        </h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5">سجل تدقيق كامل لكافة عمليات الشحن والاكتساب والاستبدال الفورية</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto max-h-[420px]">
+                    <table class="w-full text-right text-xs">
+                        <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840] sticky top-0 z-10">
+                            <tr>
+                                <th class="py-3 px-4">المشترك</th>
+                                <th class="py-3 px-4">النوع</th>
+                                <th class="py-3 px-4">النقاط</th>
+                                <th class="py-3 px-4">البيان</th>
+                                <th class="py-3 px-4">التوقيت</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-[#1c2840]">
+                            {% for t in data.recent_transactions %}
+                            <tr class="hover:bg-[#11192b] transition">
+                                <td class="py-3 px-4 font-mono font-bold text-slate-200">{{ t.username }}</td>
+                                <td class="py-3 px-4">
+                                    {% if t.transaction_type == 'earn' %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">+ شحن / اكتساب</span>
+                                    {% elif t.transaction_type == 'redeem' %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">- استبدال مكافأة</span>
+                                    {% else %}
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20">تسوية إدارية</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4 font-mono font-bold {% if t.points > 0 %}text-emerald-400{% else %}text-amber-400{% endif %}">
+                                    {{ t.points }} 🪙
+                                </td>
+                                <td class="py-3 px-4 text-slate-300 text-xs max-w-[200px] truncate" title="{{ t.notes }}">{{ t.notes }}</td>
+                                <td class="py-3 px-4 font-mono text-slate-400 text-[11px] whitespace-nowrap">{{ t.created_at }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="py-8 text-center text-slate-400">لا توجد حركات مسجلة حديثاً في الأرشيف.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
     </div>
 
 </div>
+
+<!-- Modal: Add / Edit Reward -->
+<div id="rewardModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <!-- Modal Header -->
+        <div class="p-5 border-b border-[#1c2840] flex items-center justify-between bg-[#070b14]">
+            <h3 id="rewardModalTitle" class="font-bold text-white text-base flex items-center gap-2">
+                <i class="fa-solid fa-gift text-amber-400"></i>
+                <span>إضافة مكافأة جديدة</span>
+            </h3>
+            <button onclick="closeRewardModal()" class="w-8 h-8 rounded-lg bg-[#11192b] hover:bg-[#162136] text-slate-400 hover:text-white flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Modal Body Form -->
+        <form id="rewardForm" onsubmit="handleRewardSubmit(event)" class="p-5 space-y-4 text-right text-xs">
+            <input type="hidden" id="reward_id" name="reward_id" value="">
+
+            <div>
+                <label class="block font-bold text-slate-300 mb-1">اسم المكافأة: <span class="text-red-400">*</span></label>
+                <input id="reward_name" name="reward_name" required class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none" placeholder="مثلاً: باقة بيانات إضافية 2GB">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">نوع المكافأة: <span class="text-red-400">*</span></label>
+                    <select id="reward_type" name="reward_type" onchange="updateRewardTypeHints()" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none">
+                        <option value="data_bonus_mb">رصيد بيانات إضافي (MB / GB)</option>
+                        <option value="validity_days">تمديد صلاحية بالأيام (Days)</option>
+                        <option value="balance_credit">رصيد نقدي لحساب المشترك (Credit)</option>
+                        <option value="custom">مكافأة عينية أو مخصصة</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1" id="rewardValueLabel">القيمة الرقمية: <span class="text-red-400">*</span></label>
+                    <input id="reward_value" name="reward_value" type="number" required min="1" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs font-mono focus:border-amber-500 focus:outline-none" placeholder="1024">
+                    <p id="rewardValueHint" class="text-[10px] text-slate-400 mt-1">اكتب القيمة بالميجابايت (1024 MB = 1 GB)</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">تكلفة النقاط للاستبدال: <span class="text-red-400">*</span></label>
+                    <div class="relative">
+                        <input id="points_cost" name="points_cost" type="number" required min="1" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 pl-8 text-white text-xs font-mono focus:border-amber-500 focus:outline-none" placeholder="100">
+                        <span class="absolute left-3 top-2.5 text-amber-400">🪙</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-300 mb-1">الأيقونة المعروضة:</label>
+                    <select id="icon" name="icon" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none">
+                        <option value="fa-gift">🎁 هدية عامة (Gift)</option>
+                        <option value="fa-wifi">📶 شبكة وبيانات (WiFi)</option>
+                        <option value="fa-bolt">⚡ سرعة وبرق (Speed)</option>
+                        <option value="fa-calendar-plus">📅 تمديد صلاحية (Calendar)</option>
+                        <option value="fa-wallet">💰 محفظة ورصيد (Wallet)</option>
+                        <option value="fa-star">⭐ نجمة مميزة (Star)</option>
+                        <option value="fa-crown">👑 تاج VIP (Crown)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block font-bold text-slate-300 mb-1">وصف توضيحي للمشترك في البوابة:</label>
+                <textarea id="description" name="description" rows="2" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs focus:border-amber-500 focus:outline-none" placeholder="وصف يوضح للمشترك ما سيحصل عليه عند استبدال هذه المكافأة..."></textarea>
+            </div>
+
+            <div class="flex items-center gap-3 bg-[#070b14] p-3 rounded-xl border border-[#1c2840]">
+                <input type="checkbox" id="is_active" name="is_active" value="1" checked class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 bg-[#0b0f19] border-[#1c2840]">
+                <label for="is_active" class="font-bold text-white cursor-pointer select-none">
+                    تفعيل المكافأة فوراً وإتاحتها للاستبدال في بوابة المشتركين
+                </label>
+            </div>
+
+            <!-- Modal Actions -->
+            <div class="pt-3 border-t border-[#1c2840] flex items-center justify-end gap-2">
+                <button type="button" onclick="closeRewardModal()" class="px-4 py-2 bg-[#162136] hover:bg-[#1c2840] text-slate-300 rounded-xl text-xs font-bold transition">
+                    إلغاء
+                </button>
+                <button type="submit" id="saveRewardBtn" class="px-5 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl text-xs font-black transition flex items-center gap-2 shadow-md">
+                    <i class="fa-solid fa-check"></i>
+                    <span>حفظ المكافأة</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-    function openAwardPointsModal() {
+    // Update labels & hints when reward type changes
+    function updateRewardTypeHints() {
+        const type = document.getElementById('reward_type').value;
+        const label = document.getElementById('rewardValueLabel');
+        const hint = document.getElementById('rewardValueHint');
+        const input = document.getElementById('reward_value');
+
+        if (type === 'data_bonus_mb') {
+            label.innerHTML = 'حصة البيانات (MB): <span class="text-red-400">*</span>';
+            hint.textContent = 'اكتب الحصة بالميجابايت (مثال: 1024 = 1GB ، 5120 = 5GB)';
+            if (!input.value || input.value === '1' || input.value === '3') input.value = '1024';
+        } else if (type === 'validity_days') {
+            label.innerHTML = 'عدد أيام التمديد: <span class="text-red-400">*</span>';
+            hint.textContent = 'اكتب عدد الأيام الإضافية التي ستضاف لصلاحية الاشتراك (مثال: 3 أو 7)';
+            if (!input.value || input.value === '1024') input.value = '3';
+        } else if (type === 'balance_credit') {
+            label.innerHTML = 'مبلغ الرصيد النقدي: <span class="text-red-400">*</span>';
+            hint.textContent = 'اكتب المبلغ المالي الذي سيضاف لرصيد حساب المشترك';
+            if (!input.value || input.value === '1024') input.value = '100';
+        } else {
+            label.innerHTML = 'القيمة المعنوية / الرقم: <span class="text-red-400">*</span>';
+            hint.textContent = 'رقم مرجعي للمكافأة';
+            if (!input.value) input.value = '1';
+        }
+    }
+
+    function openCreateRewardModal() {
+        document.getElementById('rewardModalTitle').innerHTML = '<i class="fa-solid fa-gift text-amber-400"></i><span>إضافة مكافأة جديدة</span>';
+        document.getElementById('reward_id').value = '';
+        document.getElementById('reward_name').value = '';
+        document.getElementById('reward_type').value = 'data_bonus_mb';
+        document.getElementById('reward_value').value = '1024';
+        document.getElementById('points_cost').value = '100';
+        document.getElementById('description').value = '';
+        document.getElementById('icon').value = 'fa-gift';
+        document.getElementById('is_active').checked = true;
+        updateRewardTypeHints();
+        document.getElementById('rewardModal').classList.remove('hidden');
+    }
+
+    function openEditRewardModal(rewardId) {
+        fetch(`/api/loyalty-rewards/reward/${rewardId}`)
+            .then(r => r.json())
+            .then(res => {
+                if (!res.success) {
+                    Swal.fire('خطأ', res.message || 'تعذر تحميل بيانات المكافأة', 'error');
+                    return;
+                }
+                const r = res.reward;
+                document.getElementById('rewardModalTitle').innerHTML = '<i class="fa-solid fa-pen text-amber-400"></i><span>تعديل المكافأة</span>';
+                document.getElementById('reward_id').value = r.id;
+                document.getElementById('reward_name').value = r.reward_name;
+                document.getElementById('reward_type').value = r.reward_type || 'data_bonus_mb';
+                document.getElementById('reward_value').value = r.reward_value;
+                document.getElementById('points_cost').value = r.points_cost;
+                document.getElementById('description').value = r.description || '';
+                document.getElementById('icon').value = r.icon || 'fa-gift';
+                document.getElementById('is_active').checked = (r.is_active == 1);
+                updateRewardTypeHints();
+                document.getElementById('rewardModal').classList.remove('hidden');
+            })
+            .catch(err => {
+                Swal.fire('خطأ', 'حدث خطأ في الاتصال بالخادم', 'error');
+            });
+    }
+
+    function closeRewardModal() {
+        document.getElementById('rewardModal').classList.add('hidden');
+    }
+
+    function handleRewardSubmit(e) {
+        e.preventDefault();
+        const form = document.getElementById('rewardForm');
+        const fd = new FormData(form);
+        const rewardId = document.getElementById('reward_id').value;
+        const endpoint = rewardId ? '/api/loyalty-rewards/reward/edit' : '/api/loyalty-rewards/reward/add';
+
+        const btn = document.getElementById('saveRewardBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> جاري الحفظ...';
+
+        fetch(endpoint, { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> حفظ المكافأة';
+                if (data.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم بنجاح!',
+                        text: data.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => location.reload());
+                } else {
+                    Swal.fire('خطأ', data.message, 'error');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> حفظ المكافأة';
+                Swal.fire('خطأ', 'فشل في حفظ البيانات: ' + err, 'error');
+            });
+    }
+
+    function toggleRewardStatus(rewardId, isChecked) {
+        const fd = new FormData();
+        fd.append('reward_id', rewardId);
+        fd.append('is_active', isChecked ? '1' : '0');
+
+        fetch('/api/loyalty-rewards/reward/toggle', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 2000
+                    });
+                    Toast.fire({
+                        icon: 'success',
+                        title: data.message
+                    });
+                } else {
+                    Swal.fire('خطأ', data.message, 'error').then(() => location.reload());
+                }
+            })
+            .catch(err => {
+                Swal.fire('خطأ', 'فشل تغيير الحالة', 'error');
+            });
+    }
+
+    function confirmDeleteReward(rewardId, rewardName) {
         Swal.fire({
-            title: 'منح نقاط ولاء لمشترك',
+            title: 'تأكيد حذف المكافأة',
+            html: `هل أنت متأكد من حذف مكافأة <strong>«${rewardName}»</strong> من الكتالوج نهائياً؟`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'نعم، احذفها الآن',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const fd = new FormData();
+                fd.append('reward_id', rewardId);
+                fetch('/api/loyalty-rewards/reward/delete', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            const card = document.getElementById(`reward-card-${rewardId}`);
+                            if (card) {
+                                card.classList.add('scale-95', 'opacity-0');
+                                setTimeout(() => card.remove(), 250);
+                            }
+                            Swal.fire('تم الحذف!', data.message, 'success');
+                        } else {
+                            Swal.fire('خطأ', data.message, 'error');
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire('خطأ', 'فشل في تنفيذ الحذف', 'error');
+                    });
+            }
+        });
+    }
+
+    function openAwardPointsModal(defaultUser = '') {
+        Swal.fire({
+            title: 'منح أو تسوية نقاط لمشترك',
             html: `
                 <div class="space-y-3 text-right text-xs">
                     <div>
                         <label class="block font-bold text-slate-300 mb-1">اسم المشترك / رقم الكرت:</label>
-                        <input id="swalUsername" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white font-mono text-xs" placeholder="e.g. 777555777">
+                        <input id="swalUsername" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500" placeholder="مثال: 777555777" value="${defaultUser}">
                     </div>
                     <div>
-                        <label class="block font-bold text-slate-300 mb-1">عدد النقاط:</label>
-                        <input id="swalPoints" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" value="50">
+                        <label class="block font-bold text-slate-300 mb-1">عدد النقاط (موجب للإضافة، سالب للخصم):</label>
+                        <input id="swalPoints" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs font-mono focus:outline-none focus:border-amber-500" value="50">
+                        <div class="flex items-center gap-1.5 mt-1.5">
+                            <button type="button" onclick="document.getElementById('swalPoints').value = 50" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono">+50</button>
+                            <button type="button" onclick="document.getElementById('swalPoints').value = 100" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono">+100</button>
+                            <button type="button" onclick="document.getElementById('swalPoints').value = 500" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-mono">+500</button>
+                            <button type="button" onclick="document.getElementById('swalPoints').value = -50" class="px-2 py-0.5 rounded bg-red-950/40 hover:bg-red-900/60 text-red-400 text-[10px] font-mono">-50 (خصم)</button>
+                        </div>
                     </div>
                     <div>
-                        <label class="block font-bold text-slate-300 mb-1">السبب / البيان:</label>
-                        <input id="swalReason" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" value="مكافأة ولاء إضافية من الإدارة">
+                        <label class="block font-bold text-slate-300 mb-1">السبب / البيان المسجل بالأرشيف:</label>
+                        <input id="swalReason" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2.5 text-white text-xs focus:outline-none focus:border-amber-500" value="مكافأة ولاء إضافية من الإدارة">
                     </div>
                 </div>
             `,
             showCancelButton: true,
-            confirmButtonText: 'منح النقاط الآن',
+            confirmButtonText: 'تنفيذ العملية الآن',
             cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#d97706',
             preConfirm: () => {
                 const user = document.getElementById('swalUsername').value.trim();
                 const pts = document.getElementById('swalPoints').value.trim();
                 const rsn = document.getElementById('swalReason').value.trim();
-                if (!user || !pts) {
-                    Swal.showValidationMessage('يرجى ملء اسم المشترك وعدد النقاط');
+                if (!user || !pts || pts == 0) {
+                    Swal.showValidationMessage('يرجى تحديد اسم المشترك وعدد نقاط صالح');
                     return false;
                 }
                 return { user, pts, rsn };
@@ -263,10 +643,13 @@
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
-                            Swal.fire('تم بنجاح', data.message, 'success').then(() => location.reload());
+                            Swal.fire('تمت العملية بنجاح!', data.message, 'success').then(() => location.reload());
                         } else {
                             Swal.fire('خطأ', data.message, 'error');
                         }
+                    })
+                    .catch(err => {
+                        Swal.fire('خطأ', 'فشل في الاتصال بالخادم: ' + err, 'error');
                     });
             }
         });

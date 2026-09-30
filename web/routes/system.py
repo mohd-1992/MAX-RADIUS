@@ -1064,19 +1064,74 @@ def loyalty_rewards_page():
     return render_template('loyalty_rewards.html', data=data)
 
 
-@system_bp.route('/api/loyalty-rewards/award', methods=['POST'], endpoint="api_loyalty_award_points")
+@system_bp.route('/api/loyalty-rewards/reward/<int:reward_id>', methods=['GET'], endpoint="api_loyalty_reward_get")
+def api_loyalty_reward_get(reward_id):
+    from services.loyalty_rewards_service import get_reward_by_id
+    reward = get_reward_by_id(reward_id)
+    if not reward:
+        return jsonify({'success': False, 'message': 'المكافأة غير موجودة'}), 404
+    return jsonify({'success': True, 'reward': dict(reward)})
 
+
+@system_bp.route('/api/loyalty-rewards/reward/add', methods=['POST'], endpoint="api_loyalty_reward_add")
+def api_loyalty_reward_add():
+    reward_name = request.form.get('reward_name', '').strip()
+    points_cost = int(request.form.get('points_cost', 0))
+    reward_type = request.form.get('reward_type', 'data_bonus_mb')
+    reward_value = int(request.form.get('reward_value', 0))
+    description = request.form.get('description', '').strip()
+    icon = request.form.get('icon', 'fa-gift').strip()
+    is_active = 1 if request.form.get('is_active') in ['1', 'true', 'on'] else 0
+
+    from services.loyalty_rewards_service import create_reward
+    ok, msg = create_reward(reward_name, points_cost, reward_type, reward_value, description, icon, is_active)
+    return jsonify({'success': ok, 'message': msg})
+
+
+@system_bp.route('/api/loyalty-rewards/reward/edit', methods=['POST'], endpoint="api_loyalty_reward_edit")
+def api_loyalty_reward_edit():
+    reward_id = int(request.form.get('reward_id', 0))
+    reward_name = request.form.get('reward_name', '').strip()
+    points_cost = int(request.form.get('points_cost', 0))
+    reward_type = request.form.get('reward_type', 'data_bonus_mb')
+    reward_value = int(request.form.get('reward_value', 0))
+    description = request.form.get('description', '').strip()
+    icon = request.form.get('icon', 'fa-gift').strip()
+    is_active = 1 if request.form.get('is_active') in ['1', 'true', 'on'] else 0
+
+    from services.loyalty_rewards_service import update_reward
+    ok, msg = update_reward(reward_id, reward_name, points_cost, reward_type, reward_value, description, icon, is_active)
+    return jsonify({'success': ok, 'message': msg})
+
+
+@system_bp.route('/api/loyalty-rewards/reward/delete', methods=['POST'], endpoint="api_loyalty_reward_delete")
+def api_loyalty_reward_delete():
+    reward_id = int(request.form.get('reward_id', 0))
+    from services.loyalty_rewards_service import delete_reward
+    ok, msg = delete_reward(reward_id)
+    return jsonify({'success': ok, 'message': msg})
+
+
+@system_bp.route('/api/loyalty-rewards/reward/toggle', methods=['POST'], endpoint="api_loyalty_reward_toggle")
+def api_loyalty_reward_toggle():
+    reward_id = int(request.form.get('reward_id', 0))
+    is_active = 1 if request.form.get('is_active') in ['1', 'true', 'on'] else 0
+    from services.loyalty_rewards_service import toggle_reward_status
+    ok, msg = toggle_reward_status(reward_id, is_active)
+    return jsonify({'success': ok, 'message': msg})
+
+
+@system_bp.route('/api/loyalty-rewards/award', methods=['POST'], endpoint="api_loyalty_award_points")
 def api_loyalty_award_points():
     user = request.form.get('username', '').strip()
     pts = int(request.form.get('points', 0))
-    rsn = request.form.get('reason', 'Admin Award')
+    rsn = request.form.get('reason', 'Admin Award').strip()
     from services.loyalty_rewards_service import award_loyalty_points
     ok, msg = award_loyalty_points(user, pts, reason=rsn)
     return jsonify({'success': ok, 'message': msg})
 
 
 @system_bp.route('/api/loyalty-rewards/redeem', methods=['POST'], endpoint="api_loyalty_redeem_reward")
-
 def api_loyalty_redeem_reward():
     user = request.form.get('username', '').strip()
     reward_id = int(request.form.get('reward_id', 0))

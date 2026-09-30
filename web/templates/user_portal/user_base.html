@@ -1320,6 +1320,22 @@
             window.showToast(msg, 'info', 'إشعار');
         };
     })();
+
+    function openLoyaltyModal() {
+        const modal = document.getElementById('loyaltyModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        } else {
+            window.location.href = "{{ url_for('user_dashboard') }}?loyalty=1";
+        }
+    }
+
+    function closeLoyaltyModal() {
+        const modal = document.getElementById('loyaltyModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
     </script>
 </body>
 </html>
