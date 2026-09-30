@@ -45,7 +45,7 @@
                 <h4 class="text-2xl font-black text-emerald-400 font-mono">{{ "{:,.2f}".format(data.total_liquidity) }}</h4>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
                     <span>العملة:</span>
-                    <span class="font-bold text-slate-200">الريال اليمني (YER)</span>
+                    <span class="font-bold text-slate-200">{{ currency }} ({{ currency_symbol }})</span>
                 </div>
             </div>
         </div>
@@ -131,7 +131,7 @@
                         </td>
                         <td class="py-3.5 px-5 font-mono text-slate-300">{{ w.phone or 'غير محدد' }}</td>
                         <td class="py-3.5 px-5 font-mono font-black text-emerald-400 text-sm">
-                            {{ "{:,.2f}".format(w.balance) }} <span class="text-[10px] text-slate-400">ريال</span>
+                            {{ "{:,.2f}".format(w.balance) }} <span class="text-[10px] text-slate-400 font-bold text-amber-400">{{ currency_symbol }}</span>
                         </td>
                         <td class="py-3.5 px-5 font-mono text-slate-300">{{ "{:,.2f}".format(w.total_deposits) }}</td>
                         <td class="py-3.5 px-5">
@@ -238,7 +238,7 @@
                         <select id="swalTo" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs">${toOptions}</select>
                     </div>
                     <div>
-                        <label class="block font-bold text-slate-300 mb-1">المبلغ المراد تحويله (YER):</label>
+                        <label class="block font-bold text-slate-300 mb-1">المبلغ المراد تحويله ({{ currency_symbol }}):</label>
                         <input id="swalAmount" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" placeholder="e.g. 5000">
                     </div>
                     <div>
@@ -297,7 +297,7 @@
                         <select id="swalDepReseller" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs">${opt}</select>
                     </div>
                     <div>
-                        <label class="block font-bold text-slate-300 mb-1">المبلغ المودع (YER):</label>
+                        <label class="block font-bold text-slate-300 mb-1">المبلغ المودع ({{ currency_symbol }}):</label>
                         <input id="swalDepAmount" type="number" class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl p-2 text-white text-xs" placeholder="e.g. 10000">
                     </div>
                     <div>
@@ -332,7 +332,7 @@
         Swal.fire({
             title: `إيداع سريع لـ ${name}`,
             input: 'number',
-            inputPlaceholder: 'المبلغ بالريال (YER)',
+            inputPlaceholder: 'المبلغ (' + '{{ currency_symbol }}' + ')',
             showCancelButton: true,
             confirmButtonText: 'إيداع الآن',
             cancelButtonText: 'إلغاء'

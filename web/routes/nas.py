@@ -579,6 +579,7 @@ def api_mikrotik_userman_execute():
     duplicate_action = req_data.get('duplicate_action', 'skip')
     ignore_expired = bool(req_data.get('ignore_expired', True))
     import_consumption = bool(req_data.get('import_consumption', False))
+    profile_costs = req_data.get('profile_costs') or {}
     admin_user = session.get('username', 'admin')
 
     res = execute_userman_import(
@@ -588,7 +589,8 @@ def api_mikrotik_userman_execute():
         duplicate_action=duplicate_action,
         ignore_expired=ignore_expired,
         import_consumption=import_consumption,
-        admin_user=admin_user
+        admin_user=admin_user,
+        profile_costs=profile_costs
     )
     return jsonify(res)
 

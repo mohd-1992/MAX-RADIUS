@@ -22,7 +22,7 @@ DEFAULT_CARD_CONFIG = {
         "height_mm": 52,
         "bg_color": "#ffffff",
         "border_color": "#cbd5e1",
-        "border_radius": 8,
+        "border_radius": 0,
         "border_width": 1,
         "bg_image": "",
         "bg_opacity": 1.0
@@ -54,34 +54,39 @@ DEFAULT_CARD_CONFIG = {
         },
         "price": {
             "enabled": True,
-            "text": "السعر: 5 ر.س",
+            "prefix": "",
+            "text": "السعر: 5",
             "x": 82, "y": 10,
             "font_family": "Tajawal", "font_size": 10, "color": "#059669",
-            "bold": True, "italic": False, "underline": False, "align": "left"
+            "bold": True, "italic": False, "underline": False, "align": "left",
+            "letter_spacing": 0
         },
         "username": {
             "enabled": True,
-            "prefix": "المستخدم: ",
+            "prefix": "",
             "sample_value": "88492015",
             "x": 50, "y": 42,
             "font_family": "Tajawal", "font_size": 15, "color": "#1e293b",
-            "bold": True, "italic": False, "underline": False, "align": "center"
+            "bold": True, "italic": False, "underline": False, "align": "center",
+            "letter_spacing": 1
         },
         "password": {
             "enabled": True,
-            "prefix": "الرمز: ",
+            "prefix": "",
             "sample_value": "88492015",
             "x": 50, "y": 58,
             "font_family": "Tajawal", "font_size": 15, "color": "#1e293b",
-            "bold": True, "italic": False, "underline": False, "align": "center"
+            "bold": True, "italic": False, "underline": False, "align": "center",
+            "letter_spacing": 1
         },
         "pin_code": {
             "enabled": False,
-            "prefix": "رمز الكرت: ",
+            "prefix": "",
             "sample_value": "4920-8815",
             "x": 50, "y": 50,
             "font_family": "Tajawal", "font_size": 16, "color": "#1d4ed8",
-            "bold": True, "italic": False, "underline": False, "align": "center"
+            "bold": True, "italic": False, "underline": False, "align": "center",
+            "letter_spacing": 2
         },
         "serial": {
             "enabled": True,
@@ -189,6 +194,17 @@ def get_all_card_designs():
         rows_cnt = d.get('cards_per_col') or 5
         d['cards_per_page'] = cols * rows_cnt
         d['created_at_display'] = d.get('created_at') or '2026-01-01'
+
+        # Resolve bg_image to absolute static URL if it is a filename
+        bg_val = d.get('bg_image') or ''
+        if bg_val and not bg_val.startswith('/') and not bg_val.startswith('http'):
+            d['bg_image'] = f"/static/uploads/card_backgrounds/{bg_val}"
+        if d.get('config') and isinstance(d['config'], dict):
+            if 'general' in d['config'] and isinstance(d['config']['general'], dict):
+                d['config']['general']['border_radius'] = 0
+                if d['bg_image']:
+                    d['config']['general']['bg_image_url'] = d['bg_image']
+
         designs.append(d)
     return designs
 
@@ -207,6 +223,27 @@ def get_card_design_by_id(design_id):
             d['config'] = DEFAULT_CARD_CONFIG
     else:
         d['config'] = DEFAULT_CARD_CONFIG
+
+    # Resolve bg_image to absolute static URL if it is a filename
+    bg_val = d.get('bg_image') or ''
+    if bg_val:
+        clean_filename = os.path.basename(bg_val)
+        d['bg_image_filename'] = clean_filename
+        d['bg_image'] = f"/static/uploads/card_backgrounds/{clean_filename}"
+    else:
+        d['bg_image_filename'] = ''
+        d['bg_image'] = ''
+
+    if d.get('config') and isinstance(d['config'], dict):
+        if 'general' in d['config'] and isinstance(d['config']['general'], dict):
+            d['config']['general']['border_radius'] = 0
+            if d['bg_image']:
+                d['config']['general']['bg_image'] = d.get('bg_image_filename', '')
+                d['config']['general']['bg_image_url'] = d['bg_image']
+
+    cols = d.get('cards_per_row') or 2
+    rows_cnt = d.get('cards_per_col') or 5
+    d['cards_per_page'] = cols * rows_cnt
     return d
 
 
@@ -252,21 +289,44 @@ def save_card_design(data, upload_dir=None):
     
     name = str(data.get('name', 'تصميم جديد')).strip() or 'تصميم جديد'
     design_type = data.get('design_type', 'image')
-    width_mm = int(data.get('width_mm') or card_dims.get('width_mm') or 85)
-    height_mm = int(data.get('height_mm') or card_dims.get('height_mm') or 52)
-    cards_per_row = int(data.get('cards_per_row') or page_layout.get('cards_per_row') or 2)
-    cards_per_col = int(data.get('cards_per_col') or page_layout.get('cards_per_col') or 5)
-    margin_top_mm = int(data.get('margin_top_mm') or page_layout.get('margin_top_mm') or 10)
-    margin_page_mm = int(data.get('margin_page_mm') or page_layout.get('margin_page_mm') or 10)
-    card_spacing_mm = int(data.get('card_spacing_mm') or page_layout.get('spacing_horizontal_mm') or page_layout.get('card_spacing_mm') or 3)
+    def _parse_val(v, default, vtype=float):
+        if v is not None and str(v).strip() != '':
+            try:
+                return vtype(v)
+            except Exception:
+                pass
+        return default
+
+    width_mm = round(_parse_val(data.get('width_mm') or card_dims.get('width_mm'), 85.0, float), 1)
+    height_mm = round(_parse_val(data.get('height_mm') or card_dims.get('height_mm'), 52.0, float), 1)
+    cards_per_row = int(_parse_val(data.get('cards_per_row') or page_layout.get('cards_per_row'), 2, int))
+    cards_per_col = int(_parse_val(data.get('cards_per_col') or page_layout.get('cards_per_col'), 5, int))
+    margin_top_mm = int(_parse_val(data.get('margin_top_mm') or page_layout.get('margin_top_mm'), 10, int))
+    margin_page_mm = int(_parse_val(data.get('margin_page_mm') or page_layout.get('margin_page_mm'), 10, int))
+    card_spacing_mm = int(_parse_val(data.get('card_spacing_mm') if data.get('card_spacing_mm') is not None else page_layout.get('card_spacing_mm'), 0, int))
     cut_lines = 1 if data.get('cut_lines') in [1, '1', True, 'true', 'on'] else 0
     bg_color = data.get('background_color', '#ffffff')
     border_color = data.get('border_color', '#cbd5e1')
     bg_image = data.get('bg_image', '').strip()
+    if bg_image:
+        bg_image = os.path.basename(bg_image)
+    elif design_id and int(design_id) > 0 and data.get('design_type') != 'clean':
+        # If bg_image not explicitly passed in payload, inspect config or retain existing from DB
+        cfg_bg = (config_obj.get('general', {}) if isinstance(config_obj, dict) else {}).get('bg_image')
+        if cfg_bg:
+            bg_image = os.path.basename(cfg_bg)
+        else:
+            old_row = query_one("SELECT bg_image FROM wisp_card_templates WHERE id = ?", (int(design_id),))
+            if old_row and old_row.get('bg_image'):
+                bg_image = old_row.get('bg_image')
+
     is_default = 1 if data.get('is_default') in [1, '1', True, 'true', 'on'] else 0
 
     config_obj = data.get('config')
     if isinstance(config_obj, dict):
+        if 'general' in config_obj and isinstance(config_obj['general'], dict):
+            config_obj['general']['bg_image'] = bg_image
+            config_obj['general']['bg_image_url'] = f"/static/uploads/card_backgrounds/{bg_image}" if bg_image else ''
         config_json_str = json.dumps(config_obj, ensure_ascii=False)
     elif data.get('config_json'):
         config_json_str = str(data.get('config_json'))
@@ -403,9 +463,6 @@ def process_and_save_card_background(file_storage, target_width_mm=85, target_he
     
     os.makedirs(upload_folder, exist_ok=True)
 
-    filename = f"card_bg_{uuid.uuid4().hex[:12]}.png"
-    save_path = os.path.join(upload_folder, filename)
-
     try:
         from PIL import Image, ImageOps
 
@@ -416,17 +473,17 @@ def process_and_save_card_background(file_storage, target_width_mm=85, target_he
         orig_w, orig_h = img.size
         natural_ratio = float(orig_w) / float(orig_h)
 
-        # High resolution print width (e.g. 1200px)
-        print_target_w = 1200
-        print_target_h = int(round(print_target_w / natural_ratio))
+        orig_fname = getattr(file_storage, 'filename', '') or 'card_bg.png'
+        ext = os.path.splitext(orig_fname)[1].lower()
+        if ext not in ['.png', '.jpg', '.jpeg', '.webp']:
+            ext = '.png'
 
-        # High quality smooth resize without any cropping
-        img_resized = img.resize((print_target_w, print_target_h), Image.Resampling.LANCZOS)
+        filename = f"card_bg_{uuid.uuid4().hex[:12]}{ext}"
+        save_path = os.path.join(upload_folder, filename)
 
-        if img_resized.mode not in ('RGB', 'RGBA'):
-            img_resized = img_resized.convert('RGBA')
-
-        img_resized.save(save_path, 'PNG', optimize=True)
+        # Save original file bytes directly to preserve 100% genuine colors, color profiles (sRGB/ICC), and sharpness
+        file_storage.seek(0)
+        file_storage.save(save_path)
 
         w_mm = float(target_width_mm) if target_width_mm else 85.0
         suggested_h_mm = round(w_mm / natural_ratio, 1)
@@ -436,8 +493,8 @@ def process_and_save_card_background(file_storage, target_width_mm=85, target_he
             'filename': filename,
             'url': f'/static/uploads/card_backgrounds/{filename}',
             'file_url': f'/static/uploads/card_backgrounds/{filename}',
-            'width': print_target_w,
-            'height': print_target_h,
+            'width': orig_w,
+            'height': orig_h,
             'aspect_ratio': round(natural_ratio, 3),
             'orig_width': orig_w,
             'orig_height': orig_h,

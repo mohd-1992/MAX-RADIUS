@@ -155,6 +155,35 @@
     </div>
 
     <!-- ========================================================================= -->
+    <!-- LOYALTY POINTS & REWARDS BANNER (Synchronized with portal_enable_loyalty)  -->
+    <!-- ========================================================================= -->
+    {% if settings.get('portal_enable_loyalty', '0') == '1' %}
+    <div class="bg-gradient-to-r from-amber-950/40 via-[#0b0f19] to-amber-950/20 border border-amber-500/30 rounded-3xl p-4 sm:p-5 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5 w-full sm:w-auto">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-2xl flex-shrink-0 shadow-inner">
+                <i class="fa-solid fa-crown"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-black text-white">نقاط ومكافآت الولاء</h3>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        {{ loyalty_wallet.tier_level|default('bronze')|upper }}
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    رصيدك الحالي: <strong class="text-amber-400 font-mono text-sm" id="loyaltyPointsDisplay">{{ loyalty_wallet.points_balance|default(0) }}</strong> نقطة 🪙
+                </p>
+            </div>
+        </div>
+
+        <button type="button" onclick="openLoyaltyModal()" class="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-slate-950 font-black rounded-xl text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer flex-shrink-0">
+            <i class="fa-solid fa-gift"></i>
+            <span>استبدال النقاط بمكافآت</span>
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- ========================================================================= -->
     <!-- 4. SELF-SERVICE ACTION CENTER GRID                                        -->
     <!-- ========================================================================= -->
     <div class="space-y-2 pt-1">
@@ -234,6 +263,19 @@
                 <div>
                     <span class="block text-xs font-black text-white">كلمة المرور</span>
                     <span class="block text-[10px] text-purple-400 font-medium">تغيير الأمان</span>
+                </div>
+            </button>
+            {% endif %}
+
+            <!-- 6. Loyalty Rewards (Synchronized with portal_enable_loyalty) -->
+            {% if settings.get('portal_enable_loyalty', '0') == '1' %}
+            <button type="button" onclick="openLoyaltyModal()" class="p-3.5 rounded-2xl portal-card border border-amber-500/40 hover:border-amber-400 bg-amber-500/5 hover:bg-amber-500/10 transition-all text-center flex flex-col items-center justify-center gap-2 group shadow-sm min-h-[105px] cursor-pointer">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg group-hover:scale-110 transition shadow-sm">
+                    <i class="fa-solid fa-gift"></i>
+                </div>
+                <div>
+                    <span class="block text-xs font-black text-white">المكافآت</span>
+                    <span class="block text-[10px] text-amber-400 font-bold font-mono">{{ loyalty_wallet.points_balance|default(0) }} نقطة 🪙</span>
                 </div>
             </button>
             {% endif %}
@@ -511,8 +553,109 @@
                 }
             }
         } catch (err) {
-            console.debug('Heartbeat check error:', err);
-        }
-    }, 45000);
+    <!-- ========================================================================= -->
+    <!-- LOYALTY REWARDS MODAL (Synchronized with portal_enable_loyalty)           -->
+    <!-- ========================================================================= -->
+    {% if settings.get('portal_enable_loyalty', '0') == '1' %}
+    <div id="loyaltyModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-[#0b0f19] border border-amber-500/40 rounded-3xl max-w-lg w-full p-5 sm:p-6 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-gift"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-black text-white">كتالوج مكافآت ونقاط الولاء</h3>
+                        <p class="text-xs text-slate-400">رصيدك الحالي: <strong class="text-amber-400 font-mono">{{ loyalty_wallet.points_balance|default(0) }} نقطة 🪙</strong></p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeLoyaltyModal()" class="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-sm cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Rewards Cards List -->
+            <div class="space-y-3">
+                {% if rewards_catalog %}
+                    {% for rew in rewards_catalog %}
+                    <div class="bg-[#070b14] border border-[#1c2840] hover:border-amber-500/40 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-white">{{ rew.reward_name }}</span>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    {{ rew.points_cost }} نقطة
+                                </span>
+                            </div>
+                            <p class="text-[11px] text-slate-400">{{ rew.description or 'مكافأة مميزة للمشتركين الأوفياء' }}</p>
+                        </div>
+                        {% if loyalty_wallet.points_balance|default(0) >= rew.points_cost %}
+                        <button type="button" onclick="redeemRewardItem({{ rew.id }}, '{{ rew.reward_name }}', {{ rew.points_cost }}, this)" class="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-xl text-xs transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer flex-shrink-0">
+                            <i class="fa-solid fa-check"></i>
+                            <span>استبدال الآن</span>
+                        </button>
+                        {% else %}
+                        <button type="button" disabled class="w-full sm:w-auto px-3 py-1.5 bg-slate-800/80 text-slate-500 rounded-xl text-xs font-bold cursor-not-allowed flex-shrink-0">
+                            متبقي {{ rew.points_cost - loyalty_wallet.points_balance|default(0) }} نقطة
+                        </button>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-8 text-slate-400 text-xs">
+                        <i class="fa-solid fa-box-open text-2xl text-slate-600 mb-2 block"></i>
+                        لا توجد مكافآت متاحة حالياً في الكتالوج.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+    function openLoyaltyModal() {
+        const m = document.getElementById('loyaltyModal');
+        if (m) m.classList.remove('hidden');
+    }
+    function closeLoyaltyModal() {
+        const m = document.getElementById('loyaltyModal');
+        if (m) m.classList.add('hidden');
+    }
+    function redeemRewardItem(rewardId, rewardName, pointsCost, btn) {
+        if (!confirm(`هل أنت متأكد من استبدال ${pointsCost} نقطة بمكافأة [${rewardName}]؟`)) return;
+        const origHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> جاري الاستبدال...';
+        fetch('{{ url_for("user_redeem_reward") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ reward_id: rewardId })
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+            if (data.success) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم استبدال المكافأة بنجاح!',
+                        text: data.message,
+                        confirmButtonText: 'رائع'
+                    }).then(() => location.reload());
+                } else {
+                    alert(data.message);
+                    location.reload();
+                }
+            } else {
+                alert(data.message || 'فشل الاستبدال.');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = origHtml;
+            alert('حدث خطأ أثناء الاتصال بالخادم.');
+        });
+    }
+    </script>
 </script>
 {% endblock %}

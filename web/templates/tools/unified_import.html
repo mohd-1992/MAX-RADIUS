@@ -430,7 +430,8 @@
                             <tr>
                                 <th class="py-3 px-3">#</th>
                                 <th class="py-3 px-3">اسم الباقة المكتشفة</th>
-                                <th class="py-3 px-3">السعر</th>
+                                <th class="py-3 px-3">سعر البيع</th>
+                                <th class="py-3 px-3 text-amber-400 font-bold">سعر التكلفة ({{ currency_symbol }})</th>
                                 <th class="py-3 px-3">البيانات / التحميل</th>
                                 <th class="py-3 px-3">الصلاحية</th>
                                 <th class="py-3 px-3">الإجراء في MAX RADIUS</th>
@@ -747,7 +748,8 @@
                                     <th class="p-3">الصلاحية</th>
                                     <th class="p-3">الحصة (GB / MB)</th>
                                     <th class="p-3">حد الوقت</th>
-                                    <th class="p-3">السعر</th>
+                                    <th class="p-3">سعر البيع</th>
+                                    <th class="p-3 text-amber-400 font-bold">سعر التكلفة ({{ currency_symbol }})</th>
                                 </tr>
                             </thead>
                             <tbody id="profilesTableBody" class="hub-table-body divide-y divide-slate-800/60 text-slate-300">
@@ -1043,6 +1045,7 @@
 <script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
 
 <script>
+const SYSTEM_CURRENCY = "{{ currency_symbol }}";
 /* ========================================================================= */
 /* GLOBAL HUB TAB SWITCHER                                                  */
 /* ========================================================================= */
@@ -1262,7 +1265,7 @@ function renderDbAnalysisResults(data) {
 
         let optionsHtml = `<option value="auto_create" selected>✨ إنشاء باقة جديدة بنفس الاسم والمواصفات</option>`;
         existingPkgs.forEach(ep => {
-            optionsHtml += `<option value="${ep.id}">ربط مع [${ep.name}] (${ep.price} YER - ${ep.volume_quota_mb}MB)</option>`;
+            optionsHtml += `<option value="${ep.id}">ربط مع [${ep.name}] (${ep.price} ${SYSTEM_CURRENCY} - ${ep.volume_quota_mb}MB)</option>`;
         });
 
         let unitLabel = 'يوم';
@@ -1283,7 +1286,12 @@ function renderDbAnalysisResults(data) {
         tr.innerHTML = `
             <td class="py-3 px-3 font-mono text-slate-500">${idx + 1}</td>
             <td class="py-3 px-3 font-bold text-white">${p.name}</td>
-            <td class="py-3 px-3 text-cyan-300 font-mono">${p.price} YER</td>
+            <td class="py-3 px-3 text-cyan-300 font-mono">${p.price} ${SYSTEM_CURRENCY}</td>
+            <td class="py-3 px-3">
+                <div class="relative">
+                    <input type="number" step="0.01" min="0" id="pkg_cost_${p.id}" value="${p.price !== undefined ? p.price : 0}" class="w-28 px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-amber-400 font-mono font-bold text-xs focus:border-amber-400 focus:outline-none transition" title="سعر التكلفة للموزع (افتراضياً مطابق لسعر الباقة)" placeholder="التكلفة">
+                </div>
+            </td>
             <td class="py-3 px-3">${trafficDisplay}</td>
             <td class="py-3 px-3">${p.validity_value} ${unitLabel}</td>
             <td class="py-3 px-3">
@@ -1379,10 +1387,16 @@ function executeMigrationAction() {
     }).then((res) => {
         if (res.isConfirmed) {
             const packageMapping = {};
+            const packageCosts = {};
             if (g_dbAnalysisData && g_dbAnalysisData.profiles) {
                 g_dbAnalysisData.profiles.forEach(p => {
                     const select = document.getElementById(`pkg_map_${p.id}`);
                     if (select) packageMapping[p.id] = select.value;
+                    const costInp = document.getElementById(`pkg_cost_${p.id}`);
+                    if (costInp) {
+                        const val = parseFloat(costInp.value);
+                        packageCosts[p.id] = (!isNaN(val)) ? val : (parseFloat(p.price) || 0);
+                    }
                 });
             }
 
@@ -1399,7 +1413,8 @@ function executeMigrationAction() {
                 session_mode: selectedSessionMode,
                 import_sessions: selectedSessionMode !== 'none',
                 collision_strategy: document.getElementById('optCollisionStrategy').value,
-                package_mapping: packageMapping
+                package_mapping: packageMapping,
+                package_costs: packageCosts
             };
 
             document.getElementById('step-panel-4').classList.add('hidden');
@@ -1427,37 +1442,19 @@ function executeMigrationAction() {
             })
             .then(r => r.json())
             .then(res => {
-                if (g_dbMigrationPollInterval) {
-                    clearInterval(g_dbMigrationPollInterval);
-                    g_dbMigrationPollInterval = null;
-                }
-                const overlay = document.getElementById('loadingOverlayDb');
-                if (overlay) overlay.classList.add('hidden');
-
-                if (res.success) {
-                    showDbExecutionResult(res);
-                    Swal.fire({
-                        title: 'اكتمل الترحيل بنجاح!',
-                        text: res.message || 'تم استيراد كافة البيانات وسجلات الاستهلاك بنجاح.',
-                        icon: 'success',
-                        confirmButtonText: 'عرض النتائج',
-                        confirmButtonColor: '#10b981',
-                        customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
-                    });
-                } else {
-                    Swal.fire('خطأ في الاستيراد', res.error || 'خطأ غير معروف', 'error');
+                if (!res.success) {
+                    if (g_dbMigrationPollInterval) {
+                        clearInterval(g_dbMigrationPollInterval);
+                        g_dbMigrationPollInterval = null;
+                    }
+                    const overlay = document.getElementById('loadingOverlayDb');
+                    if (overlay) overlay.classList.add('hidden');
+                    Swal.fire('خطأ في بدء الاستيراد', res.error || res.message, 'error');
                     goToDbStep(4);
                 }
             })
             .catch(err => {
-                if (g_dbMigrationPollInterval) {
-                    clearInterval(g_dbMigrationPollInterval);
-                    g_dbMigrationPollInterval = null;
-                }
-                const overlay = document.getElementById('loadingOverlayDb');
-                if (overlay) overlay.classList.add('hidden');
-                Swal.fire('خطأ في الاتصال', err.message, 'error');
-                goToDbStep(4);
+                console.error("Migration trigger error:", err);
             });
         }
     });
@@ -1506,10 +1503,20 @@ function startPollingDbMigrationProgress() {
                 g_dbMigrationPollInterval = null;
                 const overlay = document.getElementById('loadingOverlayDb');
                 if (overlay) overlay.classList.add('hidden');
+                
                 showDbExecutionResult({
                     success: true,
                     stats: data.stats || {},
                     message: data.message || 'اكتمل ترحيل البيانات بنجاح.'
+                });
+
+                Swal.fire({
+                    title: 'اكتمل الترحيل بنجاح! 🎉',
+                    text: data.message || 'تم استيراد كافة البيانات وسجلات الاستهلاك بنجاح.',
+                    icon: 'success',
+                    confirmButtonText: 'عرض ملخص النتائج',
+                    confirmButtonColor: '#10b981',
+                    customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
                 });
             } else if (data.status === 'cancelled') {
                 clearInterval(g_dbMigrationPollInterval);
@@ -1815,7 +1822,7 @@ function renderMikrotikPreview(data, sourceLabel) {
     (data.profiles || []).forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.name;
-        opt.innerText = p.name + ' (' + (p.price || 0) + ' ريال)';
+        opt.innerText = p.name + ' (' + (p.price || 0) + ' ' + SYSTEM_CURRENCY + ')';
         pkgSelect.appendChild(opt);
     });
 
@@ -1838,7 +1845,10 @@ function renderMikrotikPreview(data, sourceLabel) {
             '<td class="p-3">' + (p.validity_value || 30) + ' ' + (p.validity_unit === 'days' ? 'أيام' : (p.validity_unit === 'hours' ? 'ساعات' : p.validity_unit)) + '</td>' +
             '<td class="p-3 font-mono">' + quotaText + '</td>' +
             '<td class="p-3 font-mono">' + uptimeText + '</td>' +
-            '<td class="p-3 text-emerald-400 font-bold font-mono">' + (p.price || 0) + '</td>';
+            '<td class="p-3 text-emerald-400 font-bold font-mono">' + (p.price || 0) + '</td>' +
+            '<td class="p-3">' +
+                '<input type="number" step="0.01" min="0" id="userman_cost_' + encodeURIComponent(p.name) + '" value="' + (p.price || 0) + '" class="w-24 px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-900 text-amber-400 font-mono font-bold text-xs focus:border-amber-400 focus:outline-none" title="سعر التكلفة للموزع (افتراضياً مطابق لسعر الباقة)" placeholder="التكلفة">' +
+            '</td>';
         pBody.appendChild(tr);
     });
 
@@ -1919,6 +1929,12 @@ function executeMikrotikImportAction() {
         if (res.isConfirmed) {
             showMikrotikLoading('جاري ترحيل وزرع البيانات...', 'إنشاء الحزم والباقات وتوزيع الكروت وسجلات FreeRADIUS');
 
+            const profileCosts = {};
+            (parsedMikrotikDataStore.profiles || []).forEach(p => {
+                const inp = document.getElementById('userman_cost_' + encodeURIComponent(p.name));
+                profileCosts[p.name] = inp ? (parseFloat(inp.value) || parseFloat(p.price) || 0) : (parseFloat(p.price) || 0);
+            });
+
             fetch('{{ url_for("api_mikrotik_userman_execute") }}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1928,7 +1944,8 @@ function executeMikrotikImportAction() {
                     fallback_package: fallbackPkg,
                     duplicate_action: dupAction,
                     ignore_expired: ignoreExpired,
-                    import_consumption: importConsumption
+                    import_consumption: importConsumption,
+                    profile_costs: profileCosts
                 })
             })
             .then(async r => {

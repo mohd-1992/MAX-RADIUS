@@ -68,3 +68,5 @@ tmp/
 .DS_Store
 Thumbs.db
 desktop.ini
+backup_card_designs/
+storage/*.py

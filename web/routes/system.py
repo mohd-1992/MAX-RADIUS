@@ -678,17 +678,19 @@ def update_settings_action():
                         execute_write('INSERT INTO wisp_system_settings (`key`, `value`, `description`) VALUES (?, ?, ?)', ('network_logo', filename, 'مسار شعار الشبكة'))
 
         # 2. Currency Mapping
-        selected_currency = f.get('currency', 'SAR').strip()
+        selected_currency = f.get('currency', 'YER').strip()
         custom_symbol = f.get('currency_symbol', '').strip()
 
         currency_map = {
-            'SAR': 'ر.س',
             'YER': 'ر.ي',
-            'AED': 'د.إ',
             'EGP': 'ج.م',
+            'IQD': 'د.ع',
+            'SYP': 'ل.س',
+            'SAR': 'ر.س',
+            'AED': 'د.إ',
             'USD': '$'
         }
-        currency_symbol = custom_symbol if custom_symbol else currency_map.get(selected_currency, 'ر.س')
+        currency_symbol = custom_symbol if custom_symbol else currency_map.get(selected_currency, 'ر.ي')
 
         # 3. Settings to Save
         network_name = f.get('network_name', '').strip() or f.get('company_name', '').strip() or 'MAX RADIUS'
@@ -1149,7 +1151,7 @@ def api_migration_analyze():
 @system_bp.route('/api/tools/database-migration/execute', methods=['POST'], endpoint="api_migration_execute")
 
 def api_migration_execute():
-    from services.database_migration_service import execute_database_migration
+    from services.database_migration_service import start_async_migration
     try:
         data = request.get_json(silent=True) or {}
         server_path = data.get('server_path') or data.get('temp_server_path')
@@ -1162,7 +1164,7 @@ def api_migration_execute():
         if not server_path or not os.path.exists(server_path):
             return jsonify({'success': False, 'error': 'مسار ملف النسخة الاحتياطية غير موجود أو غير صالح على السيرفر.'}), 400
 
-        res = execute_database_migration(server_path, options=data)
+        res = start_async_migration(server_path, options=data)
         return jsonify(res)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

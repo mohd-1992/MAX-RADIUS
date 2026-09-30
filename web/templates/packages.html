@@ -272,6 +272,11 @@
                                     <i class="fa-solid fa-arrows-rotate text-[9px]"></i> ترحيل
                                 </span>
                                 {% endif %}
+                                {% if p.is_loyalty_enabled and p.loyalty_points > 0 %}
+                                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30" title="نقاط مكافأة الولاء: {{ p.loyalty_points }}">
+                                    <i class="fa-solid fa-coins text-[9px] text-amber-400"></i> {{ p.loyalty_points }} نقطة
+                                </span>
+                                {% endif %}
                             </div>
                             <p class="text-[11px] text-slate-400 mt-0.5 max-w-xs truncate">{{ p.description or 'لا يوجد وصف مخصص للباقة' }}</p>
                         </td>
@@ -316,7 +321,7 @@
                         <!-- Price -->
                         <td class="py-3.5 px-3 whitespace-nowrap">
                             <span class="text-base font-black text-blue-400 font-mono">{{ p.price }}</span>
-                            <span class="text-[10px] text-slate-400 font-semibold">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                            <span class="text-[10px] text-slate-400 font-semibold">{{ currency_symbol }}</span>
                         </td>
 
                         <!-- Subscribers & Vouchers Usage -->
@@ -442,7 +447,7 @@
                         <!-- Price -->
                         <div class="text-left flex-shrink-0">
                             <span class="text-2xl font-black text-blue-400 font-mono">{{ p.price }}</span>
-                            <span class="text-xs text-slate-400 font-semibold">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                            <span class="text-xs text-slate-400 font-semibold">{{ currency_symbol }}</span>
                         </div>
                     </div>
 
@@ -573,7 +578,7 @@
                 <label class="text-xs text-slate-300 font-semibold block mb-1.5" id="bulkPriceValueLabel">القيمة المطلوبة:</label>
                 <div class="relative">
                     <input type="number" id="bulkPriceValue" step="0.01" min="0" placeholder="0.00" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-blue-500">
-                    <span id="bulkPriceUnitHint" class="absolute left-3 top-2 text-xs text-slate-500 font-mono">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                    <span id="bulkPriceUnitHint" class="absolute left-3 top-2 text-xs text-slate-500 font-mono">{{ currency_symbol }}</span>
                 </div>
             </div>
         </div>
@@ -916,7 +921,7 @@
             if (v === 'percentage_increase' || v === 'percentage_discount') {
                 bulkPriceUnitHint.innerText = '%';
             } else {
-                bulkPriceUnitHint.innerText = "{{ settings.get('currency_symbol', 'ر.س') }}";
+                bulkPriceUnitHint.innerText = "{{ currency_symbol }}";
             }
         });
     }

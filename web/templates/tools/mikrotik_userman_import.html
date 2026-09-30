@@ -698,7 +698,7 @@ function renderPreview(data, sourceLabel) {
     (data.profiles || []).forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.name;
-        opt.innerText = p.name + ' (' + (p.price || 0) + ' ريال)';
+        opt.innerText = p.name + ' (' + (p.price || 0) + ' {{ currency_symbol }})';
         pkgSelect.appendChild(opt);
     });
 

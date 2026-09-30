@@ -77,12 +77,51 @@ def user_dashboard():
     loan_amount_mb = int(settings_dict.get('loan_amount_mb', '1024') if str(settings_dict.get('loan_amount_mb', '')).isdigit() else 1024)
     loan_amount_str = format_mb_or_gb(loan_amount_mb)
 
+    loyalty_wallet = {'points_balance': 0, 'total_points_earned': 0, 'tier_level': 'bronze'}
+    rewards_catalog = []
+    if settings_dict.get('portal_enable_loyalty', '0') == '1':
+        try:
+            from services.loyalty_rewards_service import ensure_loyalty_tables
+            ensure_loyalty_tables()
+            row = query_one("SELECT * FROM wisp_loyalty_wallets WHERE LOWER(username) = LOWER(?)", (username,))
+            if row:
+                loyalty_wallet = dict(row)
+            rewards_catalog = query_all("SELECT * FROM wisp_loyalty_rewards WHERE is_active = 1 ORDER BY points_cost ASC") or []
+        except Exception as e:
+            logger.warning("Error fetching loyalty info in user portal: %s", e)
+
     return render_template(
         'user_portal/dashboard.html',
         user=user_data,
         settings=settings_dict,
-        loan_amount_str=loan_amount_str
+        loan_amount_str=loan_amount_str,
+        loyalty_wallet=loyalty_wallet,
+        rewards_catalog=rewards_catalog
     )
+
+
+@portal_bp.route('/user/api/redeem-reward', methods=['POST'], endpoint="user_redeem_reward")
+def user_redeem_reward():
+    username = session.get('portal_user')
+    if not username:
+        return jsonify({'success': False, 'message': 'يرجى تسجيل الدخول أولاً'}), 401
+
+    settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings WHERE `key` = "portal_enable_loyalty"')
+    is_enabled = settings_rows[0]['value'] if settings_rows else '0'
+    if is_enabled != '1':
+        return jsonify({'success': False, 'message': 'نظام نقاط ومكافآت الولاء غير مفعّل حالياً.'}), 400
+
+    data = request.json or request.form or {}
+    reward_id = int(data.get('reward_id') or 0)
+    if not reward_id:
+        return jsonify({'success': False, 'message': 'رقم المكافأة غير صحيح.'}), 400
+
+    try:
+        from services.loyalty_rewards_service import redeem_reward
+        ok, msg = redeem_reward(username, reward_id)
+        return jsonify({'success': ok, 'message': msg})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'حدث خطأ: {str(e)}'}), 500
 
 
 @portal_bp.route('/user/login', methods=['GET'], endpoint="user_login")

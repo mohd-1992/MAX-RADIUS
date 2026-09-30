@@ -152,6 +152,23 @@
                                 </label>
                             </div>
                         </div>
+
+                        <!-- Toggle 5: Loyalty Points & Rewards System -->
+                        <div class="bg-[#070b14] border border-[#162136] hover:border-amber-500/30 rounded-2xl p-4 flex flex-col justify-between gap-3 transition shadow-sm">
+                            <div class="space-y-1">
+                                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                                    <i class="fa-solid fa-gift text-amber-400"></i>
+                                    <span>نظام نقاط ومكافآت الولاء</span>
+                                </span>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">إظهار قسم رصيد النقاط والمكافآت في لوحة تحكم المشترك وتمكينه من استبدال نقاطه بهدايا إنترنت وصلاحية.</p>
+                            </div>
+                            <div class="flex justify-end">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="portal_enable_loyalty" value="1" {% if settings.get('portal_enable_loyalty', '0') == '1' %}checked{% endif %} class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -330,6 +347,7 @@
             'portal_allow_package_change',
             'portal_allow_password_change',
             'portal_login_username_only',
+            'portal_enable_loyalty',
             'allow_data_loan'
         ];
 

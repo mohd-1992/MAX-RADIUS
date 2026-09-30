@@ -113,7 +113,7 @@ def action_delete_entity(entity_type, entity_id, admin_username='admin'):
         execute_write("DELETE FROM wisp_subscribers WHERE id = ?", (entity['id'],))
         log_audit(1, admin_username, 'DELETE_SUBSCRIBER', 'subscribers', f'Deleted subscriber {username} (ID: {entity["id"]})')
     else:
-        execute_write("DELETE FROM wisp_voucher_sales WHERE voucher_id = ?", (entity['id'],))
+        # Preserve historical sales/revenue ledger in wisp_voucher_sales upon voucher deletion
         execute_write("DELETE FROM wisp_vouchers WHERE id = ?", (entity['id'],))
         log_audit(1, admin_username, 'DELETE_VOUCHER', 'vouchers', f'Deleted voucher card {username} (ID: {entity["id"]})')
         

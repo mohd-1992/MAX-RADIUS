@@ -559,7 +559,7 @@ function renderAnalysisResults(data) {
 
         let optionsHtml = `<option value="auto_create" selected>✨ إنشاء باقة جديدة بنفس الاسم والمواصفات</option>`;
         existingPkgs.forEach(ep => {
-            optionsHtml += `<option value="${ep.id}">ربط مع [${ep.name}] (${ep.price} YER - ${ep.volume_quota_mb}MB)</option>`;
+            optionsHtml += `<option value="${ep.id}">ربط مع [${ep.name}] (${ep.price} {{ currency_symbol }} - ${ep.volume_quota_mb}MB)</option>`;
         });
 
         let unitLabel = 'يوم';
@@ -580,7 +580,7 @@ function renderAnalysisResults(data) {
         tr.innerHTML = `
             <td class="py-3 px-3 font-mono text-slate-500">${idx + 1}</td>
             <td class="py-3 px-3 font-bold text-white">${p.name}</td>
-            <td class="py-3 px-3 text-cyan-300 font-mono">${p.price} YER</td>
+            <td class="py-3 px-3 text-cyan-300 font-mono">${p.price} {{ currency_symbol }}</td>
             <td class="py-3 px-3">${trafficDisplay}</td>
             <td class="py-3 px-3">${p.validity_value} ${unitLabel}</td>
             <td class="py-3 px-3">

@@ -76,7 +76,7 @@
                         <td class="py-3.5 px-5 font-mono font-bold text-blue-400">{{ inv.invoice_number }}</td>
                         <td class="py-3.5 px-5 font-bold text-white">{{ inv.subscriber_name }}</td>
                         <td class="py-3.5 px-5 text-slate-300 text-xs hidden sm:table-cell">{{ inv.package_name }}</td>
-                        <td class="py-3.5 px-5 font-black text-emerald-400 font-mono">{{ inv.amount }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                        <td class="py-3.5 px-5 font-black text-emerald-400 font-mono">{{ inv.amount }} {{ currency_symbol }}</td>
                         <td class="py-3.5 px-5 text-slate-400 text-xs font-mono hidden md:table-cell">{{ inv.issue_date }}</td>
                         <td class="py-3.5 px-5 text-slate-400 text-xs font-mono hidden lg:table-cell">{{ inv.due_date or '-' }}</td>
                         <td class="py-3.5 px-5">
@@ -138,7 +138,7 @@
                 </select>
             </div>
             <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1">المبلغ ({{ settings.get('currency_symbol', 'ر.س') }})</label>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">المبلغ ({{ currency_symbol }})</label>
                 <input type="number" step="0.5" name="amount" required value="100" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500">
             </div>
             <div>

@@ -102,7 +102,6 @@ services:
       - TZ=${SYSTEM_TIMEZONE:-Asia/Riyadh}
       - DEFAULT_TIMEZONE=Asia/Riyadh
     ports:
-      - "80:5090/tcp"
       - "5090:5090/tcp"
     volumes:
       - ./storage:/app/storage

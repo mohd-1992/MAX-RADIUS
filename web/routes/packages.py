@@ -130,14 +130,18 @@ def add_package_action():
         equiv_days = 0 if val <= 0 else (val * 30 if unit == 'months' else (max(1, round(val / 24)) if unit == 'hours' else (max(1, round(val / 1440)) if unit == 'minutes' else val)))
         mikrotik_group = f.get('mikrotik_group', '').strip()
 
+        is_loyalty = 1 if f.get('is_loyalty_enabled') in ('1', 'on', 'true', True, 1) else 0
+        loyalty_pts = int(f.get('loyalty_points') or 0) if is_loyalty else 0
+
         pkg_id = execute_write('''
             INSERT INTO wisp_packages (
                 name, service_type, price, cost, rate_download, rate_upload,
                 burst_download, burst_upload, burst_threshold_down, burst_threshold_up,
                 burst_time, priority, min_download, min_upload, volume_quota_mb,
                 uptime_limit_mins, validity_days, validity_value, validity_unit,
-                mikrotik_group, simultaneous_sessions, is_active, show_in_portal, is_rollover_enabled, description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                mikrotik_group, simultaneous_sessions, is_active, show_in_portal, is_rollover_enabled,
+                is_loyalty_enabled, loyalty_points, description
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             f['name'].strip(), f.get('service_type', 'hotspot'), float(f.get('price', 0)), float(f.get('cost', 0)),
             f.get('rate_download', '2M').strip(), f.get('rate_upload', '1M').strip(),
@@ -152,6 +156,7 @@ def add_package_action():
             1 if f.get('is_active') in ('1', 'on', 'true', True, 1) else 0,
             1 if f.get('show_in_portal') in ('1', 'on', 'true', True, 1) else 0,
             1 if f.get('is_rollover_enabled') in ('1', 'on', 'true', True, 1) else 0,
+            is_loyalty, loyalty_pts,
             f.get('description', '')
         ))
         sync_package_to_radius(pkg_id)
@@ -214,6 +219,9 @@ def edit_package_action(pkg_id):
         equiv_days = 0 if val <= 0 else (val * 30 if unit == 'months' else (max(1, round(val / 24)) if unit == 'hours' else (max(1, round(val / 1440)) if unit == 'minutes' else val)))
         mikrotik_group = f.get('mikrotik_group', '').strip()
         
+        is_loyalty = 1 if f.get('is_loyalty_enabled') in ('1', 'on', 'true', True, 1) else 0
+        loyalty_pts = int(f.get('loyalty_points') or 0) if is_loyalty else 0
+
         execute_write('''
             UPDATE wisp_packages SET
                 name = ?, service_type = ?, price = ?, cost = ?,
@@ -221,7 +229,8 @@ def edit_package_action(pkg_id):
                 burst_threshold_down = ?, burst_threshold_up = ?, burst_time = ?,
                 priority = ?, min_download = ?, min_upload = ?, volume_quota_mb = ?,
                 uptime_limit_mins = 0, validity_days = ?, validity_value = ?, validity_unit = ?,
-                mikrotik_group = ?, simultaneous_sessions = ?, is_active = ?, show_in_portal = ?, is_rollover_enabled = ?, description = ?
+                mikrotik_group = ?, simultaneous_sessions = ?, is_active = ?, show_in_portal = ?, is_rollover_enabled = ?,
+                is_loyalty_enabled = ?, loyalty_points = ?, description = ?
             WHERE id = ?
         ''', (
             new_name, f.get('service_type', 'hotspot'), float(f.get('price', 0)), float(f.get('cost', 0)),
@@ -237,6 +246,7 @@ def edit_package_action(pkg_id):
             1 if f.get('is_active') in ('1', 'on', 'true', True, 1) else 0,
             1 if f.get('show_in_portal') in ('1', 'on', 'true', True, 1) else 0,
             1 if f.get('is_rollover_enabled') in ('1', 'on', 'true', True, 1) else 0,
+            is_loyalty, loyalty_pts,
             f.get('description', ''), pkg_id
         ))
         
@@ -288,8 +298,9 @@ def clone_package_action(pkg_id):
                 burst_download, burst_upload, burst_threshold_down, burst_threshold_up,
                 burst_time, priority, min_download, min_upload, volume_quota_mb,
                 uptime_limit_mins, validity_days, validity_value, validity_unit,
-                mikrotik_group, simultaneous_sessions, is_active, show_in_portal, is_rollover_enabled, description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                mikrotik_group, simultaneous_sessions, is_active, show_in_portal, is_rollover_enabled,
+                is_loyalty_enabled, loyalty_points, description
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             new_name, pkg.get('service_type', 'hotspot'), pkg.get('price', 0), pkg.get('cost', 0),
             pkg.get('rate_download', '2M'), pkg.get('rate_upload', '1M'),
@@ -301,6 +312,7 @@ def clone_package_action(pkg_id):
             pkg.get('uptime_limit_mins', 0), pkg.get('validity_days', 30), pkg.get('validity_value', 30), pkg.get('validity_unit', 'days'),
             pkg.get('mikrotik_group', ''), pkg.get('simultaneous_sessions', 1),
             pkg.get('is_active', 1), pkg.get('show_in_portal', 1), pkg.get('is_rollover_enabled', 0),
+            pkg.get('is_loyalty_enabled', 0), pkg.get('loyalty_points', 0),
             f"نسخة مكررة من {pkg['name']}"
         ))
         sync_package_to_radius(new_id)

@@ -11,37 +11,264 @@
     <!-- Local Offline QRCode.js -->
     <script src="{{ url_for('static', filename='vendor/qrcode/qrcode.min.js') }}"></script>
     <style>
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
         body { font-family: 'Tajawal', sans-serif; background-color: #f1f5f9; }
+        
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+
         @media print {
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
             .no-print { display: none !important; }
-            body { background: white !important; padding: 0 !important; margin: 0 !important; }
+            html, body { background: #ffffff !important; background-color: #ffffff !important; color: #000000 !important; padding: 0 !important; margin: 0 !important; }
             .print-page { page-break-after: always; box-shadow: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; }
             .card-item { break-inside: avoid; page-break-inside: avoid; }
+            
+            .sheet {
+                margin: 0 !important;
+                box-shadow: none !important;
+                page-break-after: always !important;
+                break-after: page !important;
+                min-height: 297mm !important;
+                max-height: 297mm !important;
+                height: 297mm !important;
+                background: #ffffff !important;
+                background-color: #ffffff !important;
+                overflow: hidden !important;
+            }
+            .custom-card-cell {
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                border-radius: 0px !important;
+            }
+            .custom-card-cell img.card-bg-img {
+                display: block !important;
+                position: absolute !important;
+                inset: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: fill !important;
+                z-index: 1 !important;
+            }
+        }
+
+        /* Ensure QR code canvas / images scale properly */
+        .sheet img, .sheet canvas {
+            max-width: 100% !important;
+            max-height: 100% !important;
+            object-fit: contain;
         }
     </style>
 </head>
-<body class="p-6">
+<body class="p-4 md:p-6">
 
     <!-- Top Action Toolbar -->
-    <div class="no-print max-w-5xl mx-auto mb-6 bg-slate-900 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between flex-wrap gap-4">
-        <div>
-            <h2 class="font-bold text-lg flex items-center gap-2">
-                <i class="fa-solid fa-print text-blue-400"></i>
-                معاينة وطباعة حزمة الكروت: <span class="text-blue-400">{{ batch.name }}</span>
-            </h2>
-            <p class="text-xs text-slate-400">إجمالي الكروت: <strong>{{ cards|length }}</strong> كرت | الباقة: <strong>{{ batch.package_name }}</strong></p>
-        </div>
+    <div class="no-print max-w-5xl mx-auto mb-6 bg-slate-900 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between flex-wrap gap-4 border border-slate-800">
         <div class="flex items-center gap-3">
-            <button onclick="window.print()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer">
-                <i class="fa-solid fa-print"></i>طباعة فورية (Print)
+            <div class="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center border border-blue-500/30 text-lg flex-shrink-0">
+                <i class="fa-solid fa-print"></i>
+            </div>
+            <div>
+                <h2 class="font-bold text-sm sm:text-base flex items-center gap-2">
+                    طباعة حزمة الكروت: <span class="text-blue-400">{{ batch.name }}</span>
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    إجمالي الكروت: <strong class="text-white">{{ cards|length }}</strong> كرت | الباقة: <strong class="text-white">{{ batch.package_name }}</strong>
+                    {% if selected_design %}
+                    | التصميم المختار: <span class="text-emerald-400 font-bold">{{ selected_design.name }}</span> ({{ card_pages|length }} ورقة A4)
+                    {% else %}
+                    | قالب العرض: <span class="text-amber-400 font-bold">القالب الافتراضي الكلاسيكي</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+
+        <!-- Template Selector Dropdown -->
+        <div class="flex items-center gap-2 flex-wrap">
+            <label for="designSelector" class="text-xs text-slate-300 font-bold whitespace-nowrap flex items-center gap-1.5">
+                <i class="fa-solid fa-palette text-amber-400"></i>
+                <span>قالب التصميم:</span>
+            </label>
+            <select id="designSelector" onchange="switchDesign(this.value)" class="bg-slate-800 border border-slate-700 text-white text-xs rounded-xl px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer">
+                <option value="" {% if not selected_design %}selected{% endif %}>القالب الافتراضي الكلاسيكي (شبكي / إيصالات)</option>
+                {% for d in designs %}
+                <option value="{{ d.id }}" {% if selected_design and selected_design.id == d.id %}selected{% endif %}>
+                    {{ d.name }} ({{ d.width_mm }} × {{ d.height_mm }} مم - {{ d.cards_per_row }}×{{ d.cards_per_col }} في A4)
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Print & Close Buttons -->
+        <div class="flex items-center gap-2">
+            <button onclick="window.print()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/30 transition flex items-center gap-2 cursor-pointer" title="طباعة فورية أو حفظ كملف PDF">
+                <i class="fa-solid fa-print"></i>
+                <span>طباعة / تنزيل PDF</span>
             </button>
-            <button onclick="window.close()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-sm rounded-xl transition cursor-pointer">
+            <button onclick="window.close()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs rounded-xl transition cursor-pointer">
                 إغلاق
             </button>
         </div>
     </div>
 
-    <!-- Cards Printing Sheet (Grid) -->
+    {% if selected_design %}
+    <!-- Custom Design: A4 Sheets Pagination -->
+    <div id="customCardsPrintContainer" class="w-full">
+        {% for page in card_pages %}
+        <div class="no-print text-center text-xs text-slate-500 font-bold mb-2">
+            --- ورقة A4 (الصفحة {{ loop.index }} من {{ card_pages|length }}) ---
+        </div>
+        <div class="sheet" style="
+            width: 210mm;
+            min-height: 297mm;
+            max-height: 297mm;
+            height: 297mm;
+            margin: 0 auto 12mm auto;
+            background: #ffffff;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            box-sizing: border-box;
+            padding-top: {{ selected_design.margin_top_mm if selected_design.margin_top_mm is not none else 10 }}mm;
+            padding-bottom: {{ selected_design.margin_top_mm if selected_design.margin_top_mm is not none else 10 }}mm;
+            padding-left: {{ selected_design.margin_page_mm if selected_design.margin_page_mm is not none else 10 }}mm;
+            padding-right: {{ selected_design.margin_page_mm if selected_design.margin_page_mm is not none else 10 }}mm;
+            display: grid;
+            grid-template-columns: repeat({{ selected_design.cards_per_row|default(2) }}, 1fr);
+            grid-template-rows: repeat({{ selected_design.cards_per_col|default(5) }}, 1fr);
+            gap: {{ selected_design.card_spacing_mm if selected_design.card_spacing_mm is not none else 0 }}mm;
+            position: relative;
+            overflow: hidden;
+        ">
+            {% for c in page %}
+            <div class="custom-card-cell" style="
+                width: 100%;
+                height: 100%;
+                position: relative;
+                overflow: hidden;
+                box-sizing: border-box;
+                border-radius: 0px !important;
+                {% if selected_design.cut_lines %}
+                border: 1px dashed {{ selected_design.border_color or '#94a3b8' }};
+                {% else %}
+                border: 1px solid {{ selected_design.border_color or '#cbd5e1' }};
+                {% endif %}
+                background-color: {{ selected_design.background_color or '#ffffff' }};
+            ">
+                {% if selected_design.bg_image and selected_design.design_type != 'clean' %}
+                <img src="{{ selected_design.bg_image }}" class="card-bg-img" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; z-index: 1; pointer-events: none; border-radius: 0px;" />
+                {% endif %}
+                <div style="position: absolute; inset: 0; z-index: 10; pointer-events: none;">
+                {% set cfg = selected_design.config %}
+                {% if cfg and cfg.elements %}
+                    {% set el = cfg.elements %}
+
+                    {# 1. Username #}
+                    {% if el.username and el.username.enabled %}
+                    <div style="position: absolute; left: {{ el.username.x }}%; top: {{ el.username.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.username.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.username.font_size or 12 }}pt; color: {{ el.username.color or '#0f172a' }}; font-weight: {{ 'bold' if el.username.bold else 'normal' }}; font-style: {{ 'italic' if el.username.italic else 'normal' }}; text-decoration: {{ 'underline' if el.username.underline else 'none' }}; letter-spacing: {{ el.username.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.username.prefix or '') ~ c.username }}
+                    </div>
+                    {% endif %}
+
+                    {# 2. Password #}
+                    {% if el.password and el.password.enabled %}
+                    <div style="position: absolute; left: {{ el.password.x }}%; top: {{ el.password.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.password.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.password.font_size or 12 }}pt; color: {{ el.password.color or '#0f172a' }}; font-weight: {{ 'bold' if el.password.bold else 'normal' }}; font-style: {{ 'italic' if el.password.italic else 'normal' }}; text-decoration: {{ 'underline' if el.password.underline else 'none' }}; letter-spacing: {{ el.password.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.password.prefix or '') ~ c.password }}
+                    </div>
+                    {% endif %}
+
+                    {# 3. PIN Code #}
+                    {% if el.pin_code and el.pin_code.enabled %}
+                    <div style="position: absolute; left: {{ el.pin_code.x }}%; top: {{ el.pin_code.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.pin_code.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.pin_code.font_size or 14 }}pt; color: {{ el.pin_code.color or '#0f172a' }}; font-weight: {{ 'bold' if el.pin_code.bold else 'normal' }}; font-style: {{ 'italic' if el.pin_code.italic else 'normal' }}; text-decoration: {{ 'underline' if el.pin_code.underline else 'none' }}; letter-spacing: {{ el.pin_code.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.pin_code.prefix or '') ~ (c.pin_code if c.pin_code else c.username) }}
+                    </div>
+                    {% endif %}
+
+                    {# 4. Serial #}
+                    {% if el.serial and el.serial.enabled %}
+                    <div style="position: absolute; left: {{ el.serial.x }}%; top: {{ el.serial.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.serial.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.serial.font_size or 9 }}pt; color: {{ el.serial.color or '#475569' }}; font-weight: {{ 'bold' if el.serial.bold else 'normal' }}; font-style: {{ 'italic' if el.serial.italic else 'normal' }}; text-decoration: {{ 'underline' if el.serial.underline else 'none' }}; letter-spacing: {{ el.serial.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.serial.prefix or '') ~ c.serial_number }}
+                    </div>
+                    {% endif %}
+
+                    {# 5. Price #}
+                    {% if el.price and el.price.enabled %}
+                    <div style="position: absolute; left: {{ el.price.x }}%; top: {{ el.price.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.price.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.price.font_size or 12 }}pt; color: {{ el.price.color or '#2563eb' }}; font-weight: {{ 'bold' if el.price.bold else 'normal' }}; font-style: {{ 'italic' if el.price.italic else 'normal' }}; text-decoration: {{ 'underline' if el.price.underline else 'none' }}; letter-spacing: {{ el.price.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.price.prefix or '') ~ (el.price.text if el.price.text else (c.price ~ ' ' ~ c.currency)) }}
+                    </div>
+                    {% endif %}
+
+                    {# 6. Profile / Package #}
+                    {% if el.profile and el.profile.enabled %}
+                    <div style="position: absolute; left: {{ el.profile.x }}%; top: {{ el.profile.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.profile.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.profile.font_size or 11 }}pt; color: {{ el.profile.color or '#0f172a' }}; font-weight: {{ 'bold' if el.profile.bold else 'normal' }}; font-style: {{ 'italic' if el.profile.italic else 'normal' }}; text-decoration: {{ 'underline' if el.profile.underline else 'none' }}; letter-spacing: {{ el.profile.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.profile.prefix or '') ~ (el.profile.text if el.profile.text else c.package_name) }}
+                    </div>
+                    {% endif %}
+
+                    {# 7. Quota #}
+                    {% if el.quota and el.quota.enabled %}
+                    <div style="position: absolute; left: {{ el.quota.x }}%; top: {{ el.quota.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.quota.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.quota.font_size or 10 }}pt; color: {{ el.quota.color or '#334155' }}; font-weight: {{ 'bold' if el.quota.bold else 'normal' }}; font-style: {{ 'italic' if el.quota.italic else 'normal' }}; text-decoration: {{ 'underline' if el.quota.underline else 'none' }}; letter-spacing: {{ el.quota.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.quota.prefix or '') ~ (el.quota.text if el.quota.text else c.quota) }}
+                    </div>
+                    {% endif %}
+
+                    {# 8. Validity #}
+                    {% if el.validity and el.validity.enabled %}
+                    <div style="position: absolute; left: {{ el.validity.x }}%; top: {{ el.validity.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.validity.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.validity.font_size or 10 }}pt; color: {{ el.validity.color or '#334155' }}; font-weight: {{ 'bold' if el.validity.bold else 'normal' }}; font-style: {{ 'italic' if el.validity.italic else 'normal' }}; text-decoration: {{ 'underline' if el.validity.underline else 'none' }}; letter-spacing: {{ el.validity.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.validity.prefix or '') ~ (el.validity.text if el.validity.text else c.validity) }}
+                    </div>
+                    {% endif %}
+
+                    {# 9. Speed #}
+                    {% if el.speed and el.speed.enabled %}
+                    <div style="position: absolute; left: {{ el.speed.x }}%; top: {{ el.speed.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.speed.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.speed.font_size or 9 }}pt; color: {{ el.speed.color or '#475569' }}; font-weight: {{ 'bold' if el.speed.bold else 'normal' }}; font-style: {{ 'italic' if el.speed.italic else 'normal' }}; text-decoration: {{ 'underline' if el.speed.underline else 'none' }}; letter-spacing: {{ el.speed.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.speed.prefix or '') ~ (el.speed.text if el.speed.text else c.speed) }}
+                    </div>
+                    {% endif %}
+
+                    {# 10. Hotspot / ISP Name #}
+                    {% if el.hotspot_name and el.hotspot_name.enabled %}
+                    <div style="position: absolute; left: {{ el.hotspot_name.x }}%; top: {{ el.hotspot_name.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.hotspot_name.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.hotspot_name.font_size or 12 }}pt; color: {{ el.hotspot_name.color or '#0f172a' }}; font-weight: {{ 'bold' if el.hotspot_name.bold else 'normal' }}; font-style: {{ 'italic' if el.hotspot_name.italic else 'normal' }}; text-decoration: {{ 'underline' if el.hotspot_name.underline else 'none' }}; letter-spacing: {{ el.hotspot_name.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.hotspot_name.prefix or '') ~ (el.hotspot_name.text if el.hotspot_name.text else c.isp_name) }}
+                    </div>
+                    {% endif %}
+
+                    {# 11. Custom Text 1 #}
+                    {% if el.custom_text_1 and el.custom_text_1.enabled %}
+                    <div style="position: absolute; left: {{ el.custom_text_1.x }}%; top: {{ el.custom_text_1.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.custom_text_1.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.custom_text_1.font_size or 9 }}pt; color: {{ el.custom_text_1.color or '#475569' }}; font-weight: {{ 'bold' if el.custom_text_1.bold else 'normal' }}; font-style: {{ 'italic' if el.custom_text_1.italic else 'normal' }}; text-decoration: {{ 'underline' if el.custom_text_1.underline else 'none' }}; letter-spacing: {{ el.custom_text_1.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.custom_text_1.prefix or '') ~ (el.custom_text_1.text or '') }}
+                    </div>
+                    {% endif %}
+
+                    {# 12. Custom Text 2 #}
+                    {% if el.custom_text_2 and el.custom_text_2.enabled %}
+                    <div style="position: absolute; left: {{ el.custom_text_2.x }}%; top: {{ el.custom_text_2.y }}%; transform: translate(-50%, -50%); font-family: '{{ el.custom_text_2.font_family or 'Tajawal' }}', sans-serif; font-size: {{ el.custom_text_2.font_size or 9 }}pt; color: {{ el.custom_text_2.color or '#475569' }}; font-weight: {{ 'bold' if el.custom_text_2.bold else 'normal' }}; font-style: {{ 'italic' if el.custom_text_2.italic else 'normal' }}; text-decoration: {{ 'underline' if el.custom_text_2.underline else 'none' }}; letter-spacing: {{ el.custom_text_2.letter_spacing or 0 }}px; white-space: nowrap; line-height: 1;">
+                        {{ (el.custom_text_2.prefix or '') ~ (el.custom_text_2.text or '') }}
+                    </div>
+                    {% endif %}
+
+                    {# 13. QR Code #}
+                    {% if el.qr_code and el.qr_code.enabled %}
+                    {% set qr_mm = ((el.qr_code.size or 55) * 0.264583)|round(1) %}
+                    <div id="cqr_{{ c.id }}" style="position: absolute; left: {{ el.qr_code.x }}%; top: {{ el.qr_code.y }}%; transform: translate(-50%, -50%); width: {{ qr_mm }}mm; height: {{ qr_mm }}mm; background: white; border: 0.5px solid #cbd5e1; border-radius: 0px; display: flex; align-items: center; justify-content: center; padding: 0.5mm; box-sizing: border-box;">
+                    </div>
+                    {% endif %}
+                {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <!-- Classic Thermal / Grid Default Template (Intact) -->
     <div id="cardsPrintGrid" class="max-w-5xl mx-auto print-page grid grid-cols-1 sm:grid-cols-2 gap-3">
         {% for c in cards %}
         <div class="card-item bg-white border-2 border-slate-300 rounded-xl p-4 shadow-sm relative overflow-hidden flex flex-col justify-between text-slate-800" style="min-height: 200px;">
@@ -112,50 +339,87 @@
         </div>
         {% endfor %}
     </div>
+    {% endif %}
 
-    <!-- Scripts to generate QR Codes & Apply Custom Layout -->
+    <!-- Scripts to generate QR Codes & Layout Switching -->
     <script>
+        function switchDesign(val) {
+            const url = new URL(window.location.href);
+            if (val) {
+                url.searchParams.set('design_id', val);
+            } else {
+                url.searchParams.delete('design_id');
+            }
+            window.location.href = url.toString();
+        }
+
         window.SAVED_CONFIG = {{ saved_config_json|tojson|safe if saved_config_json else 'null' }};
         
         document.addEventListener('DOMContentLoaded', () => {
-            // Apply saved layout if available
-            if (window.SAVED_CONFIG) {
-                try {
-                    const cfg = typeof window.SAVED_CONFIG === 'string' ? JSON.parse(window.SAVED_CONFIG) : window.SAVED_CONFIG;
-                    const grid = document.getElementById('cardsPrintGrid');
-                    if (cfg && cfg.page_layout && grid) {
-                        const cols = cfg.page_layout.cols || 2;
-                        grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
-                        grid.style.gap = `${cfg.page_layout.gap_y || 2}mm ${cfg.page_layout.gap_x || 2}mm`;
-                        grid.style.padding = `${cfg.page_layout.margin_y || 8}mm ${cfg.page_layout.margin_x || 8}mm`;
-
-                        const cutStyle = cfg.page_layout.cut_lines || 'dashed';
-                        const cutColor = cfg.page_layout.cut_color || '#94a3b8';
-                        if (cutStyle !== 'none') {
-                            document.querySelectorAll('.card-item').forEach(card => {
-                                card.style.border = `1px ${cutStyle} ${cutColor}`;
-                            });
+            {% if selected_design %}
+                // Custom Design QR Codes
+                {% if selected_design.config and selected_design.config.elements and selected_design.config.elements.qr_code and selected_design.config.elements.qr_code.enabled %}
+                    {% set qr_px = ((selected_design.config.elements.qr_code.size or 55) * 1.5)|int %}
+                    {% for c in cards %}
+                    const cqrEl_{{ c.id }} = document.getElementById("cqr_{{ c.id }}");
+                    if (cqrEl_{{ c.id }}) {
+                        new QRCode(cqrEl_{{ c.id }}, {
+                            text: "{{ c.login_url }}",
+                            width: {{ [qr_px, 64]|max }},
+                            height: {{ [qr_px, 64]|max }},
+                            colorDark : "#0f172a",
+                            colorLight : "#ffffff",
+                            correctLevel : QRCode.CorrectLevel.M
+                        });
+                        const img = cqrEl_{{ c.id }}.querySelector('img, canvas');
+                        if (img) {
+                            img.style.width = '100%';
+                            img.style.height = '100%';
+                            img.style.display = 'block';
                         }
                     }
-                } catch (e) {
-                    console.warn('Could not apply print config:', e);
-                }
-            }
+                    {% endfor %}
+                {% endif %}
+            {% else %}
+                // Apply saved layout if available in default view
+                if (window.SAVED_CONFIG) {
+                    try {
+                        const cfg = typeof window.SAVED_CONFIG === 'string' ? JSON.parse(window.SAVED_CONFIG) : window.SAVED_CONFIG;
+                        const grid = document.getElementById('cardsPrintGrid');
+                        if (cfg && cfg.page_layout && grid) {
+                            const cols = cfg.page_layout.cols || 2;
+                            grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+                            grid.style.gap = `${cfg.page_layout.gap_y || 2}mm ${cfg.page_layout.gap_x || 2}mm`;
+                            grid.style.padding = `${cfg.page_layout.margin_y || 8}mm ${cfg.page_layout.margin_x || 8}mm`;
 
-            // QR Codes
-            {% for c in cards %}
-            const qrEl_{{ c.id }} = document.getElementById("qr_{{ c.id }}");
-            if (qrEl_{{ c.id }}) {
-                new QRCode(qrEl_{{ c.id }}, {
-                    text: "{{ c.login_url }}",
-                    width: 64,
-                    height: 64,
-                    colorDark : "#0f172a",
-                    colorLight : "#ffffff",
-                    correctLevel : QRCode.CorrectLevel.M
-                });
-            }
-            {% endfor %}
+                            const cutStyle = cfg.page_layout.cut_lines || 'dashed';
+                            const cutColor = cfg.page_layout.cut_color || '#94a3b8';
+                            if (cutStyle !== 'none') {
+                                document.querySelectorAll('.card-item').forEach(card => {
+                                    card.style.border = `1px ${cutStyle} ${cutColor}`;
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Could not apply print config:', e);
+                    }
+                }
+
+                // Default Template QR Codes
+                {% for c in cards %}
+                const qrEl_{{ c.id }} = document.getElementById("qr_{{ c.id }}");
+                if (qrEl_{{ c.id }}) {
+                    new QRCode(qrEl_{{ c.id }}, {
+                        text: "{{ c.login_url }}",
+                        width: 64,
+                        height: 64,
+                        colorDark : "#0f172a",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.M
+                    });
+                }
+                {% endfor %}
+            {% endif %}
         });
     </script>
 </body>

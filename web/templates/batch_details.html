@@ -28,7 +28,7 @@
                     <div class="flex flex-wrap items-center gap-3 text-xs text-slate-400 mt-1">
                         <span>رقم الدفعة: <strong class="text-blue-400 font-mono">{{ batch.batch_number }}</strong></span>
                         <span>•</span>
-                        <span>الباقة: <strong class="text-emerald-400 font-semibold">{{ batch.package_name }}</strong> <span class="font-mono">({{ batch.package_price }} {{ settings.get('currency_symbol', 'ر.س') }})</span></span>
+                        <span>الباقة: <strong class="text-emerald-400 font-semibold">{{ batch.package_name }}</strong> <span class="font-mono">({{ batch.package_price }} {{ currency_symbol }})</span></span>
                         <span>•</span>
                         <span>السرعة: <strong class="font-mono text-slate-300">{{ batch.rate_download }} / {{ batch.rate_upload }}</strong></span>
                     </div>
@@ -188,7 +188,7 @@
                 <label class="block text-slate-300 font-semibold mb-1">الباقة المخصصة (Package / Profile)</label>
                 <select id="edit_batch_package" name="package_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
                     {% for p in packages %}
-                    <option value="{{ p.id }}">{{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }})</option>
+                    <option value="{{ p.id }}">{{ p.name }} ({{ p.price }} {{ currency_symbol }})</option>
                     {% endfor %}
                 </select>
                 <div class="mt-2 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[11px] leading-relaxed">

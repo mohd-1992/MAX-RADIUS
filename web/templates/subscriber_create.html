@@ -181,7 +181,7 @@
                                 data-unit="{{ p.validity_unit or 'days' }}"
                                 data-down="{{ p.rate_download }}"
                                 data-up="{{ p.rate_upload }}">
-                            {{ p.name }} — السعر: {{ p.price }} {{ settings.get('currency_symbol', 'ر.ي') }} [نوع الخدمة: {{ p.service_type|upper }}]
+                            {{ p.name }} — السعر: {{ p.price }} {{ currency_symbol }} [نوع الخدمة: {{ p.service_type|upper }}]
                         </option>
                         {% endfor %}
                     </select>
@@ -309,7 +309,7 @@
         card.classList.remove('hidden');
 
         document.getElementById('pkgCardName').innerHTML = `<i class="fa-solid fa-layer-group text-purple-400"></i> <span>${opt.text}</span>`;
-        document.getElementById('pkgCardPrice').innerText = `${opt.getAttribute('data-price')} {{ settings.get('currency_symbol', 'ر.ي') }}`;
+        document.getElementById('pkgCardPrice').innerText = `${opt.getAttribute('data-price')} {{ currency_symbol }}`;
         
         const down = opt.getAttribute('data-down');
         const up = opt.getAttribute('data-up');

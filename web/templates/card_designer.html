@@ -9,7 +9,7 @@
     window.INITIAL_CONFIG = {{ saved_config_json|tojson|safe if saved_config_json else 'null' }};
     window.SYSTEM_LOGO_URL = {{ (logo_url or '')|tojson|safe }};
     window.SYSTEM_ISP_NAME = {{ (system_isp_name or 'شبكة الأفق الذكية')|tojson|safe }};
-    window.SYSTEM_CURRENCY = {{ (system_currency or 'ر.س')|tojson|safe }};
+    window.SYSTEM_CURRENCY = {{ (currency_symbol or 'ر.ي')|tojson|safe }};
     window.SYSTEM_DOMAIN = {{ (system_domain or 'wifi.hotspot')|tojson|safe }};
 </script>
 
@@ -565,12 +565,12 @@
                                 </div>
                                 <div>
                                     <h4 id="defCardIspName" class="font-black text-xs text-slate-900 leading-tight">{{ system_isp_name or 'شبكة الأفق الذكية' }}</h4>
-                                    <span id="defCardPkgName" class="text-[10px] font-bold text-blue-600 block">باقة توربو 5 ر.س</span>
+                                    <span id="defCardPkgName" class="text-[10px] font-bold text-blue-600 block">باقة توربو 5 {{ currency_symbol }}</span>
                                 </div>
                             </div>
                             <div id="defCardPriceBox" class="text-left">
                                 <span id="defCardPriceBadge" class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-200">
-                                    5 {{ system_currency or 'ر.س' }}
+                                    5 {{ currency_symbol }}
                                 </span>
                             </div>
                         </div>
@@ -734,7 +734,7 @@
                     id: 'package_name',
                     label: 'اسم الباقة (Profile)',
                     visible: true,
-                    sample: 'باقة توربو 5 ر.س',
+                    sample: 'باقة توربو 5 {{ currency_symbol }}',
                     prefix: '',
                     suffix: '',
                     x: 10,
@@ -754,7 +754,7 @@
                     id: 'price',
                     label: 'سعر الباقة (Price)',
                     visible: true,
-                    sample: '5 ر.س',
+                    sample: '5 {{ currency_symbol }}',
                     prefix: '',
                     suffix: '',
                     x: 82,
@@ -1490,7 +1490,7 @@
                 cardDiv.innerHTML = `
                     <div class="flex items-center justify-between border-b pb-1 text-[8px] font-bold" style="border-color:#e2e8f0;">
                         <span class="text-slate-800">${c.isp_name || 'شبكة الأفق'}</span>
-                        <span class="text-blue-700">5 ${window.SYSTEM_CURRENCY || 'ر.س'}</span>
+                        <span class="text-blue-700">5 ${window.SYSTEM_CURRENCY || '{{ currency_symbol }}'}</span>
                     </div>
                     <div class="flex items-center justify-between py-1">
                         <div>
@@ -1767,7 +1767,7 @@
                 cardBox.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:4px; font-size:10px; font-weight:bold;">
                         <span>${c.isp_name || 'شبكة الأفق الذكية'}</span>
-                        <span style="color:#1e40af;">5 ${window.SYSTEM_CURRENCY || 'ر.س'}</span>
+                        <span style="color:#1e40af;">5 ${window.SYSTEM_CURRENCY || '{{ currency_symbol }}'}</span>
                     </div>
                     <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0;">
                         <div>

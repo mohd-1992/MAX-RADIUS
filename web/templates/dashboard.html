@@ -66,7 +66,7 @@
                         </span>
                         <span class="text-slate-500">•</span>
                         <span class="flex items-center gap-1.5 text-[11px] bg-[#070b14] px-2.5 py-1 rounded-lg border border-[#1c2840]">
-                            العملة: <strong class="text-emerald-400 font-bold font-mono">{{ settings.get('currency_symbol', 'ر.س') }}</strong>
+                            العملة: <strong class="text-emerald-400 font-bold font-mono">{{ currency_symbol }}</strong>
                         </span>
                     </div>
                 </div>
@@ -520,7 +520,7 @@
                     </h4>
                     <p class="text-xs text-slate-400 mt-0.5">تحليل الإيرادات والاشتراكات الشهرية</p>
                 </div>
-                <span class="text-xs font-bold font-mono px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{{ settings.get('currency_symbol', 'ر.س') }}</span>
+                <span class="text-xs font-bold font-mono px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{{ currency_symbol }}</span>
             </div>
             <div class="h-60">
                 <canvas id="salesChart"></canvas>

@@ -195,7 +195,7 @@
                     <select name="package_id" onchange="this.form.submit()" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition">
                         <option value="">جميع الباقات (All)</option>
                         {% for p in packages %}
-                        <option value="{{ p.id }}" {% if package_id == p.id|string %}selected{% endif %}>{{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }})</option>
+                        <option value="{{ p.id }}" {% if package_id == p.id|string %}selected{% endif %}>{{ p.name }} ({{ p.price }} {{ currency_symbol }})</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -549,7 +549,7 @@
 
                         <!-- 10. الرصيد المالي -->
                         <td class="py-3.5 px-4 text-xs font-mono text-emerald-400 font-bold col-balance hidden whitespace-nowrap min-w-[110px]">
-                            {{ c.balance_formatted }} {{ settings.get('currency_symbol', 'ر.س') }}
+                            {{ c.balance_formatted }} {{ currency_symbol }}
                         </td>
 
                         <!-- 11. الحزمة الأصلية -->
@@ -699,7 +699,7 @@
                 <label class="block text-slate-300 font-semibold mb-1">اختر الباقة الجديدة</label>
                 <select id="cp_pkg_id" name="new_package_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:border-blue-500 font-semibold">
                     {% for p in packages %}
-                    <option value="{{ p.id }}">{{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }}) | {{ p.rate_download }}/{{ p.rate_upload }}</option>
+                    <option value="{{ p.id }}">{{ p.name }} ({{ p.price }} {{ currency_symbol }}) | {{ p.rate_download }}/{{ p.rate_upload }}</option>
                     {% endfor %}
                 </select>
                 <span class="text-[11px] text-slate-500 mt-1 block">سيتم تحديث radusergroup، إعادة تعيين الصلاحية والكوتا، وفصل الجلسة لتطبيق السرعة الجديدة</span>
@@ -841,7 +841,7 @@
                 </div>
             </div>
             <div>
-                <label class="block text-slate-300 font-semibold mb-1">المبلغ المراد إيداعه ({{ settings.get('currency_symbol', 'ر.س') }})</label>
+                <label class="block text-slate-300 font-semibold mb-1">المبلغ المراد إيداعه ({{ currency_symbol }})</label>
                 <input type="number" step="0.5" id="aw_amount" name="amount" value="50" min="0.5" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
             </div>
             <div>
@@ -879,7 +879,7 @@
                 </div>
             </div>
             <div>
-                <label class="block text-slate-300 font-semibold mb-1">المبلغ المراد سحبه/خصمه ({{ settings.get('currency_symbol', 'ر.س') }})</label>
+                <label class="block text-slate-300 font-semibold mb-1">المبلغ المراد سحبه/خصمه ({{ currency_symbol }})</label>
                 <input type="number" step="0.5" id="dw_amount" name="amount" value="10" min="0.5" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500">
             </div>
             <div>

@@ -489,7 +489,7 @@ def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, ti
 # -------------------------------------------------------------
 # 3. Execution Engine: Insert into MAX RADIUS
 # -------------------------------------------------------------
-def execute_userman_import(parsed_data, target_type='vouchers', fallback_package=None, duplicate_action='skip', ignore_expired=True, import_consumption=False, admin_user='admin'):
+def execute_userman_import(parsed_data, target_type='vouchers', fallback_package=None, duplicate_action='skip', ignore_expired=True, import_consumption=False, admin_user='admin', profile_costs=None):
     """
     Executes the isolated database insertion:
     - Creates/matches packages in wisp_packages
@@ -505,6 +505,9 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
     
     profiles = parsed_data.get('profiles', [])
     users = parsed_data.get('users', [])
+    if profile_costs is None:
+        profile_costs = {}
+    package_costs_map = {}
     
     stats = {
         'created_packages': 0,
@@ -543,6 +546,8 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
             p_down = prof.get('rate_down', '10M')
             p_up = prof.get('rate_up', '5M')
             p_price = float(prof.get('price', 0.0) or 0.0)
+            p_cost = float(profile_costs.get(p_name, p_price))
+            package_costs_map[p_name] = p_cost
             p_val = int(prof.get('validity_value', 30) or 30)
             p_unit = prof.get('validity_unit', 'days') or 'days'
             p_simul = int(prof.get('override_shared_users', 1) or 1)
@@ -554,9 +559,9 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
                         name, price, cost, validity_value, validity_unit,
                         volume_quota_mb, uptime_limit_mins, rate_download, rate_upload,
                         simultaneous_sessions, is_active, created_at
-                    ) VALUES (?, ?, 0.00, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
                 """.replace('?', '%s' if is_mysql_conn(db) else '?'), (
-                    p_name, p_price, p_val, p_unit, p_quota, p_uptime, p_down, p_up, p_simul
+                    p_name, p_price, p_cost, p_val, p_unit, p_quota, p_uptime, p_down, p_up, p_simul
                 ))
                 pkg_id = cur.lastrowid
                 package_map[p_name] = pkg_id
@@ -762,7 +767,7 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?, CURRENT_TIMESTAMP,
-                    ?, 0.00, ?, ?,
+                    ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?,
                     ?, 'ALL-SPEED'

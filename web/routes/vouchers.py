@@ -110,7 +110,9 @@ def vouchers():
                            q=search,
                            package_id=package_id,
                            reseller_id=reseller_id,
-                           status=status)
+                           status=status,
+                           card_designs=get_all_card_designs())
+
 
 
 @vouchers_bp.route('/vouchers/generate', methods=['POST'], endpoint="generate_vouchers_action")
@@ -870,8 +872,8 @@ def new_voucher_design():
     )
 
 
+@vouchers_bp.route('/vouchers/designs/<int:design_id>', endpoint="edit_voucher_design_direct")
 @vouchers_bp.route('/vouchers/designs/edit/<int:design_id>', endpoint="edit_voucher_design")
-
 @login_required
 def edit_voucher_design(design_id):
     """عرض صفحة مصمم الكروت لتعديل تصميم موجود"""
@@ -1023,12 +1025,57 @@ def print_cards(batch_id):
     if not batch:
         flash('الدفعة المطلوبة غير موجودة.', 'danger')
         return redirect(url_for('vouchers'))
-        
+
+    design_id = request.args.get('design_id')
+    selected_design = None
+    if design_id:
+        try:
+            selected_design = get_card_design_by_id(int(design_id))
+        except Exception:
+            selected_design = None
+
+    designs = get_all_card_designs()
+
+    # Calculate pagination pages if custom design is selected
+    card_pages = []
+    if selected_design:
+        cols = int(selected_design.get('cards_per_row') or 2)
+        rows_cnt = int(selected_design.get('cards_per_col') or 5)
+        cards_per_page = max(1, cols * rows_cnt)
+        card_pages = [cards[i:i + cards_per_page] for i in range(0, len(cards), cards_per_page)]
+
+        # Auto-containment: calculate exact card dimensions to fill A4 without gaps
+        try:
+            margin_top = float(selected_design.get('margin_top_mm') if selected_design.get('margin_top_mm') is not None else 10.0)
+            margin_page = float(selected_design.get('margin_page_mm') if selected_design.get('margin_page_mm') is not None else 10.0)
+            spacing = float(selected_design.get('card_spacing_mm') if selected_design.get('card_spacing_mm') is not None else 0.0)
+
+            avail_w = max(20.0, 210.0 - (2.0 * margin_page) - ((cols - 1) * spacing))
+            avail_h = max(20.0, 297.0 - (2.0 * margin_top) - ((rows_cnt - 1) * spacing))
+
+            card_w = round(avail_w / cols, 2)
+            card_h = round(avail_h / rows_cnt, 2)
+            selected_design['width_mm'] = card_w
+            selected_design['height_mm'] = card_h
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("Error calculating auto-containment in print_cards: %s", e)
+    else:
+        card_pages = [cards]
+
     # Load advanced JSON configuration from wisp_system_settings
     setting_row = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = 'voucher_custom_design_config'")
     saved_config_json = setting_row['value'] if setting_row and setting_row.get('value') else None
 
-    return render_template('print_cards.html', batch=batch, cards=cards, tpl=template, saved_config_json=saved_config_json)
+    return render_template('print_cards.html',
+                           batch=batch,
+                           cards=cards,
+                           card_pages=card_pages,
+                           tpl=template,
+                           saved_config_json=saved_config_json,
+                           designs=designs,
+                           selected_design=selected_design,
+                           selected_design_id=int(design_id) if (design_id and str(design_id).isdigit()) else None)
 
 
 @vouchers_bp.route('/vouchers/delete-batch/<int:batch_id>', methods=['POST'], endpoint="delete_batch_action")

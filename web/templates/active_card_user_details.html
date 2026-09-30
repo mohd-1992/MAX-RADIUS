@@ -176,7 +176,7 @@
                     <h4 class="font-bold text-sm text-white flex items-center gap-2">
                         <i class="fa-solid fa-gauge-simple-high text-emerald-400"></i>حالة الباقة والاستهلاك
                     </h4>
-                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/20">{{ card.price }} {{ settings.get('currency_symbol', 'ر.س') }}</span>
+                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/20">{{ card.price }} {{ currency_symbol }}</span>
                 </div>
                 <div class="space-y-3 text-xs">
                     <div class="flex items-center justify-between">
@@ -306,7 +306,7 @@
                     <div class="space-y-2.5">
                         <div class="flex items-center justify-between">
                             <span class="text-slate-400">سعر البيع:</span>
-                            <strong class="text-emerald-400 font-bold font-mono">{{ card.price }} {{ settings.get('currency_symbol', 'ر.س') }}</strong>
+                            <strong class="text-emerald-400 font-bold font-mono">{{ card.price }} {{ currency_symbol }}</strong>
                         </div>
                         <div class="flex items-center justify-between">
                             <span class="text-slate-400">السرعة القصوى:</span>
@@ -348,7 +348,7 @@
                         <select name="package_id" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
                             {% for p in packages %}
                             <option value="{{ p.id }}" {% if card.package_id == p.id %}selected{% endif %}>
-                                {{ p.name }} ({{ p.price }} {{ settings.get('currency_symbol', 'ر.س') }}) - {{ p.rate_download }}/{{ p.rate_upload }}
+                                {{ p.name }} ({{ p.price }} {{ currency_symbol }}) - {{ p.rate_download }}/{{ p.rate_upload }}
                             </option>
                             {% endfor %}
                         </select>
@@ -480,7 +480,7 @@
                             <td class="p-3 font-mono font-bold text-blue-400">{{ inv.invoice_number or inv.id }}</td>
                             <td class="p-3 font-mono text-slate-300">{{ inv.created_at or '-' }}</td>
                             <td class="p-3 font-semibold text-white">{{ card.package_name }}</td>
-                            <td class="p-3 font-mono font-bold text-emerald-400">{{ inv.amount or card.price }} {{ settings.get('currency_symbol', 'ر.س') }}</td>
+                            <td class="p-3 font-mono font-bold text-emerald-400">{{ inv.amount or card.price }} {{ currency_symbol }}</td>
                             <td class="p-3">
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
                                     {{ inv.operation_type or 'شراء كرت' }}

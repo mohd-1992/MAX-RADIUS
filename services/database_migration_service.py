@@ -727,9 +727,20 @@ def execute_database_migration(file_input, options=None):
 
         # 1. Resolve / Create Packages
         resolved_pkg_map = {}
+        package_costs = options.get('package_costs') or {}
         for p in analysis['profiles']:
             src_id = str(p['id'])
             target_choice = package_mapping.get(src_id, 'auto_create')
+
+            p_price = float(p.get('price') or 0.0)
+            custom_cost = package_costs.get(src_id) if src_id in package_costs else package_costs.get(str(p.get('id')))
+            if custom_cost is not None and str(custom_cost).strip() != '':
+                try:
+                    p_cost = float(custom_cost)
+                except (ValueError, TypeError):
+                    p_cost = p_price
+            else:
+                p_cost = p_price
 
             if target_choice == 'auto_create' or str(target_choice).startswith('create_'):
                 _exec_sql(cur, db, "SELECT * FROM wisp_packages WHERE name = ?", (p['name'],))
@@ -738,6 +749,9 @@ def execute_database_migration(file_input, options=None):
                     if not isinstance(existing, dict) and hasattr(existing, 'keys'):
                         existing = dict(existing)
                     pkg_row = existing
+                    if p_cost != p_price or pkg_row.get('cost') is None:
+                        _exec_sql(cur, db, "UPDATE wisp_packages SET cost = ? WHERE id = ?", (p_cost, pkg_row['id']))
+                        pkg_row['cost'] = p_cost
                     stats['packages_mapped'] += 1
                 else:
                     _exec_sql(cur, db, """
@@ -747,7 +761,7 @@ def execute_database_migration(file_input, options=None):
                             mikrotik_group, simultaneous_sessions, is_active, description, created_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NOW())
                     """, (
-                        p['name'], 'hotspot', p['price'], round(p['price'] * 0.8, 2),
+                        p['name'], 'hotspot', p_price, p_cost,
                         '0', '0', p['traffic_mb'], 0, p['validity_value'], p['validity_value'], p['validity_unit'],
                         p['mikrotik_group'], 1, f"تم الاستيراد تلقائياً من {analysis['system_type']}"
                     ))
@@ -756,8 +770,8 @@ def execute_database_migration(file_input, options=None):
                     pkg_row = {
                         'id': new_pkg_id,
                         'name': p['name'],
-                        'price': p['price'],
-                        'cost': round(p['price'] * 0.8, 2),
+                        'price': p_price,
+                        'cost': p_cost,
                         'rate_download': '0',
                         'rate_upload': '0',
                         'volume_quota_mb': p['traffic_mb'],
@@ -926,6 +940,35 @@ def execute_database_migration(file_input, options=None):
         radgroup_bulk = []
         radacct_bulk = []
         user_sessions_agg = {}
+
+        def _flush_radacct(bulk):
+            if not bulk:
+                return
+            sample_len = len(bulk[0]) if bulk else 0
+            if sample_len == 25:
+                sql = adapt_query("""
+                    INSERT IGNORE INTO radacct (
+                        acctsessionid, acctuniqueid, username, realm, nasipaddress,
+                        nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime,
+                        acctinterval, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop,
+                        acctinputoctets, acctoutputoctets, acctinputgigawords, acctoutputgigawords,
+                        calledstationid, callingstationid,
+                        acctterminatecause, servicetype, framedprotocol, framedipaddress
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, db)
+            else:
+                sql = adapt_query("""
+                    INSERT IGNORE INTO radacct (
+                        acctsessionid, acctuniqueid, username, realm, nasipaddress,
+                        nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime,
+                        acctinterval, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop,
+                        acctinputoctets, acctoutputoctets, calledstationid, callingstationid,
+                        acctterminatecause, servicetype, framedprotocol, framedipaddress
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, db)
+            cur.executemany(sql, bulk)
+            stats['sessions_imported'] += len(bulk)
+            bulk.clear()
 
         now_dt = datetime.datetime.now()
         last_progress_time = time.time()
@@ -1353,18 +1396,7 @@ def execute_database_migration(file_input, options=None):
                                 ))
 
                                 if len(radacct_bulk) >= 6000:
-                                    insert_sql = adapt_query("""
-                                        INSERT IGNORE INTO radacct (
-                                            acctsessionid, acctuniqueid, username, realm, nasipaddress,
-                                            nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime,
-                                            acctinterval, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop,
-                                            acctinputoctets, acctoutputoctets, calledstationid, callingstationid,
-                                            acctterminatecause, servicetype, framedprotocol, framedipaddress
-                                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                    """, db)
-                                    cur.executemany(insert_sql, radacct_bulk)
-                                    stats['sessions_imported'] += len(radacct_bulk)
-                                    radacct_bulk = []
+                                    _flush_radacct(radacct_bulk)
                                     db.commit()
 
                             processed_units += 1
@@ -1447,6 +1479,11 @@ def execute_database_migration(file_input, options=None):
                 cur.executemany(rg_sql, radgroup_bulk)
                 radgroup_bulk = []
 
+            # Flush any remaining detailed radacct sessions from the stream
+            if radacct_bulk:
+                _flush_radacct(radacct_bulk)
+                db.commit()
+
             # If consolidated session mode, build consolidated historical rows
             if session_mode == 'consolidated' and user_sessions_agg:
                 now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -1466,34 +1503,10 @@ def execute_database_migration(file_input, options=None):
                         'Framed-User', 'PPP', agg['framedip']
                     ))
                     if len(radacct_bulk) >= 4000:
-                        insert_sql = adapt_query("""
-                            INSERT IGNORE INTO radacct (
-                                acctsessionid, acctuniqueid, username, realm, nasipaddress,
-                                nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime,
-                                acctinterval, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop,
-                                acctinputoctets, acctoutputoctets, acctinputgigawords, acctoutputgigawords,
-                                calledstationid, callingstationid,
-                                acctterminatecause, servicetype, framedprotocol, framedipaddress
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, db)
-                        cur.executemany(insert_sql, radacct_bulk)
-                        stats['sessions_imported'] += len(radacct_bulk)
-                        radacct_bulk = []
+                        _flush_radacct(radacct_bulk)
 
             if radacct_bulk:
-                insert_sql = adapt_query("""
-                    INSERT IGNORE INTO radacct (
-                        acctsessionid, acctuniqueid, username, realm, nasipaddress,
-                        nasportid, nasporttype, acctstarttime, acctupdatetime, acctstoptime,
-                        acctinterval, acctsessiontime, acctauthentic, connectinfo_start, connectinfo_stop,
-                        acctinputoctets, acctoutputoctets, acctinputgigawords, acctoutputgigawords,
-                        calledstationid, callingstationid,
-                        acctterminatecause, servicetype, framedprotocol, framedipaddress
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, db)
-                cur.executemany(insert_sql, radacct_bulk)
-                stats['sessions_imported'] += len(radacct_bulk)
-                radacct_bulk = []
+                _flush_radacct(radacct_bulk)
 
             db.commit()
 
