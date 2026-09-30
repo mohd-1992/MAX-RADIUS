@@ -7,6 +7,7 @@ package renewals & changes, and personal session history.
 
 import re
 import datetime
+from core.config import DB_TYPE
 from database.db import query_one, query_all, execute_write, execute_update, db_session, adapt_query, is_mysql_conn, log_audit, log_user_audit
 from core.rate_limit import format_bytes, format_duration
 from core.radius_sync import sync_subscriber_to_radius, delete_user_from_radius
@@ -418,7 +419,7 @@ def get_portal_user_data(username):
             user_info = {
                 'type': 'voucher',
                 'username': v_card['username'],
-                'full_name': f"كرت إنترنت ({v_card['batch_name']})",
+                'full_name': f"كرت إنترنت ({v_card['username']})",
                 'phone': '',
                 'service_type': 'hotspot',
                 'balance': float(v_card.get('balance') or 0.0),
@@ -457,31 +458,53 @@ def get_portal_user_data(username):
             }
 
     # 2. Check active live connection in radacct with Interim-Update Heartbeat
-    cutoff_str = get_heartbeat_cutoff_str(5)
-    active_session = query_one("""
-        SELECT * FROM radacct
-        WHERE LOWER(username) = LOWER(?) 
-          AND acctstoptime IS NULL
-          AND (
-            (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
-            OR
-            (acctupdatetime IS NULL AND acctstarttime >= ?)
-          )
-        ORDER BY radacctid DESC LIMIT 1
-    """, (username, cutoff_str, cutoff_str))
+    if DB_TYPE == 'mysql':
+        active_session = query_one("""
+            SELECT * FROM radacct
+            WHERE LOWER(username) = LOWER(?) 
+              AND acctstoptime IS NULL
+              AND (
+                (acctupdatetime IS NOT NULL AND acctupdatetime >= DATE_SUB(NOW(), INTERVAL 5 MINUTE))
+                OR
+                (acctupdatetime IS NULL AND acctstarttime >= DATE_SUB(NOW(), INTERVAL 5 MINUTE))
+              )
+            ORDER BY radacctid DESC LIMIT 1
+        """, (username,))
+    else:
+        cutoff_str = get_heartbeat_cutoff_str(5)
+        active_session = query_one("""
+            SELECT * FROM radacct
+            WHERE LOWER(username) = LOWER(?) 
+              AND acctstoptime IS NULL
+              AND (
+                (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
+                OR
+                (acctupdatetime IS NULL AND acctstarttime >= ?)
+              )
+            ORDER BY radacctid DESC LIMIT 1
+        """, (username, cutoff_str, cutoff_str))
 
     if active_session:
         user_info['is_online'] = True
-        user_info['current_ip'] = active_session['framedipaddress'] or '10.x.x.x'
-        user_info['mac_address'] = active_session['callingstationid'] or '-'
-        user_info['session_start'] = str(active_session['acctstarttime'])
-        user_info['nas_ip'] = active_session['nasipaddress']
+        user_info['current_ip'] = active_session.get('framedipaddress') or '-'
+        user_info['mac_address'] = active_session.get('callingstationid') or '-'
+        user_info['session_start'] = str(active_session.get('acctstarttime'))
+        user_info['nas_ip'] = active_session.get('nasipaddress') or '-'
+        sess_time = int(active_session.get('acctsessiontime') or 0)
+        user_info['uptime_str'] = format_duration(sess_time) if sess_time > 0 else 'أقل من دقيقة'
+        bytes_out = (int(active_session.get('acctoutputgigawords') or 0) * 4294967296) + int(active_session.get('acctoutputoctets') or 0)
+        bytes_in = (int(active_session.get('acctinputgigawords') or 0) * 4294967296) + int(active_session.get('acctinputoctets') or 0)
+        user_info['bytes_out_str'] = format_bytes(bytes_out)
+        user_info['bytes_in_str'] = format_bytes(bytes_in)
     else:
         user_info['is_online'] = False
         user_info['current_ip'] = '-'
         user_info['mac_address'] = '-'
         user_info['session_start'] = '-'
         user_info['nas_ip'] = '-'
+        user_info['uptime_str'] = 'غير متصل'
+        user_info['bytes_out_str'] = '0 MB'
+        user_info['bytes_in_str'] = '0 MB'
 
     cycle_start = None
     if sub:

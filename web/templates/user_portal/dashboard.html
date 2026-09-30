@@ -38,7 +38,7 @@
                         <span>@{{ user.username }}</span>
                         <span>•</span>
                         <span>باقة: <strong class="text-cyan-400">{{ user.package_name }}</strong></span>
-                        {% if user.current_ip %}
+                        {% if user.is_online and user.current_ip and user.current_ip != 'غير متصل' and user.current_ip != '-' %}
                         <span class="hidden sm:inline">•</span>
                         <span class="hidden sm:inline">IP: {{ user.current_ip }}</span>
                         {% endif %}
@@ -287,32 +287,53 @@
     <!-- 5. ACTIVE SESSION & NETWORK INFORMATION CARD                              -->
     <!-- ========================================================================= -->
     <div class="portal-card p-4 sm:p-5 rounded-3xl border border-[#1c2840] space-y-3 shadow-lg">
-        <div class="flex items-center justify-between border-b border-[#162136] pb-2.5">
-            <h4 class="text-xs font-black text-white flex items-center gap-2">
-                <i class="fa-solid fa-network-wired text-cyan-400"></i>
-                <span>تفاصيل الاتصال والجلسة الحالية</span>
-            </h4>
+        <div class="flex items-center justify-between border-b border-[#162136] pb-2.5 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+                <h4 class="text-xs font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-network-wired text-cyan-400"></i>
+                    <span>تفاصيل الاتصال والجلسة الحالية</span>
+                </h4>
+                {% if user.is_online %}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>متصل الآن</span>
+                </span>
+                {% else %}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                    <span>غير متصل</span>
+                </span>
+                {% endif %}
+            </div>
             <span class="text-[10px] font-mono text-slate-400 bg-[#070b14] px-2.5 py-1 rounded-lg border border-[#162136]">
-                {{ user.mac_address or 'MAC N/A' }}
+                {{ user.mac_address if (user.is_online and user.mac_address and user.mac_address != '-') else 'لا يوجد جهاز متصل' }}
             </span>
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div class="p-2.5 bg-[#070b14] rounded-xl border border-[#162136]">
                 <span class="text-[10px] text-slate-400 block mb-0.5">عنوان IP</span>
-                <span class="font-mono font-bold text-slate-200">{{ user.current_ip or '10.100.10.x' }}</span>
+                <span class="font-mono font-bold {{ 'text-slate-200' if user.is_online else 'text-slate-500' }}">
+                    {{ user.current_ip if (user.is_online and user.current_ip and user.current_ip != '-') else 'غير متصل' }}
+                </span>
             </div>
             <div class="p-2.5 bg-[#070b14] rounded-xl border border-[#162136]">
                 <span class="text-[10px] text-slate-400 block mb-0.5">مدة الاتصال</span>
-                <span class="font-mono font-bold text-emerald-400">{{ user.uptime_str or 'متصل الآن' }}</span>
+                <span class="font-mono font-bold {{ 'text-emerald-400' if user.is_online else 'text-slate-500' }}">
+                    {{ user.uptime_str if user.is_online else 'لا توجد جلسة نشطة' }}
+                </span>
             </div>
             <div class="p-2.5 bg-[#070b14] rounded-xl border border-[#162136]">
-                <span class="text-[10px] text-slate-400 block mb-0.5">البيانات المحملة</span>
-                <span class="font-mono font-bold text-sky-400">{{ user.bytes_out_str or '0 MB' }}</span>
+                <span class="text-[10px] text-slate-400 block mb-0.5">البيانات المحملة (الجلسة)</span>
+                <span class="font-mono font-bold {{ 'text-sky-400' if user.is_online else 'text-slate-500' }}">
+                    {{ user.bytes_out_str if user.is_online else '0 MB' }}
+                </span>
             </div>
             <div class="p-2.5 bg-[#070b14] rounded-xl border border-[#162136]">
-                <span class="text-[10px] text-slate-400 block mb-0.5">البيانات المرفوعة</span>
-                <span class="font-mono font-bold text-purple-400">{{ user.bytes_in_str or '0 MB' }}</span>
+                <span class="text-[10px] text-slate-400 block mb-0.5">البيانات المرفوعة (الجلسة)</span>
+                <span class="font-mono font-bold {{ 'text-purple-400' if user.is_online else 'text-slate-500' }}">
+                    {{ user.bytes_in_str if user.is_online else '0 MB' }}
+                </span>
             </div>
         </div>
     </div>
@@ -386,7 +407,8 @@
             <button onclick="closeModal('modal-recharge')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
-        <form method="POST" action="{{ url_for('user_recharge_action') }}" class="space-y-4">
+        <form id="form-quick-recharge" method="POST" action="{{ url_for('user_recharge_action') }}" onsubmit="handleQuickRecharge(event)" class="space-y-4">
+            <input type="hidden" name="redirect_to" value="dashboard">
             <div>
                 <label class="block text-xs font-bold text-slate-300 mb-2">طريقة الاستفادة من الكرت:</label>
                 <div class="grid grid-cols-2 gap-2">
@@ -403,11 +425,11 @@
 
             <div class="space-y-1.5">
                 <label class="block text-xs font-bold text-slate-300">رقم الكرت أو القسيمة:</label>
-                <input type="text" name="card_code" required autofocus placeholder="أدخل رقم الكرت هنا..." 
+                <input type="text" name="card_code" id="quick_card_code" required autofocus placeholder="أدخل رقم الكرت هنا..." 
                        class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-center text-sm font-mono font-bold text-white focus:border-emerald-500 outline-none">
             </div>
 
-            <button type="submit" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer">
+            <button type="submit" id="btnConfirmRecharge" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-circle-check"></i>
                 <span>تأكيد وشحن الكرت</span>
             </button>
@@ -577,6 +599,107 @@
             alert('حدث خطأ في الاتصال بالخادم.');
             console.error(err);
         });
+    }
+
+    // Execute quick recharge via AJAX
+    function handleQuickRecharge(event) {
+        event.preventDefault();
+        const form = document.getElementById('form-quick-recharge') || event.target;
+        const btn = document.getElementById('btnConfirmRecharge');
+        const origText = btn ? btn.innerHTML : 'تأكيد وشحن الكرت';
+        const cardCodeInput = document.getElementById('quick_card_code');
+        const cardCode = cardCodeInput ? cardCodeInput.value.trim() : '';
+        const rechargeTypeElem = form.querySelector('input[name="recharge_type"]:checked');
+        const rechargeType = rechargeTypeElem ? rechargeTypeElem.value : 'package';
+
+        if (!cardCode) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'تنبيه',
+                    text: 'يرجى إدخال رقم الكرت أولاً.',
+                    confirmButtonText: 'حسناً',
+                    customClass: {
+                        popup: 'portal-card rounded-3xl border border-amber-500/40 text-white',
+                        confirmButton: 'bg-amber-500 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs'
+                    }
+                });
+            } else {
+                alert('يرجى إدخال رقم الكرت أولاً.');
+            }
+            return false;
+        }
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> <span>جاري شحن الكرت...</span>';
+        }
+
+        fetch("{{ url_for('user_recharge_action') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                card_code: cardCode,
+                recharge_type: rechargeType,
+                redirect_to: 'dashboard'
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origText;
+            }
+            closeModal('modal-recharge');
+            if (data.success) {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم شحن الكرت بنجاح!',
+                        text: data.message,
+                        confirmButtonText: 'ممتاز',
+                        customClass: {
+                            popup: 'portal-card rounded-3xl border border-emerald-500/40 text-white',
+                            confirmButton: 'bg-emerald-500 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs'
+                        }
+                    }).then(() => location.reload());
+                } else {
+                    alert(data.message);
+                    location.reload();
+                }
+            } else {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'تعذر شحن الكرت',
+                        text: data.message,
+                        confirmButtonText: 'محاولة أخرى',
+                        customClass: {
+                            popup: 'portal-card rounded-3xl border border-rose-500/40 text-white',
+                            confirmButton: 'bg-rose-500 text-white font-black px-5 py-2.5 rounded-xl text-xs'
+                        }
+                    }).then(() => {
+                        openModal('modal-recharge');
+                    });
+                } else {
+                    alert(data.message);
+                    openModal('modal-recharge');
+                }
+            }
+        })
+        .catch(err => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origText;
+            }
+            console.error(err);
+            alert('حدث خطأ في الاتصال بالخادم أثناء شحن الكرت.');
+        });
+
+        return false;
     }
 
     // Real-time Session Heartbeat Poller

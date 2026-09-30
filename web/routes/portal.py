@@ -414,21 +414,36 @@ def user_recharge():
 
 
 @portal_bp.route('/user/recharge', methods=['POST'], endpoint="user_recharge_action")
-
 def user_recharge_action():
     username = session.get('portal_user')
     if not username:
+        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': 'يرجى تسجيل الدخول أولاً'}), 401
         return redirect(url_for('user_login'))
     
-    card_code = request.form.get('card_code', '').strip()
-    recharge_type = request.form.get('recharge_type', 'package').strip()
+    if request.is_json:
+        data = request.get_json() or {}
+        card_code = data.get('card_code', '').strip()
+        recharge_type = data.get('recharge_type', 'package').strip()
+        redirect_target = data.get('redirect_to', '')
+    else:
+        card_code = request.form.get('card_code', '').strip()
+        recharge_type = request.form.get('recharge_type', 'package').strip()
+        redirect_target = request.form.get('redirect_to', '')
+
     success, msg = recharge_user_wallet_by_card(username, card_code, recharge_type)
     
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'success': success, 'message': msg})
+
     if success:
         flash(msg, 'success')
     else:
         flash(msg, 'danger')
         
+    if redirect_target == 'dashboard':
+        return redirect(url_for('user_dashboard'))
+
     ref = request.referrer or ''
     if 'recharge' in ref and 'dashboard' not in ref:
         return redirect(url_for('user_recharge'))
