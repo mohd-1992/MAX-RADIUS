@@ -788,30 +788,58 @@ def update_card_action():
 @vouchers_bp.route('/card/inspect', endpoint="card_inspect")
 
 def card_inspect():
-
     query = request.args.get('q', '').strip()
     card = None
     sessions = []
-    total_down = "0 MB"
-    total_up = "0 MB"
-    is_online = False
+    diag = {
+        'total_down_str': "0 MB",
+        'total_up_str': "0 MB",
+        'total_traffic_str': "0 MB",
+        'total_down_bytes': 0,
+        'total_up_bytes': 0,
+        'total_traffic_bytes': 0,
+        'total_quota_str': "0 MB",
+        'rem_quota_str': "0 MB",
+        'pct_used': 0.0,
+        'pct_remaining': 100.0,
+        'time_left_str': "غير محدد",
+        'is_expired': False,
+        'is_online': False,
+        'active_session': None,
+        'online_nas': None,
+        'online_ip': None,
+        'online_mac': None,
+        'online_duration': None
+    }
 
     if query:
         card = query_one('''
-            SELECT v.*, p.name as package_name, 
+            SELECT v.*, 
+                   p.name as package_name, 
                    COALESCE(v.snap_price, p.price) as price, 
                    COALESCE(v.snap_rate_download, p.rate_download) as rate_download, 
                    COALESCE(v.snap_rate_upload, p.rate_upload) as rate_upload,
-                   COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb) as volume_quota_mb
+                   COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb) as volume_quota_mb,
+                   COALESCE(v.snap_uptime_limit_mins, p.uptime_limit_mins) as uptime_limit_mins,
+                   COALESCE(v.snap_validity_days, p.validity_days) as validity_days,
+                   b.name as batch_name,
+                   b.prefix as batch_prefix,
+                   r.name as reseller_name
             FROM wisp_vouchers v
-            JOIN wisp_packages p ON v.package_id = p.id
+            LEFT JOIN wisp_packages p ON v.package_id = p.id
+            LEFT JOIN wisp_voucher_batches b ON v.batch_id = b.id
+            LEFT JOIN wisp_resellers r ON v.reseller_id = r.id
             WHERE v.username = ? OR v.pin_code = ? OR v.serial_number = ?
             LIMIT 1
         ''', (query, query, query))
+
         if card:
+            # 1. Fetch sessions
             sessions = get_subscriber_sessions(card['username'])
+
+            # 2. Accurate Traffic Consumption from radacct
             traffic = query_one('''
-                SELECT COALESCE(SUM(total_in), 0) as up, COALESCE(SUM(total_out), 0) as down
+                SELECT COALESCE(SUM(total_in), 0) as up_bytes, COALESCE(SUM(total_out), 0) as down_bytes
                 FROM (
                     SELECT nasipaddress, acctsessionid,
                            MAX(acctinputoctets) as total_in,
@@ -821,21 +849,169 @@ def card_inspect():
                     GROUP BY nasipaddress, acctsessionid
                 ) AS t
             ''', (card['username'],))
+
+            down_b = int(traffic['down_bytes'] or 0) if traffic else 0
+            up_b = int(traffic['up_bytes'] or 0) if traffic else 0
+            total_b = down_b + up_b
+
+            diag['total_down_bytes'] = down_b
+            diag['total_up_bytes'] = up_b
+            diag['total_traffic_bytes'] = total_b
+            diag['total_down_str'] = format_bytes(down_b)
+            diag['total_up_str'] = format_bytes(up_b)
+            diag['total_traffic_str'] = format_bytes(total_b)
+
+            # 3. Quota Calculations
+            quota_mb = float(card.get('volume_quota_mb') or 0.0)
+            if quota_mb > 0:
+                quota_bytes = int(quota_mb * 1024 * 1024)
+                rem_bytes = max(0, quota_bytes - total_b)
+                pct_used = min(100.0, round((total_b / quota_bytes) * 100.0, 1))
+                pct_rem = max(0.0, round(100.0 - pct_used, 1))
+                diag['total_quota_str'] = format_bytes(quota_bytes)
+                diag['rem_quota_str'] = format_bytes(rem_bytes)
+                diag['pct_used'] = pct_used
+                diag['pct_remaining'] = pct_rem
+            else:
+                diag['total_quota_str'] = "غير محدود"
+                diag['rem_quota_str'] = "غير محدود"
+                diag['pct_used'] = 0.0
+                diag['pct_remaining'] = 100.0
+
+            # 4. Validity & Expiration Time left
+            if card.get('expires_at'):
+                try:
+                    exp_dt = datetime.datetime.strptime(str(card['expires_at']), '%Y-%m-%d %H:%M:%S')
+                    now_dt = datetime.datetime.now()
+                    if exp_dt > now_dt:
+                        diff = exp_dt - now_dt
+                        days = diff.days
+                        hours = diff.seconds // 3600
+                        mins = (diff.seconds % 3600) // 60
+                        if days > 0:
+                            diag['time_left_str'] = f"{days} يوم و {hours} س متبقية"
+                        elif hours > 0:
+                            diag['time_left_str'] = f"{hours} ساعة و {mins} د متبقية"
+                        else:
+                            diag['time_left_str'] = f"{mins} دقيقة متبقية"
+                        diag['is_expired'] = False
+                    else:
+                        diff = now_dt - exp_dt
+                        days = diff.days
+                        diag['time_left_str'] = f"منتهي الصلاحية منذ {days} يوم" if days > 0 else "منتهي الصلاحية اليوم"
+                        diag['is_expired'] = True
+                except Exception:
+                    diag['time_left_str'] = "غير محدد"
+            elif card.get('status') == 'unused':
+                val_days = card.get('validity_days') or 30
+                diag['time_left_str'] = f"لم يبدأ بعد ({val_days} يوم عند التفعيل)"
+
+            # 5. Live Online Check & Active Session Details
             from core.time_service import get_utc_cutoff_str
             cutoff_s = get_utc_cutoff_str(3)
-            online_rec = query_one('''
-                SELECT 1 FROM radacct 
-                WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL
+            active_sess = query_one('''
+                SELECT r.*, n.name as nas_name
+                FROM radacct r
+                LEFT JOIN wisp_nas_devices n ON (r.nasipaddress = n.ip_address)
+                WHERE LOWER(r.username) = LOWER(?) AND r.acctstoptime IS NULL
                   AND (
-                      (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
+                      (r.acctupdatetime IS NOT NULL AND r.acctupdatetime >= ?)
                       OR
-                      (acctupdatetime IS NULL AND acctstarttime >= ?)
+                      (r.acctupdatetime IS NULL AND r.acctstarttime >= ?)
                   )
+                ORDER BY r.radacctid DESC
                 LIMIT 1
             ''', (card['username'], cutoff_s, cutoff_s))
-            is_online = bool(online_rec)
 
-    return render_template('card_inspect.html', query=query, card=card, sessions=sessions, total_down=total_down, total_up=total_up, is_online=is_online)
+            if active_sess:
+                diag['is_online'] = True
+                diag['active_session'] = active_sess
+                diag['online_nas'] = active_sess.get('nas_name') or active_sess.get('nasipaddress') or '-'
+                diag['online_ip'] = active_sess.get('framedipaddress') or '-'
+                diag['online_mac'] = active_sess.get('callingstationid') or '-'
+                duration_sec = int(active_sess.get('acctsessiontime') or 0)
+                diag['online_duration'] = format_duration(duration_sec) if duration_sec > 0 else "متصل الآن"
+
+    currency_setting = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = 'currency_symbol'")
+    curr_sym = currency_setting['value'] if currency_setting and currency_setting.get('value') else 'ريال'
+
+    return render_template(
+        'card_inspect.html',
+        query=query,
+        card=card,
+        sessions=sessions,
+        diag=diag,
+        currency_symbol=curr_sym,
+        total_down=diag['total_down_str'],
+        total_up=diag['total_up_str'],
+        is_online=diag['is_online']
+    )
+
+
+@vouchers_bp.route('/api/vouchers/reset-mac', methods=['POST'], endpoint="api_reset_voucher_mac")
+def api_reset_voucher_mac():
+    try:
+        username = request.values.get('username', '').strip()
+        if not username and request.is_json:
+            username = (request.json or {}).get('username', '').strip()
+        if not username:
+            return jsonify({'success': False, 'message': 'اسم المستخدم مطلوب.'})
+        
+        # 1. Clear bound MAC in wisp_vouchers
+        execute_write("UPDATE wisp_vouchers SET bound_mac = NULL WHERE username = ?", (username,))
+        # 2. Clear Calling-Station-Id in radcheck
+        execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = 'Calling-Station-Id'", (username,))
+        
+        admin_user = session.get('admin_username') or 'admin'
+        log_audit(1, admin_user, 'RESET_VOUCHER_MAC', 'vouchers', f'Reset bound MAC for voucher {username}')
+        return jsonify({'success': True, 'message': f'تم فك قيد الماك بنجاح للكرت [{username}]. يمكن للمشترك الآن الدخول من أي جهاز.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'خطأ أثناء فك الماك: {str(e)}'}), 500
+
+
+@vouchers_bp.route('/api/vouchers/extend-quota-time', methods=['POST'], endpoint="api_extend_voucher")
+def api_extend_voucher():
+    try:
+        username = request.values.get('username', '').strip()
+        add_days = int(request.values.get('add_days', 0) or 0)
+        add_mb = int(request.values.get('add_mb', 0) or 0)
+        
+        card = query_one("SELECT * FROM wisp_vouchers WHERE username = ?", (username,))
+        if not card:
+            return jsonify({'success': False, 'message': 'الكرت غير موجود.'})
+        
+        # Add days to expiration
+        if add_days > 0:
+            if card.get('expires_at'):
+                try:
+                    curr_exp = datetime.datetime.strptime(str(card['expires_at']), '%Y-%m-%d %H:%M:%S')
+                    if curr_exp < datetime.datetime.now():
+                        curr_exp = datetime.datetime.now()
+                    new_exp = (curr_exp + datetime.timedelta(days=add_days)).strftime('%Y-%m-%d %H:%M:%S')
+                except Exception:
+                    new_exp = (datetime.datetime.now() + datetime.timedelta(days=add_days)).strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                new_exp = (datetime.datetime.now() + datetime.timedelta(days=add_days)).strftime('%Y-%m-%d %H:%M:%S')
+                
+            execute_write("UPDATE wisp_vouchers SET expires_at = ?, status = 'active' WHERE username = ?", (new_exp, username))
+            execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = 'Expiration'", (username,))
+            execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_exp))
+            
+        # Add MB to quota
+        if add_mb > 0:
+            curr_mb = int(card.get('snap_volume_quota_mb') or 0)
+            new_mb = curr_mb + add_mb
+            execute_write("UPDATE wisp_vouchers SET snap_volume_quota_mb = ?, status = 'active' WHERE username = ?", (new_mb, username))
+            new_octets = new_mb * 1024 * 1024
+            execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = 'Max-Total-Octets'", (username,))
+            execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Max-Total-Octets', ':=', ?)", (username, str(new_octets)))
+            
+        admin_user = session.get('admin_username') or 'admin'
+        log_audit(1, admin_user, 'EXTEND_VOUCHER', 'vouchers', f'Extended voucher {username} (+{add_days} days, +{add_mb} MB)')
+        return jsonify({'success': True, 'message': f'تم تمديد الكرت [{username}] بنجاح (+{add_days} أيام، +{add_mb} MB).'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'خطأ أثناء التمديد: {str(e)}'}), 500
+
 
 
 @vouchers_bp.route('/vouchers/designs', endpoint='voucher_designs_list')

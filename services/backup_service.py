@@ -551,15 +551,32 @@ def create_backup(admin_username='admin', notes='نسخة يدوية'):
     try:
         execute_update("UPDATE wisp_system_settings SET `value` = ? WHERE `key` = 'backup_last_run'", (now.strftime('%Y-%m-%d %H:%M:%S'),))
         execute_update("UPDATE wisp_system_settings SET `value` = 'success' WHERE `key` = 'backup_last_status'", ())
-        execute_update("UPDATE wisp_system_settings SET `value` = ? WHERE `key` = 'backup_last_message'", (f"Created backup {filename} ({size_mb} MB)",))
     except Exception:
         pass
-        
+
+    # Auto-dispatch to Telegram if enabled in Notification Center
+    auto_tg_sent = False
+    try:
+        from services.bot_notifications_service import get_notification_settings
+        n_settings = (get_notification_settings().get('settings') or {})
+        if n_settings.get('is_enabled') and n_settings.get('auto_send_backups') and n_settings.get('bot_token'):
+            import threading
+            threading.Thread(
+                target=send_backup_to_telegram,
+                args=(filename, admin_username),
+                daemon=True
+            ).start()
+            auto_tg_sent = True
+    except Exception as e_tg:
+        print(f"[Telegram Auto-Send Warning]: {e_tg}")
+
+    extra_msg = " وجارٍ إرسالها إلى تيليجرام تلقائياً..." if auto_tg_sent else "."
     log_audit(1, admin_username, 'CREATE_BACKUP', 'backup', f'Created comprehensive backup {filename} ({size_mb} MB)')
-    return True, f"تم إنشاء النسخة الاحتياطية الشاملة [{filename}] بنجاح بحجم ({size_mb:.2f} MB).", {
+    return True, f"تم إنشاء النسخة الاحتياطية الشاملة [{filename}] بنجاح بحجم ({size_mb:.2f} MB){extra_msg}", {
         'filename': filename,
         'file_size_mb': size_mb,
-        'system_version': CURRENT_SYSTEM_VERSION
+        'system_version': CURRENT_SYSTEM_VERSION,
+        'telegram_auto_dispatched': auto_tg_sent
     }
 
 def upload_backup_file(file_storage, admin_username='admin'):
@@ -770,3 +787,51 @@ def get_backup_filepath(filename):
     if os.path.isfile(filepath):
         return filepath
     return None
+
+def send_backup_to_telegram(filename, admin_username='admin', override_chat_id=None):
+    """
+    Send a specific backup archive to the configured Telegram channel / admin chat.
+    Formats rich markdown caption containing system metadata, checksum, and file size.
+    """
+    safe_name = os.path.basename(filename)
+    filepath = get_backup_filepath(safe_name)
+    if not filepath or not os.path.isfile(filepath):
+        return False, f"ملف النسخة الاحتياطية [{safe_name}] غير موجود على السيرفر."
+
+    # Retrieve backup record if exists
+    rec = query_one("SELECT * FROM wisp_backups WHERE filename = ?", (safe_name,))
+    size_bytes = os.path.getsize(filepath)
+    size_mb = round(size_bytes / (1024 * 1024), 2)
+    size_str = f"{size_mb:.2f} MB" if size_mb >= 0.05 else f"{max(1, round(size_bytes / 1024))} KB"
+    checksum = (rec.get('checksum_sha256') if rec else None) or get_file_sha256(filepath)
+    created_at = (rec.get('created_at') if rec else None) or datetime.datetime.fromtimestamp(os.path.getmtime(filepath)).strftime('%Y-%m-%d %H:%M:%S')
+    created_by = (rec.get('created_by') if rec else admin_username) or 'admin'
+    version = (rec.get('system_version') if rec else CURRENT_SYSTEM_VERSION) or CURRENT_SYSTEM_VERSION
+
+    # Build rich caption for Telegram (HTML formatted)
+    caption = (
+        f"📦 <b>نسخة احتياطية جديدة - MAX RADIUS</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"📁 <b>اسم الملف:</b> <code>{safe_name}</code>\n"
+        f"⚖️ <b>الحجم:</b> <code>{size_str}</code>\n"
+        f"📅 <b>تاريخ الإنشاء:</b> <code>{created_at}</code>\n"
+        f"🏷️ <b>إصدار النظام:</b> <code>v{version}</code>\n"
+        f"👤 <b>المُنشئ:</b> <code>{created_by}</code>\n"
+        f"🔒 <b>SHA256:</b> <code>{checksum[:16]}...</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━\n"
+        f"#Backup #MAX_RADIUS #Database"
+    )
+
+    try:
+        from services.bot_notifications_service import send_telegram_document
+        ok, msg = send_telegram_document(
+            filepath=filepath,
+            caption=caption,
+            message_type='BACKUP_ARCHIVE',
+            override_chat_id=override_chat_id
+        )
+        if ok:
+            log_audit(1, admin_username, 'SEND_BACKUP_TELEGRAM', 'backup', f'Sent backup archive {safe_name} to Telegram')
+        return ok, msg
+    except Exception as e:
+        return False, f"فشل أثناء إرسال النسخة عبر تيليجرام: {str(e)}"

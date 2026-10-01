@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}مركز الإشعارات والربط الذكي - MAX RADIUS{% endblock %}
-{% block page_title %}مركز إشعارات وبوت تيليجرام وواتساب الذكي{% endblock %}
+{% block page_title %}مركز الإشعارات والربط الذكي والأرشيف السحابي{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -9,20 +9,27 @@
     <!-- Top Banner -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
         <div class="flex items-center gap-3.5">
-            <div class="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center text-xl flex-shrink-0">
+            <div class="w-12 h-12 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center text-2xl flex-shrink-0 shadow-inner">
                 <i class="fa-brands fa-telegram"></i>
             </div>
             <div>
                 <h2 class="text-xl font-black text-white flex items-center gap-2">
-                    مركز الإشعارات والربط الذكي (Telegram & Notifications Center)
+                    <span>مركز الإشعارات وربط البوتات</span>
+                    <span class="text-xs px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 font-mono font-normal">Telegram Cloud Hub</span>
                 </h2>
-                <p class="text-xs text-slate-400 mt-0.5">ربط بوت تيليجرام لإرسال تنبيهات نفاد الرصيد، تقارير المبيعات اليومية، وتنبيهات انقطاع الرواترات</p>
+                <p class="text-xs text-slate-400 mt-1">
+                    إدارة إشعارات المشتركين، تقارير المبيعات، ومزامنة النسخ الاحتياطية لقواعد البيانات تلقائياً عبر تيليجرام
+                </p>
             </div>
         </div>
-        <div class="flex items-center gap-3">
-            <button onclick="sendTestAlert()" class="px-4 py-2.5 bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+        <div class="flex flex-wrap items-center gap-2.5">
+            <button type="button" onclick="verifyBotConnection()" class="px-4 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] hover:border-sky-500/40 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                <i class="fa-solid fa-satellite-dish text-sky-400"></i>
+                <span>فحص الاتصال بالبوت</span>
+            </button>
+            <button type="button" onclick="sendTestAlert()" class="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-sky-600/20">
                 <i class="fa-solid fa-paper-plane"></i>
-                <span>إرسال رسالة تجريبية للبوت</span>
+                <span>إرسال تجربة فورية</span>
             </button>
         </div>
     </div>
@@ -33,17 +40,17 @@
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-semibold text-slate-400">حالة قناة التيليجرام</span>
-                <div class="w-9 h-9 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-base border border-sky-500/20">
+                <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-lg border border-sky-500/20">
                     <i class="fa-brands fa-telegram"></i>
                 </div>
             </div>
             <div class="mt-3">
                 <div class="flex items-center gap-2">
                     <span class="w-2.5 h-2.5 rounded-full {% if data.settings.is_enabled %}bg-emerald-400 animate-pulse{% else %}bg-slate-500{% endif %}"></span>
-                    <h4 class="text-base font-black text-white">{% if data.settings.is_enabled %}مفعلة ونشطة{% else %}معطلة{% endif %}</h4>
+                    <h4 class="text-lg font-black text-white">{% if data.settings.is_enabled %}مفعلة ونشطة{% else %}معطلة{% endif %}</h4>
                 </div>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>القناة:</span>
+                    <span>البروتوكول:</span>
                     <span class="font-mono text-sky-400 font-bold">Official Bot API</span>
                 </div>
             </div>
@@ -52,16 +59,16 @@
         <!-- 2. Total Sent -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">إجمالي الرسائل المرسلة</span>
-                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/20">
+                <span class="text-xs font-semibold text-slate-400">إجمالي الرسائل والملفات المرسلة</span>
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg border border-emerald-500/20">
                     <i class="fa-solid fa-circle-check"></i>
                 </div>
             </div>
             <div class="mt-3">
                 <h4 class="text-2xl font-black text-emerald-400 font-mono">{{ data.total_sent }}</h4>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>نسبة الوصول:</span>
-                    <span class="font-bold text-emerald-400">100% نجاح</span>
+                    <span>نسبة الإرسال الناجح:</span>
+                    <span class="font-bold text-emerald-400">{% if data.total_sent + data.total_failed > 0 %}{{ "%.1f"|format((data.total_sent / (data.total_sent + data.total_failed)) * 100) }}%{% else %}100%{% endif %}</span>
                 </div>
             </div>
         </div>
@@ -69,145 +76,291 @@
         <!-- 3. Failures -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">فشل الإرسال</span>
-                <div class="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-base border border-rose-500/20">
+                <span class="text-xs font-semibold text-slate-400">محاولات الإرسال الفاشلة</span>
+                <div class="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center text-lg border border-rose-500/20">
                     <i class="fa-solid fa-triangle-exclamation"></i>
                 </div>
             </div>
             <div class="mt-3">
-                <h4 class="text-2xl font-black text-slate-300 font-mono">{{ data.total_failed }}</h4>
+                <h4 class="text-2xl font-black {% if data.total_failed > 0 %}text-rose-400{% else %}text-slate-300{% endif %} font-mono">{{ data.total_failed }}</h4>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>الحالة:</span>
-                    <span class="font-bold text-emerald-400">مستقرة</span>
+                    <span>حالة الاستقرار:</span>
+                    <span class="font-bold {% if data.total_failed == 0 %}text-emerald-400{% else %}text-amber-400{% endif %}">{% if data.total_failed == 0 %}مستقرة تماماً{% else %}راجع السجل{% endif %}</span>
                 </div>
             </div>
         </div>
 
-        <!-- 4. Active Triggers -->
+        <!-- 4. Backup Cloud Link -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">الأحداث المربوطة</span>
-                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
-                    <i class="fa-solid fa-bolt"></i>
+                <span class="text-xs font-semibold text-slate-400">أرشفة النسخ عبر تيليجرام</span>
+                <div class="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-lg border border-purple-500/20">
+                    <i class="fa-solid fa-box-archive"></i>
                 </div>
             </div>
             <div class="mt-3">
-                <h4 class="text-xl font-black text-purple-400">4 أحداث آلية</h4>
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full {% if data.settings.auto_send_backups and data.settings.is_enabled %}bg-purple-400 animate-pulse{% else %}bg-slate-500{% endif %}"></span>
+                    <h4 class="text-lg font-black text-purple-400">{% if data.settings.auto_send_backups and data.settings.is_enabled %}أرشفة تلقائية (نشطة){% else %}أرشفة يدوية فقط{% endif %}</h4>
+                </div>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>التحديث:</span>
-                    <span class="font-mono text-slate-300 font-bold">فوري (Instant)</span>
+                    <span>الحد الأقصى للملف:</span>
+                    <span class="font-mono text-purple-300 font-bold">50 MB / Archive</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Bot Configuration Form & Log -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Main Grid: Settings & Live Log -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <!-- Left: Bot Settings -->
-        <div class="lg:col-span-1 bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-4">
-            <div class="border-b border-[#1c2840] pb-3">
-                <h3 class="font-bold text-white text-sm flex items-center gap-2">
-                    <i class="fa-solid fa-gear text-sky-400"></i>
-                    إعدادات بوت التيليجرام
-                </h3>
-            </div>
+        <!-- Left Column: Settings (5 Cols) -->
+        <div class="lg:col-span-5 space-y-6">
 
-            <form onsubmit="saveNotificationSettings(event)" class="space-y-4 text-xs">
-                <div>
-                    <label class="block font-bold text-slate-300 mb-1.5">رمز البوت (Telegram Bot Token):</label>
-                    <input type="text" id="botToken" value="{{ data.settings.bot_token or '' }}" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-sky-500 rounded-xl px-3 py-2 text-white font-mono text-xs" placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRs">
+            <form onsubmit="saveNotificationSettings(event)" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-5 text-xs">
+                
+                <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+                    <h3 class="font-black text-white text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-sky-400"></i>
+                        <span>تهيئة قنوات الربط والإشعارات</span>
+                    </h3>
+                    <div id="botLiveBadge" class="hidden">
+                        <span class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span id="botLiveName">متصل</span>
+                        </span>
+                    </div>
                 </div>
 
-                <div>
-                    <label class="block font-bold text-slate-300 mb-1.5">معرف المحادثة أو القناة (Admin Chat ID):</label>
-                    <input type="text" id="chatId" value="{{ data.settings.chat_id or '' }}" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-sky-500 rounded-xl px-3 py-2 text-white font-mono text-xs" placeholder="e.g. -100123456789 أو 987654321">
+                <!-- Section 1: Telegram Bot Credentials -->
+                <div class="space-y-3.5">
+                    <div>
+                        <label class="block font-bold text-slate-200 mb-1">
+                            رمز البوت (Telegram Bot Token):
+                            <span class="text-rose-400">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="password" id="botToken" value="{{ data.settings.bot_token or '' }}" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs pr-10" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ">
+                            <button type="button" onclick="toggleTokenVisibility()" class="absolute left-3 top-2.5 text-slate-400 hover:text-slate-200">
+                                <i id="tokenEyeIcon" class="fa-regular fa-eye"></i>
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1">احصل على الرمز من <a href="https://t.me/BotFather" target="_blank" class="text-sky-400 hover:underline">@BotFather</a> على تيليجرام</p>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-200 mb-1">
+                            معرف المحادثة الأساسي للمشرف (Admin Chat ID):
+                            <span class="text-rose-400">*</span>
+                        </label>
+                        <input type="text" id="chatId" value="{{ data.settings.chat_id or '' }}" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-sky-500 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs" placeholder="مثال: 987654321 أو معرف مجموعة -100123456789">
+                        <p class="text-[11px] text-slate-400 mt-1">المعرف الذي ستصل إليه رسائل التنبيهات المباشرة وتقارير المبيعات</p>
+                    </div>
                 </div>
 
-                <div class="pt-2 space-y-2 border-t border-[#1c2840]">
-                    <span class="block font-bold text-slate-300 mb-2">أنواع الإشعارات التلقائية:</span>
-                    
-                    <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-                        <input type="checkbox" id="chkEnabled" {% if data.settings.is_enabled %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500">
-                        <span>تفعيل الإشعارات التلقائية</span>
+                <!-- Section 2: Backup Integration Settings -->
+                <div class="pt-4 border-t border-[#1c2840] space-y-3.5">
+                    <div class="flex items-center gap-2">
+                        <div class="w-6 h-6 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs border border-purple-500/20">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                        </div>
+                        <span class="font-bold text-white text-xs">إرسال وأرشفة النسخ الاحتياطية (Database Cloud Backup):</span>
+                    </div>
+
+                    <div>
+                        <label class="block font-bold text-slate-300 mb-1">
+                            معرف قناة/مجموعة الأرشيف (Backup Chat ID) <span class="text-slate-400 font-normal">(اختياري):</span>
+                        </label>
+                        <input type="text" id="backupChatId" value="{{ data.settings.backup_chat_id or '' }}" class="w-full bg-[#070b14] border border-[#1c2840] focus:border-purple-500 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs" placeholder="اتركه فارغاً للإرسال لنفس معرف المشرف أعلاه">
+                        <p class="text-[11px] text-slate-400 mt-1">تخصيص قناة خاصة بالنسخ الاحتياطية للأرشيف لمنع ملء محادثة التنبيهات بالملفات</p>
+                    </div>
+
+                    <div class="bg-[#070b14] border border-purple-500/20 rounded-xl p-3">
+                        <label class="flex items-start gap-2.5 cursor-pointer text-slate-200">
+                            <input type="checkbox" id="chkAutoBackup" {% if data.settings.auto_send_backups %}checked{% endif %} class="mt-0.5 rounded bg-[#0b0f19] border-[#1c2840] text-purple-500 focus:ring-0">
+                            <div>
+                                <span class="font-bold text-xs text-white block">إرسال النسخ الاحتياطية تلقائياً فور إنشائها</span>
+                                <span class="text-[11px] text-slate-400">عند إنشاء أي نسخة يدوية أو مجدولة تلقائياً سيتم رفعها مباشرة إلى تيليجرام (.tar.gz)</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Section 3: Notification Event Triggers -->
+                <div class="pt-4 border-t border-[#1c2840] space-y-3">
+                    <span class="block font-bold text-white text-xs mb-1">أحداث وتنبيهات النظام الآلية:</span>
+
+                    <label class="flex items-center gap-2.5 cursor-pointer text-slate-200 hover:text-white transition">
+                        <input type="checkbox" id="chkEnabled" {% if data.settings.is_enabled %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500 focus:ring-0">
+                        <span class="font-bold text-sky-400">تفعيل نظام الإشعارات بالكامل</span>
                     </label>
 
-                    <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-                        <input type="checkbox" id="chkLowQuota" {% if data.settings.notify_on_low_quota %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500">
-                        <span>إشعار عند قرب نفاد رصيد المشترك</span>
+                    <label class="flex items-center gap-2.5 cursor-pointer text-slate-300 hover:text-white transition">
+                        <input type="checkbox" id="chkLowQuota" {% if data.settings.notify_on_low_quota %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500 focus:ring-0">
+                        <span>إشعار عند وصول رصيد المشترك للحد الأدنى (قرب النفاد)</span>
                     </label>
 
-                    <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-                        <input type="checkbox" id="chkRecharge" {% if data.settings.notify_on_recharge %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500">
-                        <span>إشعار عند شحن كرت أو طلب سلفة</span>
+                    <label class="flex items-center gap-2.5 cursor-pointer text-slate-300 hover:text-white transition">
+                        <input type="checkbox" id="chkRecharge" {% if data.settings.notify_on_recharge %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500 focus:ring-0">
+                        <span>إشعار فوري عند شحن كرت أو تسديد اشتراك</span>
                     </label>
 
-                    <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-                        <input type="checkbox" id="chkNasDown" {% if data.settings.notify_on_nas_down %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500">
-                        <span>تنبيه فوري عند انقطاع أي رواتر NAS</span>
+                    <label class="flex items-center gap-2.5 cursor-pointer text-slate-300 hover:text-white transition">
+                        <input type="checkbox" id="chkNasDown" {% if data.settings.notify_on_nas_down %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500 focus:ring-0">
+                        <span>تنبيه فوري عند توقف أو انقطاع أي رواتر NAS</span>
                     </label>
 
-                    <label class="flex items-center gap-2 cursor-pointer text-slate-300">
-                        <input type="checkbox" id="chkDaily" {% if data.settings.notify_daily_summary %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500">
-                        <span>إرسال تقرير المبيعات اليومي (23:59)</span>
+                    <label class="flex items-center gap-2.5 cursor-pointer text-slate-300 hover:text-white transition">
+                        <input type="checkbox" id="chkDaily" {% if data.settings.notify_daily_summary %}checked{% endif %} class="rounded bg-[#070b14] border-[#1c2840] text-sky-500 focus:ring-0">
+                        <span>إرسال تقرير المبيعات والمبالغ اليومي (الساعة 23:59)</span>
                     </label>
                 </div>
 
-                <div class="pt-3">
-                    <button type="submit" class="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-sky-600/20">
+                <!-- Submit Button -->
+                <div class="pt-2">
+                    <button type="submit" class="w-full py-3 bg-gradient-to-r from-sky-600 to-sky-700 hover:from-sky-500 hover:to-sky-600 text-white rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-sky-600/25">
                         <i class="fa-solid fa-floppy-disk"></i>
-                        <span>حفظ الإعدادات</span>
+                        <span>حفظ كافة إعدادات الإشعارات والربط</span>
                     </button>
                 </div>
+
             </form>
+
         </div>
 
-        <!-- Right: Recent Dispatch Log -->
-        <div class="lg:col-span-2 bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between">
-            <div>
-                <div class="p-5 border-b border-[#1c2840] flex items-center justify-between">
-                    <h3 class="font-bold text-white text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-clock-rotate-left text-sky-400"></i>
-                        سجل الإشعارات المرسلة حديثاً
-                    </h3>
+        <!-- Right Column: Dispatch Logs & Quick Tools (7 Cols) -->
+        <div class="lg:col-span-7 space-y-6">
+
+            <!-- Log Table Card -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm flex flex-col">
+                
+                <div class="p-4 border-b border-[#1c2840] flex flex-wrap items-center justify-between gap-3 bg-[#070b14]">
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center text-xs border border-sky-500/20">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                        </div>
+                        <h3 class="font-bold text-white text-sm">سجل الإرسال والأرشفة السحابية (Dispatch Logs)</h3>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[11px] text-slate-400">آخر 25 عملية إرسال</span>
+                        <button onclick="location.reload()" class="p-1.5 text-slate-400 hover:text-white hover:bg-[#1c2840] rounded-lg transition" title="تحديث السجل">
+                            <i class="fa-solid fa-rotate-right text-xs"></i>
+                        </button>
+                    </div>
                 </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-right text-xs">
-                        <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
+                        <thead class="bg-[#070b14]/70 text-slate-400 uppercase font-semibold border-b border-[#1c2840]">
                             <tr>
                                 <th class="py-3 px-4">نوع الإشعار</th>
                                 <th class="py-3 px-4">المستلم / القناة</th>
-                                <th class="py-3 px-4">نص الرسالة</th>
-                                <th class="py-3 px-4">الحالة</th>
+                                <th class="py-3 px-4">محتوى الإرسال / الملف</th>
+                                <th class="py-3 px-4 text-center">الحالة</th>
                                 <th class="py-3 px-4">التوقيت</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-[#1c2840]">
                             {% for l in data.logs %}
                             <tr class="hover:bg-[#11192b] transition">
-                                <td class="py-3 px-4 font-mono font-bold text-sky-400 text-[11px]">{{ l.message_type }}</td>
-                                <td class="py-3 px-4 font-mono text-slate-300 text-[11px]">{{ l.recipient }}</td>
-                                <td class="py-3 px-4 text-slate-200 text-xs max-w-xs truncate">{{ l.message_text }}</td>
-                                <td class="py-3 px-4">
-                                    {% if l.status == 'sent' %}
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">ناجح</span>
+                                <!-- نوع الإشعار -->
+                                <td class="py-3 px-4 whitespace-nowrap">
+                                    {% if 'BACKUP' in l.message_type %}
+                                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center gap-1 w-fit">
+                                        <i class="fa-solid fa-box-archive"></i>
+                                        <span>نسخة احتياطية</span>
+                                    </span>
+                                    {% elif 'TEST' in l.message_type %}
+                                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center gap-1 w-fit">
+                                        <i class="fa-solid fa-paper-plane"></i>
+                                        <span>تجربة إشعار</span>
+                                    </span>
+                                    {% elif 'NAS' in l.message_type %}
+                                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-1 w-fit">
+                                        <i class="fa-solid fa-triangle-exclamation"></i>
+                                        <span>انقطاع NAS</span>
+                                    </span>
+                                    {% elif 'RECHARGE' in l.message_type %}
+                                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-fit">
+                                        <i class="fa-solid fa-money-bill-wave"></i>
+                                        <span>شحن رصيد</span>
+                                    </span>
                                     {% else %}
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">فشل</span>
+                                    <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
+                                        {{ l.message_type }}
+                                    </span>
                                     {% endif %}
                                 </td>
-                                <td class="py-3 px-4 font-mono text-slate-400 text-[11px]">{{ l.created_at }}</td>
+
+                                <!-- المستلم -->
+                                <td class="py-3 px-4 font-mono text-slate-300 text-[11px] whitespace-nowrap">
+                                    {{ l.recipient }}
+                                </td>
+
+                                <!-- محتوى الإرسال -->
+                                <td class="py-3 px-4 text-slate-200 text-xs max-w-xs truncate" title="{{ l.message_text }}">
+                                    {{ l.message_text }}
+                                </td>
+
+                                <!-- الحالة -->
+                                <td class="py-3 px-4 text-center whitespace-nowrap">
+                                    {% if l.status == 'sent' %}
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
+                                        <i class="fa-solid fa-check"></i>
+                                        <span>ناجح</span>
+                                    </span>
+                                    {% else %}
+                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 inline-flex items-center gap-1" title="{{ l.response_details }}">
+                                        <i class="fa-solid fa-xmark"></i>
+                                        <span>فشل</span>
+                                    </span>
+                                    {% endif %}
+                                </td>
+
+                                <!-- التوقيت -->
+                                <td class="py-3 px-4 font-mono text-slate-400 text-[11px] whitespace-nowrap">
+                                    {{ l.created_at }}
+                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="py-8 text-center text-slate-400">
-                                    لا توجد إشعارات مرسلة في السجل حالياً.
+                                <td colspan="5" class="py-12 text-center text-slate-400">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <i class="fa-solid fa-inbox text-3xl text-slate-600 mb-2"></i>
+                                        <p class="text-sm font-bold text-slate-300">لا توجد سجلات إرسال سابقة</p>
+                                        <p class="text-xs text-slate-500 mt-0.5">ستظهر هنا تفاصيل التنبيهات وملفات النسخ الاحتياطية المرسلة إلى تيليجرام</p>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+
             </div>
+
+            <!-- Helpful Integration Instructions Card -->
+            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+                <h4 class="text-xs font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-circle-question text-sky-400"></i>
+                    <span>دليل الربط السريع مع بوت وقنوات تيليجرام:</span>
+                </h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] text-slate-400">
+                    <div class="bg-[#070b14] border border-[#162136] p-3 rounded-xl space-y-1">
+                        <span class="text-sky-400 font-bold block">1. إنشاء البوت:</span>
+                        <span>تحدث مع <b class="text-slate-200">@BotFather</b> وأرسل الأمر <code class="text-sky-400">/newbot</code> لإنشاء بوت واستخراج الـ API Token.</span>
+                    </div>
+                    <div class="bg-[#070b14] border border-[#162136] p-3 rounded-xl space-y-1">
+                        <span class="text-purple-400 font-bold block">2. معرف المحادثة (Chat ID):</span>
+                        <span>راسل البوت واضغط Start، أو أضف البوت مشرفاً في قناتك أو مجموعتك للحصول على الـ Chat ID.</span>
+                    </div>
+                    <div class="bg-[#070b14] border border-[#162136] p-3 rounded-xl space-y-1">
+                        <span class="text-emerald-400 font-bold block">3. فحص الأرشيف:</span>
+                        <span>اضغط على زر <b class="text-slate-200">فحص الاتصال بالبوت</b> للتأكد من استجابة تيليجرام وتوثيق الحساب.</span>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
     </div>
@@ -217,16 +370,79 @@
 
 {% block scripts %}
 <script>
+    function toggleTokenVisibility() {
+        const inp = document.getElementById('botToken');
+        const icon = document.getElementById('tokenEyeIcon');
+        if (inp.type === 'password') {
+            inp.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            inp.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        }
+    }
+
+    function verifyBotConnection() {
+        const token = document.getElementById('botToken').value.trim();
+        Swal.fire({
+            title: 'جارٍ التحقق من البوت...',
+            text: 'يتم الاتصال بسيرفرات Telegram Bot API...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        const fd = new FormData();
+        fd.append('bot_token', token);
+
+        fetch('/api/notifications/verify-bot', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success && res.bot) {
+                    const badge = document.getElementById('botLiveBadge');
+                    const name = document.getElementById('botLiveName');
+                    name.innerText = `@${res.bot.username || res.bot.first_name}`;
+                    badge.classList.remove('hidden');
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'الاتصال بالبوت ناجح!',
+                        html: `
+                            <div class="text-right space-y-2 text-xs">
+                                <div><b>اسم البوت:</b> ${res.bot.first_name || '-'}</div>
+                                <div><b>المعرف:</b> <span class="text-sky-400 font-mono">@${res.bot.username || '-'}</span></div>
+                                <div><b>ID:</b> <span class="font-mono">${res.bot.id || '-'}</span></div>
+                            </div>
+                        `,
+                        confirmButtonText: 'ممتاز'
+                    });
+                } else {
+                    Swal.fire('فشل التحقق', res.message || 'تعذر الاتصال بالبوت. تأكد من صحة الرمز.', 'error');
+                }
+            })
+            .catch(err => {
+                Swal.fire('خطأ في الشبكة', err.message, 'error');
+            });
+    }
+
     function saveNotificationSettings(e) {
         e.preventDefault();
         const fd = new FormData();
         fd.append('bot_token', document.getElementById('botToken').value.trim());
         fd.append('chat_id', document.getElementById('chatId').value.trim());
+        fd.append('backup_chat_id', document.getElementById('backupChatId').value.trim());
         fd.append('is_enabled', document.getElementById('chkEnabled').checked ? '1' : '0');
+        fd.append('auto_send_backups', document.getElementById('chkAutoBackup').checked ? '1' : '0');
         fd.append('low_quota', document.getElementById('chkLowQuota').checked ? '1' : '0');
         fd.append('recharge', document.getElementById('chkRecharge').checked ? '1' : '0');
         fd.append('nas_down', document.getElementById('chkNasDown').checked ? '1' : '0');
         fd.append('daily_summary', document.getElementById('chkDaily').checked ? '1' : '0');
+
+        Swal.fire({
+            title: 'جارٍ حفظ الإعدادات...',
+            didOpen: () => Swal.showLoading()
+        });
 
         fetch('/api/notifications/settings/save', { method: 'POST', body: fd })
             .then(r => r.json())
@@ -236,14 +452,15 @@
                 } else {
                     Swal.fire('خطأ', res.message, 'error');
                 }
-            });
+            })
+            .catch(err => Swal.fire('خطأ غير متوقع', err.message, 'error'));
     }
 
     function sendTestAlert() {
         Swal.fire({
             title: 'إرسال تنبيه تجريبي إلى تيليجرام',
             input: 'textarea',
-            inputValue: '🚀 *تجربة إشعار من منظومة MAX RADIUS*\nالنظام يعمل بكفاءة تامة واستقرار عالٍ.',
+            inputValue: '🚀 *تجربة إشعار فوري من منظومة MAX RADIUS*\nالنظام يعمل بكفاءة تامة وتم تفعيل قنوات الربط السحابي بنجاح.',
             showCancelButton: true,
             confirmButtonText: 'إرسال الآن',
             cancelButtonText: 'إلغاء'
@@ -260,9 +477,30 @@
                         } else {
                             Swal.fire('تعذر الإرسال', res.message, 'warning');
                         }
-                    });
+                    })
+                    .catch(err => Swal.fire('خطأ في الإرسال', err.message, 'error'));
             }
         });
     }
+
+    // Auto-verify if token is already present
+    document.addEventListener('DOMContentLoaded', () => {
+        const token = document.getElementById('botToken').value.trim();
+        if (token) {
+            const fd = new FormData();
+            fd.append('bot_token', token);
+            fetch('/api/notifications/verify-bot', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success && res.bot) {
+                        const badge = document.getElementById('botLiveBadge');
+                        const name = document.getElementById('botLiveName');
+                        name.innerText = `@${res.bot.username || res.bot.first_name}`;
+                        badge.classList.remove('hidden');
+                    }
+                })
+                .catch(() => {});
+        }
+    });
 </script>
 {% endblock %}

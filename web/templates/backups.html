@@ -17,7 +17,12 @@
                 تصدير واستعادة كامل قواعد بيانات FreeRADIUS والنظام، وإدارة الأرشيف الاحتياطي بشكل آمن
             </p>
         </div>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center gap-2.5">
+            <!-- 0. مركز الإشعارات وتيليجرام -->
+            <a href="{{ url_for('notifications_center_page') }}" class="px-3.5 py-2.5 bg-sky-600/10 hover:bg-sky-600/20 text-sky-400 border border-sky-500/25 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm" title="إعدادات بوت تيليجرام والأرشيف السحابي">
+                <i class="fa-brands fa-telegram text-sm"></i>
+                <span>ربط تيليجرام</span>
+            </a>
             <!-- 1. إعدادات النسخ الاحتياطي -->
             <button type="button" onclick="openSettingsModal()" class="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-amber-600/20 transition flex items-center gap-2">
                 <i class="fa-solid fa-sliders text-sm"></i>
@@ -204,6 +209,11 @@
                         <!-- الإجراءات -->
                         <td class="py-3.5 px-5 text-center whitespace-nowrap">
                             <div class="flex items-center justify-center gap-2">
+                                <!-- إرسال إلى تيليجرام -->
+                                <button type="button" onclick="sendBackupToTelegram('{{ b.filename }}')" class="p-2 bg-sky-500/10 hover:bg-sky-500 text-sky-400 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1" title="إرسال النسخة عبر تيليجرام">
+                                    <i class="fa-brands fa-telegram text-sm"></i>
+                                </button>
+
                                 <!-- تحميل -->
                                 <a href="{{ url_for('download_backup_file_route', filename=b.filename) }}" class="p-2 bg-blue-500/10 hover:bg-blue-500 text-blue-400 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1" title="تحميل النسخة إلى جهازك">
                                     <i class="fa-solid fa-download"></i>
@@ -693,6 +703,45 @@
                         } else {
                             Swal.fire('خطأ', data.message, 'error');
                         }
+                    });
+            }
+        });
+    }
+
+    // 5. Send Backup to Telegram
+    function sendBackupToTelegram(filename) {
+        Swal.fire({
+            title: 'إرسال النسخة عبر تيليجرام',
+            html: `هل تريد رفع وإرسال ملف النسخة الاحتياطية:<br><b class="text-sky-400 font-mono text-xs">${filename}</b><br>مباشرة إلى محادثة أو قناة التيليجرام؟`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0284c7',
+            cancelButtonColor: '#475569',
+            confirmButtonText: 'نعم، إرسال الآن',
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ الرفع والإرسال إلى تيليجرام...',
+                    text: 'يتم الآن نقل وتوثيق ملف النسخة الاحتياطية عبر البوت...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                const fd = new FormData();
+                fd.append('filename', filename);
+
+                fetch('/api/backups/send-telegram', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            Swal.fire('تم الإرسال بنجاح', data.message, 'success');
+                        } else {
+                            Swal.fire('تعذر الإرسال', data.message, 'error');
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire('خطأ في الاتصال', err.message, 'error');
                     });
             }
         });

@@ -59,6 +59,115 @@ def _scheduled_expiry_check_job():
     except Exception as e:
         logger.error(f"Error in automated expiry check job: {e}")
 
+def _scheduled_daily_sales_summary_job():
+    """Trigger daily sales summary dispatch to Telegram at 23:59."""
+    try:
+        from services.bot_notifications_service import trigger_daily_sales_summary
+        ok, res = trigger_daily_sales_summary()
+        logger.info(f"Daily sales summary job completed: ok={ok}, res={res}")
+    except Exception as e:
+        logger.error(f"Error in daily sales summary job: {e}")
+
+def _scheduled_nas_watchdog_job():
+    """Probe all NAS routers and alert via Telegram if any router goes down/recovers."""
+    try:
+        from core.mikrotik_api import get_all_nas_live_status
+        from services.bot_notifications_service import trigger_nas_down_notification, trigger_nas_recovered_notification
+        
+        statuses = get_all_nas_live_status(force_refresh=True)
+        for dev in (statuses or []):
+            nas_id = dev.get('id')
+            nas_name = dev.get('name') or f"NAS-{nas_id}"
+            nas_ip = dev.get('ip_address') or '-'
+            is_online = dev.get('is_online', False)
+            status_text = dev.get('status_text') or 'Offline'
+            
+            if not is_online:
+                trigger_nas_down_notification(nas_id, nas_name, nas_ip, status_text)
+            else:
+                trigger_nas_recovered_notification(nas_id, nas_name, nas_ip)
+    except Exception as e:
+        logger.error(f"Error in NAS watchdog job: {e}")
+
+def _scheduled_low_quota_check_job():
+    """Scan active subscribers for low quota thresholds and dispatch warnings."""
+    try:
+        from database.db import query_all
+        from services.bot_notifications_service import trigger_low_quota_notification
+        
+        rows = query_all("""
+            SELECT s.username, 
+                   COALESCE(p.volume_quota_mb, 0) as total_quota_mb,
+                   COALESCE(SUM(r.acctinputoctets + r.acctoutputoctets), 0) as used_bytes
+            FROM wisp_subscribers s
+            JOIN wisp_packages p ON s.package_id = p.id
+            LEFT JOIN radacct r ON r.username = s.username
+            WHERE s.status = 'active' AND p.volume_quota_mb > 0
+            GROUP BY s.username, p.volume_quota_mb
+        """)
+        for r in (rows or []):
+            total_mb = float(r.get('total_quota_mb') or 0.0)
+            used_mb = float(r.get('used_bytes') or 0.0) / (1024 * 1024)
+            rem_mb = max(0.0, total_mb - used_mb)
+            
+            if total_mb > 0 and (rem_mb <= (total_mb * 0.10) or rem_mb <= 100.0) and rem_mb > 0:
+                trigger_low_quota_notification(r['username'], rem_mb, total_mb)
+    except Exception as e:
+        logger.error(f"Error in low quota check job: {e}")
+
+def _register_background_jobs(scheduler, system_tz):
+    """Register all persistent background monitoring & notification jobs in APScheduler."""
+    from apscheduler.triggers.interval import IntervalTrigger
+    from apscheduler.triggers.cron import CronTrigger
+
+    # 1. Expiry check & disconnect every 1 minute
+    try:
+        scheduler.add_job(
+            _scheduled_expiry_check_job,
+            trigger=IntervalTrigger(seconds=60),
+            id="auto_voucher_expiry_check",
+            name="Automated Voucher and Subscriber Expiry Check & Disconnect",
+            replace_existing=True
+        )
+    except Exception as e:
+        logger.error(f"Failed to add expiry check job: {e}")
+
+    # 2. Daily sales summary at 23:59
+    try:
+        scheduler.add_job(
+            _scheduled_daily_sales_summary_job,
+            trigger=CronTrigger(hour=23, minute=59, timezone=system_tz),
+            id="daily_sales_summary_telegram",
+            name="Daily Sales Summary Telegram Alert",
+            replace_existing=True
+        )
+    except Exception as e:
+        logger.error(f"Failed to add daily sales summary job: {e}")
+
+    # 3. NAS Router Watchdog every 2 minutes
+    try:
+        scheduler.add_job(
+            _scheduled_nas_watchdog_job,
+            trigger=IntervalTrigger(seconds=120),
+            id="nas_health_watchdog_telegram",
+            name="NAS Router Health Watchdog and Telegram Alert",
+            replace_existing=True
+        )
+    except Exception as e:
+        logger.error(f"Failed to add NAS watchdog job: {e}")
+
+    # 4. Subscriber Low Quota Warning Check every 5 minutes
+    try:
+        scheduler.add_job(
+            _scheduled_low_quota_check_job,
+            trigger=IntervalTrigger(seconds=300),
+            id="subscriber_low_quota_check",
+            name="Subscriber Low Quota Telegram Alert",
+            replace_existing=True
+        )
+    except Exception as e:
+        logger.error(f"Failed to add low quota check job: {e}")
+
 def init_backup_scheduler():
     """Initialize and start the backup scheduler with the database configured Timezone."""
     global _SCHEDULER
@@ -96,18 +205,8 @@ def init_backup_scheduler():
                     except Exception as ex:
                         logger.error(f"Failed to add schedule job for time {t}: {ex}")
                         
-            # Add lightweight real-time periodic check & disconnect for expired vouchers and subscribers (every 1 minute)
-            try:
-                from apscheduler.triggers.interval import IntervalTrigger
-                scheduler.add_job(
-                    _scheduled_expiry_check_job,
-                    trigger=IntervalTrigger(seconds=60),
-                    id="auto_voucher_expiry_check",
-                    name="Automated Voucher and Subscriber Expiry Check & Disconnect",
-                    replace_existing=True
-                )
-            except Exception as e_job:
-                logger.error(f"Failed to add expiry check job: {e_job}")
+            # Register background monitoring & telegram notification jobs
+            _register_background_jobs(scheduler, system_tz)
 
             scheduler.start()
             _SCHEDULER_STATE['is_running'] = True
@@ -130,17 +229,37 @@ def _start_thread_scheduler(settings):
     def loop():
         last_executed_minute = None
         last_expiry_check = 0
+        last_nas_check = 0
+        last_quota_check = 0
+        last_daily_summary_minute = None
         while _SCHEDULER_STATE['is_running']:
             try:
                 now_ts = time.time()
-                if now_ts - last_expiry_check >= 60:  # 1 minute real-time watchdog
+                # 1. Expiry check (every 60s)
+                if now_ts - last_expiry_check >= 60:
                     last_expiry_check = now_ts
                     _scheduled_expiry_check_job()
 
+                # 2. NAS Watchdog (every 120s)
+                if now_ts - last_nas_check >= 120:
+                    last_nas_check = now_ts
+                    _scheduled_nas_watchdog_job()
+
+                # 3. Low Quota Check (every 300s)
+                if now_ts - last_quota_check >= 300:
+                    last_quota_check = now_ts
+                    _scheduled_low_quota_check_job()
+
+                # 4. Scheduled Daily Summary at 23:59
+                now = get_system_now()
+                curr_hm = now.strftime('%H:%M')
+                if curr_hm == '23:59' and last_daily_summary_minute != curr_hm:
+                    last_daily_summary_minute = curr_hm
+                    _scheduled_daily_sales_summary_job()
+
+                # 5. Scheduled Backups
                 curr_settings = get_backup_settings()
                 if curr_settings.get('auto_enabled'):
-                    now = get_system_now()
-                    curr_hm = now.strftime('%H:%M')
                     if curr_hm in curr_settings.get('times', []) and curr_hm != last_executed_minute:
                         last_executed_minute = curr_hm
                         _scheduled_backup_job(curr_hm)
@@ -183,6 +302,10 @@ def reload_backup_schedule():
                             )
                         except Exception as ex:
                             logger.error(f"Error adding job for {t}: {ex}")
+
+                # Re-register background monitoring & telegram notification jobs
+                _register_background_jobs(_SCHEDULER, system_tz)
+
                 logger.info(f"Backup schedule reloaded with Timezone [{system_tz}] and settings.")
                 return True, "تم تحديث جدول النسخ الاحتياطي بنجاح."
             except Exception as err:

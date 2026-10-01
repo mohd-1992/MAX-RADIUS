@@ -951,12 +951,40 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 print(f"Error syncing to RADIUS after recharge: {e}")
 
             dispatch_async_disconnect(username)
+
+            # Trigger Telegram alert for recharge if enabled
+            try:
+                from services.bot_notifications_service import trigger_recharge_notification
+                trigger_recharge_notification(
+                    username=username,
+                    package_name=card.get('package_name', 'باقة مخصصة'),
+                    price=float(card.get('card_price') or card_value or 0.0),
+                    card_number=card.get('serial_number') or card_code,
+                    recharge_type=recharge_type
+                )
+            except Exception as e_tg:
+                print(f"[Telegram Hook Recharge Error]: {e_tg}")
+
             if deducted_loan_mb > 0:
                 return True, f"تم شحن الباقة بنجاح! تم سداد السلفة السابقة ({format_mb_or_gb(deducted_loan_mb)}) وإضافة السعة الصافية ({format_mb_or_gb(net_quota_mb)}){rollover_msg} وتمديد الصلاحية حتى {new_exp_iso}.{loyalty_msg}"
             else:
                 return True, f"تم شحن الباقة بنجاح! تمت إضافة {format_mb_or_gb(add_quota_mb)} بيانات{rollover_msg} وتمديد الصلاحية حتى {new_exp_iso}.{loyalty_msg}"
         else:
             new_bal = float(sub.get('balance') or 0.0) + card_value
+
+            # Trigger Telegram alert for balance topup
+            try:
+                from services.bot_notifications_service import trigger_recharge_notification
+                trigger_recharge_notification(
+                    username=username,
+                    package_name='رصيد مالي بالمحفظة',
+                    price=float(card_value),
+                    card_number=card.get('serial_number') or card_code,
+                    recharge_type='balance'
+                )
+            except Exception as e_tg:
+                print(f"[Telegram Hook Recharge Error]: {e_tg}")
+
             return True, f"تم شحن محفظتك بنجاح بمبلغ {card_value:.2f}. رصيدك الحالي أصبح: {new_bal:.2f}.{loyalty_msg}"
 
     except Exception as ex:

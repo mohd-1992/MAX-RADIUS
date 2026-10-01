@@ -790,6 +790,20 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
 
             log_audit(1, 'system', 'ACTIVATE_VOUCHER', 'vouchers',
                       f'Card {card["username"]} activated with frozen package snapshot ({quota_mb}MB / {rate_str or "Unlimited"}).')
+
+            # Trigger Telegram alert for voucher activation
+            try:
+                from services.bot_notifications_service import trigger_recharge_notification
+                trigger_recharge_notification(
+                    username=card['username'],
+                    package_name=card.get('package_name', 'كرت إنترنت'),
+                    price=float(pkg_price or 0.0),
+                    card_number=card.get('serial_number') or card.get('username'),
+                    recharge_type='voucher'
+                )
+            except Exception as e_tg:
+                print(f"[Telegram Voucher Activate Alert Error]: {e_tg}")
+
             return True
     except Exception as e:
         print(f"[Voucher Activation Error in services/voucher_service]: {e}")

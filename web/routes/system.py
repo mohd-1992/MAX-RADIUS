@@ -1033,27 +1033,48 @@ def notifications_center_page():
 
 
 @system_bp.route('/api/notifications/settings/save', methods=['POST'], endpoint="api_notifications_settings_save")
-
 def api_notifications_settings_save():
     token = request.form.get('bot_token', '').strip()
     chat_id = request.form.get('chat_id', '').strip()
+    backup_chat_id = request.form.get('backup_chat_id', '').strip()
     enabled = request.form.get('is_enabled', '0')
+    auto_send_backups = request.form.get('auto_send_backups', '0')
     low_quota = request.form.get('low_quota', '0')
     recharge = request.form.get('recharge', '0')
     nas_down = request.form.get('nas_down', '0')
     daily = request.form.get('daily_summary', '0')
     from services.bot_notifications_service import update_notification_settings
-    ok, msg = update_notification_settings(token, chat_id, enabled, low_quota, recharge, nas_down, daily)
+    ok, msg = update_notification_settings(
+        token, chat_id, enabled, low_quota, recharge, nas_down, daily,
+        backup_chat_id=backup_chat_id,
+        auto_send_backups=auto_send_backups
+    )
     return jsonify({'success': ok, 'message': msg})
 
 
-@system_bp.route('/api/notifications/test-send', methods=['POST'], endpoint="api_notifications_test_send")
+@system_bp.route('/api/notifications/verify-bot', methods=['POST'], endpoint="api_notifications_verify_bot")
+def api_notifications_verify_bot():
+    token = request.form.get('bot_token', '').strip()
+    from services.bot_notifications_service import verify_telegram_bot
+    ok, res = verify_telegram_bot(token)
+    if ok:
+        return jsonify({
+            'success': True,
+            'bot': res,
+            'message': f"تم التحقق بنجاح! متصل بالبوت: @{res.get('username')} ({res.get('first_name')})"
+        })
+    else:
+        return jsonify({'success': False, 'message': str(res)})
 
+
+@system_bp.route('/api/notifications/test-send', methods=['POST'], endpoint="api_notifications_test_send")
 def api_notifications_test_send():
     msg = request.form.get('message', '').strip()
+    target_chat = request.form.get('target_chat', '').strip() or None
     from services.bot_notifications_service import send_telegram_alert
-    ok, res = send_telegram_alert(msg or "🚀 Test Message from MAX RADIUS", message_type='TEST_ALERT')
+    ok, res = send_telegram_alert(msg or "🚀 Test Message from MAX RADIUS", message_type='TEST_ALERT', override_chat_id=target_chat)
     return jsonify({'success': ok, 'message': res})
+
 
 
 @system_bp.route('/loyalty-rewards', endpoint="loyalty_rewards_page")
@@ -1376,7 +1397,6 @@ def api_restore_backup():
 
 
 @system_bp.route('/api/backups/delete', methods=['POST'], endpoint="api_delete_backup")
-
 def api_delete_backup():
     try:
         filename = request.values.get('filename', '').strip()
@@ -1389,6 +1409,22 @@ def api_delete_backup():
         return jsonify({'success': success, 'message': msg})
     except Exception as e:
         return jsonify({'success': False, 'message': f'خطأ أثناء حذف النسخة الاحتياطية: {str(e)}'}), 500
+
+
+@system_bp.route('/api/backups/send-telegram', methods=['POST'], endpoint="api_send_backup_telegram")
+def api_send_backup_telegram():
+    try:
+        filename = request.values.get('filename', '').strip()
+        if not filename and request.is_json:
+            filename = (request.json or {}).get('filename', '').strip()
+        if not filename:
+            return jsonify({'success': False, 'message': 'يرجى تحديد اسم ملف النسخة الاحتياطية.'})
+        admin_user = session.get('admin_username') or 'admin'
+        from services.backup_service import send_backup_to_telegram
+        success, msg = send_backup_to_telegram(filename, admin_username=admin_user)
+        return jsonify({'success': success, 'message': msg})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'خطأ أثناء إرسال النسخة عبر تيليجرام: {str(e)}'}), 500
 
 
 @system_bp.route('/backups/download/<path:filename>', endpoint="download_backup_file_route")
