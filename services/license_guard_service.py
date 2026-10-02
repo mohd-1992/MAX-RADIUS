@@ -366,6 +366,19 @@ def get_active_license_status(force_refresh=False):
         _LICENSE_CACHE = {'data': res, 'timestamp': now_t}
         return res
 
+def has_license_feature(feature_key, default_if_missing=True):
+    """
+    Checks whether a specific feature is enabled in the active verified license.
+    Returns False if system is unlicensed, invalid, or the feature is explicitly set to False.
+    """
+    lic = get_active_license_status()
+    if not lic or not lic.get('valid'):
+        return False
+    features = lic.get('features')
+    if isinstance(features, dict) and feature_key in features:
+        return bool(features[feature_key])
+    return default_if_missing
+
 def check_subscriber_quota(additional_count=1):
     """
     Checks if adding new subscribers exceeds the license quota.

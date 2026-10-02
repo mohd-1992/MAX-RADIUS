@@ -30,7 +30,7 @@ from core.rbac import (
     get_current_manager, has_permission, require_permission,
     verify_manager_password, hash_manager_password, login_required
 )
-from web.decorators import require_role_or_permission
+from web.decorators import require_role_or_permission, require_feature
 
 # Services imports
 from services.subscriber_service import *
@@ -229,6 +229,7 @@ def api_nas_test_coa(nas_id):
 @nas_bp.route('/nas/l2tp', endpoint="l2tp_tunnels_page")
 @nas_bp.route('/tunnels', endpoint="tunnels_short")
 @login_required
+@require_feature('vpn_tunnels')
 def l2tp_tunnels_page():
     import ipaddress
     tunnels = get_l2tp_tunnels(fast_db_only=False)

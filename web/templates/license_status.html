@@ -292,7 +292,8 @@
                             ('محاكي وتدقيق راديوس', license.features.radius_simulator),
                             ('تحليلات الترافيك المتقدمة', license.features.traffic_analytics),
                             ('الربط البرمجي REST API', license.features.api_access),
-                            ('العلامة التجارية المخصصة', license.features.white_label)
+                            ('العلامة التجارية المخصصة', license.features.white_label),
+                            ('أنفاق VPN والربط (L2TP / WireGuard)', license.features.vpn_tunnels)
                         ] %}
                         {% for fname, fval in features_list %}
                         <div class="p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold {% if fval %}bg-emerald-500/10 border-emerald-500/30 text-emerald-300{% else %}bg-slate-900/40 border-slate-800/80 text-slate-500 line-through{% endif %}">

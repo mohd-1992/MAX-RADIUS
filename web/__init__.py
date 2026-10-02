@@ -16,7 +16,7 @@ from core.time_service import (
 )
 from core.rbac import get_current_manager, has_permission
 from services.license_guard_service import (
-    get_active_license_status, start_license_heartbeat_daemon
+    get_active_license_status, has_license_feature, start_license_heartbeat_daemon
 )
 from web.utils import register_template_filters
 
@@ -222,6 +222,7 @@ def create_app(config=None):
             'nas_count': nas_count,
             'current_manager': current_manager,
             'has_permission': has_permission,
+            'has_feature': has_license_feature,
             'current_year': sys_now.year,
             'app_name': APP_NAME,
             'app_version': APP_VERSION,

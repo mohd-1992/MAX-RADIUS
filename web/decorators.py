@@ -35,6 +35,25 @@ def require_role_or_permission(permission_name):
                 return redirect(url_for('dashboard'))
                 
             return f(*args, **kwargs)
+def require_feature(feature_key):
+    """
+    Decorator to restrict access based on verified license features.
+    If the feature is disabled in the active license, it blocks direct URL visits and API calls.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            from services.license_guard_service import has_license_feature
+            if not has_license_feature(feature_key):
+                if request.is_json or request.path.startswith('/api/'):
+                    return jsonify({
+                        'success': False,
+                        'error': 'FEATURE_NOT_LICENSED',
+                        'message': f'ميزة ({feature_key}) غير مشمولة في باقة ترخيصك الحالية. يرجى الترقية لتفعيلها.'
+                    }), 403
+                flash('تنبيه: هذه الميزة غير مفعلة في باقة ترخيص هذا السيرفر. يرجى مراجعة إدارة الدعم الفني لترقية الباقة.', 'warning')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
         return decorated_function
     return decorator
 
@@ -46,5 +65,6 @@ __all__ = [
     'verify_manager_password',
     'hash_manager_password',
     'login_required',
-    'require_role_or_permission'
+    'require_role_or_permission',
+    'require_feature'
 ]
