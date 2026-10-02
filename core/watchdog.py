@@ -121,7 +121,24 @@ def check_disk_space():
 def check_radius_engine_health():
     """Probe FreeRADIUS UDP port to verify responsiveness."""
     global _last_radius_state
-    host = os.environ.get('RADIUS_HOST', 'max_radius_core')
+    # Smart candidate resolution for standalone and multi-tenant environments
+    candidates = [
+        os.environ.get('RADIUS_HOST'),
+        'radius_core',
+        'max_radius_core',
+        '127.0.0.1'
+    ]
+    resolved_host = None
+    for cand in candidates:
+        if not cand:
+            continue
+        try:
+            socket.gethostbyname(cand)
+            resolved_host = cand
+            break
+        except Exception:
+            continue
+    host = resolved_host or os.environ.get('RADIUS_HOST', 'radius_core')
     port = int(os.environ.get('RADIUS_AUTH_PORT', 1812))
     if port == 18120:
         port = 1812

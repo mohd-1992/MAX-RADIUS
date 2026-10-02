@@ -71,7 +71,7 @@ dpkg --configure -a 2>/dev/null || true
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y -q
-apt-get install -y -q curl wget git ufw jq unzip openssl ca-certificates gnupg lsb-release
+apt-get install -y -q curl wget git ufw jq unzip openssl ca-certificates gnupg lsb-release nginx
 
 # Install Docker & Docker Compose Plugin if not installed
 echo -e "${BLUE}[3/6] Checking Docker & Docker Compose installation...${NC}"
@@ -147,6 +147,49 @@ fi
 echo -e "${BLUE}[6/6] Pulling images and starting MAX RADIUS services...${NC}"
 docker compose pull
 docker compose up -d
+
+# ------------------------------------------------------------
+# Configure Nginx Reverse Proxy (Port 80 alongside Port 5090)
+# ------------------------------------------------------------
+echo -e "${BLUE}[+] Configuring Nginx reverse proxy to open Port 80 alongside 5090...${NC}"
+mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+cat << 'NGINX_EOF' > /etc/nginx/sites-available/default
+# MAX RADIUS Nginx Reverse Proxy Configuration (Port 80 -> Port 5090)
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    client_max_body_size 512M;
+    client_body_timeout 600s;
+
+    location / {
+        proxy_pass http://127.0.0.1:5090;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+        proxy_connect_timeout 600s;
+    }
+
+    location /static/ {
+        proxy_pass http://127.0.0.1:5090/static/;
+        proxy_set_header Host $host;
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800, immutable";
+    }
+}
+NGINX_EOF
+
+ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default 2>/dev/null || true
+nginx -t >/dev/null 2>&1 && systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+systemctl enable nginx >/dev/null 2>&1 || true
+
 
 # Verify Database Schema Integrity
 echo -e "${BLUE}[+] Verifying database integrity...${NC}"
