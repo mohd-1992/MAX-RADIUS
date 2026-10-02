@@ -941,7 +941,7 @@ function triggerArchivingFromMaintenance() {
             });
             const fd = new FormData();
             fd.append('days', days);
-            fetch('/api/tools/database-maintenance/archive', { method: 'POST', body: fd })
+            fetch('{{ url_for("api_maintenance_archive_sessions") }}', { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(res => {
                     if (res.success) {
