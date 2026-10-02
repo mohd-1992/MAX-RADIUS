@@ -5,7 +5,10 @@ MAX RADIUS Application Factory & Blueprint Initializer.
 
 import os
 import datetime
+import logging
 from flask import Flask, request, jsonify, redirect, url_for, session, render_template, flash
+
+logger = logging.getLogger('web')
 
 from core.config import (
     DB_TYPE, APP_NAME, APP_VERSION, APP_EDITION, APP_VERSION_FULL, APP_VERSION_BADGE, SECRET_KEY
@@ -280,10 +283,20 @@ def create_app(config=None):
     @app.errorhandler(Exception)
     def handle_exception(err):
         # Let standard non-500 HTTP exceptions (like 404, 403, 302) pass through untouched
-        if isinstance(err, HTTPException) and err.code != 500:
-            return err
+        try:
+            if isinstance(err, HTTPException) and err.code != 500:
+                return err
+        except Exception:
+            pass
 
-        logger.error(f"[Server Unhandled Exception Handled]: {err}\n{traceback.format_exc()}")
+        try:
+            logger.error(f"[Server Unhandled Exception Handled]: {err}\n{traceback.format_exc()}")
+        except Exception:
+            try:
+                print(f"[ERROR] [Server Unhandled Exception]: {err}")
+            except Exception:
+                pass
+
         if request.is_json or request.path.startswith('/api/'):
             return jsonify({
                 'success': False,
@@ -312,11 +325,26 @@ def create_app(config=None):
         """
         Transparently resolves endpoint names without blueprint prefix (e.g. url_for('login')
         instead of url_for('auth_bp.login')) to guarantee 100% template compatibility.
+        If endpoint still cannot be resolved, logs a warning and returns safe fallback URL instead of crashing.
         """
-        for rule in app.url_map.iter_rules():
-            if rule.endpoint.endswith('.' + endpoint):
-                return url_for(rule.endpoint, **values)
-        raise error
+        try:
+            for rule in app.url_map.iter_rules():
+                if rule.endpoint.endswith('.' + endpoint) or rule.endpoint == endpoint:
+                    return url_for(rule.endpoint, **values)
+        except Exception:
+            pass
+
+        if 'license' in str(endpoint).lower():
+            return '/settings/license'
+        if 'login' in str(endpoint).lower():
+            return '/login'
+        if 'dashboard' in str(endpoint).lower():
+            return '/dashboard'
+        try:
+            logger.warning(f"[URL Build Fallback] Unknown endpoint: {endpoint}")
+        except Exception:
+            pass
+        return '#'
 
     app.url_build_error_handlers.append(handle_blueprint_url_build_error)
 

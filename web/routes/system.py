@@ -1575,6 +1575,8 @@ def process_import_action():
 
 @system_bp.route('/settings/license', methods=['GET'], endpoint="license_status_page")
 @system_bp.route('/license', methods=['GET'], endpoint="license_short")
+@system_bp.route('/settings/license-management', methods=['GET'], endpoint="license_management")
+@system_bp.route('/settings/license/manage', methods=['GET'], endpoint="license_status")
 def license_status_page():
     manager = get_current_manager()
     if not manager:
