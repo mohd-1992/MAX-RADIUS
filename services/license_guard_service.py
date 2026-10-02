@@ -333,8 +333,9 @@ def get_active_license_status(force_refresh=False):
             "days_left": info.get('days_left', 0),
             "expires_at": row['expires_at'],
             "is_lifetime": info.get('is_lifetime', False),
-            "max_subscribers": row['max_subscribers'],
-            "max_nas": row['max_nas'],
+            "max_subscribers": info.get('max_subscribers', row['max_subscribers']),
+            "max_nas": info.get('max_nas', row['max_nas']),
+            "max_managers": info.get('max_managers', 10),
             "current_subscribers": subs_count,
             "current_nas": nas_count,
             "current_machine_id": current_machine_id,
@@ -414,8 +415,7 @@ def check_manager_quota(additional_count=1):
     if status.get('status') == 'revoked':
         return False, "الترخيص محظور من قِبل المطور. لا يمكن إضافة حسابات مدراء جديدة.", 0, 0
         
-    row = query_one("SELECT max_managers FROM wisp_license_info ORDER BY id DESC LIMIT 1")
-    max_managers = (row.get('max_managers', 10) if row else 10) or 10
+    max_managers = (status.get('max_managers', 10) or 10)
     
     try:
         mgr_row = query_one("SELECT COUNT(*) as c FROM wisp_managers")

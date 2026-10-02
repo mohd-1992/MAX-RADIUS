@@ -34,6 +34,15 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
         raise ValueError('الباقة المحددة غير موجودة.')
         
     count = int(count)
+    if count <= 0:
+        raise ValueError('العدد المطلوب توليده يجب أن يكون أكبر من الصفر.')
+    
+    # Enforce strict license quota ceiling
+    from services.license_guard_service import check_subscriber_quota
+    allowed, err_msg, _, _ = check_subscriber_quota(count)
+    if not allowed:
+        raise ValueError(err_msg)
+        
     same_user_pass = bool(same_user_pass)
     now_dt = datetime.datetime.now()
     batch_num = f"B{now_dt.strftime('%y%m%d%H%M%S')}-{secrets.randbelow(1000):03d}"

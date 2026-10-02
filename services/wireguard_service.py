@@ -273,6 +273,13 @@ def add_wireguard_tunnel(form_or_data, admin_username='admin'):
 
     if not name:
         raise ValueError("اسم الراوتر مطلوب.")
+
+    # Enforce strict NAS router license limit
+    from services.license_guard_service import check_nas_quota
+    allowed, err_msg, cur_nas, max_nas = check_nas_quota(1)
+    if not allowed:
+        raise ValueError(err_msg)
+
     if not tunnel_ip:
         tunnel_ip = get_available_wireguard_ip()
 

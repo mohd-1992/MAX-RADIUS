@@ -472,6 +472,14 @@ def update_subscriber(sub_id, data, admin_username='admin'):
     new_expires_at = data.get('expires_at') or None
     new_notes = data.get('notes', '')
 
+    # Strict License Check: If transitioning to active from suspended/expired
+    old_status = str(old_sub.get('status') or '').lower()
+    if old_status != 'active' and str(new_status).lower() == 'active':
+        from services.license_guard_service import check_subscriber_quota
+        allowed, err_msg, _, _ = check_subscriber_quota(1)
+        if not allowed:
+            raise ValueError(f"لا يمكن تنشيط المشترك: {err_msg}")
+
     new_pkg = query_one('SELECT name FROM wisp_packages WHERE id = ?', (new_pkg_id,))
     new_pkg_name = new_pkg['name'] if new_pkg else str(new_pkg_id)
 

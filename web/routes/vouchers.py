@@ -121,6 +121,13 @@ def generate_vouchers_action():
     try:
         package_id = int(request.form['package_id'])
         count = int(request.form['count'])
+        
+        # 1. Enforce strict license quota ceiling
+        from services.license_guard_service import check_subscriber_quota
+        allowed, err_msg, _, _ = check_subscriber_quota(count)
+        if not allowed:
+            flash(err_msg, 'danger')
+            return redirect(url_for('vouchers'))
         format_type = request.form.get('format_type', 'pin_only')
         char_type = request.form.get('char_type', 'numbers')
         code_length = int(request.form.get('code_length', 8))

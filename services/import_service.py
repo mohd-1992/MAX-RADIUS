@@ -493,6 +493,13 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
         return False, "لا توجد بيانات صالحة للإدخال.", None
 
     total_count = len(cleaned_rows)
+    
+    # Enforce strict license quota ceiling
+    from services.license_guard_service import check_subscriber_quota
+    allowed, err_msg, _, _ = check_subscriber_quota(total_count)
+    if not allowed:
+        return False, f"تم رفض الاستيراد: {err_msg}", None
+
     now_dt = datetime.datetime.now()
     now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
 

@@ -91,9 +91,15 @@ def create_app(config=None):
                         "status": lic.get('status', 'unlicensed') if lic else 'unlicensed',
                         "message": lic.get('message', "النظام مقفل: يجب إدخال وتفعيل ترخيص رسمي صالح للمتابعة.") if lic else "النظام غير مرخص"
                     }), 403
-                return redirect(url_for('license_status_page'))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"[License Interceptor Error] {e}")
+            if request.is_json or path.startswith('/api/'):
+                return jsonify({
+                    "success": False,
+                    "error": "LICENSE_CHECK_FAILED",
+                    "message": "حدث خطأ أثناء التحقق من الترخيص. تم إيقاف الطلب أمنياً."
+                }), 403
+            return redirect(url_for('license_status_page'))
         return None
 
     # 3. Authentication & Access Interceptor

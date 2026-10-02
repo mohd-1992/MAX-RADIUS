@@ -20,13 +20,7 @@ MCowBQYDK2VwAyEADT6MJTY7bmDdw6nrAzsUyZ1nGrAxTwNKgE1MQYqAgNE=
 -----END PUBLIC KEY-----"""
 
 def get_master_public_key_pem():
-    """Returns Master Public Key from file if exists, else fallback to embedded."""
-    key_file = Path(__file__).resolve().parent.parent / 'storage' / 'keys' / 'master_public_key.pem'
-    if key_file.exists():
-        try:
-            return key_file.read_text(encoding='utf-8')
-        except Exception:
-            pass
+    """Returns Master Public Key (Strictly Pinned to Immutable Embedded Key)."""
     return EMBEDDED_PUBLIC_KEY
 
 def decode_license_string(lic_input):
@@ -126,6 +120,7 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
     limits = payload.get('limits', {})
     max_subs = limits.get('max_subscribers', 5000)
     max_nas = limits.get('max_nas', 15)
+    max_managers = limits.get('max_managers', 10)
     
     info = {
         "license_id": payload.get('license_id'),
@@ -136,6 +131,7 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
         "days_left": days_left,
         "max_subscribers": max_subs,
         "max_nas": max_nas,
+        "max_managers": max_managers,
         "features": payload.get('features', {}),
         "hardware_id": licensed_hw,
         "current_machine_id": current_hw

@@ -1546,6 +1546,15 @@ def process_import_action():
                 'errors': errors
             }), 400
 
+        # 2b. Strict License Quota Enforcement
+        from services.license_guard_service import check_subscriber_quota
+        allowed, err_msg, _, _ = check_subscriber_quota(len(cleaned_rows))
+        if not allowed:
+            return jsonify({
+                'success': False,
+                'message': f'فشل الاستيراد: {err_msg}'
+            }), 403
+
         # 3. Atomic Database Insertion
         admin_user = session.get('admin_user') or 'admin'
         success, msg, data = execute_import(
