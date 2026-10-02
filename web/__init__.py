@@ -72,11 +72,8 @@ def create_app(config=None):
             path.startswith('/static') or
             path.startswith('/api/v1/license') or
             path.startswith('/api/hotspot') or
-            path == '/settings/license' or
-            path == '/settings/license/activate' or
-            path == '/settings/license/sync-heartbeat' or
-            path == '/login' or
-            path == '/logout' or
+            path in ('/settings/license', '/license', '/settings/license/activate', '/settings/license/sync-heartbeat') or
+            path in ('/login', '/logout') or
             path.startswith('/user/')
         ):
             return None
@@ -91,6 +88,8 @@ def create_app(config=None):
                         "status": lic.get('status', 'unlicensed') if lic else 'unlicensed',
                         "message": lic.get('message', "النظام مقفل: يجب إدخال وتفعيل ترخيص رسمي صالح للمتابعة.") if lic else "النظام غير مرخص"
                     }), 403
+                # Force redirect all browser tab navigation back to license page
+                return redirect('/settings/license')
         except Exception as e:
             logger.error(f"[License Interceptor Error] {e}")
             if request.is_json or path.startswith('/api/'):
@@ -99,7 +98,7 @@ def create_app(config=None):
                     "error": "LICENSE_CHECK_FAILED",
                     "message": "حدث خطأ أثناء التحقق من الترخيص. تم إيقاف الطلب أمنياً."
                 }), 403
-            return redirect(url_for('license_status_page'))
+            return redirect('/settings/license')
         return None
 
     # 3. Authentication & Access Interceptor
@@ -133,19 +132,18 @@ def create_app(config=None):
                 }), 401
             return redirect(url_for('login', next=request.url))
 
-        # Strict License Guard
+        # Strict License Guard (Second Enforcement Layer)
         try:
             lic_info = get_active_license_status()
-            if lic_info and lic_info.get('status') == 'revoked':
+            if lic_info and not lic_info.get('valid'):
                 if request.is_json or request.path.startswith('/api/'):
                     return jsonify({
                         'success': False,
                         'locked': True,
-                        'message': 'تم حظر وإلغاء ترخيص هذا السيرفر عن بُعد من قبل إدارة المطور.',
-                        'license_status': 'revoked'
+                        'message': lic_info.get('message', 'النظام مقفل: يتطلب تفعيل الترخيص الرسمي.'),
+                        'license_status': lic_info.get('status', 'unlicensed')
                     }), 403
-                flash('تنبيه: تم حظر ترخيص هذا السيرفر. يرجى مراجعة إدارة الدعم الفني.', 'danger')
-                return redirect(url_for('license_status_page'))
+                return redirect('/settings/license')
         except Exception:
             pass
         return None
