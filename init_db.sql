@@ -308,8 +308,7 @@ CREATE TABLE IF NOT EXISTS `wisp_voucher_sales` (
     PRIMARY KEY (`id`),
     KEY `idx_sales_voucher` (`voucher_id`),
     KEY `idx_sales_batch` (`batch_id`),
-    KEY `idx_sales_activated` (`activated_at`),
-    CONSTRAINT `fk_sales_voucher` FOREIGN KEY (`voucher_id`) REFERENCES `wisp_vouchers` (`id`) ON DELETE CASCADE
+    KEY `idx_sales_activated` (`activated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `wisp_invoices` (

@@ -470,11 +470,35 @@ def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50
             
         usernames = [r['username'] for r in target_rows if r.get('username')]
         
-        if not usernames:
-            result['message'] = 'لم يتم العثور على أي كروت منتهية مطابقة للشروط المحددة.'
-            result['duration_seconds'] = round(time.time() - start_t, 2)
-            return result
-            
+        # 0. Ensure historical sales ledger is 100% synchronized and protected before deletion
+        try:
+            from services.voucher_service import sync_voucher_sales
+            sync_voucher_sales()
+        except Exception as _sync_err:
+            print(f"[Sales Sync Notice before purge]: {_sync_err}")
+
+        try:
+            conn = get_connection()
+            if is_mysql_conn(conn):
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT CONSTRAINT_NAME
+                    FROM information_schema.KEY_COLUMN_USAGE
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = 'wisp_voucher_sales'
+                      AND REFERENCED_TABLE_NAME IS NOT NULL
+                """)
+                for fk in cur.fetchall():
+                    fk_name = fk['CONSTRAINT_NAME'] if isinstance(fk, dict) else fk[0]
+                    try:
+                        cur.execute(f"ALTER TABLE `wisp_voucher_sales` DROP FOREIGN KEY `{fk_name}`;")
+                    except Exception:
+                        pass
+                conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
         # Process in chunks of 500 for optimal memory and SQL efficiency
         chunk_size = 500
         for i in range(0, len(usernames), chunk_size):

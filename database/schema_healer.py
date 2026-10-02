@@ -410,6 +410,28 @@ def heal_database_schema():
         except Exception as e:
             print(f"[Schema Healer] Snap backfill notice: {e}")
 
+        # 4b. Permanently decouple sales ledger from vouchers to prevent deletion on voucher purge
+        try:
+            if is_mysql:
+                cur.execute("""
+                    SELECT CONSTRAINT_NAME
+                    FROM information_schema.KEY_COLUMN_USAGE
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = 'wisp_voucher_sales'
+                      AND REFERENCED_TABLE_NAME IS NOT NULL
+                """)
+                fk_rows = cur.fetchall()
+                for fk in fk_rows:
+                    fk_name = fk['CONSTRAINT_NAME'] if isinstance(fk, dict) else fk[0]
+                    try:
+                        cur.execute(f"ALTER TABLE `wisp_voucher_sales` DROP FOREIGN KEY `{fk_name}`;")
+                        print(f"[Schema Healer] Dropped foreign key `{fk_name}` from `wisp_voucher_sales` to protect sales ledger.")
+                    except Exception:
+                        pass
+                conn.commit()
+        except Exception as e:
+            print(f"[Schema Healer] Sales FK preservation notice: {e}")
+
         # 5. Ensure Triggers Exist
         try:
             if is_mysql:

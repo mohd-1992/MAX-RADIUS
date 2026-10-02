@@ -831,8 +831,7 @@ CREATE TABLE `wisp_voucher_sales` (
   PRIMARY KEY (`id`),
   KEY `idx_sales_voucher` (`voucher_id`),
   KEY `idx_sales_batch` (`batch_id`),
-  KEY `idx_sales_activated` (`activated_at`),
-  CONSTRAINT `fk_sales_voucher` FOREIGN KEY (`voucher_id`) REFERENCES `wisp_vouchers` (`id`) ON DELETE CASCADE
+  KEY `idx_sales_activated` (`activated_at`)
 ) ENGINE=InnoDB AUTO_INCREMENT=36893 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
