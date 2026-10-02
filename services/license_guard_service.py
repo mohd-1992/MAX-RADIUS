@@ -317,11 +317,30 @@ def get_active_license_status(force_refresh=False):
             except Exception:
                 pass
             
+        # Check subscriber/NAS quota breach explicitly
+        max_s = info.get('max_subscribers', row.get('max_subscribers', 0))
+        max_n = info.get('max_nas', row.get('max_nas', 0))
+        if max_s and int(max_s) > 0 and subs_count > int(max_s):
+            valid = False
+            db_status = 'over_quota'
+            msg = f"تم قفل النظام: عدد المشتركين المسجلين في النظام ({subs_count:,}) يتجاوز سقف باقة ترخيصك ({int(max_s):,}). يرجى ترقية باقة الترخيص للمتابعة."
+        elif max_n and int(max_n) > 0 and nas_count > int(max_n):
+            valid = False
+            db_status = 'over_quota'
+            msg = f"تم قفل النظام: عدد أجهزة الراوتر (NAS) المسجلة في النظام ({nas_count:,}) يتجاوز سقف باقة ترخيصك ({int(max_n):,}). يرجى ترقية باقة الترخيص للمتابعة."
+
         status_code = "active" if valid else db_status
         if valid:
             status_text = f"مرخص ومفعل (فترة سماح متبقية: {grace_hours_left} ساعة) 🟡" if grace_period_active else "مرخص ومفعل بالكامل 🟢"
         else:
-            status_text = "الترخيص محظور 🔴" if db_status == 'revoked' else ("فترة السماح منتهية 🔴" if db_status == 'grace_expired' else "الترخيص منتهي أو غير صالح 🔴")
+            if db_status == 'over_quota':
+                status_text = f"النظام مقفل: تجاوز سقف المشتركين ({subs_count:,} / {int(max_s):,}) 🔴"
+            elif db_status == 'revoked':
+                status_text = "الترخيص محظور 🔴"
+            elif db_status == 'grace_expired':
+                status_text = "فترة السماح منتهية 🔴"
+            else:
+                status_text = "الترخيص منتهي أو غير صالح 🔴"
         
         res = {
             "has_license": True,

@@ -116,7 +116,7 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
         except Exception as e:
             return False, f"خطأ في قراءة تاريخ انتهاء الترخيص: {str(e)}", payload
             
-    # 4. Check Limits (Informative check)
+    # 4. Check Limits Compliance (Strict Enforcement)
     limits = payload.get('limits', {})
     max_subs = limits.get('max_subscribers', 5000)
     max_nas = limits.get('max_nas', 15)
@@ -137,4 +137,10 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
         "current_machine_id": current_hw
     }
     
+    if max_subs and int(max_subs) > 0 and int(current_subscribers) > int(max_subs):
+        return False, f"تم قفل النظام: عدد المشتركين الحاليين ({int(current_subscribers):,}) يتجاوز سقف باقة الترخيص ({int(max_subs):,})", info
+
+    if max_nas and int(max_nas) > 0 and int(current_nas) > int(max_nas):
+        return False, f"تم قفل النظام: عدد أجهزة الراوتر (NAS) الحالية ({int(current_nas):,}) يتجاوز سقف باقة الترخيص ({int(max_nas):,})", info
+
     return True, "الترخيص معتمد وصالح وموثق رقمياً بنجاح", info
