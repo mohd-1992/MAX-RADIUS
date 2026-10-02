@@ -194,6 +194,49 @@ def check_and_update_monotonic_time():
         logger.warning(f"[License Guard] Monotonic check notice: {e}")
     return True, ""
 
+def _build_default_license_dict(status="unlicensed", status_text="", message="", valid=False, subs_count=0, nas_count=0):
+    return {
+        "has_license": status not in ("unlicensed", "error"),
+        "status": status,
+        "status_text": status_text or "النظام مقفل: بانتظار إدخال وتفعيل الترخيص الرسمي 🔴",
+        "license_id": "",
+        "client_name": "غير مرخص (Unlicensed)",
+        "plan_tier": "Unlicensed",
+        "days_left": 0,
+        "expires_at": "غير مفعل",
+        "is_lifetime": False,
+        "max_subscribers": 0,
+        "max_nas": 0,
+        "max_managers": 0,
+        "current_subscribers": subs_count,
+        "current_nas": nas_count,
+        "current_machine_id": get_machine_id(),
+        "current_instance_uuid": get_instance_uuid(),
+        "combined_binding_code": get_combined_binding_code(),
+        "licensed_machine_id": "NONE",
+        "features": {
+            "user_portal": False,
+            "automation_rules": False,
+            "gis_map": False,
+            "autoheal": False,
+            "accounting_archiver": False,
+            "radius_simulator": False,
+            "traffic_analytics": False,
+            "api_access": False,
+            "white_label": False,
+            "vpn_tunnels": False
+        },
+        "valid": bool(valid),
+        "is_over_quota": False,
+        "quota_warning": "",
+        "message": message or "النظام مقفل بالكامل وغير مرخص.",
+        "grace_period": False,
+        "grace_hours_left": 0,
+        "last_verified_at": "",
+        "last_heartbeat_at": "",
+        "master_server_url": DEFAULT_MASTER_SERVER_URL
+    }
+
 def get_active_license_status(force_refresh=False):
     """
     Returns verified live status object of the system license.
@@ -212,63 +255,31 @@ def get_active_license_status(force_refresh=False):
     # 1. Anti-Clock Rollback check
     clock_ok, clock_msg = check_and_update_monotonic_time()
     if not clock_ok:
-        res = {
-            "has_license": True,
-            "status": "clock_tampered",
-            "status_text": "تم قفل النظام: تلاعب في ساعة السيرفر 🔴",
-            "client_name": "مقفل أمنياً",
-            "plan_tier": "Locked",
-            "days_left": 0,
-            "expires_at": "مقفل",
-            "is_lifetime": False,
-            "max_subscribers": 0,
-            "max_nas": 0,
-            "max_managers": 0,
-            "current_subscribers": subs_count,
-            "current_nas": nas_count,
-            "current_machine_id": current_machine_id,
-            "licensed_machine_id": "LOCKED",
-            "features": {},
-            "valid": False,
-            "message": clock_msg
-        }
+        res = _build_default_license_dict(
+            status="clock_tampered",
+            status_text="تم قفل النظام: تلاعب في ساعة السيرفر 🔴",
+            message=clock_msg,
+            valid=False,
+            subs_count=subs_count,
+            nas_count=nas_count
+        )
+        res["has_license"] = True
+        res["client_name"] = "مقفل أمنياً"
+        res["plan_tier"] = "Locked"
+        res["licensed_machine_id"] = "LOCKED"
         _LICENSE_CACHE = {'data': res, 'timestamp': now_t}
         return res
 
     row = query_one("SELECT * FROM wisp_license_info ORDER BY id DESC LIMIT 1")
     if not row:
-        res = {
-            "has_license": False,
-            "status": "unlicensed",
-            "status_text": "النظام مقفل: بانتظار إدخال وتفعيل الترخيص الرسمي 🔴",
-            "client_name": "غير مرخص (Unlicensed)",
-            "plan_tier": "Unlicensed",
-            "days_left": 0,
-            "expires_at": "غير مفعل",
-            "is_lifetime": False,
-            "max_subscribers": 0,
-            "max_nas": 0,
-            "max_managers": 0,
-            "current_subscribers": subs_count,
-            "current_nas": nas_count,
-            "current_machine_id": current_machine_id,
-            "current_instance_uuid": get_instance_uuid(),
-            "combined_binding_code": get_combined_binding_code(),
-            "licensed_machine_id": "NONE",
-            "features": {
-                "user_portal": False,
-                "automation_rules": False,
-                "gis_map": False,
-                "autoheal": False,
-                "accounting_archiver": False,
-                "radius_simulator": False,
-                "traffic_analytics": False,
-                "api_access": False,
-                "white_label": False
-            },
-            "valid": False,
-            "message": "النظام مقفل بالكامل وغير مرخص. يرجى تزويد المطور ببصمة الجهاز وتفعيل مفتاح الترخيص الرسمي للبدء."
-        }
+        res = _build_default_license_dict(
+            status="unlicensed",
+            status_text="النظام مقفل: بانتظار إدخال وتفعيل الترخيص الرسمي 🔴",
+            message="النظام مقفل بالكامل وغير مرخص. يرجى تزويد المطور ببصمة الجهاز وتفعيل مفتاح الترخيص الرسمي للبدء.",
+            valid=False,
+            subs_count=subs_count,
+            nas_count=nas_count
+        )
         _LICENSE_CACHE = {'data': res, 'timestamp': now_t}
         return res
         
@@ -387,14 +398,15 @@ def get_active_license_status(force_refresh=False):
         return res
     except Exception as e:
         logger.error(f"Error parsing active license: {e}")
-        res = {
-            "has_license": True,
-            "status": "error",
-            "status_text": "خطأ في ملف الترخيص",
-            "valid": False,
-            "current_machine_id": current_machine_id,
-            "message": str(e)
-        }
+        res = _build_default_license_dict(
+            status="error",
+            status_text="خطأ في قراءة الترخيص 🔴",
+            message=f"حدث خطأ أثناء فحص الترخيص: {str(e)}",
+            valid=False,
+            subs_count=subs_count if 'subs_count' in locals() else 0,
+            nas_count=nas_count if 'nas_count' in locals() else 0
+        )
+        res["has_license"] = True
         _LICENSE_CACHE = {'data': res, 'timestamp': now_t}
         return res
 

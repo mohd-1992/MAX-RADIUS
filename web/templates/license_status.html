@@ -253,10 +253,12 @@
                                 المشتركين والمستخدمين المسجلين
                             </span>
                             <span class="font-mono text-blue-400 font-black">
-                                {{ license.current_subscribers }} / {{ license.max_subscribers }} مشترك
+                                {{ license.current_subscribers or 0 }} / {{ license.max_subscribers or 0 }} مشترك
                             </span>
                         </div>
-                        {% set subs_pct = (license.current_subscribers / license.max_subscribers * 100) | round if license.max_subscribers > 0 else 0 %}
+                        {% set max_s = (license.max_subscribers or 0) | int %}
+                        {% set cur_s = (license.current_subscribers or 0) | int %}
+                        {% set subs_pct = ((cur_s / max_s) * 100) | round if max_s > 0 else 0 %}
                         <div class="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
                             <div class="h-full rounded-full transition-all duration-500 {% if subs_pct > 90 %}bg-rose-500{% elif subs_pct > 75 %}bg-amber-500{% else %}bg-blue-500{% endif %}" style="width: {{ [subs_pct, 100] | min }}%"></div>
                         </div>
@@ -270,10 +272,12 @@
                                 سيرفرات المايكروتك (NAS)
                             </span>
                             <span class="font-mono text-emerald-400 font-black">
-                                {{ license.current_nas }} / {{ license.max_nas }} سيرفر
+                                {{ license.current_nas or 0 }} / {{ license.max_nas or 0 }} سيرفر
                             </span>
                         </div>
-                        {% set nas_pct = (license.current_nas / license.max_nas * 100) | round if license.max_nas > 0 else 0 %}
+                        {% set max_n = (license.max_nas or 0) | int %}
+                        {% set cur_n = (license.current_nas or 0) | int %}
+                        {% set nas_pct = ((cur_n / max_n) * 100) | round if max_n > 0 else 0 %}
                         <div class="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
                             <div class="h-full rounded-full transition-all duration-500 {% if nas_pct > 90 %}bg-rose-500{% elif nas_pct > 75 %}bg-amber-500{% else %}bg-emerald-500{% endif %}" style="width: {{ [nas_pct, 100] | min }}%"></div>
                         </div>
@@ -287,17 +291,18 @@
                         <span>الوحدات والميزات المعتمدة في باقتك:</span>
                     </h4>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {% set feats = license.features or {} %}
                         {% set features_list = [
-                            ('بوابة المشتركين الذكية', license.features.user_portal),
-                            ('محرك قواعد الأتمتة الذكي', license.features.automation_rules),
-                            ('خريطة التغطية والمواقع GIS', license.features.gis_map),
-                            ('المعالج التلقائي الذكي Auto-Heal', license.features.autoheal),
-                            ('أرشفة المحاسبة المتقدمة', license.features.accounting_archiver),
-                            ('محاكي وتدقيق راديوس', license.features.radius_simulator),
-                            ('تحليلات الترافيك المتقدمة', license.features.traffic_analytics),
-                            ('الربط البرمجي REST API', license.features.api_access),
-                            ('العلامة التجارية المخصصة', license.features.white_label),
-                            ('أنفاق VPN والربط (L2TP / WireGuard)', license.features.vpn_tunnels)
+                            ('بوابة المشتركين الذكية', feats.get('user_portal', false) if feats is mapping else false),
+                            ('محرك قواعد الأتمتة الذكي', feats.get('automation_rules', false) if feats is mapping else false),
+                            ('خريطة التغطية والمواقع GIS', feats.get('gis_map', false) if feats is mapping else false),
+                            ('المعالج التلقائي الذكي Auto-Heal', feats.get('autoheal', false) if feats is mapping else false),
+                            ('أرشفة المحاسبة المتقدمة', feats.get('accounting_archiver', false) if feats is mapping else false),
+                            ('محاكي وتدقيق راديوس', feats.get('radius_simulator', false) if feats is mapping else false),
+                            ('تحليلات الترافيك المتقدمة', feats.get('traffic_analytics', false) if feats is mapping else false),
+                            ('الربط البرمجي REST API', feats.get('api_access', false) if feats is mapping else false),
+                            ('العلامة التجارية المخصصة', feats.get('white_label', false) if feats is mapping else false),
+                            ('أنفاق VPN والربط (L2TP / WireGuard)', feats.get('vpn_tunnels', false) if feats is mapping else false)
                         ] %}
                         {% for fname, fval in features_list %}
                         <div class="p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold {% if fval %}bg-emerald-500/10 border-emerald-500/30 text-emerald-300{% else %}bg-slate-900/40 border-slate-800/80 text-slate-500 line-through{% endif %}">

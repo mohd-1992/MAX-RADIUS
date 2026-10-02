@@ -273,9 +273,17 @@ def create_app(config=None):
             }
 
     # 5. Fault-Tolerant Error Handlers
+    from werkzeug.exceptions import HTTPException
+    import traceback
+
     @app.errorhandler(500)
-    def handle_500(err):
-        logger.error(f"[Server 500 Handled]: {err}")
+    @app.errorhandler(Exception)
+    def handle_exception(err):
+        # Let standard non-500 HTTP exceptions (like 404, 403, 302) pass through untouched
+        if isinstance(err, HTTPException) and err.code != 500:
+            return err
+
+        logger.error(f"[Server Unhandled Exception Handled]: {err}\n{traceback.format_exc()}")
         if request.is_json or request.path.startswith('/api/'):
             return jsonify({
                 'success': False,
@@ -283,11 +291,19 @@ def create_app(config=None):
                 'message': 'حدث خطأ مؤقت في السيرفر أو تعارض أقفال. تم استرجاع المعاملة تلقائياً.'
             }), 500
         return f"""
-        <div style="font-family: Cairo, Tahoma, sans-serif; text-align: center; padding: 50px; direction: rtl;">
-            <h2 style="color: #e53e3e;">⚠️ حدث خطأ مؤقت أثناء معالجة الطلب (500)</h2>
-            <p style="color: #4a5568;">الخادم قيد العمل وتم استرجاع الاتصال بأمان. يمكنك إعادة تحميل الصفحة أو العودة للرئيسية.</p>
-            <p style="color: #a0aec0; font-size: 13px;">تفاصيل الخطأ: {str(err)}</p>
-            <a href="/dashboard" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #3182ce; color: white; border-radius: 6px; text-decoration: none;">العودة للوحة التحكم</a>
+        <div style="font-family: Cairo, Tahoma, sans-serif; text-align: center; padding: 50px; direction: rtl; background: #070b14; color: #fff; min-height: 100vh;">
+            <div style="max-width: 600px; margin: 0 auto; background: #0b0f19; padding: 30px; border-radius: 20px; border: 1px solid #1c2840; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                <div style="font-size: 40px; margin-bottom: 15px;">⚠️</div>
+                <h2 style="color: #f87171; font-size: 20px; font-weight: bold; margin-bottom: 12px;">حدث خطأ مؤقت أثناء معالجة الطلب</h2>
+                <p style="color: #94a3b8; font-size: 14px; line-height: 1.6;">الخادم قيد العمل وتم استرجاع الاتصال بأمان. يمكنك إعادة تحميل الصفحة أو العودة للرئيسية.</p>
+                <div style="margin-top: 15px; padding: 12px; background: #05080e; border-radius: 10px; border: 1px solid #162136; text-align: left; font-family: monospace; font-size: 11px; color: #ef4444; overflow-x: auto; max-height: 150px;">
+                    {str(err)}
+                </div>
+                <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: center;">
+                    <a href="/dashboard" style="display: inline-block; padding: 10px 20px; background: #2563eb; color: white; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 13px;">العودة للوحة التحكم</a>
+                    <a href="javascript:location.reload()" style="display: inline-block; padding: 10px 20px; background: #1e293b; color: #cbd5e1; border-radius: 10px; text-decoration: none; font-weight: bold; font-size: 13px;">إعادة تحميل الصفحة</a>
+                </div>
+            </div>
         </div>
         """, 500
 
