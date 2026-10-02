@@ -20,7 +20,8 @@ def ensure_archive_tables():
     """Create or upgrade radacct_archive table with full 64-bit gigawords support."""
     db = _get_db()
     try:
-        with db.cursor() as cur:
+        cur = db.cursor()
+        try:
             # 1. Create table if it does not exist
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS radacct_archive (
@@ -84,6 +85,8 @@ def ensure_archive_tables():
                     pass
 
             db.commit()
+        finally:
+            cur.close()
     finally:
         db.close()
 
@@ -92,7 +95,8 @@ def get_archiver_status():
     ensure_archive_tables()
     db = _get_db()
     try:
-        with db.cursor() as cur:
+        cur = db.cursor()
+        try:
             # Live radacct count and session timestamps
             cur.execute("""
                 SELECT 
@@ -128,20 +132,35 @@ def get_archiver_status():
             """, (db_name,))
             table_sizes = {r['table_name']: r['size_mb'] for r in cur.fetchall()}
 
-        archived_gb = round(float(arch_stats.get('total_archived_bytes') or 0) / (1024 ** 3), 2)
-        return {
-            'live_sessions_count': live_stats.get('live_count', 0),
-            'archived_sessions_count': arch_stats.get('archive_count', 0),
-            'total_archived_traffic_gb': archived_gb,
-            'oldest_session': live_stats.get('oldest_session'),
-            'newest_session': live_stats.get('newest_session'),
-            'older_90d_count': live_stats.get('older_90d') or 0,
-            'older_180d_count': live_stats.get('older_180d') or 0,
-            'older_365d_count': live_stats.get('older_365d') or 0,
-            'radacct_size_mb': table_sizes.get('radacct', 0.0),
-            'archive_size_mb': table_sizes.get('radacct_archive', 0.0),
-            'postauth_size_mb': table_sizes.get('radpostauth', 0.0)
-        }
+            archived_gb = round(float(arch_stats.get('total_archived_bytes') or 0) / (1024 ** 3), 2)
+            
+            oldest_s = live_stats.get('oldest_session')
+            if oldest_s and hasattr(oldest_s, 'strftime'):
+                oldest_s = oldest_s.strftime('%Y-%m-%d %H:%M')
+            elif oldest_s:
+                oldest_s = str(oldest_s)
+                
+            newest_s = live_stats.get('newest_session')
+            if newest_s and hasattr(newest_s, 'strftime'):
+                newest_s = newest_s.strftime('%Y-%m-%d %H:%M')
+            elif newest_s:
+                newest_s = str(newest_s)
+
+            return {
+                'live_sessions_count': int(live_stats.get('live_count') or 0),
+                'archived_sessions_count': int(arch_stats.get('archive_count') or 0),
+                'total_archived_traffic_gb': archived_gb,
+                'oldest_session': oldest_s,
+                'newest_session': newest_s,
+                'older_90d_count': int(live_stats.get('older_90d') or 0),
+                'older_180d_count': int(live_stats.get('older_180d') or 0),
+                'older_365d_count': int(live_stats.get('older_365d') or 0),
+                'radacct_size_mb': float(table_sizes.get('radacct') or 0.0),
+                'archive_size_mb': float(table_sizes.get('radacct_archive') or 0.0),
+                'postauth_size_mb': float(table_sizes.get('radpostauth') or 0.0)
+            }
+        finally:
+            cur.close()
     finally:
         db.close()
 
@@ -165,7 +184,8 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
             chunk_success = False
             for attempt in range(4):
                 try:
-                    with db.cursor() as cur:
+                    cur = db.cursor()
+                    try:
                         # 1. Fetch batch of radacctids to archive
                         cur.execute("""
                             SELECT radacctid FROM radacct
@@ -216,6 +236,8 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
                         total_deleted += deleted_count
                         chunk_success = True
                         break
+                    finally:
+                        cur.close()
                 except Exception as chunk_err:
                     db.rollback()
                     err_str = str(chunk_err)
@@ -232,6 +254,15 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
             if not ids or len(ids) < chunk:
                 break
 
+        # Analyze table to update indexes and table stats
+        try:
+            cur = db.cursor()
+            cur.execute("ANALYZE TABLE radacct")
+            cur.close()
+            db.commit()
+        except Exception:
+            pass
+
         return True, f"تم بنجاح أرشفة {total_archived} جلسة قديمة وتحرير مساحة جدول المحاسبة."
     except Exception as e:
         db.rollback()
@@ -247,11 +278,14 @@ def optimize_accounting_tables():
     ensure_archive_tables()
     db = _get_db()
     try:
-        with db.cursor() as cur:
+        cur = db.cursor()
+        try:
             cur.execute("ANALYZE TABLE radacct")
             cur.execute("OPTIMIZE TABLE radacct_archive")
             db.commit()
             return True, "تم بنجاح تحسين وضغط جداول المحاسبة وإعادة بناء الفهارس."
+        finally:
+            cur.close()
     except Exception as e:
         return False, f"خطأ أثناء ضغط الجداول: {str(e)}"
     finally:

@@ -997,6 +997,26 @@ def api_prune_historical_logs():
     return jsonify(res)
 
 
+@system_bp.route('/api/tools/database-maintenance/archive', methods=['POST'], endpoint="api_maintenance_archive_sessions")
+def api_maintenance_archive_sessions():
+    data = request.json if request.is_json else request.form.to_dict()
+    days = data.get('days', 90)
+    chunk = data.get('chunk_size', 5000)
+    try:
+        days = int(days)
+    except (ValueError, TypeError):
+        days = 90
+    try:
+        chunk = int(chunk)
+    except (ValueError, TypeError):
+        chunk = 5000
+    from services.accounting_archiver_service import archive_old_sessions
+    ok, msg = archive_old_sessions(days_threshold=days, chunk_size=chunk)
+    if ok:
+        log_audit(1, 'admin', 'DB_ARCHIVE_SESSIONS', 'tools', f'Archived sessions older than {days} days: {msg}')
+    return jsonify({'success': ok, 'message': msg})
+
+
 @system_bp.route('/api/tools/database-maintenance/optimize-tables', methods=['POST'], endpoint="api_optimize_tables")
 
 def api_optimize_tables():

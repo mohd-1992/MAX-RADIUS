@@ -127,11 +127,8 @@ def api_traffic_analytics_status():
 
 
 @accounting_bp.route('/tools/accounting-archiver', endpoint="accounting_archiver_page")
-
 def accounting_archiver_page():
-    from services.accounting_archiver_service import get_archiver_status
-    data = get_archiver_status()
-    return render_template('tools/accounting_archiver.html', data=data)
+    return redirect(url_for('database_maintenance_page') + '#archiver')
 
 
 @accounting_bp.route('/api/tools/accounting-archiver/status', endpoint="api_accounting_archiver_status")

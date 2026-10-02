@@ -106,6 +106,22 @@ def get_maintenance_stats():
         except Exception:
             pass
             
+        # 6. Safe Archiver Telemetry
+        try:
+            from services.accounting_archiver_service import get_archiver_status
+            stats['archiver'] = get_archiver_status()
+        except Exception:
+            stats['archiver'] = {
+                'live_sessions_count': stats.get('radacct_count', 0),
+                'archived_sessions_count': 0,
+                'total_archived_traffic_gb': 0.0,
+                'older_90d_count': 0,
+                'radacct_size_mb': 0.0,
+                'archive_size_mb': 0.0,
+                'oldest_session': None,
+                'newest_session': None
+            }
+
     except Exception as e:
         print(f"[ERROR] get_maintenance_stats: {str(e)}")
         
@@ -141,6 +157,12 @@ def get_detailed_table_sizes():
             'desc': 'سجلات التحقق وكلمات المرور في سيرفر الراديوس',
             'icon': 'fa-key',
             'color': 'emerald'
+        },
+        'radacct_archive': {
+            'arabic_name': 'أرشيف سجلات المحاسبة',
+            'desc': 'الجلسات التاريخية المؤرشفة والمضغوطة',
+            'icon': 'fa-file-zipper',
+            'color': 'teal'
         },
         'radpostauth': {
             'arabic_name': 'سجلات محاولات الدخول',

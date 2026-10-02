@@ -116,6 +116,89 @@
             </div>
         </div>
 
+        <!-- ========================================================= -->
+        <!-- بطاقة أرشفة وضغط سجلات المحاسبة التاريخية (Accounting Archiver) -->
+        <!-- ========================================================= -->
+        <div id="archiver" class="bg-gradient-to-r from-[#070b14] via-[#0e1626] to-[#070b14] border border-amber-500/30 rounded-2xl p-5 sm:p-6 shadow-lg relative overflow-hidden">
+            <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 border-b border-[#1c2840] pb-5">
+                <div class="flex items-center gap-3.5">
+                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl flex-shrink-0">
+                        <i class="fa-solid fa-box-archive"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h3 class="text-base font-black text-white">أرشفة وضغط سجلات المحاسبة (Accounting Archiver)</h3>
+                            <span class="px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-md text-[10px] font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-shield-halved text-[9px]"></i>
+                                حفظ تاريخي آمن (بدون فقدان بيانات)
+                            </span>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            نقل الجلسات التاريخية المغلقة من جدول <code class="text-sky-300 font-mono">radacct</code> النشط إلى جدول الأرشيف <code class="text-amber-300 font-mono">radacct_archive</code> لتسريع استعلامات الـ RADIUS دون ضياع بيانات المشتركين
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Archiver Controls: Duration Dropdown & Action Button -->
+                <div class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap sm:flex-nowrap">
+                    <select id="archiveDaysSelect" class="bg-[#070b14] border border-[#1c2840] text-slate-200 text-xs rounded-xl px-4 py-2.5 focus:border-amber-500 focus:outline-none flex-1 sm:flex-none">
+                        <option value="30">أقدم من 30 يوماً</option>
+                        <option value="90" selected>أقدم من 90 يوماً (موصى به)</option>
+                        <option value="180">أقدم من 180 يوماً (6 أشهر)</option>
+                        <option value="365">أقدم من سنة كاملة (365 يوماً)</option>
+                    </select>
+                    <button onclick="triggerArchivingFromMaintenance()" id="btnStartArchiving" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-600/20 whitespace-nowrap flex-1 sm:flex-none">
+                        <i class="fa-solid fa-play"></i>
+                        <span>بدء الأرشفة والضغط</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Archiver Telemetry KPIs -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
+                <div class="bg-[#070b14] border border-[#162136] rounded-xl p-3.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400">الجلسات الحية (radacct)</span>
+                        <i class="fa-solid fa-database text-blue-400 text-xs"></i>
+                    </div>
+                    <h4 id="arch_live_count" class="text-lg font-black text-white font-mono mt-1">
+                        {{ stats.archiver.live_sessions_count if stats.archiver else stats.radacct_count }}
+                    </h4>
+                    <span id="arch_radacct_size" class="text-[10px] text-blue-400 font-mono block mt-0.5">الحجم: {{ stats.archiver.radacct_size_mb if stats.archiver else 0 }} MB</span>
+                </div>
+                <div class="bg-[#070b14] border border-[#162136] rounded-xl p-3.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400">الجلسات المؤرشفة</span>
+                        <i class="fa-solid fa-file-zipper text-emerald-400 text-xs"></i>
+                    </div>
+                    <h4 id="arch_archive_count" class="text-lg font-black text-emerald-400 font-mono mt-1">
+                        {{ stats.archiver.archived_sessions_count if stats.archiver else 0 }}
+                    </h4>
+                    <span id="arch_archive_size" class="text-[10px] text-emerald-400 font-mono block mt-0.5">الأرشيف: {{ stats.archiver.archive_size_mb if stats.archiver else 0 }} MB</span>
+                </div>
+                <div class="bg-[#070b14] border border-[#162136] rounded-xl p-3.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400">مؤهلة للأرشفة (>90d)</span>
+                        <i class="fa-solid fa-broom text-amber-400 text-xs"></i>
+                    </div>
+                    <h4 id="arch_older_90d" class="text-lg font-black text-amber-400 font-mono mt-1">
+                        {{ stats.archiver.older_90d_count if stats.archiver else 0 }}
+                    </h4>
+                    <span class="text-[10px] text-slate-400 block mt-0.5">جاهزة للترحيل فوراً</span>
+                </div>
+                <div class="bg-[#070b14] border border-[#162136] rounded-xl p-3.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-semibold text-slate-400">أقدم جلسة مسجلة</span>
+                        <i class="fa-solid fa-clock-rotate-left text-purple-400 text-xs"></i>
+                    </div>
+                    <h4 id="arch_oldest_session" class="text-xs font-bold text-purple-400 font-mono mt-2 truncate" title="{{ stats.archiver.oldest_session if stats.archiver else '' }}">
+                        {{ stats.archiver.oldest_session if (stats.archiver and stats.archiver.oldest_session) else 'لا توجد جلسات' }}
+                    </h4>
+                    <span class="text-[10px] text-slate-400 block mt-0.5">تاريخ البداية</span>
+                </div>
+            </div>
+        </div>
+
         <!-- 3 Optimization Action Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
             <!-- 1. 30 Days Log Pruning -->
@@ -619,6 +702,14 @@ function refreshStats() {
                 document.getElementById('card_quota_count').innerText = s.expired_by_quota.toLocaleString();
                 document.getElementById('card_time_count').innerText = s.expired_by_time.toLocaleString();
                 document.getElementById('card_all_count').innerText = s.expired_total.toLocaleString();
+                if (s.archiver) {
+                    if (document.getElementById('arch_live_count')) document.getElementById('arch_live_count').innerText = (s.archiver.live_sessions_count || 0).toLocaleString();
+                    if (document.getElementById('arch_archive_count')) document.getElementById('arch_archive_count').innerText = (s.archiver.archived_sessions_count || 0).toLocaleString();
+                    if (document.getElementById('arch_older_90d')) document.getElementById('arch_older_90d').innerText = (s.archiver.older_90d_count || 0).toLocaleString();
+                    if (document.getElementById('arch_radacct_size')) document.getElementById('arch_radacct_size').innerText = 'الحجم: ' + (s.archiver.radacct_size_mb || 0) + ' MB';
+                    if (document.getElementById('arch_archive_size')) document.getElementById('arch_archive_size').innerText = 'الأرشيف: ' + (s.archiver.archive_size_mb || 0) + ' MB';
+                    if (document.getElementById('arch_oldest_session')) document.getElementById('arch_oldest_session').innerText = s.archiver.oldest_session || 'لا توجد جلسات';
+                }
             }
         })
         .catch(err => {
@@ -704,6 +795,44 @@ function loadTableSizes() {
         .catch(err => {
             tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-rose-400">خطأ في تحميل بيانات الجداول: ${err}</td></tr>`;
         });
+}
+
+// Archiving Action Handler
+function triggerArchivingFromMaintenance() {
+    const days = document.getElementById('archiveDaysSelect').value;
+    Swal.fire({
+        title: `أرشفة السجلات الأقدم من ${days} يوماً`,
+        html: `سيتم نقل هذه الجلسات بأمان من جدول <strong class="text-sky-400">radacct</strong> النشط إلى جدول الأرشيف <strong class="text-amber-400">radacct_archive</strong> وضغط الجداول دون ضياع أي سجل.<br><span class="text-xs text-slate-400">البيانات ستبقى محفوظة في الأرشيف للرجوع إليها تاريخياً.</span>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#d97706',
+        cancelButtonColor: '#334155',
+        confirmButtonText: 'نعم، ابدأ الأرشفة والضغط',
+        cancelButtonText: 'إلغاء'
+    }).then(result => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'جارٍ نقل وأرشفة السجلات...',
+                text: 'يرجى الانتظار لحين اكتمال الأرشفة وضغط الجداول دون إيقاف الخدمة...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+            const fd = new FormData();
+            fd.append('days', days);
+            fetch('/api/tools/database-maintenance/archive', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.success) {
+                        Swal.fire('تمت الأرشفة بنجاح', res.message, 'success').then(() => {
+                            refreshStats();
+                        });
+                    } else {
+                        Swal.fire('خطأ', res.message || 'فشلت عملية الأرشفة', 'error');
+                    }
+                })
+                .catch(err => Swal.fire('خطأ غير متوقع', err.message, 'error'));
+        }
+    });
 }
 
 // 3. Confirm & Execute Historical Log Pruning
