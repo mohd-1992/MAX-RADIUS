@@ -190,6 +190,58 @@ def check_auto_database_cleanup():
         except Exception as e:
             print(f"  [Watchdog] Auto cleanup error: {e}")
 
+def enforce_license_compliance_hook():
+    """
+    License Compliance Enforcement (PoD Disconnect Hook):
+    If the license status is invalid (revoked, expired, grace_expired, clock_tampered, unlicensed),
+    we immediately terminate active sessions via RFC 5176 Disconnect-Request (PoD)
+    through the non-blocking CoA queue engine.
+    Ensures network session isolation when a license is voided without altering FreeRADIUS binaries.
+    """
+    try:
+        from services.license_guard_service import get_active_license_status
+        from services.coa_queue_service import enqueue_disconnect
+
+        lic = get_active_license_status()
+        if not lic or not lic.get('valid'):
+            status_name = lic.get('status', 'invalid') if lic else 'unlicensed'
+            msg = lic.get('message', 'License invalid') if lic else 'No active license found'
+
+            # Find running sessions in radacct
+            active_sessions = query_all("""
+                SELECT radacctid, username, nasipaddress, framedipaddress, acctsessionid, callingstationid
+                FROM radacct
+                WHERE acctstoptime IS NULL
+                ORDER BY radacctid DESC
+                LIMIT 100
+            """)
+
+            if active_sessions:
+                count = len(active_sessions)
+                print(f"  🚨 [Watchdog License Guard] License non-compliant ({status_name}). Enqueuing PoD disconnect for {count} active sessions...")
+                for sess in active_sessions:
+                    u = sess.get('username')
+                    if not u:
+                        continue
+                    enqueue_disconnect(
+                        username=u,
+                        nas_ip=sess.get('nasipaddress'),
+                        framed_ip=sess.get('framedipaddress'),
+                        session_id=sess.get('acctsessionid'),
+                        mac_address=sess.get('callingstationid'),
+                        reason=f"License Enforcement: System {status_name}",
+                        admin_username='watchdog_license_guard'
+                    )
+
+                log_system_alert(
+                    alert_type='LICENSE_NON_COMPLIANT_POD',
+                    severity='critical',
+                    source='watchdog_license',
+                    message=f"تم إرسال أوامر فصل فورية (PoD / Disconnect) لعدد {count} جلسة نشطة بسبب عدم صلاحية الترخيص ({status_name}: {msg})."
+                )
+    except Exception as e:
+        print(f"  [Watchdog] Error in license compliance enforcement hook: {e}")
+
 def run_watchdog_cycle():
     """Execute one full watchdog cycle with auto-healing and auto-resolution."""
     try:
@@ -218,6 +270,12 @@ def run_watchdog_cycle():
             ensure_l2tp_host_route()
         except Exception:
             pass
+
+        # License Compliance Enforcement (PoD Disconnect for Revoked/Expired systems)
+        try:
+            enforce_license_compliance_hook()
+        except Exception as lic_err:
+            print(f"  [Watchdog] Error in license compliance hook: {lic_err}")
 
         return {
             'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
