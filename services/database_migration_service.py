@@ -616,6 +616,9 @@ def execute_database_migration(file_input, options=None):
         'all_imported_usernames': set()
     }
 
+    from database.db import set_import_maintenance_active
+    set_import_maintenance_active(True)
+
     update_migration_progress(
         status='running',
         percent=5,
@@ -699,6 +702,15 @@ def execute_database_migration(file_input, options=None):
                         cur.execute(f"ALTER TABLE wisp_subscribers ADD COLUMN `{col}` {c_type};")
                     except Exception:
                         pass
+
+            try:
+                cur.execute("SET SESSION innodb_lock_wait_timeout = 180;")
+                cur.execute("SET SESSION tx_isolation = 'READ-COMMITTED';")
+            except Exception:
+                try:
+                    cur.execute("SET SESSION transaction_isolation = 'READ-COMMITTED';")
+                except Exception:
+                    pass
 
             cur.execute("SET unique_checks = 0;")
             cur.execute("SET foreign_key_checks = 0;")
@@ -1519,53 +1531,77 @@ def execute_database_migration(file_input, options=None):
             stats=stats
         )
 
-        # Layer 1: Sanitize open sessions from imported database
-        try:
-            cur.execute("""
-                UPDATE radacct 
-                SET acctstoptime = COALESCE(acctupdatetime, acctstarttime, CURRENT_TIMESTAMP),
-                    acctterminatecause = 'Database-Imported-Closed'
-                WHERE acctstoptime IS NULL
-            """)
-        except Exception:
-            pass
+        # Layer 1: Sanitize open sessions from imported database (Resilient against lock contention)
+        for _att in range(3):
+            try:
+                cur.execute("""
+                    UPDATE radacct 
+                    SET acctstoptime = COALESCE(acctupdatetime, acctstarttime, CURRENT_TIMESTAMP),
+                        acctterminatecause = 'Database-Imported-Closed'
+                    WHERE acctstoptime IS NULL
+                """)
+                db.commit()
+                break
+            except Exception as _e1:
+                db.rollback()
+                if ('1213' in str(_e1) or 'deadlock' in str(_e1).lower()) and _att < 2:
+                    time.sleep(1)
+                    continue
+                print(f"[WARN] radacct session sanitizer: {_e1}")
+                break
 
         # Layer 2: Accurately calculate batch card counts
-        try:
-            cur.execute("""
-                UPDATE wisp_voucher_batches b 
-                SET b.card_count = (SELECT COUNT(*) FROM wisp_vouchers v WHERE v.batch_id = b.id)
-            """)
-        except Exception:
-            pass
+        for _att in range(3):
+            try:
+                cur.execute("""
+                    UPDATE wisp_voucher_batches b 
+                    SET b.card_count = (SELECT COUNT(*) FROM wisp_vouchers v WHERE v.batch_id = b.id)
+                """)
+                db.commit()
+                break
+            except Exception as _e2:
+                db.rollback()
+                if ('1213' in str(_e2) or 'deadlock' in str(_e2).lower()) and _att < 2:
+                    time.sleep(1)
+                    continue
+                print(f"[WARN] voucher batch counter: {_e2}")
+                break
 
         # Layer 3: Ensure all active subscribers have credentials and groups in FreeRADIUS
-        try:
-            cur.execute("""
-                INSERT INTO radcheck (username, attribute, op, value)
-                SELECT s.username, 'Cleartext-Password', ':=', s.password
-                FROM wisp_subscribers s
-                WHERE s.status = 'active'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM radcheck rc 
-                      WHERE rc.username = s.username AND rc.attribute = 'Cleartext-Password'
-                  )
-            """)
-            cur.execute("""
-                INSERT INTO radusergroup (username, groupname, priority)
-                SELECT s.username, p.name, 1
-                FROM wisp_subscribers s
-                JOIN wisp_packages p ON s.package_id = p.id
-                WHERE s.status = 'active'
-                  AND NOT EXISTS (
-                      SELECT 1 FROM radusergroup rg 
-                      WHERE rg.username = s.username
-                  )
-            """)
-        except Exception as e:
-            print(f"[WARN] Subscriber radius auto-healer: {e}")
+        for _att in range(3):
+            try:
+                cur.execute("""
+                    INSERT INTO radcheck (username, attribute, op, value)
+                    SELECT s.username, 'Cleartext-Password', ':=', s.password
+                    FROM wisp_subscribers s
+                    WHERE s.status = 'active'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM radcheck rc 
+                          WHERE rc.username = s.username AND rc.attribute = 'Cleartext-Password'
+                      )
+                """)
+                cur.execute("""
+                    INSERT INTO radusergroup (username, groupname, priority)
+                    SELECT s.username, p.name, 1
+                    FROM wisp_subscribers s
+                    JOIN wisp_packages p ON s.package_id = p.id
+                    WHERE s.status = 'active'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM radusergroup rg 
+                          WHERE rg.username = s.username
+                      )
+                """)
+                db.commit()
+                break
+            except Exception as _e3:
+                db.rollback()
+                if ('1213' in str(_e3) or 'deadlock' in str(_e3).lower()) and _att < 2:
+                    time.sleep(1)
+                    continue
+                print(f"[WARN] Subscriber radius auto-healer: {_e3}")
+                break
 
-        # Re-create live accounting triggers
+        # Re-create live accounting triggers and reset constraints
         if is_mysql_conn(db):
             try:
                 cur.execute(TRIGGER_SUB_SQL)
@@ -1573,10 +1609,10 @@ def execute_database_migration(file_input, options=None):
                 cur.execute("SET unique_checks = 1;")
                 cur.execute("SET foreign_key_checks = 1;")
                 cur.execute("SET autocommit = 1;")
+                db.commit()
             except Exception:
                 pass
 
-        db.commit()
         log_audit(1, 'admin', 'MIGRATION_EXECUTED', 'system', f"Migrated {stats['subscribers_imported']} subscribers, {stats['cards_imported']} cards, {stats['sessions_imported']} sessions.")
 
         # Post-Migration Quota Audit
@@ -1588,7 +1624,7 @@ def execute_database_migration(file_input, options=None):
                 c_subs = lic_st.get('current_subscribers', 0)
                 m_subs = lic_st.get('max_subscribers', 0)
                 if m_subs > 0 and c_subs > m_subs:
-                    quota_warning = f" ⚠️ (تنبيه الترخيص: إجمالي المشتركين {c_subs:,} يتجاوز سقف باقة ترخيصك {m_subs:,} - تم تفعيل قفل الإضافات الجديدة حتى الترقية)"
+                    quota_warning = f" ⚠️ (تنبيه الترخيص: إجمالي المشتركين {c_subs:,} يتجاوز سقف باقة ترخيصك {m_subs:,} - تم تفعيل تجميد الإضافات الجديدة، والواجهة مفتوحة بالكامل للمعاينة وحذف وتعديل السجلات حتى النزول تحت السقف المرخص)."
         except Exception:
             pass
 
@@ -1620,18 +1656,6 @@ def execute_database_migration(file_input, options=None):
             )
             rollback_cancelled_import(tracking_data, db)
 
-        # Ensure triggers and safety variables are re-enabled
-        if is_mysql_conn(db):
-            try:
-                cur.execute(TRIGGER_SUB_SQL)
-                cur.execute(TRIGGER_VOUCHER_SQL)
-                cur.execute("SET unique_checks = 1;")
-                cur.execute("SET foreign_key_checks = 1;")
-                cur.execute("SET autocommit = 1;")
-                db.commit()
-            except Exception:
-                pass
-
         update_migration_progress(
             status=final_status,
             stage='تم الإلغاء والتراجع بنجاح وإعادة قاعدة البيانات لحالتها الأصلية' if is_cancelling else 'حدث خطأ أثناء الاستيراد',
@@ -1641,8 +1665,40 @@ def execute_database_migration(file_input, options=None):
         raise RuntimeError(err_msg)
 
     finally:
-        cur.close()
-        db.close()
+        # Guarantee triggers and safety variables are 100% restored using clean connection if needed
+        try:
+            if is_mysql_conn(db):
+                try:
+                    cur.execute(TRIGGER_SUB_SQL)
+                    cur.execute(TRIGGER_VOUCHER_SQL)
+                    cur.execute("SET unique_checks = 1;")
+                    cur.execute("SET foreign_key_checks = 1;")
+                    cur.execute("SET autocommit = 1;")
+                    db.commit()
+                except Exception:
+                    # Fallback to independent connection to guarantee schema safety
+                    clean_conn = get_connection()
+                    clean_cur = clean_conn.cursor()
+                    clean_cur.execute(TRIGGER_SUB_SQL)
+                    clean_cur.execute(TRIGGER_VOUCHER_SQL)
+                    clean_cur.execute("SET unique_checks = 1; SET foreign_key_checks = 1; SET autocommit = 1;")
+                    clean_conn.commit()
+                    clean_cur.close()
+                    clean_conn.close()
+        except Exception as _fe:
+            print(f"[WARN] Final trigger restoration notice: {_fe}")
+
+        try:
+            cur.close()
+            db.close()
+        except Exception:
+            pass
+
+        try:
+            from database.db import set_import_maintenance_active
+            set_import_maintenance_active(False)
+        except Exception:
+            pass
 
 
 def start_async_migration(file_input, options=None):

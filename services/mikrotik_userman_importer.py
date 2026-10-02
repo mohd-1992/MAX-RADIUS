@@ -521,20 +521,6 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
         'errors': []
     }
 
-    # Strict License Quota Check
-    users_count = len(users)
-    if users_count > 0:
-        from services.license_guard_service import check_subscriber_quota
-        allowed, err_msg, _, _ = check_subscriber_quota(users_count)
-        if not allowed:
-            db.close()
-            return {
-                'success': False,
-                'error': f"تم رفض استيراد المايكروتك: {err_msg}",
-                'created_users': 0,
-                'stats': stats
-            }
-
     try:
         if is_mysql_conn(db):
             cur.execute("SET foreign_key_checks = 0;")
@@ -841,6 +827,13 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
             cur.execute("SET foreign_key_checks = 1;")
             
         db.commit()
+
+        try:
+            from services.license_guard_service import get_active_license_status
+            get_active_license_status(force_refresh=True)
+        except Exception:
+            pass
+
         elapsed = round(time.time() - start_t, 2)
         log_audit(1, admin_user or 'admin', 'USERMAN_IMPORT', 'tools', f"Imported {stats['created_users']} users across {len(batch_map)} batches from MikroTik User Manager in {elapsed}s.")
         

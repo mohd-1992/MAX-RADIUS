@@ -114,6 +114,18 @@ def adapt_query(query, conn):
         return query.replace('?', '%s')
     return query
 
+_IMPORT_OR_MAINTENANCE_ACTIVE = False
+
+def set_import_maintenance_active(active: bool):
+    """Signals background workers that a heavy import or database maintenance is running."""
+    global _IMPORT_OR_MAINTENANCE_ACTIVE
+    _IMPORT_OR_MAINTENANCE_ACTIVE = bool(active)
+
+def is_import_maintenance_active() -> bool:
+    """Returns True if database is currently busy with bulk import or maintenance."""
+    global _IMPORT_OR_MAINTENANCE_ACTIVE
+    return _IMPORT_OR_MAINTENANCE_ACTIVE
+
 def _is_schema_error(err):
     err_str = str(err).lower()
     if '1054' in err_str or 'unknown column' in err_str or '1146' in err_str or "doesn't exist" in err_str or 'no such column' in err_str or 'no such table' in err_str:
@@ -123,18 +135,28 @@ def _is_schema_error(err):
     return False
 
 def _run_with_autoheal(func, *args, **kwargs):
-    try:
-        return func(*args, **kwargs)
-    except Exception as e:
-        if _is_schema_error(e):
-            print(f"[DB Auto-Heal Triggered] Schema mismatch detected: {e}. Running self-healing engine...")
-            try:
-                from database.schema_healer import heal_database_schema
-                heal_database_schema()
-                return func(*args, **kwargs)
-            except Exception:
-                pass
-        raise e
+    import time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            err_str = str(e).lower()
+            # 1. Automatic transparent retry on InnoDB Deadlocks (Error 1213 / 1205)
+            if ('1213' in err_str or 'deadlock found' in err_str or '1205' in err_str or 'lock wait timeout' in err_str) and attempt < (max_retries - 1):
+                time.sleep(0.15 * (attempt + 1))
+                continue
+
+            # 2. Schema mismatch auto-healing
+            if _is_schema_error(e) and attempt < (max_retries - 1):
+                print(f"[DB Auto-Heal Triggered] Schema mismatch detected: {e}. Running self-healing engine...")
+                try:
+                    from database.schema_healer import heal_database_schema
+                    heal_database_schema()
+                    continue
+                except Exception:
+                    pass
+            raise e
 
 def _raw_query_all(query, params=()):
     with db_session() as conn:

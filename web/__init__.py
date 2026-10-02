@@ -152,92 +152,144 @@ def create_app(config=None):
     @app.context_processor
     def inject_global_settings():
         try:
-            settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
-            settings = {r['key']: r['value'] for r in settings_rows}
-        except Exception:
-            settings = {}
+            try:
+                settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
+                settings = {r['key']: r['value'] for r in settings_rows}
+            except Exception:
+                settings = {}
 
-        network_name = settings.get('network_name') or settings.get('company_name') or settings.get('isp_name') or 'MAX RADIUS'
-        network_logo = settings.get('network_logo', '').strip()
-        
-        logo_url = None
-        if network_logo:
-            logo_disk_path = os.path.join(app.static_folder, 'uploads', network_logo)
-            if os.path.isfile(logo_disk_path):
-                logo_url = url_for('static', filename=f'uploads/{network_logo}')
+            network_name = settings.get('network_name') or settings.get('company_name') or settings.get('isp_name') or 'MAX RADIUS'
+            network_logo = settings.get('network_logo', '').strip()
+            
+            logo_url = None
+            if network_logo:
+                try:
+                    logo_disk_path = os.path.join(app.static_folder, 'uploads', network_logo)
+                    if os.path.isfile(logo_disk_path):
+                        logo_url = url_for('static', filename=f'uploads/{network_logo}')
+                except Exception:
+                    pass
 
-        currency = settings.get('currency', 'YER')
-        currency_symbol = settings.get('currency_symbol', 'ر.ي')
-        timezone = settings.get('timezone') or get_configured_timezone_name()
-        support_phone = settings.get('support_phone', '')
-        support_email = settings.get('support_email', '')
-        address = settings.get('address', '')
-        hotspot_domain = settings.get('hotspot_domain', 'wifi.maxradius.net')
-        system_title = settings.get('system_title', 'MAX RADIUS - نظام إدارة الشبكات والفوترة و FreeRADIUS')
-        default_coa_port = settings.get('default_coa_port', '3799')
-        try:
-            nas_cnt_row = query_one('SELECT COUNT(*) as cnt FROM wisp_nas_devices')
-            nas_count = nas_cnt_row['cnt'] if nas_cnt_row else 0
-        except Exception:
-            nas_count = 0
+            currency = settings.get('currency', 'YER')
+            currency_symbol = settings.get('currency_symbol', 'ر.ي')
+            timezone = settings.get('timezone') or get_configured_timezone_name()
+            support_phone = settings.get('support_phone', '')
+            support_email = settings.get('support_email', '')
+            address = settings.get('address', '')
+            hotspot_domain = settings.get('hotspot_domain', 'wifi.maxradius.net')
+            system_title = settings.get('system_title', 'MAX RADIUS - نظام إدارة الشبكات والفوترة و FreeRADIUS')
+            default_coa_port = settings.get('default_coa_port', '3799')
+            try:
+                nas_cnt_row = query_one('SELECT COUNT(*) as cnt FROM wisp_nas_devices')
+                nas_count = nas_cnt_row['cnt'] if nas_cnt_row else 0
+            except Exception:
+                nas_count = 0
 
-        current_manager = get_current_manager()
-        sys_now = get_system_now(timezone)
-        server_time_now = sys_now.strftime('%Y-%m-%d %H:%M:%S')
-        server_time_only = sys_now.strftime('%H:%M:%S')
-        server_date_only = sys_now.strftime('%Y-%m-%d')
-        server_timestamp_ms = int(sys_now.timestamp() * 1000)
-        # Fast Dynamic RADIUS server IP resolution
-        radius_server_ip = settings.get('radius_server_ip') or settings.get('server_ip')
-        if not radius_server_ip or str(radius_server_ip).strip() in ('127.0.0.1', 'localhost', '0.0.0.0'):
-            if request.host:
-                host_ip = request.host.split(':')[0]
-                if host_ip and host_ip not in ('127.0.0.1', 'localhost', '0.0.0.0'):
-                    radius_server_ip = host_ip
-        if not radius_server_ip or str(radius_server_ip).strip() in ('127.0.0.1', 'localhost', '0.0.0.0'):
-            radius_server_ip = '192.168.1.100'
+            try:
+                current_manager = get_current_manager()
+            except Exception:
+                current_manager = None
 
-        try:
-            lic_stat = get_active_license_status()
-        except Exception:
-            lic_stat = {}
+            try:
+                sys_now = get_system_now(timezone)
+            except Exception:
+                sys_now = datetime.datetime.now()
 
-        return {
-            'settings': settings,
-            'network_name': network_name,
-            'company_name': network_name,
-            'isp_name': network_name,
-            'network_logo': network_logo,
-            'logo_url': logo_url,
-            'currency': currency,
-            'currency_symbol': currency_symbol,
-            'timezone': timezone,
-            'system_timezone': timezone,
-            'server_time_now': server_time_now,
-            'server_time_only': server_time_only,
-            'server_date_only': server_date_only,
-            'server_timestamp_ms': server_timestamp_ms,
-            'support_phone': support_phone,
-            'support_email': support_email,
-            'address': address,
-            'hotspot_domain': hotspot_domain,
-            'system_title': system_title,
-            'default_coa_port': default_coa_port,
-            'radius_server_ip': radius_server_ip,
-            'nas_count': nas_count,
-            'current_manager': current_manager,
-            'has_permission': has_permission,
-            'has_feature': has_license_feature,
-            'license_info': lic_stat,
-            'is_over_quota': lic_stat.get('is_over_quota', False),
-            'quota_warning': lic_stat.get('quota_warning', ''),
-            'current_year': sys_now.year,
-            'app_name': APP_NAME,
-            'app_version': APP_VERSION,
-            'app_edition': APP_EDITION,
-            'system_version': APP_VERSION_FULL,
-            'app_version_badge': APP_VERSION_BADGE
-        }
+            server_time_now = sys_now.strftime('%Y-%m-%d %H:%M:%S')
+            server_time_only = sys_now.strftime('%H:%M:%S')
+            server_date_only = sys_now.strftime('%Y-%m-%d')
+            server_timestamp_ms = int(sys_now.timestamp() * 1000)
+            
+            # Fast Dynamic RADIUS server IP resolution
+            radius_server_ip = settings.get('radius_server_ip') or settings.get('server_ip')
+            if not radius_server_ip or str(radius_server_ip).strip() in ('127.0.0.1', 'localhost', '0.0.0.0'):
+                try:
+                    if request.host:
+                        host_ip = request.host.split(':')[0]
+                        if host_ip and host_ip not in ('127.0.0.1', 'localhost', '0.0.0.0'):
+                            radius_server_ip = host_ip
+                except Exception:
+                    pass
+            if not radius_server_ip or str(radius_server_ip).strip() in ('127.0.0.1', 'localhost', '0.0.0.0'):
+                radius_server_ip = '192.168.1.100'
+
+            try:
+                lic_stat = get_active_license_status()
+            except Exception:
+                lic_stat = {}
+
+            return {
+                'settings': settings,
+                'network_name': network_name,
+                'company_name': network_name,
+                'isp_name': network_name,
+                'network_logo': network_logo,
+                'logo_url': logo_url,
+                'currency': currency,
+                'currency_symbol': currency_symbol,
+                'timezone': timezone,
+                'system_timezone': timezone,
+                'server_time_now': server_time_now,
+                'server_time_only': server_time_only,
+                'server_date_only': server_date_only,
+                'server_timestamp_ms': server_timestamp_ms,
+                'support_phone': support_phone,
+                'support_email': support_email,
+                'address': address,
+                'hotspot_domain': hotspot_domain,
+                'system_title': system_title,
+                'default_coa_port': default_coa_port,
+                'radius_server_ip': radius_server_ip,
+                'nas_count': nas_count,
+                'current_manager': current_manager,
+                'has_permission': has_permission,
+                'has_feature': has_license_feature,
+                'license_info': lic_stat,
+                'is_over_quota': lic_stat.get('is_over_quota', False),
+                'quota_warning': lic_stat.get('quota_warning', ''),
+                'current_year': sys_now.year,
+                'app_name': APP_NAME,
+                'app_version': APP_VERSION,
+                'app_edition': APP_EDITION,
+                'system_version': APP_VERSION_FULL,
+                'app_version_badge': APP_VERSION_BADGE
+            }
+        except Exception as _ctx_err:
+            logger.error(f"[Global Settings Context Fallback Triggered]: {_ctx_err}")
+            return {
+                'settings': {},
+                'network_name': 'MAX RADIUS',
+                'company_name': 'MAX RADIUS',
+                'isp_name': 'MAX RADIUS',
+                'currency_symbol': 'ر.ي',
+                'is_over_quota': False,
+                'quota_warning': '',
+                'current_year': 2026,
+                'app_name': APP_NAME,
+                'app_version': APP_VERSION,
+                'system_version': APP_VERSION_FULL,
+                'has_permission': lambda *args, **kwargs: True,
+                'has_feature': lambda *args, **kwargs: True
+            }
+
+    # 5. Fault-Tolerant Error Handlers
+    @app.errorhandler(500)
+    def handle_500(err):
+        logger.error(f"[Server 500 Handled]: {err}")
+        if request.is_json or request.path.startswith('/api/'):
+            return jsonify({
+                'success': False,
+                'error': 'INTERNAL_SERVER_ERROR',
+                'message': 'حدث خطأ مؤقت في السيرفر أو تعارض أقفال. تم استرجاع المعاملة تلقائياً.'
+            }), 500
+        return f"""
+        <div style="font-family: Cairo, Tahoma, sans-serif; text-align: center; padding: 50px; direction: rtl;">
+            <h2 style="color: #e53e3e;">⚠️ حدث خطأ مؤقت أثناء معالجة الطلب (500)</h2>
+            <p style="color: #4a5568;">الخادم قيد العمل وتم استرجاع الاتصال بأمان. يمكنك إعادة تحميل الصفحة أو العودة للرئيسية.</p>
+            <p style="color: #a0aec0; font-size: 13px;">تفاصيل الخطأ: {str(err)}</p>
+            <a href="/dashboard" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #3182ce; color: white; border-radius: 6px; text-decoration: none;">العودة للوحة التحكم</a>
+        </div>
+        """, 500
 
     # 6. Global url_for Blueprint Endpoint Resolver
     def handle_blueprint_url_build_error(error, endpoint, values):

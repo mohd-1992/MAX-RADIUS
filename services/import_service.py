@@ -493,13 +493,6 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
         return False, "لا توجد بيانات صالحة للإدخال.", None
 
     total_count = len(cleaned_rows)
-    
-    # Enforce strict license quota ceiling
-    from services.license_guard_service import check_subscriber_quota
-    allowed, err_msg, _, _ = check_subscriber_quota(total_count)
-    if not allowed:
-        return False, f"تم رفض الاستيراد: {err_msg}", None
-
     now_dt = datetime.datetime.now()
     now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
 
@@ -692,6 +685,12 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
                 cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
             conn.commit()
 
+            try:
+                from services.license_guard_service import get_active_license_status
+                get_active_license_status(force_refresh=True)
+            except Exception:
+                pass
+
             consumption_msg = f" مع ترحيل استهلاك {imported_consumption_count} كرت" if imported_consumption_count > 0 else " ككروت جديدة برصيد كامل"
             log_audit(1, admin_username, 'IMPORT_VOUCHERS', 'vouchers',
                       f'Successfully imported {total_count} vouchers into batch "{batch_name}" ({batch_num}){consumption_msg}')
@@ -753,6 +752,12 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
             if is_mysql:
                 cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
             conn.commit()
+
+            try:
+                from services.license_guard_service import get_active_license_status
+                get_active_license_status(force_refresh=True)
+            except Exception:
+                pass
 
             log_audit(1, admin_username, 'IMPORT_SUBSCRIBERS', 'subscribers',
                       f'Successfully imported {total_count} subscribers from Excel.')

@@ -344,6 +344,12 @@ def _metrics_collector_loop():
     global _LIVE_METRICS_CACHE
     while True:
         try:
+            # Yield database completely to bulk imports and database migrations
+            from database.db import is_import_maintenance_active
+            if is_import_maintenance_active():
+                time.sleep(2)
+                continue
+
             resources = _collect_server_resources_internal()
             db_stats = _collect_db_metrics_internal()
             combined = dict(db_stats)

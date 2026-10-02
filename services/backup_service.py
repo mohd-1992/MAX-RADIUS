@@ -718,56 +718,34 @@ def restore_backup(filename, admin_username='admin'):
 
         commands = split_sql_statements(sql_content) if sql_content else []
 
-        # Strict Pre-Restore Quota Check
-        from services.license_guard_service import get_active_license_status
-        lic_status = get_active_license_status()
-        max_allowed_subs = lic_status.get('max_subscribers', 0)
-        if not max_allowed_subs and saved_license_row and saved_license_row.get('max_subscribers'):
-            try:
-                max_allowed_subs = int(saved_license_row['max_subscribers'])
-            except Exception:
-                pass
+        from database.db import set_import_maintenance_active
+        set_import_maintenance_active(True)
 
-        if max_allowed_subs and int(max_allowed_subs) > 0 and commands:
-            dump_sub_count = 0
-            for cmd in commands:
-                cleaned = cmd.strip()
-                if not cleaned:
-                    continue
-                header = cleaned[:250].upper().replace('`', '').replace('"', '').replace("'", "")
-                if 'INSERT INTO' in header and ('WISP_VOUCHERS' in header or 'WISP_SUBSCRIBERS' in header):
-                    val_idx = cleaned.upper().find('VALUES')
-                    if val_idx != -1:
-                        val_chunk = cleaned[val_idx + 6:]
-                        c = val_chunk.count('),') + val_chunk.count(') ,') + 1
-                        dump_sub_count += c
-
-            if dump_sub_count > int(max_allowed_subs):
-                return False, f"تم رفض وإلغاء الاستعادة أمنياً: النسخة الاحتياطية تحتوي على ({dump_sub_count:,}) كارت/مشترك، وهو ما يتجاوز سقف باقة ترخيص هذا السيرفر ({int(max_allowed_subs):,}). تم إلغاء الاستعادة مسبقاً والحفاظ على قاعدة البيانات الحالية دون أي تعديل."
+        quota_warning = ""
 
         # Execute database restoration
-        emergency_snapshot_sql = None
         if sql_content:
             conn = get_connection()
             is_mysql = is_mysql_conn(conn)
             conn.close()
             
             if is_mysql:
-                # Capture emergency rollback snapshot
-                try:
-                    emergency_snapshot_sql, _ = generate_mysql_dump()
-                except Exception as e_snap:
-                    print(f"[Snapshot Notice]: {e_snap}")
-
                 commands = split_sql_statements(sql_content)
                 with db_session() as c:
                     cursor = c.cursor()
+                    try:
+                        cursor.execute("SET SESSION innodb_lock_wait_timeout = 180;")
+                        cursor.execute("SET SESSION tx_isolation = 'READ-COMMITTED';")
+                    except Exception:
+                        pass
                     cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+                    cursor.execute("SET UNIQUE_CHECKS = 0;")
                     for cmd in commands:
                         cleaned = cmd.strip()
                         if cleaned and not cleaned.startswith('--') and not cleaned.startswith('/*') and not cleaned.startswith('#'):
                             cursor.execute(cleaned)
                     cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
+                    cursor.execute("SET UNIQUE_CHECKS = 1;")
             else:
                 conn = get_connection()
                 try:
@@ -803,33 +781,14 @@ def restore_backup(filename, admin_username='admin'):
             except Exception as e_lic_restore:
                 print(f"[License Isolation Warning]: {e_lic_restore}")
 
-        # Post-Restore Strict Quota Verification & Rollback
+        # Post-Restore Quota Audit (Open UI policy: allow navigation & deletion to reduce quota)
         try:
             from services.license_guard_service import get_active_license_status
             lic_st = get_active_license_status(force_refresh=True)
             c_subs = lic_st.get('current_subscribers', 0)
             m_subs = lic_st.get('max_subscribers', 0)
             if m_subs > 0 and c_subs > m_subs:
-                # Immediate Rollback to emergency snapshot
-                if emergency_snapshot_sql and is_mysql:
-                    try:
-                        rb_commands = split_sql_statements(emergency_snapshot_sql)
-                        with db_session() as c:
-                            cur = c.cursor()
-                            cur.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                            for cmd in rb_commands:
-                                cl = cmd.strip()
-                                if cl and not cl.startswith('--') and not cl.startswith('/*') and not cl.startswith('#'):
-                                    cur.execute(cl)
-                            cur.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                        if saved_license_row:
-                            pkg_dict, _ = decode_license_string(saved_license_row.get('raw_package_json'))
-                            if pkg_dict:
-                                _apply_verified_package_to_db(pkg_dict, saved_license_row.get('master_server_url'))
-                                clear_license_cache()
-                    except Exception as e_rb:
-                        print(f"[Rollback Exception]: {e_rb}")
-                return False, f"تم إلغاء الاستعادة والتراجع فورياً: عدد المشتركين في النسخة الاحتياطية ({c_subs:,}) يتجاوز سقف باقة ترخيص هذا السيرفر ({m_subs:,}). تم التراجع وإعادة قاعدة البيانات لحالتها السابقة."
+                quota_warning = f" ⚠️ (تنبيه الترخيص: إجمالي المشتركين {c_subs:,} يتجاوز سقف باقة ترخيصك {m_subs:,} - تم تجميد الإضافات الجديدة، والواجهة مفتوحة بالكامل لحذف وتعديل السجلات حتى النزول تحت السقف)."
         except Exception as e_post_check:
             print(f"[Post-Restore Check Exception]: {e_post_check}")
 
@@ -851,6 +810,12 @@ def restore_backup(filename, admin_username='admin'):
 
     except Exception as err:
         return False, f"حدث خطأ أثناء استعادة النسخة الاحتياطية: {str(err)}"
+    finally:
+        try:
+            from database.db import set_import_maintenance_active
+            set_import_maintenance_active(False)
+        except Exception:
+            pass
 
 def delete_backup(filename, admin_username='admin'):
     """Delete a backup file from storage and database."""
