@@ -708,6 +708,14 @@ def restore_backup(filename, admin_username='admin'):
             with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                 sql_content = f.read()
                 
+        # Preserve Current Machine License Snapshot to prevent foreign backup overwrite
+        saved_license_row = None
+        try:
+            from database.db import query_one
+            saved_license_row = query_one("SELECT * FROM wisp_license_info ORDER BY id DESC LIMIT 1")
+        except Exception as e_lic_save:
+            print(f"[License Backup Isolation Notice]: {e_lic_save}")
+
         # Execute database restoration
         if sql_content:
             conn = get_connection()
@@ -745,6 +753,33 @@ def restore_backup(filename, admin_username='admin'):
         except Exception as e:
             print(f"[Schema Healer Restore Notice]: {e}")
 
+        # Restore Current Machine License Snapshot (Ensures license is NEVER wiped by foreign backup)
+        if saved_license_row:
+            try:
+                from services.license_guard_service import _apply_verified_package_to_db, decode_license_string, clear_license_cache
+                raw_pkg_json = saved_license_row.get('raw_package_json')
+                if raw_pkg_json:
+                    pkg_dict, _ = decode_license_string(raw_pkg_json)
+                    if pkg_dict:
+                        _apply_verified_package_to_db(pkg_dict, saved_license_row.get('master_server_url'))
+                        clear_license_cache()
+                        print("[License Isolation] Successfully preserved and restored machine license after backup restore.")
+            except Exception as e_lic_restore:
+                print(f"[License Isolation Warning]: {e_lic_restore}")
+
+        # Post-Restore Quota Audit
+        quota_warning = ""
+        try:
+            from services.license_guard_service import get_active_license_status
+            lic_st = get_active_license_status(force_refresh=True)
+            if lic_st.get('valid'):
+                c_subs = lic_st.get('current_subscribers', 0)
+                m_subs = lic_st.get('max_subscribers', 0)
+                if m_subs > 0 and c_subs > m_subs:
+                    quota_warning = f" ⚠️ [تنبيه الترخيص: عدد المشتركين المستعادين ({c_subs:,}) يتجاوز سقف باقة الترخيص ({m_subs:,}) - تم تفعيل حظر الإضافات الجديدة حتى ترقية الترخيص]"
+        except Exception:
+            pass
+
         # Layer 1: Cleanly sanitize restored open sessions
         try:
             execute_write("""
@@ -759,7 +794,7 @@ def restore_backup(filename, admin_username='admin'):
 
         extra_info = f" واستعادة {restored_files_count} ملف مرفقات/شعارات" if restored_files_count > 0 else ""
         log_audit(1, admin_username, 'RESTORE_BACKUP', 'backup', f'Restored database & files from {safe_name}')
-        return True, f"تمت استعادة النسخة الاحتياطية [{safe_name}] بنجاح وتحديث قاعدة البيانات وتطبيق المعالجة الذاتية بالكامل{extra_info}."
+        return True, f"تمت استعادة النسخة الاحتياطية [{safe_name}] بنجاح وتحديث قاعدة البيانات وتطبيق المعالجة الذاتية بالكامل{extra_info}.{quota_warning}"
 
     except Exception as err:
         return False, f"حدث خطأ أثناء استعادة النسخة الاحتياطية: {str(err)}"

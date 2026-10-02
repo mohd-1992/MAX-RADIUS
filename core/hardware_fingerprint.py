@@ -68,11 +68,33 @@ def get_real_hardware_identifiers():
 
 def get_machine_id():
     """
-    Returns a permanent, formatted Machine ID:
+    Returns a permanent, hardware-bound Machine ID:
     Format: MAX-XXXX-XXXX-XXXX-XXXX
-    Guaranteed to remain constant across all reboots and Docker updates.
+    Guaranteed to remain constant on the same machine, and prevents cloning across servers.
     """
-    # 1. Check persistent file in storage volume
+    # 1. Derive stable fingerprint directly from immutable hardware identifiers
+    tokens = get_real_hardware_identifiers()
+    if tokens:
+        joined = '|'.join(tokens)
+        digest = hashlib.sha256(joined.encode('utf-8')).hexdigest().upper()
+        real_machine_id = f"MAX-{digest[0:4]}-{digest[4:8]}-{digest[8:12]}-{digest[12:16]}"
+
+        # Anti-Cloning check: If persistent file exists but differs from real hardware,
+        # it was copied from another server -> force update to actual hardware ID
+        try:
+            PERSISTENT_MACHINE_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
+            if PERSISTENT_MACHINE_ID_FILE.exists():
+                saved_id = PERSISTENT_MACHINE_ID_FILE.read_text(encoding='utf-8').strip()
+                if saved_id != real_machine_id:
+                    PERSISTENT_MACHINE_ID_FILE.write_text(real_machine_id, encoding='utf-8')
+            else:
+                PERSISTENT_MACHINE_ID_FILE.write_text(real_machine_id, encoding='utf-8')
+        except Exception:
+            pass
+
+        return real_machine_id
+
+    # Fallback to persistent file only if hardware cannot be read
     try:
         if PERSISTENT_MACHINE_ID_FILE.exists():
             saved_id = PERSISTENT_MACHINE_ID_FILE.read_text(encoding='utf-8').strip()
@@ -81,21 +103,7 @@ def get_machine_id():
     except Exception:
         pass
 
-    # 2. Derive stable fingerprint from permanent hardware tokens
-    tokens = get_real_hardware_identifiers()
-    joined = '|'.join(tokens)
-    digest = hashlib.sha256(joined.encode('utf-8')).hexdigest().upper()
-    
-    machine_id = f"MAX-{digest[0:4]}-{digest[4:8]}-{digest[8:12]}-{digest[12:16]}"
-    
-    # 3. Persist to storage volume
-    try:
-        PERSISTENT_MACHINE_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
-        PERSISTENT_MACHINE_ID_FILE.write_text(machine_id, encoding='utf-8')
-    except Exception:
-        pass
-        
-    return machine_id
+    return "MAX-0000-0000-0000-0000"
 
 
 PERSISTENT_INSTANCE_UUID_FILE = Path(__file__).resolve().parent.parent / 'storage' / 'instance_id'

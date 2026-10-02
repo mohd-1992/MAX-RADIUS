@@ -1579,7 +1579,20 @@ def execute_database_migration(file_input, options=None):
         db.commit()
         log_audit(1, 'admin', 'MIGRATION_EXECUTED', 'system', f"Migrated {stats['subscribers_imported']} subscribers, {stats['cards_imported']} cards, {stats['sessions_imported']} sessions.")
 
-        res_msg = f"تم ترحيل البيانات بنجاح: {stats['subscribers_imported']} مشترك، و {stats['cards_imported']} كرت، و {stats['sessions_imported']} جلسة استهلاك ومحاسبة."
+        # Post-Migration Quota Audit
+        quota_warning = ""
+        try:
+            from services.license_guard_service import get_active_license_status
+            lic_st = get_active_license_status(force_refresh=True)
+            if lic_st.get('valid'):
+                c_subs = lic_st.get('current_subscribers', 0)
+                m_subs = lic_st.get('max_subscribers', 0)
+                if m_subs > 0 and c_subs > m_subs:
+                    quota_warning = f" ⚠️ (تنبيه الترخيص: إجمالي المشتركين {c_subs:,} يتجاوز سقف باقة ترخيصك {m_subs:,} - تم تفعيل قفل الإضافات الجديدة حتى الترقية)"
+        except Exception:
+            pass
+
+        res_msg = f"تم ترحيل البيانات بنجاح: {stats['subscribers_imported']} مشترك، و {stats['cards_imported']} كرت، و {stats['sessions_imported']} جلسة استهلاك ومحاسبة.{quota_warning}"
         update_migration_progress(
             status='completed',
             percent=100,
