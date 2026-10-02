@@ -716,24 +716,34 @@ def restore_backup(filename, admin_username='admin'):
         except Exception as e_lic_save:
             print(f"[License Backup Isolation Notice]: {e_lic_save}")
 
+        commands = split_sql_statements(sql_content) if sql_content else []
+
         # Strict Pre-Restore Quota Check
-        max_allowed_subs = None
-        if saved_license_row and saved_license_row.get('max_subscribers'):
+        from services.license_guard_service import get_active_license_status
+        lic_status = get_active_license_status()
+        max_allowed_subs = lic_status.get('max_subscribers', 0)
+        if not max_allowed_subs and saved_license_row and saved_license_row.get('max_subscribers'):
             try:
                 max_allowed_subs = int(saved_license_row['max_subscribers'])
             except Exception:
-                max_allowed_subs = None
+                pass
 
-        if max_allowed_subs and max_allowed_subs > 0 and sql_content:
-            import re
+        if max_allowed_subs and int(max_allowed_subs) > 0 and commands:
             dump_sub_count = 0
-            for match in re.finditer(r"INSERT\s+INTO\s+`?(?:wisp_vouchers|wisp_subscribers)`?[^V]+VALUES\s*(.*?);", sql_content, re.IGNORECASE | re.DOTALL):
-                chunk = match.group(1)
-                c = chunk.count("), (") + chunk.count("),\n(") + chunk.count("),\r\n(") + 1
-                dump_sub_count += c
-            
-            if dump_sub_count > max_allowed_subs:
-                return False, f"تم رفض وإلغاء الاستعادة أمنياً: النسخة الاحتياطية تحتوي على ما يقارب ({dump_sub_count:,}) مشترك، وهو ما يتجاوز سقف باقة ترخيص هذا السيرفر ({max_allowed_subs:,}). يرجى ترقية باقة الترخيص أولاً للمتابعة."
+            for cmd in commands:
+                cleaned = cmd.strip()
+                if not cleaned:
+                    continue
+                header = cleaned[:250].upper().replace('`', '').replace('"', '').replace("'", "")
+                if 'INSERT INTO' in header and ('WISP_VOUCHERS' in header or 'WISP_SUBSCRIBERS' in header):
+                    val_idx = cleaned.upper().find('VALUES')
+                    if val_idx != -1:
+                        val_chunk = cleaned[val_idx + 6:]
+                        c = val_chunk.count('),') + val_chunk.count(') ,') + 1
+                        dump_sub_count += c
+
+            if dump_sub_count > int(max_allowed_subs):
+                return False, f"تم رفض وإلغاء الاستعادة أمنياً: النسخة الاحتياطية تحتوي على ({dump_sub_count:,}) كارت/مشترك، وهو ما يتجاوز سقف باقة ترخيص هذا السيرفر ({int(max_allowed_subs):,}). تم إلغاء الاستعادة مسبقاً والحفاظ على قاعدة البيانات الحالية دون أي تعديل."
 
         # Execute database restoration
         emergency_snapshot_sql = None
