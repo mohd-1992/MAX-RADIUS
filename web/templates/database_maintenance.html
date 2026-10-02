@@ -116,90 +116,212 @@
             </div>
         </div>
 
-        <!-- ========================================================= -->
-        <!-- بطاقة أرشفة وضغط سجلات المحاسبة التاريخية (Accounting Archiver) -->
-        <!-- ========================================================= -->
-        <div id="archiver" class="bg-gradient-to-r from-[#070b14] via-[#0e1626] to-[#070b14] border border-amber-500/30 rounded-2xl p-5 sm:p-6 shadow-lg relative overflow-hidden">
-            <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 border-b border-[#1c2840] pb-5">
-                <div class="flex items-center gap-3.5">
-                    <div class="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xl flex-shrink-0">
-                        <i class="fa-solid fa-box-archive"></i>
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-2 flex-wrap">
-                            <h3 class="text-base font-black text-white">أرشفة وضغط سجلات المحاسبة (Accounting Archiver)</h3>
-                            <span class="px-2 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded-md text-[10px] font-bold flex items-center gap-1">
-                                <i class="fa-solid fa-shield-halved text-[9px]"></i>
-                                حفظ تاريخي آمن (بدون فقدان بيانات)
-                            </span>
-                        </div>
-                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
-                            نقل الجلسات التاريخية المغلقة من جدول <code class="text-sky-300 font-mono">radacct</code> النشط إلى جدول الأرشيف <code class="text-amber-300 font-mono">radacct_archive</code> لتسريع استعلامات الـ RADIUS دون ضياع بيانات المشتركين
-                        </p>
-                    </div>
+        <style>
+        /* ------------------------------------------------------------- */
+        /* Accounting Archiver Box - Complete Dual-Theme Architecture    */
+        /* ------------------------------------------------------------- */
+        #archiver {
+            transition: all 0.2s ease-in-out;
+        }
+        
+        /* 1. Light Theme Styling (الوضع النهاري) */
+        html.theme-light #archiver {
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 40%, #fffbeb 100%) !important;
+            border: 1px solid #fde047 !important;
+            box-shadow: 0 4px 15px -3px rgba(245, 158, 11, 0.08) !important;
+        }
+        html.theme-light #archiver .arch-title {
+            color: #78350f !important;
+        }
+        html.theme-light #archiver .arch-desc {
+            color: #475569 !important;
+        }
+        html.theme-light #archiver .arch-badge {
+            background-color: #fef3c7 !important;
+            color: #92400e !important;
+            border: 1px solid #fcd34d !important;
+        }
+        html.theme-light #archiver .arch-code {
+            background-color: #ffffff !important;
+            color: #b45309 !important;
+            border: 1px solid #fde68a !important;
+        }
+        html.theme-light #archiver .arch-icon-box {
+            background-color: #fef3c7 !important;
+            color: #d97706 !important;
+            border: 1px solid #fcd34d !important;
+        }
+        html.theme-light #archiver .arch-select {
+            background-color: #ffffff !important;
+            border: 1px solid #cbd5e1 !important;
+            color: #0f172a !important;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+        }
+        html.theme-light #archiver .arch-btn-run,
+        html.theme-light #archiver .arch-btn-run * {
+            background-color: #d97706 !important;
+            color: #ffffff !important;
+        }
+        html.theme-light #archiver .arch-mini-card {
+            background-color: #ffffff !important;
+            border: 1px solid #fde68a !important;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+        }
+        html.theme-light #archiver .arch-mini-label {
+            color: #475569 !important;
+            font-weight: 600 !important;
+        }
+        html.theme-light #archiver .arch-mini-val {
+            color: #0f172a !important;
+        }
+        html.theme-light #archiver .arch-mini-sub {
+            color: #64748b !important;
+        }
+
+        /* 2. Dark Theme Styling (الوضع الليلي) */
+        html:not(.theme-light) #archiver {
+            background: linear-gradient(135deg, rgba(11, 15, 25, 0.95) 0%, rgba(20, 29, 47, 0.85) 50%, rgba(11, 15, 25, 0.95) 100%) !important;
+            border: 1px solid rgba(245, 158, 11, 0.3) !important;
+            box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3) !important;
+        }
+        html:not(.theme-light) #archiver .arch-title {
+            color: #ffffff !important;
+        }
+        html:not(.theme-light) #archiver .arch-desc {
+            color: #94a3b8 !important;
+        }
+        html:not(.theme-light) #archiver .arch-badge {
+            background-color: rgba(245, 158, 11, 0.1) !important;
+            color: #fcd34d !important;
+            border: 1px solid rgba(245, 158, 11, 0.25) !important;
+        }
+        html:not(.theme-light) #archiver .arch-code {
+            background-color: rgba(7, 11, 20, 0.7) !important;
+            color: #fde047 !important;
+            border: 1px solid rgba(245, 158, 11, 0.2) !important;
+        }
+        html:not(.theme-light) #archiver .arch-icon-box {
+            background-color: rgba(245, 158, 11, 0.1) !important;
+            color: #fbbf24 !important;
+            border: 1px solid rgba(245, 158, 11, 0.25) !important;
+        }
+        html:not(.theme-light) #archiver .arch-select {
+            background-color: #070b14 !important;
+            border: 1px solid #1c2840 !important;
+            color: #f1f5f9 !important;
+        }
+        html:not(.theme-light) #archiver .arch-btn-run,
+        html:not(.theme-light) #archiver .arch-btn-run * {
+            background-color: #d97706 !important;
+            color: #ffffff !important;
+        }
+        html:not(.theme-light) #archiver .arch-mini-card {
+            background-color: rgba(7, 11, 20, 0.8) !important;
+            border: 1px solid #162136 !important;
+            box-shadow: none !important;
+        }
+        html:not(.theme-light) #archiver .arch-mini-label {
+            color: #94a3b8 !important;
+        }
+        html:not(.theme-light) #archiver .arch-mini-val {
+            color: #ffffff !important;
+        }
+        html:not(.theme-light) #archiver .arch-mini-sub {
+            color: #64748b !important;
+        }
+    </style>
+
+    <!-- ========================================================= -->
+    <!-- بطاقة أرشفة وضغط سجلات المحاسبة التاريخية (Accounting Archiver) -->
+    <!-- ========================================================= -->
+    <div id="archiver" class="rounded-2xl p-5 sm:p-6 relative overflow-hidden transition border">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 border-b border-amber-300/40 dark:border-amber-500/20 pb-5">
+            <div class="flex items-center gap-3.5">
+                <div class="arch-icon-box w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0">
+                    <i class="fa-solid fa-box-archive"></i>
                 </div>
-                
-                <!-- Archiver Controls: Duration Dropdown & Action Button -->
-                <div class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap sm:flex-nowrap">
-                    <select id="archiveDaysSelect" class="bg-[#070b14] border border-[#1c2840] text-slate-200 text-xs rounded-xl px-4 py-2.5 focus:border-amber-500 focus:outline-none flex-1 sm:flex-none">
-                        <option value="30">أقدم من 30 يوماً</option>
-                        <option value="90" selected>أقدم من 90 يوماً (موصى به)</option>
-                        <option value="180">أقدم من 180 يوماً (6 أشهر)</option>
-                        <option value="365">أقدم من سنة كاملة (365 يوماً)</option>
-                    </select>
-                    <button onclick="triggerArchivingFromMaintenance()" id="btnStartArchiving" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-600/20 whitespace-nowrap flex-1 sm:flex-none">
-                        <i class="fa-solid fa-play"></i>
-                        <span>بدء الأرشفة والضغط</span>
-                    </button>
+                <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h3 class="arch-title text-base font-black">أرشفة وضغط سجلات المحاسبة (Accounting Archiver)</h3>
+                        <span class="arch-badge px-2.5 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1">
+                            <i class="fa-solid fa-shield-halved text-[9px]"></i>
+                            حفظ تاريخي آمن (بدون فقدان بيانات)
+                        </span>
+                    </div>
+                    <p class="arch-desc text-xs mt-1 leading-relaxed">
+                        نقل الجلسات التاريخية المغلقة من جدول <code class="arch-code px-1.5 py-0.5 rounded font-mono text-[11px]">radacct</code> النشط إلى جدول الأرشيف <code class="arch-code px-1.5 py-0.5 rounded font-mono text-[11px]">radacct_archive</code> لتسريع استعلامات الـ RADIUS دون ضياع بيانات المشتركين
+                    </p>
                 </div>
             </div>
-
-            <!-- Archiver Telemetry KPIs -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
-                <div class="bg-[#070b14] border border-[#162136] rounded-xl p-3.5">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] font-semibold text-slate-400">الجلسات الحية (radacct)</span>
-                        <i class="fa-solid fa-database text-blue-400 text-xs"></i>
-                    </div>
-                    <h4 id="arch_live_count" class="text-lg font-black text-white font-mono mt-1">
-                        {{ stats.archiver.live_sessions_count if stats.archiver else stats.radacct_count }}
-                    </h4>
-                    <span id="arch_radacct_size" class="text-[10px] text-blue-400 font-mono block mt-0.5">الحجم: {{ stats.archiver.radacct_size_mb if stats.archiver else 0 }} MB</span>
-                </div>
-                <div class="bg-[#070b14] border border-[#162136] rounded-xl p-3.5">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] font-semibold text-slate-400">الجلسات المؤرشفة</span>
-                        <i class="fa-solid fa-file-zipper text-emerald-400 text-xs"></i>
-                    </div>
-                    <h4 id="arch_archive_count" class="text-lg font-black text-emerald-400 font-mono mt-1">
-                        {{ stats.archiver.archived_sessions_count if stats.archiver else 0 }}
-                    </h4>
-                    <span id="arch_archive_size" class="text-[10px] text-emerald-400 font-mono block mt-0.5">الأرشيف: {{ stats.archiver.archive_size_mb if stats.archiver else 0 }} MB</span>
-                </div>
-                <div class="bg-[#070b14] border border-[#162136] rounded-xl p-3.5">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] font-semibold text-slate-400">مؤهلة للأرشفة (>90d)</span>
-                        <i class="fa-solid fa-broom text-amber-400 text-xs"></i>
-                    </div>
-                    <h4 id="arch_older_90d" class="text-lg font-black text-amber-400 font-mono mt-1">
-                        {{ stats.archiver.older_90d_count if stats.archiver else 0 }}
-                    </h4>
-                    <span class="text-[10px] text-slate-400 block mt-0.5">جاهزة للترحيل فوراً</span>
-                </div>
-                <div class="bg-[#070b14] border border-[#162136] rounded-xl p-3.5">
-                    <div class="flex items-center justify-between">
-                        <span class="text-[11px] font-semibold text-slate-400">أقدم جلسة مسجلة</span>
-                        <i class="fa-solid fa-clock-rotate-left text-purple-400 text-xs"></i>
-                    </div>
-                    <h4 id="arch_oldest_session" class="text-xs font-bold text-purple-400 font-mono mt-2 truncate" title="{{ stats.archiver.oldest_session if stats.archiver else '' }}">
-                        {{ stats.archiver.oldest_session if (stats.archiver and stats.archiver.oldest_session) else 'لا توجد جلسات' }}
-                    </h4>
-                    <span class="text-[10px] text-slate-400 block mt-0.5">تاريخ البداية</span>
-                </div>
+            
+            <!-- Archiver Controls: Duration Dropdown & Action Button -->
+            <div class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap sm:flex-nowrap">
+                <select id="archiveDaysSelect" class="arch-select text-xs rounded-xl px-4 py-2.5 focus:border-amber-500 focus:outline-none flex-1 sm:flex-none">
+                    <option value="30">أقدم من 30 يوماً</option>
+                    <option value="90" selected>أقدم من 90 يوماً (موصى به)</option>
+                    <option value="180">أقدم من 180 يوماً (6 أشهر)</option>
+                    <option value="365">أقدم من سنة كاملة (365 يوماً)</option>
+                </select>
+                <button onclick="triggerArchivingFromMaintenance()" id="btnStartArchiving" class="arch-btn-run px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-600/20 whitespace-nowrap flex-1 sm:flex-none">
+                    <i class="fa-solid fa-play"></i>
+                    <span>بدء الأرشفة والضغط</span>
+                </button>
             </div>
         </div>
 
-        <!-- 3 Optimization Action Cards -->
+        <!-- Archiver Telemetry KPIs -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5">
+            <!-- 1. Live radacct -->
+            <div class="arch-mini-card rounded-xl p-3.5 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="arch-mini-label text-[11px]">الجلسات الحية (radacct)</span>
+                    <i class="fa-solid fa-database text-blue-500 text-xs"></i>
+                </div>
+                <h4 id="arch_live_count" class="arch-mini-val text-xl font-black font-mono mt-1">
+                    {{ stats.archiver.live_sessions_count if stats.archiver else stats.radacct_count }}
+                </h4>
+                <span id="arch_radacct_size" class="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-semibold block mt-0.5">الحجم: {{ stats.archiver.radacct_size_mb if stats.archiver else 0 }} MB</span>
+            </div>
+
+            <!-- 2. Archived radacct_archive -->
+            <div class="arch-mini-card rounded-xl p-3.5 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="arch-mini-label text-[11px]">الجلسات المؤرشفة</span>
+                    <i class="fa-solid fa-file-zipper text-emerald-500 text-xs"></i>
+                </div>
+                <h4 id="arch_archive_count" class="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
+                    {{ stats.archiver.archived_sessions_count if stats.archiver else 0 }}
+                </h4>
+                <span id="arch_archive_size" class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-semibold block mt-0.5">الأرشيف: {{ stats.archiver.archive_size_mb if stats.archiver else 0 }} MB</span>
+            </div>
+
+            <!-- 3. Older than 90d -->
+            <div class="arch-mini-card rounded-xl p-3.5 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="arch-mini-label text-[11px]">مؤهلة للأرشفة (>90d)</span>
+                    <i class="fa-solid fa-broom text-amber-500 text-xs"></i>
+                </div>
+                <h4 id="arch_older_90d" class="text-xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
+                    {{ stats.archiver.older_90d_count if stats.archiver else 0 }}
+                </h4>
+                <span class="arch-mini-sub text-[10px] block mt-0.5">جاهزة للترحيل فوراً</span>
+            </div>
+
+            <!-- 4. Oldest session date -->
+            <div class="arch-mini-card rounded-xl p-3.5 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <span class="arch-mini-label text-[11px]">أقدم جلسة مسجلة</span>
+                    <i class="fa-solid fa-clock-rotate-left text-purple-500 text-xs"></i>
+                </div>
+                <h4 id="arch_oldest_session" class="text-xs font-bold text-purple-600 dark:text-purple-400 font-mono mt-2 truncate" title="{{ stats.archiver.oldest_session if stats.archiver else '' }}">
+                    {{ stats.archiver.oldest_session if (stats.archiver and stats.archiver.oldest_session) else 'لا توجد جلسات' }}
+                </h4>
+                <span class="arch-mini-sub text-[10px] block mt-0.5">تاريخ البداية</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3 Optimization Action Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
             <!-- 1. 30 Days Log Pruning -->
             <div class="bg-[#070b14] border border-[#162136] hover:border-sky-500/40 transition rounded-2xl p-5 flex flex-col justify-between">
