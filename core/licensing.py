@@ -116,12 +116,23 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
         except Exception as e:
             return False, f"خطأ في قراءة تاريخ انتهاء الترخيص: {str(e)}", payload
             
-    # 4. Check Limits Compliance (Strict Enforcement)
+    # 4. Check Limits Compliance (Soft Freeze: keeps valid=True, flags in info)
     limits = payload.get('limits', {})
     max_subs = limits.get('max_subscribers', 5000)
     max_nas = limits.get('max_nas', 15)
     max_managers = limits.get('max_managers', 10)
     
+    is_over_quota = False
+    quota_reason = ""
+    if max_subs and int(max_subs) > 0 and int(current_subscribers) > int(max_subs):
+        is_over_quota = True
+        quota_reason = f"عدد المشتركين الحاليين ({int(current_subscribers):,}) يتجاوز سقف باقة الترخيص ({int(max_subs):,})"
+
+    if max_nas and int(max_nas) > 0 and int(current_nas) > int(max_nas):
+        is_over_quota = True
+        nas_msg = f"عدد أجهزة الراوتر ({int(current_nas):,}) يتجاوز سقف باقة الترخيص ({int(max_nas):,})"
+        quota_reason = f"{quota_reason} و {nas_msg}" if quota_reason else nas_msg
+
     info = {
         "license_id": payload.get('license_id'),
         "client_name": payload.get('client_name'),
@@ -134,13 +145,10 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
         "max_managers": max_managers,
         "features": payload.get('features', {}),
         "hardware_id": licensed_hw,
-        "current_machine_id": current_hw
+        "current_machine_id": current_hw,
+        "is_over_quota": is_over_quota,
+        "quota_reason": quota_reason
     }
     
-    if max_subs and int(max_subs) > 0 and int(current_subscribers) > int(max_subs):
-        return False, f"تم قفل النظام: عدد المشتركين الحاليين ({int(current_subscribers):,}) يتجاوز سقف باقة الترخيص ({int(max_subs):,})", info
-
-    if max_nas and int(max_nas) > 0 and int(current_nas) > int(max_nas):
-        return False, f"تم قفل النظام: عدد أجهزة الراوتر (NAS) الحالية ({int(current_nas):,}) يتجاوز سقف باقة الترخيص ({int(max_nas):,})", info
-
     return True, "الترخيص معتمد وصالح وموثق رقمياً بنجاح", info
+

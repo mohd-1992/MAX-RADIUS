@@ -42,6 +42,8 @@
     <div class="p-5 rounded-3xl border shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-pulse
         {% if license.status == 'revoked' %}
             bg-rose-500/10 border-rose-500/40 text-rose-300
+        {% elif license.status == 'suspended' %}
+            bg-amber-500/10 border-amber-500/40 text-amber-300
         {% elif license.status == 'expired' %}
             bg-amber-500/10 border-amber-500/40 text-amber-300
         {% else %}
@@ -49,20 +51,22 @@
         {% endif %}">
         <div class="flex items-center gap-4">
             <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0 border
-                {% if license.status == 'expired' %}
+                {% if license.status == 'expired' or license.status == 'suspended' %}
                     bg-amber-500/20 text-amber-400 border-amber-500/40
                 {% else %}
                     bg-rose-500/20 text-rose-400 border-rose-500/40
                 {% endif %}">
-                <i class="fa-solid {% if license.status == 'revoked' %}fa-ban{% elif license.status == 'expired' %}fa-hourglass-end{% else %}fa-shield-triangle-exclamation{% endif %}"></i>
+                <i class="fa-solid {% if license.status == 'revoked' %}fa-ban{% elif license.status == 'suspended' %}fa-circle-pause{% elif license.status == 'expired' %}fa-hourglass-end{% else %}fa-shield-triangle-exclamation{% endif %}"></i>
             </div>
             <div>
                 <h3 class="text-sm sm:text-base font-black
-                    {% if license.status == 'expired' %} text-amber-400 {% else %} text-rose-400 {% endif %}">
+                    {% if license.status == 'expired' or license.status == 'suspended' %} text-amber-400 {% else %} text-rose-400 {% endif %}">
                     {% if license.status == 'revoked' %}
-                        ⛔ تم تعليق هذا الترخيص من خادم التراخيص المركزي!
-                    {% elif license.status == 'locked_sync_failed' %}
-                        ⚠️ تعذر إتمام مزامنة الترخيص الدورية!
+                        ⛔ تم حظر وإلغاء هذا الترخيص من خادم التراخيص المركزي!
+                    {% elif license.status == 'suspended' %}
+                        ⏸️ تم تعليق هذا الترخيص مؤقتاً من قِبل إدارة المطور!
+                    {% elif license.status == 'locked_sync_failed' or license.status == 'grace_expired' %}
+                        ⚠️ تعذر إتمام مزامنة الترخيص الدورية أو انتهاء فترة السماح!
                     {% elif license.status == 'expired' %}
                         ⌛ انتهت فترة صلاحية هذا الترخيص!
                     {% else %}

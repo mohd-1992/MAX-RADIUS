@@ -526,6 +526,11 @@ def delete_subscriber(sub_id, admin_username='admin'):
     if sub:
         delete_user_from_radius(sub['username'])
         execute_write('DELETE FROM wisp_subscribers WHERE id = ?', (sub_id,))
+        try:
+            from services.license_guard_service import clear_license_cache
+            clear_license_cache()
+        except Exception:
+            pass
         log_audit(1, admin_username, 'DELETE_SUBSCRIBER', 'subscribers', f'Deleted subscriber {sub["username"]}')
         return True
     return False

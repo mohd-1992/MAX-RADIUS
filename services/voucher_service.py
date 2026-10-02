@@ -374,6 +374,11 @@ def delete_batch(batch_id, admin_username='admin'):
         
     execute_write('DELETE FROM wisp_vouchers WHERE batch_id = ?', (batch_id,))
     execute_write('DELETE FROM wisp_voucher_batches WHERE id = ?', (batch_id,))
+    try:
+        from services.license_guard_service import clear_license_cache
+        clear_license_cache()
+    except Exception:
+        pass
     log_audit(1, admin_username, 'DELETE_BATCH', 'vouchers', f'Deleted batch ID {batch_id} (refunded {unused_count} unused cards)')
     return True
 

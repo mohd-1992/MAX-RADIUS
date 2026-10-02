@@ -1949,6 +1949,34 @@
             {% endif %}
         {% endwith %}
 
+        {% if is_over_quota %}
+        <!-- Over Quota Soft Freeze Alert Banner -->
+        <div class="bg-gradient-to-r from-amber-950/90 via-rose-950/90 to-amber-950/90 border-y border-amber-500/40 text-amber-200 px-4 py-3 shadow-xl backdrop-blur-md">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-sm">
+                <div class="flex items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 text-lg shadow-sm">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </span>
+                    <div>
+                        <strong class="font-bold text-amber-300 text-sm flex items-center gap-2">
+                            <span>تنبيه: تجاوز سقف المشتركين المسموح به في باقة الترخيص!</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">وضع التجميد التشغيلي</span>
+                        </strong>
+                        <p class="text-xs text-amber-200/80 mt-0.5 leading-relaxed">
+                            المشتركين الحاليين: <span class="font-bold text-white">{{ license_info.current_subscribers|default(0) }}</span> من أصل سقف الباقة: <span class="font-bold text-white">{{ license_info.max_subscribers|default(0) }}</span>. تم تجميد توليد/إضافة الكروت والمشتركين الجدد. يمكنك تصفح النظام وحذف الكروت أو المشتركين الفائضة للنزول تحت السقف المرخص أو طلب ترقية للترخيص.
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <a href="{{ url_for('system_bp.license_management') }}" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-md flex items-center gap-1.5 active:scale-95">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                        <span>ترقية سعة الترخيص</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Main Body Content -->
         <main class="flex-grow {% block container_class %}max-w-7xl{% endblock %} mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
             {% block content %}{% endblock %}

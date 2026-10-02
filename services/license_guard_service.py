@@ -295,7 +295,10 @@ def get_active_license_status(force_refresh=False):
             msg = "تم حظر وإلغاء هذا الترخيص عن بُعد من قِبل إدارة المطور 🔴"
         elif db_status == 'revoked':
             valid = False
-            msg = "تم حظر وإلغاء هذا الترخيص عن بُعد من قِبل إدارة المطور"
+            msg = "تم حظر وإلغاء هذا الترخيص عن بُعد من قِبل إدارة المطور 🔴"
+        elif db_status == 'suspended':
+            valid = False
+            msg = "تم تعليق هذا الترخيص مؤقتاً من قِبل إدارة المطور ⏸️"
         elif db_status == 'grace_expired':
             valid = False
             msg = "انتهت فترة السماح (24 ساعة) دون التمكن من مزامنة الترخيص مع السيرفر المركزي. يرجى التأكد من اتصال الإنترنت."
@@ -317,30 +320,38 @@ def get_active_license_status(force_refresh=False):
             except Exception:
                 pass
             
-        # Check subscriber/NAS quota breach explicitly
+        # Check subscriber/NAS quota breach explicitly (Soft Freeze: valid remains True so delete/view works)
         max_s = info.get('max_subscribers', row.get('max_subscribers', 0))
         max_n = info.get('max_nas', row.get('max_nas', 0))
+        is_over_quota = False
+        quota_warning = ""
         if max_s and int(max_s) > 0 and subs_count > int(max_s):
-            valid = False
-            db_status = 'over_quota'
-            msg = f"تم قفل النظام: عدد المشتركين المسجلين في النظام ({subs_count:,}) يتجاوز سقف باقة ترخيصك ({int(max_s):,}). يرجى ترقية باقة الترخيص للمتابعة."
+            is_over_quota = True
+            quota_warning = f"تجاوز سقف المشتركين: ({subs_count:,} / {int(max_s):,})"
         elif max_n and int(max_n) > 0 and nas_count > int(max_n):
-            valid = False
-            db_status = 'over_quota'
-            msg = f"تم قفل النظام: عدد أجهزة الراوتر (NAS) المسجلة في النظام ({nas_count:,}) يتجاوز سقف باقة ترخيصك ({int(max_n):,}). يرجى ترقية باقة الترخيص للمتابعة."
+            is_over_quota = True
+            quota_warning = f"تجاوز سقف أجهزة الراوتر: ({nas_count:,} / {int(max_n):,})"
 
-        status_code = "active" if valid else db_status
-        if valid:
-            status_text = f"مرخص ومفعل (فترة سماح متبقية: {grace_hours_left} ساعة) 🟡" if grace_period_active else "مرخص ومفعل بالكامل 🟢"
-        else:
-            if db_status == 'over_quota':
-                status_text = f"النظام مقفل: تجاوز سقف المشتركين ({subs_count:,} / {int(max_s):,}) 🔴"
-            elif db_status == 'revoked':
-                status_text = "الترخيص محظور 🔴"
+        if not valid:
+            status_code = db_status
+            if db_status == 'revoked':
+                status_text = "الترخيص محظور وملغى 🔴"
+            elif db_status == 'suspended':
+                status_text = "الترخيص معلق مؤقتاً ⏸️"
             elif db_status == 'grace_expired':
                 status_text = "فترة السماح منتهية 🔴"
             else:
                 status_text = "الترخيص منتهي أو غير صالح 🔴"
+        else:
+            if is_over_quota:
+                status_code = 'over_quota'
+                status_text = f"مرخص (تجميد تشغيلي: تجاوز السقف {subs_count:,}/{int(max_s):,}) ⚠️"
+            elif grace_period_active:
+                status_code = 'active'
+                status_text = f"مرخص ومفعل (فترة سماح متبقية: {grace_hours_left} ساعة) 🟡"
+            else:
+                status_code = 'active'
+                status_text = "مرخص ومفعل بالكامل 🟢"
         
         res = {
             "has_license": True,
@@ -363,7 +374,9 @@ def get_active_license_status(force_refresh=False):
             "licensed_machine_id": row['hardware_id'],
             "features": features,
             "valid": valid,
-            "message": msg,
+            "is_over_quota": is_over_quota,
+            "quota_warning": quota_warning,
+            "message": msg if not valid else (quota_warning or msg),
             "grace_period": grace_period_active,
             "grace_hours_left": grace_hours_left,
             "last_verified_at": str(row.get('last_verified_at', '')),
@@ -746,13 +759,23 @@ def sync_license_heartbeat_with_server(max_retries=3):
                     clear_license_cache()
                     return False, "النسخة مكتشفة لدى السيرفر المركزي بانتظار الترخيص"
 
-                # 1. Server explicitly revoked or invalidated license -> Lock immediately & Blacklist
-                if res_json.get('status') in ('revoked', 'suspended', 'blacklisted', 'hwid_mismatch', 'unlicensed') or res_json.get('valid') is False:
-                    record_license_revocation(lic['license_id'], "Revoked by master license server during heartbeat")
-                    execute_write("UPDATE wisp_license_info SET status = 'revoked' WHERE id = %s" if is_mysql else "UPDATE wisp_license_info SET status = 'revoked' WHERE id = ?", (lic['id'],))
-                    clear_license_cache()
-                    logger.warning(f"[License Guard] License {lic['license_id']} explicitly revoked by Master Server.")
-                    return False, "تم إشعار النظام بأن هذا الترخيص محظور من قِبل المطور"
+                # 1. Server explicitly revoked, suspended, or invalidated license -> Lock immediately
+                remote_act = res_json.get('remote_action')
+                srv_status = res_json.get('status')
+                is_srv_valid = res_json.get('valid')
+
+                if srv_status in ('revoked', 'suspended', 'blacklisted', 'hwid_mismatch', 'unlicensed') or remote_act in ('suspend', 'revoke', 'unlicensed') or (is_srv_valid is False and srv_status != 'over_quota'):
+                    if remote_act == 'suspend' or srv_status == 'suspended':
+                        execute_write("UPDATE wisp_license_info SET status = 'suspended' WHERE id = %s" if is_mysql else "UPDATE wisp_license_info SET status = 'suspended' WHERE id = ?", (lic['id'],))
+                        clear_license_cache()
+                        logger.warning(f"[License Guard] License {lic['license_id']} explicitly suspended by Master Server.")
+                        return False, "تم تعليق هذا الترخيص مؤقتاً من قِبل إدارة المطور"
+                    else:
+                        record_license_revocation(lic['license_id'], "Revoked or deleted by master license server")
+                        execute_write("UPDATE wisp_license_info SET status = 'revoked' WHERE id = %s" if is_mysql else "UPDATE wisp_license_info SET status = 'revoked' WHERE id = ?", (lic['id'],))
+                        clear_license_cache()
+                        logger.warning(f"[License Guard] License {lic['license_id']} explicitly revoked/deleted by Master Server.")
+                        return False, "تم إشعار النظام بحظر أو حذف الترخيص من قِبل المطور"
                 
                 # 2. Server confirmed active license -> Update heartbeat and clear grace
                 remove_license_revocation(lic['license_id'])

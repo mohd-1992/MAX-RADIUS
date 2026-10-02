@@ -197,6 +197,11 @@ def create_app(config=None):
         if not radius_server_ip or str(radius_server_ip).strip() in ('127.0.0.1', 'localhost', '0.0.0.0'):
             radius_server_ip = '192.168.1.100'
 
+        try:
+            lic_stat = get_active_license_status()
+        except Exception:
+            lic_stat = {}
+
         return {
             'settings': settings,
             'network_name': network_name,
@@ -223,6 +228,9 @@ def create_app(config=None):
             'current_manager': current_manager,
             'has_permission': has_permission,
             'has_feature': has_license_feature,
+            'license_info': lic_stat,
+            'is_over_quota': lic_stat.get('is_over_quota', False),
+            'quota_warning': lic_stat.get('quota_warning', ''),
             'current_year': sys_now.year,
             'app_name': APP_NAME,
             'app_version': APP_VERSION,
