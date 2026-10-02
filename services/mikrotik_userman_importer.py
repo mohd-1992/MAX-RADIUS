@@ -362,7 +362,7 @@ def parse_rsc_content(raw_text):
 # -------------------------------------------------------------
 # 2. RouterOS Live API Importer
 # -------------------------------------------------------------
-def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, timeout=5.0):
+def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, timeout=120.0):
     """
     Connects to live MikroTik router and pulls User Manager v6 profiles and users.
     """
@@ -666,6 +666,7 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
                 batch_id = batch_map.get(pkg_id)
                 prof_info = profiles_dict.get(pkg_name_actual, {})
                 snap_p = float(prof_info.get('price', 0.0) or 0.0)
+                snap_c = float(prof_info.get('cost', 0.0) or 0.0)
                 snap_q = int(prof_info.get('quota_mb', 0) or extract_quota_from_name(pkg_name_actual) or 0)
                 snap_u = int(prof_info.get('uptime_mins', 0) or 0)
                 snap_v_val = int(prof_info.get('validity_value', 30) or 30)
@@ -702,7 +703,7 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
                     vouchers_bulk.append((
                         batch_id, pkg_id, uname[:30], uname, upass, upass, v_status, mac,
                         first_used_str, exp_str, last_renewed_str,
-                        snap_p, snap_q, snap_u,
+                        snap_p, snap_c, snap_q, snap_u,
                         snap_v_val, snap_v_unit, snap_v_days,
                         snap_rd, snap_ru, snap_r_str,
                         snap_simul
@@ -728,7 +729,7 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
                     vouchers_bulk.append((
                         batch_id, pkg_id, uname[:30], uname, upass, upass, v_status, mac,
                         None, None, None,
-                        snap_p, snap_q, snap_u,
+                        snap_p, snap_c, snap_q, snap_u,
                         snap_v_val, snap_v_unit, snap_v_days,
                         snap_rd, snap_ru, snap_r_str,
                         snap_simul

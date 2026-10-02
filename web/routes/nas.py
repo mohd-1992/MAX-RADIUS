@@ -562,7 +562,7 @@ def api_mikrotik_userman_test_api():
         return jsonify({'success': False, 'error': 'يرجى إدخال عنوان IP واسم المستخدم'}), 400
 
     try:
-        parsed = fetch_userman_via_api(host=host, username=user, password=pwd, port=port, use_ssl=use_ssl)
+        parsed = fetch_userman_via_api(host=host, username=user, password=pwd, port=port, use_ssl=use_ssl, timeout=120.0)
         return jsonify({'success': True, 'data': parsed})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
