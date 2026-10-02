@@ -57,21 +57,40 @@ echo -e "${BLUE}[1/6] Detected OS: ${BOLD}${OS} ${OS_VER}${NC}"
 
 # Safely handle Ubuntu unattended background upgrades and lock conflicts
 echo -e "${BLUE}[2/6] Preparing package manager & unlocking apt...${NC}"
-systemctl stop unattended-upgrades.service 2>/dev/null || true
-systemctl stop apt-daily.service 2>/dev/null || true
-systemctl stop apt-daily-upgrade.service 2>/dev/null || true
+systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
+systemctl kill --kill-who=all unattended-upgrades.service 2>/dev/null || true
 
-# Kill any lingering background apt/dpkg lock holders if active
-killall -q -9 unattended-upgr apt apt-get dpkg 2>/dev/null || true
+# Kill any lingering background apt/dpkg/unattended-upgrade processes
+pkill -9 -f unattended-upgr 2>/dev/null || true
+pkill -9 -f /usr/bin/apt 2>/dev/null || true
+pkill -9 -f /usr/bin/dpkg 2>/dev/null || true
+command -v killall &>/dev/null && killall -q -9 unattended-upgr apt apt-get dpkg 2>/dev/null || true
 sleep 1
 
-# Remove any stale lock files safely
-rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock 2>/dev/null || true
+# If fuser is present, terminate process holding lock files
+for lockfile in /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock; do
+  command -v fuser &>/dev/null && fuser -k -9 "$lockfile" 2>/dev/null || true
+  rm -f "$lockfile" 2>/dev/null || true
+done
+
+# Wait for background package locks if still busy
+WAIT_LOCK_COUNT=0
+while command -v fuser &>/dev/null && (fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/cache/apt/archives/lock >/dev/null 2>&1); do
+  echo -e "${YELLOW}[INFO] Waiting for background system updates to release apt lock (${WAIT_LOCK_COUNT}s)...${NC}"
+  pkill -9 -f unattended-upgr 2>/dev/null || true
+  sleep 2
+  WAIT_LOCK_COUNT=$((WAIT_LOCK_COUNT+2))
+  if [ $WAIT_LOCK_COUNT -ge 30 ]; then
+    rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock 2>/dev/null || true
+    break
+  fi
+done
+
 dpkg --configure -a 2>/dev/null || true
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y -q
-apt-get install -y -q curl wget git ufw jq unzip openssl ca-certificates gnupg lsb-release nginx
+apt-get update -y -q -o DPkg::Lock::Timeout=60
+apt-get install -y -q -o DPkg::Lock::Timeout=60 curl wget git ufw jq unzip openssl ca-certificates gnupg lsb-release nginx
 
 # Install Docker & Docker Compose Plugin if not installed
 echo -e "${BLUE}[3/6] Checking Docker & Docker Compose installation...${NC}"
