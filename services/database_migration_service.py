@@ -64,128 +64,10 @@ def cancel_migration():
     update_migration_progress(stage="جاري الإلغاء والتراجع الآمن...", status="cancelling")
     return {'success': True, 'message': 'تم إرسال إشارة إلغاء عملية الاستيراد.'}
 
-TRIGGER_SUB_SQL = """
-CREATE TRIGGER trg_radacct_subscriber_activate AFTER INSERT ON radacct
-FOR EACH ROW
-BEGIN
-    UPDATE wisp_subscribers s
-    JOIN wisp_packages p ON s.package_id = p.id
-    SET s.status = 'active',
-        s.first_used_at = IFNULL(s.first_used_at, NEW.acctstarttime),
-        s.last_renewed_at = IFNULL(s.last_renewed_at, NEW.acctstarttime),
-        s.expires_at = IFNULL(s.expires_at, 
-            CASE 
-                WHEN p.validity_unit = 'minutes' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) MINUTE)
-                WHEN p.validity_unit = 'hours' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) HOUR)
-                WHEN p.validity_unit = 'months' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) MONTH)
-                ELSE DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, p.validity_days, 1) DAY)
-            END
-        )
-    WHERE s.username = NEW.username AND (s.status = 'inactive' OR s.expires_at IS NULL);
-END;
-"""
+from database.schema_healer import (TRIGGER_SUB_SQL, TRIGGER_VOUCHER_SQL,
+                                    heal_database_schema, install_accounting_triggers)
+from services.import_state_service import import_now, validity_duration, parse_import_datetime, present_value, ensure_import_package_radius
 
-TRIGGER_VOUCHER_SQL = """
-CREATE TRIGGER trg_radacct_activate_voucher AFTER INSERT ON radacct
-FOR EACH ROW
-BEGIN
-    DECLARE v_id INT DEFAULT NULL;
-    DECLARE v_batch_id INT DEFAULT NULL;
-    DECLARE v_batch_name VARCHAR(100) DEFAULT NULL;
-    DECLARE v_serial_number VARCHAR(100) DEFAULT NULL;
-    DECLARE v_pkg_name VARCHAR(80) DEFAULT NULL;
-    DECLARE v_pkg_price DECIMAL(10,2) DEFAULT 0.00;
-    DECLARE v_pkg_cost DECIMAL(10,2) DEFAULT 0.00;
-    DECLARE v_reseller_id INT DEFAULT NULL;
-    DECLARE v_val INT DEFAULT 30;
-    DECLARE v_unit VARCHAR(20) DEFAULT 'days';
-    DECLARE v_exp_date DATETIME DEFAULT NULL;
-    DECLARE v_rad_exp VARCHAR(50) DEFAULT NULL;
-    DECLARE v_quota BIGINT DEFAULT 0;
-    DECLARE v_uptime INT DEFAULT 0;
-    DECLARE v_r_down VARCHAR(50) DEFAULT NULL;
-    DECLARE v_r_up VARCHAR(50) DEFAULT NULL;
-    DECLARE v_simul INT DEFAULT 1;
-    DECLARE v_mgroup VARCHAR(100) DEFAULT NULL;
-    DECLARE v_assigned_seq BIGINT DEFAULT NULL;
-    
-    SELECT v.id, v.batch_id, b.name, v.serial_number,
-           p.name, p.price, p.cost, v.reseller_id,
-           COALESCE(p.validity_value, p.validity_days, 30),
-           COALESCE(p.validity_unit, 'days'),
-           COALESCE(p.volume_quota_mb, 0),
-           COALESCE(p.uptime_limit_mins, 0),
-           p.rate_download, p.rate_upload,
-           COALESCE(p.simultaneous_sessions, 1),
-           p.mikrotik_group
-    INTO v_id, v_batch_id, v_batch_name, v_serial_number,
-         v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id,
-         v_val, v_unit, v_quota, v_uptime,
-         v_r_down, v_r_up, v_simul, v_mgroup
-    FROM wisp_vouchers v
-    JOIN wisp_packages p ON v.package_id = p.id
-    JOIN wisp_voucher_batches b ON v.batch_id = b.id
-    WHERE (LOWER(v.username) = LOWER(NEW.username) OR v.pin_code = NEW.username)
-      AND (v.status = 'unused' OR v.snap_volume_quota_mb IS NULL)
-    LIMIT 1;
-    
-    IF v_id IS NOT NULL THEN
-        IF v_unit = 'minutes' THEN
-            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val MINUTE);
-        ELSEIF v_unit = 'hours' THEN
-            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val HOUR);
-        ELSEIF v_unit = 'months' THEN
-            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val MONTH);
-        ELSE
-            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val DAY);
-        END IF;
-        
-        SET v_rad_exp = DATE_FORMAT(v_exp_date, '%d %b %Y %H:%i:%s');
-        
-        INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
-        VALUES ('voucher', v_id, CURRENT_TIMESTAMP)
-        ON DUPLICATE KEY UPDATE seq_id = seq_id;
-        
-        SELECT seq_id INTO v_assigned_seq 
-        FROM wisp_global_sequence 
-        WHERE entity_type = 'voucher' AND entity_id = v_id;
-        
-        UPDATE wisp_vouchers
-        SET status = 'active',
-            first_used_at = IFNULL(first_used_at, CURRENT_TIMESTAMP),
-            last_renewed_at = IFNULL(last_renewed_at, CURRENT_TIMESTAMP),
-            expires_at = IFNULL(expires_at, v_exp_date),
-            bound_mac = CASE WHEN (bound_mac IS NULL OR bound_mac = '') AND NEW.callingstationid IS NOT NULL AND NEW.callingstationid != '' THEN NEW.callingstationid ELSE bound_mac END,
-            global_seq_id = IFNULL(global_seq_id, v_assigned_seq),
-            snap_price = COALESCE(NULLIF(snap_price, 0.00), v_pkg_price),
-            snap_cost = COALESCE(NULLIF(snap_cost, 0.00), v_pkg_cost),
-            snap_volume_quota_mb = COALESCE(NULLIF(snap_volume_quota_mb, 0), v_quota),
-            snap_uptime_limit_mins = COALESCE(NULLIF(snap_uptime_limit_mins, 0), v_uptime),
-            snap_validity_value = COALESCE(NULLIF(snap_validity_value, 0), v_val),
-            snap_validity_unit = COALESCE(NULLIF(snap_validity_unit, ''), v_unit),
-            snap_validity_days = COALESCE(NULLIF(snap_validity_days, 0), v_val),
-            snap_rate_download = COALESCE(NULLIF(snap_rate_download, ''), NULLIF(snap_rate_download, '0'), v_r_down),
-            snap_rate_upload = COALESCE(NULLIF(snap_rate_upload, ''), NULLIF(snap_rate_upload, '0'), v_r_up),
-            snap_simultaneous_sessions = COALESCE(NULLIF(snap_simultaneous_sessions, 0), v_simul),
-            snap_mikrotik_group = COALESCE(NULLIF(snap_mikrotik_group, ''), v_mgroup)
-        WHERE id = v_id;
-        
-        IF NOT EXISTS (SELECT 1 FROM wisp_voucher_sales WHERE voucher_id = v_id) THEN
-            INSERT INTO wisp_voucher_sales (
-                voucher_id, batch_id, batch_name, username, serial_number,
-                package_name, price, cost, reseller_id, activated_at
-            ) VALUES (
-                v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
-                v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id, CURRENT_TIMESTAMP
-            );
-        END IF;
-        
-        DELETE FROM radcheck WHERE LOWER(username) = LOWER(NEW.username) AND attribute = 'Expiration';
-        INSERT INTO radcheck (username, attribute, op, value)
-        VALUES (NEW.username, 'Expiration', ':=', v_rad_exp);
-    END IF;
-END;
-"""
 
 def _open_backup_stream(file_path_or_bytes):
     if isinstance(file_path_or_bytes, (str, os.PathLike)):
@@ -617,7 +499,6 @@ def execute_database_migration(file_input, options=None):
     }
 
     from database.db import set_import_maintenance_active
-    set_import_maintenance_active(True)
 
     update_migration_progress(
         status='running',
@@ -631,6 +512,11 @@ def execute_database_migration(file_input, options=None):
     analysis = analyze_backup_file(file_input)
     if not analysis.get('success'):
         raise RuntimeError("Failed to analyze backup archive prior to execution.")
+    selected_rows = (analysis.get('fixed_subscribers_count', 0) if import_subscribers else 0) + (analysis.get('cards_count', 0) if import_cards else 0)
+    if not analysis.get('profiles') or not selected_rows:
+        message = 'ملف قاعدة البيانات لا يحتوي حسابات وباقات متوافقة مع محرك الاستيراد؛ لم يتم تغيير البيانات. نسخ MAX RADIUS تستعاد من محرك النسخ الاحتياطي.'
+        update_migration_progress(status='error', error=message, message=message)
+        raise ValueError(message)
 
     total_work_units = 0
     if import_subscribers:
@@ -645,89 +531,91 @@ def execute_database_migration(file_input, options=None):
 
     db = get_connection()
     cur = db.cursor()
-
-    # 0. Boost session performance: disable constraints, foreign keys and autocommit
-    if is_mysql_conn(db):
-        try:
-            # Ensure all schema tables and columns are up to date
-            try:
-                from database.schema_healer import heal_database_schema
-                heal_database_schema(db)
-            except Exception as he_err:
-                print(f"[WARN] Schema healer call: {he_err}")
-
-            v_cols = [
-                ('global_seq_id', 'BIGINT NULL AFTER id'),
-                ('first_used_at', 'DATETIME NULL'),
-                ('last_renewed_at', 'DATETIME NULL'),
-                ('expires_at', 'DATETIME NULL'),
-                ('bound_mac', 'VARCHAR(50) DEFAULT NULL'),
-                ('extra_quota_mb', 'BIGINT DEFAULT 0'),
-                ('expire_reason', "VARCHAR(60) DEFAULT ''"),
-                ('snap_price', 'DECIMAL(10,2) DEFAULT 0.00'),
-                ('snap_cost', 'DECIMAL(10,2) DEFAULT 0.00'),
-                ('snap_volume_quota_mb', 'BIGINT DEFAULT 0'),
-                ('snap_uptime_limit_mins', 'INT DEFAULT 0'),
-                ('snap_validity_value', 'INT DEFAULT 30'),
-                ('snap_validity_unit', "VARCHAR(20) DEFAULT 'days'"),
-                ('snap_validity_days', 'INT DEFAULT 30'),
-                ('snap_rate_download', "VARCHAR(50) DEFAULT '0'"),
-                ('snap_rate_upload', "VARCHAR(50) DEFAULT '0'"),
-                ('snap_rate_limit_str', "VARCHAR(100) DEFAULT '0/0'"),
-                ('snap_simultaneous_sessions', 'INT DEFAULT 1'),
-                ('snap_mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'")
-            ]
-            for col, c_type in v_cols:
-                try:
-                    cur.execute(f"ALTER TABLE wisp_vouchers ADD COLUMN IF NOT EXISTS `{col}` {c_type};")
-                except Exception:
-                    try:
-                        cur.execute(f"ALTER TABLE wisp_vouchers ADD COLUMN `{col}` {c_type};")
-                    except Exception:
-                        pass
-
-            s_cols = [
-                ('global_seq_id', 'BIGINT NULL AFTER id'),
-                ('first_used_at', 'DATETIME NULL'),
-                ('last_renewed_at', 'DATETIME NULL'),
-                ('expires_at', 'DATETIME NULL'),
-                ('email', "VARCHAR(120) DEFAULT '' AFTER phone"),
-                ('notes', 'TEXT NULL')
-            ]
-            for col, c_type in s_cols:
-                try:
-                    cur.execute(f"ALTER TABLE wisp_subscribers ADD COLUMN IF NOT EXISTS `{col}` {c_type};")
-                except Exception:
-                    try:
-                        cur.execute(f"ALTER TABLE wisp_subscribers ADD COLUMN `{col}` {c_type};")
-                    except Exception:
-                        pass
-
-            try:
-                cur.execute("SET SESSION innodb_lock_wait_timeout = 180;")
-                cur.execute("SET SESSION tx_isolation = 'READ-COMMITTED';")
-            except Exception:
-                try:
-                    cur.execute("SET SESSION transaction_isolation = 'READ-COMMITTED';")
-                except Exception:
-                    pass
-
-            cur.execute("SET unique_checks = 0;")
-            cur.execute("SET foreign_key_checks = 0;")
-            cur.execute("DROP TRIGGER IF EXISTS trg_radacct_subscriber_activate;")
-            cur.execute("DROP TRIGGER IF EXISTS trg_radacct_activate_voucher;")
-            cur.execute("DELETE FROM wisp_vouchers;")
-            cur.execute("DELETE FROM wisp_subscribers;")
-            cur.execute("DELETE FROM wisp_voucher_batches;")
-            cur.execute("DELETE FROM radacct;")
-            cur.execute("DELETE FROM radcheck WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
-            cur.execute("DELETE FROM radusergroup WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
-            cur.execute("DELETE FROM radreply WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
-            db.commit()
-        except Exception as e:
-            print(f"[WARN] Error during pre-migration cleanup: {e}")
+    set_import_maintenance_active(True)
 
     try:
+        # 0. Boost session performance: disable constraints, foreign keys and autocommit
+        if is_mysql_conn(db):
+            try:
+                # Ensure all schema tables and columns are up to date
+                if not heal_database_schema(backfill=False):
+                    raise RuntimeError("Failed to prepare the migration schema.")
+                install_accounting_triggers(db)
+
+                v_cols = [
+                    ('global_seq_id', 'BIGINT NULL AFTER id'),
+                    ('first_used_at', 'DATETIME NULL'),
+                    ('last_renewed_at', 'DATETIME NULL'),
+                    ('expires_at', 'DATETIME NULL'),
+                    ('bound_mac', 'VARCHAR(50) DEFAULT NULL'),
+                    ('extra_quota_mb', 'BIGINT DEFAULT 0'),
+                    ('expire_reason', "VARCHAR(60) DEFAULT ''"),
+                    ('snap_price', 'DECIMAL(10,2) DEFAULT 0.00'),
+                    ('snap_cost', 'DECIMAL(10,2) DEFAULT 0.00'),
+                    ('snap_volume_quota_mb', 'BIGINT DEFAULT 0'),
+                    ('snap_uptime_limit_mins', 'INT DEFAULT 0'),
+                    ('snap_validity_value', 'INT DEFAULT 30'),
+                    ('snap_validity_unit', "VARCHAR(20) DEFAULT 'days'"),
+                    ('snap_validity_days', 'INT DEFAULT 30'),
+                    ('snap_rate_download', "VARCHAR(50) DEFAULT '0'"),
+                    ('snap_rate_upload', "VARCHAR(50) DEFAULT '0'"),
+                    ('snap_rate_limit_str', "VARCHAR(100) DEFAULT '0/0'"),
+                    ('snap_simultaneous_sessions', 'INT DEFAULT 1'),
+                    ('snap_mikrotik_group', "VARCHAR(100) DEFAULT 'ALL-SPEED'")
+                ]
+                for col, c_type in v_cols:
+                    try:
+                        cur.execute(f"ALTER TABLE wisp_vouchers ADD COLUMN IF NOT EXISTS `{col}` {c_type};")
+                    except Exception:
+                        try:
+                            cur.execute(f"ALTER TABLE wisp_vouchers ADD COLUMN `{col}` {c_type};")
+                        except Exception:
+                            pass
+
+                s_cols = [
+                    ('global_seq_id', 'BIGINT NULL AFTER id'),
+                    ('first_used_at', 'DATETIME NULL'),
+                    ('last_renewed_at', 'DATETIME NULL'),
+                    ('expires_at', 'DATETIME NULL'),
+                    ('email', "VARCHAR(120) DEFAULT '' AFTER phone"),
+                    ('notes', 'TEXT NULL')
+                ]
+                for col, c_type in s_cols:
+                    try:
+                        cur.execute(f"ALTER TABLE wisp_subscribers ADD COLUMN IF NOT EXISTS `{col}` {c_type};")
+                    except Exception:
+                        try:
+                            cur.execute(f"ALTER TABLE wisp_subscribers ADD COLUMN `{col}` {c_type};")
+                        except Exception:
+                            pass
+
+                try:
+                    cur.execute("SET SESSION innodb_lock_wait_timeout = 180;")
+                    cur.execute("SET SESSION tx_isolation = 'READ-COMMITTED';")
+                except Exception:
+                    try:
+                        cur.execute("SET SESSION transaction_isolation = 'READ-COMMITTED';")
+                    except Exception:
+                        pass
+
+                cur.execute("SET unique_checks = 0;")
+                cur.execute("SET foreign_key_checks = 0;")
+                # Keep trigger definitions installed; suppress activation only on this import connection.
+                cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('wisp_vouchers','wisp_subscribers','wisp_voucher_batches','radacct','radcheck','radreply','radusergroup','wisp_packages','wisp_managers','wisp_global_sequence') AND engine <> 'InnoDB'")
+                if cur.fetchone():
+                    raise RuntimeError('Database migration requires transactional InnoDB tables.')
+                cur.execute("SET @max_radius_import = 1")
+                cur.execute("DELETE FROM wisp_vouchers;")
+                cur.execute("DELETE FROM wisp_subscribers;")
+                cur.execute("DELETE FROM wisp_voucher_batches;")
+                cur.execute("DELETE FROM radacct;")
+                cur.execute("DELETE FROM radcheck WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
+                cur.execute("DELETE FROM radusergroup WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
+                cur.execute("DELETE FROM radreply WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
+
+            except Exception:
+                raise
+
         if _CANCEL_EVENT.is_set():
             raise RuntimeError("تم إلغاء عملية الاستيراد بناءً على طلب المستخدم.")
 
@@ -826,6 +714,8 @@ def execute_database_migration(file_input, options=None):
         if not isinstance(default_pkg, dict) and hasattr(default_pkg, 'keys'):
             default_pkg = dict(default_pkg)
 
+        ensure_import_package_radius(db, [default_pkg['id']] + [pkg['id'] for pkg in resolved_pkg_map.values()])
+
         # 2. Resolve / Create Resellers & Managers
         resolved_admin_map = {}
         if import_resellers:
@@ -861,7 +751,6 @@ def execute_database_migration(file_input, options=None):
                     resolved_admin_map[src_id] = new_mgr_id
                     stats['managers_imported'] += 1
 
-        db.commit()
 
         # 3. Stream & Process Data
         # Fast pre-pass: Scan user_qutas and users first so card expiration & quotas are 100% accurate
@@ -952,6 +841,14 @@ def execute_database_migration(file_input, options=None):
         radgroup_bulk = []
         radacct_bulk = []
         user_sessions_agg = {}
+        authoritative_usage_usernames = set()
+        card_quotas = {name: user_quotas[uid] for uid, name in user_id_to_card_user.items() if uid in user_quotas}
+        if import_sessions and card_consumption_mode != 'fresh_unused':
+            for name, uq in card_quotas.items():
+                authoritative_usage_usernames.add(name)
+                user_sessions_agg[name] = dict(upload=uq['upload'], download=uq['download'],
+                                               uptime=uq['uptime'], first_start=uq.get('start_date'),
+                                               last_stop=None, framedip='', count=1)
 
         def _flush_radacct(bulk):
             if not bulk:
@@ -982,7 +879,7 @@ def execute_database_migration(file_input, options=None):
             stats['sessions_imported'] += len(bulk)
             bulk.clear()
 
-        now_dt = datetime.datetime.now()
+        now_dt = import_now(cur)
         last_progress_time = time.time()
 
         try:
@@ -1081,47 +978,28 @@ def execute_database_migration(file_input, options=None):
                             except Exception:
                                 pass
 
-                        if u_id in user_quotas:
+                        if import_sessions and u_id in user_quotas:
                             uq = user_quotas[u_id]
-                            up_bytes = uq.get('upload', 0)
-                            down_bytes = uq.get('download', 0)
-                            uptime_sec = uq.get('uptime', 0)
-                            if up_bytes > 0 or down_bytes > 0 or uptime_sec > 0:
-                                if u_name not in user_sessions_agg:
-                                    user_sessions_agg[u_name] = {
-                                        'upload': up_bytes,
-                                        'download': down_bytes,
-                                        'uptime': uptime_sec,
-                                        'first_start': None,
-                                        'last_stop': None,
-                                        'framedip': '',
-                                        'count': 1
-                                    }
-                                else:
-                                    user_sessions_agg[u_name]['upload'] += up_bytes
-                                    user_sessions_agg[u_name]['download'] += down_bytes
-                                    user_sessions_agg[u_name]['uptime'] += uptime_sec
+                            authoritative_usage_usernames.add(u_name)
+                            user_sessions_agg[u_name] = dict(
+                                upload=uq['upload'], download=uq['download'], uptime=uq['uptime'],
+                                first_start=uq.get('start_date'), last_stop=None, framedip='', count=1)
 
                         full_name = f"{u_first} {u_last}".strip() or u_name
                         service_type = 'broadband' if str(u_link).lower() in ('lan', 'wireless', 'pppoe') else 'hotspot'
 
-                        # Calculate start of current billing cycle (last_renewed_at)
-                        val_days = int(matched_pkg.get('validity_days') or matched_pkg.get('validity_value') or 30)
+                        duration = validity_duration(matched_pkg)
                         u_last_renewed = None
-                        if u_id in user_quotas and user_quotas[u_id].get('start_date'):
-                            u_last_renewed = str(user_quotas[u_id]['start_date'])[:19]
-                        elif u_exp:
-                            try:
-                                exp_dt_obj = datetime.datetime.strptime(str(u_exp)[:19], '%Y-%m-%d %H:%M:%S')
-                                cycle_start = exp_dt_obj - datetime.timedelta(days=val_days)
-                                if cycle_start > now_dt:
-                                    u_last_renewed = (now_dt - datetime.timedelta(days=min(val_days, 30))).strftime('%Y-%m-%d %H:%M:%S')
-                                else:
-                                    u_last_renewed = cycle_start.strftime('%Y-%m-%d %H:%M:%S')
-                            except Exception:
-                                u_last_renewed = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+                        quota_start = user_quotas.get(u_id, {}).get('start_date')
+                        if quota_start:
+                            u_last_renewed = parse_import_datetime(quota_start)
+                        elif u_exp and duration:
+                            u_last_renewed = min(parse_import_datetime(u_exp) - duration, now_dt)
                         elif status == 'active':
-                            u_last_renewed = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+                            u_last_renewed = now_dt
+
+                        if u_name in authoritative_usage_usernames:
+                            user_sessions_agg[u_name]['first_start'] = u_last_renewed or now_dt
 
                         tracking_data['imported_subscriber_usernames'].add(u_name)
                         tracking_data['all_imported_usernames'].add(u_name)
@@ -1174,7 +1052,6 @@ def execute_database_migration(file_input, options=None):
                         cur.executemany(rg_sql, radgroup_bulk)
                         radgroup_bulk = []
 
-                    db.commit()
 
                 # Process Cards
                 elif tname == 'cards' and import_cards:
@@ -1199,7 +1076,7 @@ def execute_database_migration(file_input, options=None):
                         matched_pkg = resolved_pkg_map.get(c_pid, default_pkg)
                         target_reseller_id = resolved_admin_map.get(c_aid, None)
                         val_unit = matched_pkg.get('validity_unit', 'days')
-                        val_amount = matched_pkg.get('validity_value') or matched_pkg.get('validity_days') or 30
+                        val_amount = int(present_value(matched_pkg, 'validity_value', present_value(matched_pkg, 'validity_days', 30)))
 
                         c_status = 'unused'
                         c_exp_dt = None
@@ -1232,7 +1109,9 @@ def execute_database_migration(file_input, options=None):
                                 else:
                                     c_status = 'active'
                             else:
-                                c_status = 'expired'
+                                duration = validity_duration(matched_pkg)
+                                c_exp_dt = parse_import_datetime(c_first_used) + duration if duration else None
+                                c_status = 'expired' if c_exp_dt and c_exp_dt <= now_dt else 'active'
                         else:
                             c_status = 'unused'
                             c_exp_dt = None
@@ -1242,13 +1121,19 @@ def execute_database_migration(file_input, options=None):
 
                         # Calculate start of current billing cycle (last_renewed_at)
                         c_last_renewed = None
-                        if c_status == 'active':
+                        if c_first_used or c_exp_dt:
                             if c_first_used:
                                 c_last_renewed = str(c_first_used)[:19]
                             elif c_exp_dt:
-                                c_last_renewed = (c_exp_dt - datetime.timedelta(days=int(val_amount))).strftime('%Y-%m-%d %H:%M:%S')
+                                c_last_renewed = (c_exp_dt - validity_duration(matched_pkg)).strftime('%Y-%m-%d %H:%M:%S')
                             else:
                                 c_last_renewed = now_dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                        quota_start = card_quotas.get(c_user, {}).get('start_date')
+                        if c_first_used and quota_start and card_consumption_mode != 'fresh_unused':
+                            c_last_renewed = parse_import_datetime(quota_start)
+                        if c_user in authoritative_usage_usernames:
+                            user_sessions_agg[c_user]['first_start'] = c_last_renewed or c_first_used or now_dt
 
                         batch_id = created_batches_cache.get(c_series)
                         if not batch_id:
@@ -1337,7 +1222,7 @@ def execute_database_migration(file_input, options=None):
                             """, db)
                             cur.executemany(rg_sql, radgroup_bulk)
                             radgroup_bulk = []
-                            db.commit()
+
 
                 # Process Sessions (supports radacct, radacct1, radacct2, etc.)
                 elif (tname == 'radacct' or tname.startswith('radacct')) and import_sessions:
@@ -1348,6 +1233,8 @@ def execute_database_migration(file_input, options=None):
                             if not s_user or s_user == '_invalid':
                                 continue
                             if card_consumption_mode == 'fresh_unused' and s_user in card_usernames_set:
+                                continue
+                            if s_user in authoritative_usage_usernames:
                                 continue
                             
                             up_b = int(vals[22]) if vals[22] and str(vals[22]).isdigit() else 0
@@ -1409,7 +1296,7 @@ def execute_database_migration(file_input, options=None):
 
                                 if len(radacct_bulk) >= 6000:
                                     _flush_radacct(radacct_bulk)
-                                    db.commit()
+
 
                             processed_units += 1
 
@@ -1494,19 +1381,22 @@ def execute_database_migration(file_input, options=None):
             # Flush any remaining detailed radacct sessions from the stream
             if radacct_bulk:
                 _flush_radacct(radacct_bulk)
-                db.commit()
+
 
             # If consolidated session mode, build consolidated historical rows
-            if session_mode == 'consolidated' and user_sessions_agg:
-                now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            if import_sessions and user_sessions_agg:
+                now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
                 for u_name, agg in user_sessions_agg.items():
+                    if session_mode != 'consolidated' and u_name not in authoritative_usage_usernames:
+                        continue
                     start_str = agg['first_start'] or now_str
                     stop_str = agg['last_stop'] or now_str
-                    sess_id = f"MIG_{u_name}"[:32]
-                    uniq_id = f"MIG_{u_name}"[:32]
-                    up_octets = int(agg['upload']) % 4294967296
+                    import hashlib
+                    uniq_id = hashlib.sha256(u_name.encode('utf-8')).hexdigest()[:32]
+                    sess_id = f'MIG-{uniq_id}'
+                    up_octets = int(agg['upload'])
                     up_giga = int(agg['upload']) // 4294967296
-                    down_octets = int(agg['download']) % 4294967296
+                    down_octets = int(agg['download'])
                     down_giga = int(agg['download']) // 4294967296
                     radacct_bulk.append((
                         sess_id, uniq_id, u_name, '', '127.0.0.1', '0', 'Wireless-802.11',
@@ -1520,7 +1410,6 @@ def execute_database_migration(file_input, options=None):
             if radacct_bulk:
                 _flush_radacct(radacct_bulk)
 
-            db.commit()
 
         finally:
             stream.close()
@@ -1531,89 +1420,50 @@ def execute_database_migration(file_input, options=None):
             stats=stats
         )
 
-        # Layer 1: Sanitize open sessions from imported database (Resilient against lock contention)
-        for _att in range(3):
-            try:
-                cur.execute("""
-                    UPDATE radacct 
-                    SET acctstoptime = COALESCE(acctupdatetime, acctstarttime, CURRENT_TIMESTAMP),
-                        acctterminatecause = 'Database-Imported-Closed'
-                    WHERE acctstoptime IS NULL
-                """)
-                db.commit()
-                break
-            except Exception as _e1:
-                db.rollback()
-                if ('1213' in str(_e1) or 'deadlock' in str(_e1).lower()) and _att < 2:
-                    time.sleep(1)
-                    continue
-                print(f"[WARN] radacct session sanitizer: {_e1}")
-                break
-
-        # Layer 2: Accurately calculate batch card counts
-        for _att in range(3):
-            try:
-                cur.execute("""
-                    UPDATE wisp_voucher_batches b 
-                    SET b.card_count = (SELECT COUNT(*) FROM wisp_vouchers v WHERE v.batch_id = b.id)
-                """)
-                db.commit()
-                break
-            except Exception as _e2:
-                db.rollback()
-                if ('1213' in str(_e2) or 'deadlock' in str(_e2).lower()) and _att < 2:
-                    time.sleep(1)
-                    continue
-                print(f"[WARN] voucher batch counter: {_e2}")
-                break
-
-        # Layer 3: Ensure all active subscribers have credentials and groups in FreeRADIUS
-        for _att in range(3):
-            try:
-                cur.execute("""
-                    INSERT INTO radcheck (username, attribute, op, value)
-                    SELECT s.username, 'Cleartext-Password', ':=', s.password
-                    FROM wisp_subscribers s
-                    WHERE s.status = 'active'
-                      AND NOT EXISTS (
-                          SELECT 1 FROM radcheck rc 
-                          WHERE rc.username = s.username AND rc.attribute = 'Cleartext-Password'
-                      )
-                """)
-                cur.execute("""
-                    INSERT INTO radusergroup (username, groupname, priority)
-                    SELECT s.username, p.name, 1
-                    FROM wisp_subscribers s
-                    JOIN wisp_packages p ON s.package_id = p.id
-                    WHERE s.status = 'active'
-                      AND NOT EXISTS (
-                          SELECT 1 FROM radusergroup rg 
-                          WHERE rg.username = s.username
-                      )
-                """)
-                db.commit()
-                break
-            except Exception as _e3:
-                db.rollback()
-                if ('1213' in str(_e3) or 'deadlock' in str(_e3).lower()) and _att < 2:
-                    time.sleep(1)
-                    continue
-                print(f"[WARN] Subscriber radius auto-healer: {_e3}")
-                break
-
-        # Re-create live accounting triggers and reset constraints
+        # Finalize all imported data inside the same transaction.
+        cur.execute("""
+            UPDATE radacct 
+            SET acctstoptime = COALESCE(acctupdatetime, acctstarttime, CURRENT_TIMESTAMP),
+                acctterminatecause = 'Database-Imported-Closed'
+            WHERE acctstoptime IS NULL
+        """)
+        cur.execute("""
+            UPDATE wisp_voucher_batches b 
+            SET b.card_count = (SELECT COUNT(*) FROM wisp_vouchers v WHERE v.batch_id = b.id)
+        """)
+        cur.execute("""
+            INSERT INTO radcheck (username, attribute, op, value)
+            SELECT s.username, 'Cleartext-Password', ':=', s.password
+            FROM wisp_subscribers s
+            WHERE s.status = 'active'
+              AND NOT EXISTS (
+                  SELECT 1 FROM radcheck rc 
+                  WHERE rc.username = s.username AND rc.attribute = 'Cleartext-Password'
+              )
+        """)
+        cur.execute("""
+            INSERT INTO radusergroup (username, groupname, priority)
+            SELECT s.username, p.name, 1
+            FROM wisp_subscribers s
+            JOIN wisp_packages p ON s.package_id = p.id
+            WHERE s.status = 'active'
+              AND NOT EXISTS (
+                  SELECT 1 FROM radusergroup rg 
+                  WHERE rg.username = s.username
+              )
+        """)
+        if _CANCEL_EVENT.is_set():
+            raise RuntimeError("تم إلغاء عملية الاستيراد بناءً على طلب المستخدم.")
         if is_mysql_conn(db):
-            try:
-                cur.execute(TRIGGER_SUB_SQL)
-                cur.execute(TRIGGER_VOUCHER_SQL)
-                cur.execute("SET unique_checks = 1;")
-                cur.execute("SET foreign_key_checks = 1;")
-                cur.execute("SET autocommit = 1;")
-                db.commit()
-            except Exception:
-                pass
+            cur.execute("SET @max_radius_import = 0")
+            cur.execute("SET unique_checks = 1")
+            cur.execute("SET foreign_key_checks = 1")
+        db.commit()
 
-        log_audit(1, 'admin', 'MIGRATION_EXECUTED', 'system', f"Migrated {stats['subscribers_imported']} subscribers, {stats['cards_imported']} cards, {stats['sessions_imported']} sessions.")
+        try:
+            log_audit(1, 'admin', 'MIGRATION_EXECUTED', 'system', f"Migrated {stats['subscribers_imported']} subscribers, {stats['cards_imported']} cards, {stats['sessions_imported']} sessions.")
+        except Exception as audit_error:
+            print(f"[Migration Audit Warning] {audit_error}")
 
         # Post-Migration Quota Audit
         quota_warning = ""
@@ -1651,10 +1501,10 @@ def execute_database_migration(file_input, options=None):
         
         if is_cancelling:
             update_migration_progress(
-                stage="جاري تنظيف وحذف كافة السجلات المستوردة جزئياً والتراجع بأمان...",
+                stage="جاري التراجع عن معاملة الاستيراد واستعادة البيانات السابقة...",
                 status="cancelling"
             )
-            rollback_cancelled_import(tracking_data, db)
+            # db.rollback() above restores the original accounts and accounting atomically.
 
         update_migration_progress(
             status=final_status,
@@ -1665,40 +1515,11 @@ def execute_database_migration(file_input, options=None):
         raise RuntimeError(err_msg)
 
     finally:
-        # Guarantee triggers and safety variables are 100% restored using clean connection if needed
-        try:
-            if is_mysql_conn(db):
-                try:
-                    cur.execute(TRIGGER_SUB_SQL)
-                    cur.execute(TRIGGER_VOUCHER_SQL)
-                    cur.execute("SET unique_checks = 1;")
-                    cur.execute("SET foreign_key_checks = 1;")
-                    cur.execute("SET autocommit = 1;")
-                    db.commit()
-                except Exception:
-                    # Fallback to independent connection to guarantee schema safety
-                    clean_conn = get_connection()
-                    clean_cur = clean_conn.cursor()
-                    clean_cur.execute(TRIGGER_SUB_SQL)
-                    clean_cur.execute(TRIGGER_VOUCHER_SQL)
-                    clean_cur.execute("SET unique_checks = 1; SET foreign_key_checks = 1; SET autocommit = 1;")
-                    clean_conn.commit()
-                    clean_cur.close()
-                    clean_conn.close()
-        except Exception as _fe:
-            print(f"[WARN] Final trigger restoration notice: {_fe}")
-
         try:
             cur.close()
             db.close()
-        except Exception:
-            pass
-
-        try:
-            from database.db import set_import_maintenance_active
+        finally:
             set_import_maintenance_active(False)
-        except Exception:
-            pass
 
 
 def start_async_migration(file_input, options=None):

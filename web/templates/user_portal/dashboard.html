@@ -3,6 +3,9 @@
 {% block title %}لوحة المشترك - {{ user.full_name or user.username }}{% endblock %}
 
 {% block content %}
+{% if user.accounting_available is defined and not user.accounting_available %}
+<div class="portal-card p-4 mb-4" role="alert">بيانات الاستهلاك غير متاحة مؤقتاً. يرجى المحاولة لاحقاً.</div>
+{% endif %}
 {% set allow_loan = (settings.get('allow_data_loan', '1') == '1') %}
 {% set loan_amount_mb = settings.get('loan_amount_mb', '1024')|int %}
 {% set loan_amount_str = loan_amount_mb|format_mb %}
@@ -106,7 +109,7 @@
                 <span class="text-2xl font-black text-white font-mono block">
                     {{ user.quota_rem_str if (user.has_quota or (user.volume_quota_mb and user.volume_quota_mb > 0)) else 'غير محدود' }}
                 </span>
-                {% if user.has_quota or (user.volume_quota_mb and user.volume_quota_mb > 0) %}
+                {% if user.accounting_available|default(true) and (user.has_quota or (user.volume_quota_mb and user.volume_quota_mb > 0)) %}
                 <div class="w-full h-2 bg-[#070b14] rounded-full overflow-hidden border border-[#1e293b] mt-2">
                     <div class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500" style="width: {{ user.quota_percent }}%"></div>
                 </div>

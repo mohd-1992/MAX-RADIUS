@@ -30,7 +30,7 @@ from core.rbac import (
     get_current_manager, has_permission, require_permission,
     verify_manager_password, hash_manager_password, login_required
 )
-from web.decorators import require_role_or_permission
+from web.decorators import require_role_or_permission, require_feature
 
 # Services imports
 from services.subscriber_service import *
@@ -818,7 +818,8 @@ def api_clear_resolved_alerts():
 
 
 @system_bp.route('/tools/autoheal', endpoint="autoheal_page")
-
+@login_required
+@require_feature('autoheal')
 def autoheal_page():
     from services.autoheal_service import get_autoheal_dashboard_full
     data = get_autoheal_dashboard_full()
@@ -826,7 +827,8 @@ def autoheal_page():
 
 
 @system_bp.route('/api/tools/autoheal/status', endpoint="api_autoheal_status")
-
+@login_required
+@require_feature('autoheal')
 def api_autoheal_status():
     from services.autoheal_service import get_autoheal_dashboard_full
     data = get_autoheal_dashboard_full()
@@ -1182,7 +1184,8 @@ def api_loyalty_redeem_reward():
 
 
 @system_bp.route('/automation-rules', endpoint="automation_rules_page")
-
+@login_required
+@require_feature('automation_rules')
 def automation_rules_page():
     from services.automation_rules_service import get_automation_overview
     data = get_automation_overview()
@@ -1190,7 +1193,8 @@ def automation_rules_page():
 
 
 @system_bp.route('/api/automation-rules/toggle', methods=['POST'], endpoint="api_automation_toggle")
-
+@login_required
+@require_feature('automation_rules')
 def api_automation_toggle():
     rule_id = int(request.form.get('rule_id', 0))
     is_active = int(request.form.get('is_active', 1))
@@ -1200,7 +1204,8 @@ def api_automation_toggle():
 
 
 @system_bp.route('/api/automation-rules/run', methods=['POST'], endpoint="api_automation_run")
-
+@login_required
+@require_feature('automation_rules')
 def api_automation_run():
     rule_id = int(request.form.get('rule_id', 0))
     from services.automation_rules_service import execute_rule_now

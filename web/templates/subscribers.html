@@ -1524,7 +1524,7 @@
                             tbody.innerHTML += `
                                 <tr class="hover:bg-[#11192b]">
                                     <td class="py-2 px-3 text-slate-300">${s.acctstarttime || '-'}</td>
-                                    <td class="py-2 px-3 text-slate-400">${s.acctstoptime || '<span class="text-emerald-400 font-bold">نشطة الآن</span>'}</td>
+                                    <td class="py-2 px-3 text-slate-400">${s.is_active ? '<span class="text-emerald-400 font-bold">متصل</span>' : 'غير متصل'}<span class="block text-xs text-slate-500">${s.acctstoptime || '-'}</span></td>
                                     <td class="py-2 px-3 text-slate-300 font-bold">${s.duration_str}</td>
                                     <td class="py-2 px-3 text-emerald-400">${s.download_str}</td>
                                     <td class="py-2 px-3 text-sky-400">${s.upload_str}</td>

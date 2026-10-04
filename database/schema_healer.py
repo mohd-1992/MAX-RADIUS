@@ -118,11 +118,26 @@ REQUIRED_TABLES = {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_sstp_reseller (reseller_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """,
+    'wisp_session_baselines': """
+        CREATE TABLE IF NOT EXISTS wisp_session_baselines (
+            radacctid BIGINT NOT NULL,
+            username VARCHAR(64) NOT NULL,
+            baseline_input_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            baseline_output_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            baseline_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            baseline_seconds INT UNSIGNED NOT NULL DEFAULT 0,
+            renewed_at DATETIME NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (radacctid, renewed_at),
+            INDEX idx_username_renewed (username, renewed_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """
 }
 
 REQUIRED_COLUMNS = {
     'wisp_subscribers': [
+        ('snap_volume_quota_mb', 'BIGINT NULL DEFAULT NULL'),
         ('global_seq_id', 'BIGINT NULL AFTER id'),
         ('email', "VARCHAR(120) DEFAULT '' AFTER phone"),
         ('notes', "TEXT NULL"),
@@ -184,6 +199,10 @@ REQUIRED_COLUMNS = {
     'radacct': [
         ('acctinputgigawords', 'BIGINT DEFAULT 0'),
         ('acctoutputgigawords', 'BIGINT DEFAULT 0')
+    ],
+    'wisp_session_baselines': [
+        ('baseline_input_bytes', 'BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER username'),
+        ('baseline_output_bytes', 'BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER baseline_input_bytes')
     ]
 }
 
@@ -193,18 +212,23 @@ FOR EACH ROW
 BEGIN
     UPDATE wisp_subscribers s
     JOIN wisp_packages p ON s.package_id = p.id
-    SET s.status = 'active',
+    SET s.expires_at = CASE
+            WHEN s.status = 'inactive' AND s.first_used_at IS NULL AND s.last_renewed_at IS NULL
+            THEN IFNULL(s.expires_at,
+                CASE
+                    WHEN COALESCE(p.validity_value, p.validity_days, 0) <= 0 THEN NULL
+                    WHEN p.validity_unit = 'minutes' THEN DATE_ADD(NEW.acctstarttime, INTERVAL p.validity_value MINUTE)
+                    WHEN p.validity_unit = 'hours' THEN DATE_ADD(NEW.acctstarttime, INTERVAL p.validity_value HOUR)
+                    WHEN p.validity_unit = 'months' THEN DATE_ADD(NEW.acctstarttime, INTERVAL p.validity_value MONTH)
+                    ELSE DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, p.validity_days, 1) DAY)
+                END)
+            ELSE s.expires_at
+        END,
+        s.status = 'active',
         s.first_used_at = IFNULL(s.first_used_at, NEW.acctstarttime),
-        s.last_renewed_at = IFNULL(s.last_renewed_at, NEW.acctstarttime),
-        s.expires_at = IFNULL(s.expires_at, 
-            CASE 
-                WHEN p.validity_unit = 'minutes' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) MINUTE)
-                WHEN p.validity_unit = 'hours' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) HOUR)
-                WHEN p.validity_unit = 'months' THEN DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, 1) MONTH)
-                ELSE DATE_ADD(NEW.acctstarttime, INTERVAL COALESCE(p.validity_value, p.validity_days, 1) DAY)
-            END
-        )
-    WHERE s.username = NEW.username AND (s.status = 'inactive' OR s.expires_at IS NULL);
+        s.last_renewed_at = IFNULL(s.last_renewed_at, NEW.acctstarttime)
+    WHERE s.username = NEW.username AND s.status IN ('active', 'inactive')
+      AND COALESCE(@max_radius_import, 0) = 0;
 END;
 """
 
@@ -233,14 +257,15 @@ BEGIN
     DECLARE v_assigned_seq BIGINT DEFAULT NULL;
     
     SELECT v.id, v.batch_id, b.name, v.serial_number,
-           p.name, p.price, p.cost, v.reseller_id,
-           COALESCE(p.validity_value, p.validity_days, 30),
-           COALESCE(p.validity_unit, 'days'),
-           COALESCE(p.volume_quota_mb, 0),
-           COALESCE(p.uptime_limit_mins, 0),
-           p.rate_download, p.rate_upload,
-           COALESCE(p.simultaneous_sessions, 1),
-           p.mikrotik_group
+           p.name, COALESCE(v.snap_price, p.price), COALESCE(v.snap_cost, p.cost), v.reseller_id,
+           COALESCE(v.snap_validity_value, v.snap_validity_days, p.validity_value, p.validity_days, 30),
+           COALESCE(v.snap_validity_unit, p.validity_unit, 'days'),
+           COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb, 0),
+           COALESCE(v.snap_uptime_limit_mins, p.uptime_limit_mins, 0),
+           COALESCE(v.snap_rate_download, p.rate_download),
+           COALESCE(v.snap_rate_upload, p.rate_upload),
+           COALESCE(v.snap_simultaneous_sessions, p.simultaneous_sessions, 1),
+           COALESCE(v.snap_mikrotik_group, p.mikrotik_group)
     INTO v_id, v_batch_id, v_batch_name, v_serial_number,
          v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id,
          v_val, v_unit, v_quota, v_uptime,
@@ -250,20 +275,26 @@ BEGIN
     JOIN wisp_voucher_batches b ON v.batch_id = b.id
     WHERE (LOWER(v.username) = LOWER(NEW.username) OR v.pin_code = NEW.username)
       AND v.status = 'unused'
+      AND COALESCE(@max_radius_import, 0) = 0
     LIMIT 1;
     
     IF v_id IS NOT NULL THEN
-        IF v_unit = 'minutes' THEN
-            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val MINUTE);
+        IF v_val <= 0 THEN
+            SET v_exp_date = NULL;
+            SET v_rad_exp = NULL;
+        ELSEIF v_unit = 'minutes' THEN
+            SET v_exp_date = DATE_ADD(COALESCE(NEW.acctstarttime, CURRENT_TIMESTAMP), INTERVAL v_val MINUTE);
+            SET v_rad_exp = DATE_FORMAT(v_exp_date, '%d %b %Y %H:%i:%s');
         ELSEIF v_unit = 'hours' THEN
-            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val HOUR);
+            SET v_exp_date = DATE_ADD(COALESCE(NEW.acctstarttime, CURRENT_TIMESTAMP), INTERVAL v_val HOUR);
+            SET v_rad_exp = DATE_FORMAT(v_exp_date, '%d %b %Y %H:%i:%s');
         ELSEIF v_unit = 'months' THEN
-            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val MONTH);
+            SET v_exp_date = DATE_ADD(COALESCE(NEW.acctstarttime, CURRENT_TIMESTAMP), INTERVAL v_val MONTH);
+            SET v_rad_exp = DATE_FORMAT(v_exp_date, '%d %b %Y %H:%i:%s');
         ELSE
-            SET v_exp_date = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL v_val DAY);
+            SET v_exp_date = DATE_ADD(COALESCE(NEW.acctstarttime, CURRENT_TIMESTAMP), INTERVAL v_val DAY);
+            SET v_rad_exp = DATE_FORMAT(v_exp_date, '%d %b %Y %H:%i:%s');
         END IF;
-        
-        SET v_rad_exp = DATE_FORMAT(v_exp_date, '%d %b %Y %H:%i:%s');
         
         INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
         VALUES ('voucher', v_id, CURRENT_TIMESTAMP)
@@ -275,21 +306,21 @@ BEGIN
         
         UPDATE wisp_vouchers
         SET status = 'active',
-            first_used_at = IFNULL(first_used_at, CURRENT_TIMESTAMP),
-            last_renewed_at = IFNULL(last_renewed_at, CURRENT_TIMESTAMP),
+            first_used_at = IFNULL(first_used_at, COALESCE(NEW.acctstarttime, CURRENT_TIMESTAMP)),
+            last_renewed_at = IFNULL(last_renewed_at, COALESCE(NEW.acctstarttime, CURRENT_TIMESTAMP)),
             expires_at = IFNULL(expires_at, v_exp_date),
             bound_mac = CASE WHEN (bound_mac IS NULL OR bound_mac = '') AND NEW.callingstationid IS NOT NULL AND NEW.callingstationid != '' THEN NEW.callingstationid ELSE bound_mac END,
             global_seq_id = IFNULL(global_seq_id, v_assigned_seq),
-            snap_price = COALESCE(NULLIF(snap_price, 0.00), v_pkg_price),
-            snap_cost = COALESCE(NULLIF(snap_cost, 0.00), v_pkg_cost),
-            snap_volume_quota_mb = COALESCE(NULLIF(snap_volume_quota_mb, 0), v_quota),
-            snap_uptime_limit_mins = COALESCE(NULLIF(snap_uptime_limit_mins, 0), v_uptime),
-            snap_validity_value = COALESCE(NULLIF(snap_validity_value, 0), v_val),
+            snap_price = COALESCE(snap_price, v_pkg_price),
+            snap_cost = COALESCE(snap_cost, v_pkg_cost),
+            snap_volume_quota_mb = COALESCE(snap_volume_quota_mb, v_quota),
+            snap_uptime_limit_mins = COALESCE(snap_uptime_limit_mins, v_uptime),
+            snap_validity_value = COALESCE(snap_validity_value, v_val),
             snap_validity_unit = COALESCE(NULLIF(snap_validity_unit, ''), v_unit),
-            snap_validity_days = COALESCE(NULLIF(snap_validity_days, 0), v_val),
-            snap_rate_download = COALESCE(NULLIF(snap_rate_download, ''), NULLIF(snap_rate_download, '0'), v_r_down),
-            snap_rate_upload = COALESCE(NULLIF(snap_rate_upload, ''), NULLIF(snap_rate_upload, '0'), v_r_up),
-            snap_simultaneous_sessions = COALESCE(NULLIF(snap_simultaneous_sessions, 0), v_simul),
+            snap_validity_days = COALESCE(snap_validity_days, v_val),
+            snap_rate_download = COALESCE(NULLIF(snap_rate_download, ''), v_r_down),
+            snap_rate_upload = COALESCE(NULLIF(snap_rate_upload, ''), v_r_up),
+            snap_simultaneous_sessions = COALESCE(snap_simultaneous_sessions, v_simul),
             snap_mikrotik_group = COALESCE(NULLIF(snap_mikrotik_group, ''), v_mgroup)
         WHERE id = v_id;
         
@@ -304,17 +335,43 @@ BEGIN
         END IF;
         
         DELETE FROM radcheck WHERE LOWER(username) = LOWER(NEW.username) AND attribute = 'Expiration';
-        INSERT INTO radcheck (username, attribute, op, value)
-        VALUES (NEW.username, 'Expiration', ':=', v_rad_exp);
+        IF v_rad_exp IS NOT NULL THEN
+            INSERT INTO radcheck (username, attribute, op, value)
+            VALUES (NEW.username, 'Expiration', ':=', v_rad_exp);
+        END IF;
     END IF;
 END;
 """
 
-def heal_database_schema():
+def install_accounting_triggers(conn):
+    """Install the shared definitions and fail if either definition is not active."""
+    import re
+    if not is_mysql_conn(conn):
+        return
+    with conn.cursor() as cur:
+        cur.execute('SELECT VERSION() AS version')
+        maria = 'mariadb' in str(cur.fetchone()['version']).lower()
+        for name, sql in (('trg_radacct_subscriber_activate', TRIGGER_SUB_SQL),
+                          ('trg_radacct_activate_voucher', TRIGGER_VOUCHER_SQL)):
+            if maria:
+                cur.execute(sql.replace('CREATE TRIGGER', 'CREATE OR REPLACE TRIGGER', 1))
+            else:
+                cur.execute(f'DROP TRIGGER IF EXISTS {name}')
+                cur.execute(sql)
+            cur.execute('SELECT ACTION_STATEMENT FROM information_schema.TRIGGERS '
+                        'WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME=%s', (name,))
+            row = cur.fetchone()
+            normalize = lambda text: re.sub(r'\s+', ' ', text.strip().rstrip(';')).strip()
+            expected = sql.split('FOR EACH ROW', 1)[1]
+            if not row or normalize(row['ACTION_STATEMENT']) != normalize(expected):
+                raise RuntimeError(f'Accounting trigger verification failed: {name}')
+
+
+def heal_database_schema(backfill=True):
     """
     Scans the database schema, compares against REQUIRED_TABLES and REQUIRED_COLUMNS,
     and executes ALTER / CREATE statements for any missing element.
-    Safe and idempotent.
+    Safe and idempotent. Set backfill=False for schema-only migration preparation.
     """
     try:
         conn = get_connection()
@@ -360,7 +417,7 @@ def heal_database_schema():
 
         # 3. Backfill missing global sequence IDs
         try:
-            if is_mysql:
+            if is_mysql and backfill:
                 cur.execute("""
                     INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
                     SELECT 'subscriber', id, NOW() FROM wisp_subscribers WHERE global_seq_id IS NULL
@@ -389,7 +446,7 @@ def heal_database_schema():
 
         # 4. Backfill missing snap columns on vouchers from batches / packages
         try:
-            if is_mysql:
+            if is_mysql and backfill:
                 cur.execute("""
                     UPDATE wisp_vouchers v
                     JOIN wisp_packages p ON v.package_id = p.id
@@ -435,29 +492,27 @@ def heal_database_schema():
         # 5. Ensure Triggers Exist
         try:
             if is_mysql:
-                cur.execute("DROP TRIGGER IF EXISTS trg_radacct_subscriber_activate")
-                cur.execute(TRIGGER_SUB_SQL)
-                cur.execute("DROP TRIGGER IF EXISTS trg_radacct_activate_voucher")
-                cur.execute(TRIGGER_VOUCHER_SQL)
+                install_accounting_triggers(conn)
                 conn.commit()
         except Exception as e:
             print(f"[Schema Healer] Trigger creation notice: {e}")
 
-        # Backfill missing Cleartext-Password in radcheck for subscribers and vouchers
-        try:
-            cur.execute('''
-                INSERT INTO radcheck (username, attribute, op, value)
-                SELECT s.username, 'Cleartext-Password', ':=', s.password
-                FROM wisp_subscribers s
-                WHERE s.status = 'active'
-                AND NOT EXISTS (
-                    SELECT 1 FROM radcheck r WHERE r.username = s.username AND r.attribute = 'Cleartext-Password'
-                );
-            ''')
-            if is_mysql:
-                conn.commit()
-        except Exception:
-            pass
+        if backfill:
+            # Backfill missing Cleartext-Password in radcheck for subscribers and vouchers
+            try:
+                cur.execute('''
+                    INSERT INTO radcheck (username, attribute, op, value)
+                    SELECT s.username, 'Cleartext-Password', ':=', s.password
+                    FROM wisp_subscribers s
+                    WHERE s.status = 'active'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM radcheck r WHERE r.username = s.username AND r.attribute = 'Cleartext-Password'
+                    );
+                ''')
+                if is_mysql:
+                    conn.commit()
+            except Exception:
+                pass
         conn.close()
         return True
     except Exception as e:

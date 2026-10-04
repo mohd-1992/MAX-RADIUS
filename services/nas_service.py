@@ -48,7 +48,17 @@ def get_nas_devices(skip_live_probe=False):
 
 
 def reload_freeradius_clients():
-    """Signals FreeRADIUS daemon to gracefully reload clients without restarting container."""
+    """
+    Applies NAS configuration changes to the FreeRADIUS daemon.
+    In FreeRADIUS 3.0, client secrets and new NAS definitions require a daemon restart
+    or supported signal to re-read the SQL nas table.
+    Sends a restart request via Docker API socket and verifies HTTP response.
+    Returns (success: bool, message: str).
+    """
+    import os
+    import socket
+
+    # Update nasreload timestamp table
     try:
         execute_write("""
             INSERT INTO nasreload (nasipaddress, reloadtime) 
@@ -58,32 +68,64 @@ def reload_freeradius_clients():
     except Exception:
         pass
 
+    docker_socket_path = '/var/run/docker.sock'
+    if not os.path.exists(docker_socket_path):
+        # Development or test environment without Docker socket mounted
+        return True, "تم حفظ بيانات أجهزة NAS في قاعدة البيانات بنجاح (بيئة غير حاوية)."
+
     try:
-        import socket
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(2.0)
-        s.connect('/var/run/docker.sock')
-        # Send SIGHUP to reload clients gracefully without restarting or dropping sessions
-        s.sendall(b'POST /containers/max_radius_core/kill?signal=HUP HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n')
-        s.recv(1024)
+        s.settimeout(4.0)
+        s.connect(docker_socket_path)
+        req = (
+            b"POST /containers/max_radius_core/restart?t=2 HTTP/1.1\r\n"
+            b"Host: localhost\r\n"
+            b"Connection: close\r\n\r\n"
+        )
+        s.sendall(req)
+        response = b""
+        while True:
+            chunk = s.recv(1024)
+            if not chunk:
+                break
+            response += chunk
         s.close()
-    except Exception:
-        pass
+
+        status_line = response.split(b"\r\n")[0].decode('utf-8', errors='ignore') if response else ""
+        if "204" in status_line or "200" in status_line:
+            return True, "تم تطبيق التعديلات وإعادة تحميل خادم FreeRADIUS بنجاح."
+        else:
+            err_msg = f"فشل تطبيق التعديلات على FreeRADIUS: استجاب الخادم بـ {status_line}"
+            logger_nas = None
+            try:
+                import logging
+                logger_nas = logging.getLogger('nas_service')
+                logger_nas.error(err_msg)
+            except Exception:
+                pass
+            return False, err_msg
+    except Exception as e:
+        return False, f"تعذر الاتصال بـ Docker Daemon لتطبيق التعديلات: {str(e)}"
+
 
 def sync_nas_table_entries():
-    """Ensures nas table strictly matches wisp_nas_devices, removing orphan entries."""
+    """
+    Ensures SQL nas table strictly matches wisp_nas_devices, removing orphan entries.
+    Each NAS device retains its own independent secret and IP configuration (Points 11, 12, 13).
+    Does NOT force a single router's secret across other devices or subnets.
+    """
+    INTERNAL_CLIENT_IPS = ('127.0.0.1', '::1', '172.18.0.4', 'localhost')
     devices = query_all('SELECT * FROM wisp_nas_devices ORDER BY id DESC')
     if not devices:
-        execute_write('DELETE FROM nas')
-        reload_freeradius_clients()
-        return
+        int_placeholders = ','.join(['?'] * len(INTERNAL_CLIENT_IPS))
+        execute_write(f"DELETE FROM nas WHERE nasname NOT IN ({int_placeholders})", INTERNAL_CLIENT_IPS)
+        return reload_freeradius_clients()
 
     valid_ips = [d['ip_address'].strip() for d in devices]
-    # Delete orphan routers from nas that are not in wisp_nas_devices and not docker internal
-    placeholders = ','.join(['?'] * len(valid_ips))
-    execute_write(f"DELETE FROM nas WHERE nasname NOT IN ({placeholders}) AND nasname NOT IN ('172.21.0.0/16', '0.0.0.0/0')", tuple(valid_ips))
-
-    active_secret = devices[0]['secret'].strip() if devices else '123'
+    # Delete orphan routers from nas without touching protected internal clients
+    all_protected = list(valid_ips) + list(INTERNAL_CLIENT_IPS)
+    placeholders = ','.join(['?'] * len(all_protected))
+    execute_write(f"DELETE FROM nas WHERE nasname NOT IN ({placeholders})", tuple(all_protected))
 
     for d in devices:
         ip = d['ip_address'].strip()
@@ -99,14 +141,7 @@ def sync_nas_table_entries():
             execute_write('INSERT INTO nas (nasname, shortname, type, secret, ports, description) VALUES (?, ?, ?, ?, 1812, ?)',
                           (ip, name, ntype, sec, d.get('description', 'WISP Router')))
 
-    # Ensure docker bridge subnet uses the active secret so Docker NAT on Windows functions seamlessly
-    docker_sub = query_one("SELECT id FROM nas WHERE nasname = '172.21.0.0/16'")
-    if docker_sub:
-        execute_write("UPDATE nas SET secret = ? WHERE nasname = '172.21.0.0/16'", (active_secret,))
-    else:
-        execute_write("INSERT INTO nas (nasname, shortname, type, secret, ports, description) VALUES ('172.21.0.0/16', 'docker-subnet', 'other', ?, 1812, 'Docker Bridge Gateway')", (active_secret,))
-
-    reload_freeradius_clients()
+    return reload_freeradius_clients()
 
 def add_nas_device(data, admin_username='admin'):
     from services.license_guard_service import check_nas_quota
@@ -132,9 +167,9 @@ def add_nas_device(data, admin_username='admin'):
         data.get('description', '')
     ))
     
-    sync_nas_table_entries()
+    applied, msg = sync_nas_table_entries()
     log_audit(1, admin_username, 'ADD_NAS', 'nas', f'Added NAS router {data["name"]} ({data["ip_address"]})')
-    return nas_id
+    return nas_id, applied, msg
 
 def update_nas_device(nas_id, data, admin_username='admin'):
     old_nas = query_one('SELECT ip_address FROM wisp_nas_devices WHERE id = ?', (nas_id,))
@@ -162,9 +197,9 @@ def update_nas_device(nas_id, data, admin_username='admin'):
     if old_nas and old_nas['ip_address'] != data['ip_address'].strip():
         execute_write('DELETE FROM nas WHERE nasname = ?', (old_nas['ip_address'],))
         
-    sync_nas_table_entries()
+    applied, msg = sync_nas_table_entries()
     log_audit(1, admin_username, 'UPDATE_NAS', 'nas', f'Updated NAS ID {nas_id}')
-    return True
+    return True, applied, msg
 
 def delete_nas_device(nas_id, admin_username='admin'):
     nas = query_one('SELECT ip_address, name FROM wisp_nas_devices WHERE id = ?', (nas_id,))
@@ -186,16 +221,10 @@ def delete_nas_device(nas_id, admin_username='admin'):
         except Exception:
             pass
         execute_write('DELETE FROM wisp_nas_devices WHERE id = ?', (nas_id,))
-        try:
-            sync_nas_table_entries()
-        except Exception:
-            pass
-        try:
-            log_audit(1, admin_username, 'DELETE_NAS', 'nas', f'Deleted NAS {nas.get("name", nas_id)} ({ip}) and cleaned all associated radius client entries')
-        except Exception:
-            pass
-        return True
-    return False
+        applied, msg = sync_nas_table_entries()
+        log_audit(1, admin_username, 'DELETE_NAS', 'nas', f'Deleted NAS {name or nas_id} ({ip}) and cleaned all associated radius client entries')
+        return True, applied, msg
+    return False, False, "الجهاز غير موجود"
 
 def test_nas_coa(nas_id):
     nas = query_one('SELECT * FROM wisp_nas_devices WHERE id = ?', (nas_id,))

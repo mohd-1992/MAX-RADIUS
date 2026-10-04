@@ -5,6 +5,7 @@ accounting history, and instant Disconnect (CoA).
 """
 
 import datetime
+from core.time_service import get_db_storage_now
 import concurrent.futures
 from database.db import query_all, query_one, execute_write, execute_update, log_audit, log_user_audit
 
@@ -156,7 +157,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
     query = '''
         SELECT COALESCE(s.global_seq_id, s.id) as seq_id,
                s.*, p.name as package_name, p.price, p.rate_download, p.rate_upload,
-               p.validity_value, p.validity_unit, p.volume_quota_mb
+               p.validity_value, p.validity_unit, COALESCE(s.snap_volume_quota_mb, p.volume_quota_mb, 0) as volume_quota_mb
         FROM wisp_subscribers s
         JOIN wisp_packages p ON s.package_id = p.id
         WHERE 1=1
@@ -263,7 +264,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
         ''', tuple(usernames) + tuple(usernames))
         usage_map = {r['username'].lower(): r for r in (usage_list or [])}
 
-    now = datetime.datetime.now()
+    now = get_db_storage_now().replace(tzinfo=None)
 
     for sub in subs:
         u_key = (sub['username'] or '').lower()
@@ -403,7 +404,7 @@ def create_subscriber(data, admin_username='admin'):
     elif not exp_iso and data.get('package_id'):
         pkg = query_one('SELECT validity_value, validity_unit, validity_days FROM wisp_packages WHERE id = ?', (int(data['package_id']),))
         if pkg:
-            now_dt = datetime.datetime.now()
+            now_dt = get_db_storage_now().replace(tzinfo=None)
             val = int(pkg.get('validity_value') or pkg.get('validity_days') or 30)
             unit = (pkg.get('validity_unit') or 'days').lower()
             if unit == 'minutes':
@@ -504,12 +505,13 @@ def update_subscriber(sub_id, data, admin_username='admin'):
 
     execute_write('''
         UPDATE wisp_subscribers SET
+            snap_volume_quota_mb = CASE WHEN package_id = ? THEN snap_volume_quota_mb ELSE NULL END,
             password = ?, full_name = ?, phone = ?, national_id = ?, address = ?,
             service_type = ?, package_id = ?, mac_binding = ?, static_ip = ?,
             status = ?, expires_at = ?, notes = ?
         WHERE id = ?
     ''', (
-        new_pwd, new_fullname, new_phone, new_national_id, new_address,
+        new_pkg_id, new_pwd, new_fullname, new_phone, new_national_id, new_address,
         new_service_type, new_pkg_id, new_mac, new_ip,
         new_status, new_expires_at, new_notes,
         sub_id
@@ -536,12 +538,16 @@ def delete_subscriber(sub_id, admin_username='admin'):
     return False
 
 def get_subscriber_sessions(username, limit=15):
+    cutoff_str = get_heartbeat_cutoff_str(5)
     sessions = query_all('''
-        SELECT * FROM radacct
+        SELECT *, CASE WHEN acctstoptime IS NULL
+            AND COALESCE(acctupdatetime, acctstarttime) >= ?
+            THEN 1 ELSE 0 END AS is_active
+        FROM radacct
         WHERE LOWER(username) = LOWER(?)
         ORDER BY radacctid DESC
         LIMIT ?
-    ''', (username, limit))
+    ''', (cutoff_str, username, limit))
     
     for s in sessions:
         down_bytes = float((int(s.get('acctoutputgigawords') or 0) * 4294967296) + int(s.get('acctoutputoctets') or 0))
@@ -550,139 +556,22 @@ def get_subscriber_sessions(username, limit=15):
         s['upload_str'] = format_bytes(up_bytes)
         s['total_str'] = format_bytes(down_bytes + up_bytes)
         s['duration_str'] = format_duration(s.get('acctsessiontime', 0))
-        s['is_active'] = (s.get('acctstoptime') is None)
+        s['is_active'] = bool(s['is_active'])
     return sessions
 
 def disconnect_subscriber_session(username, admin_username='admin'):
+    """Disconnect all user sessions through the shared, independently verified path."""
     username = (username or '').strip()
-    session = query_one('''
-        SELECT acctsessionid, nasipaddress, framedipaddress, callingstationid
-        FROM radacct
-        WHERE username = ? AND acctstoptime IS NULL
-        ORDER BY radacctid DESC LIMIT 1
-    ''', (username,))
-    
-    nas_ip = session['nasipaddress'] if session else None
-    if not nas_ip:
-        nas_row = query_one('SELECT ip_address FROM wisp_nas_devices ORDER BY id ASC LIMIT 1')
-        if nas_row:
-            nas_ip = nas_row['ip_address']
-            
-    if not session and not nas_ip:
-        return {
-            'success': False,
-            'status': 'no_active_session',
-            'message': f'لا توجد جلسة نشطة حالياً للمشترك {username}.'
-        }
-        
-    nas_rec = query_one('SELECT secret, coa_port, api_port, api_username, api_password FROM wisp_nas_devices WHERE ip_address = ?', (nas_ip,)) if nas_ip else None
-    if not nas_rec and nas_ip:
-        nas_rec = query_one('SELECT secret, ports FROM nas WHERE nasname = ?', (nas_ip,))
-        
-    secret = (nas_rec['secret'] if nas_rec and nas_rec.get('secret') else 'max123') or 'max123'
-    coa_port = (nas_rec.get('coa_port') if nas_rec else None) or 3799
-    
-    # 1. First Attempt: RADIUS CoA Disconnect (Port 3799)
-    res = {'success': False, 'status': 'coa_failed', 'message': ''}
-    if nas_ip:
-        try:
-            client = RadiusCoaClient(nas_ip=nas_ip, secret=secret, port=coa_port, timeout=2.0)
-            res = client.disconnect_user(
-                username=username,
-                framed_ip=session.get('framedipaddress') if session else None,
-                session_id=session.get('acctsessionid') if session else None,
-                mac_address=session.get('callingstationid') if session else None
-            )
-        except Exception as e:
-            res = {'success': False, 'status': 'error', 'message': f'خطأ أثناء إرسال CoA: {str(e)}'}
-
-    # 2. Second Attempt: Smart Fallback to MikroTik RouterOS Binary API (Port 41042 / 8728)
-    if not res.get('success') and nas_rec and nas_rec.get('api_port') and nas_rec.get('api_username'):
-        api_port = int(nas_rec['api_port'])
-        api_user = nas_rec['api_username']
-        api_pass = nas_rec.get('api_password') or ''
-        
-        try:
-            from core.mikrotik_api import RouterOSApiProtocol
-            ros_client = RouterOSApiProtocol(nas_ip, port=api_port, timeout=3.0)
-            ros_client.connect()
-            if ros_client.login(api_user, api_pass):
-                removed_any = False
-                u_lower = username.strip().lower()
-                
-                # Check Hotspot Active
-                try:
-                    hotspot_items = ros_client.talk(['/ip/hotspot/active/print'])
-                    for item in (hotspot_items or []):
-                        if str(item.get('user', '')).strip().lower() == u_lower:
-                            item_id = item.get('.id')
-                            if item_id:
-                                ros_client.talk(['/ip/hotspot/active/remove', f'=.id={item_id}'])
-                                removed_any = True
-                except Exception:
-                    pass
-                    
-                # Check PPP Active
-                try:
-                    ppp_items = ros_client.talk(['/ppp/active/print'])
-                    for item in (ppp_items or []):
-                        if str(item.get('name', '')).strip().lower() == u_lower:
-                            item_id = item.get('.id')
-                            if item_id:
-                                ros_client.talk(['/ppp/active/remove', f'=.id={item_id}'])
-                                removed_any = True
-                except Exception:
-                    pass
-                    
-                ros_client.close()
-                
-                if removed_any:
-                    res = {
-                        'success': True,
-                        'status': 'api_disconnected',
-                        'method': 'mikrotik_api',
-                        'message': f'تم طرد المشترك {username} بنجاح من الميكروتيك عبر API.'
-                    }
-                elif session:
-                    res = {
-                        'success': True,
-                        'status': 'cleaned_orphaned_session',
-                        'method': 'mikrotik_api',
-                        'message': f'تم تنظيف الجلسة المعلقة للمشترك {username} بنجاح.'
-                    }
-                else:
-                    res = {
-                        'success': True,
-                        'status': 'not_found_on_router',
-                        'method': 'mikrotik_api',
-                        'message': f'المشترك {username} غير متصل حالياً في الميكروتيك.'
-                    }
-        except Exception as api_err:
-            res = {
-                'success': False,
-                'status': 'error',
-                'message': f'فشل الاتصال بـ MikroTik API ({nas_ip}:{api_port}): {str(api_err)}'
-            }
-
-    # 3. If disconnected by either method, cleanly close the radacct session
-    if res.get('success'):
-        if session and session.get('acctsessionid'):
-            execute_write('''
-                UPDATE radacct SET 
-                    acctstoptime = CURRENT_TIMESTAMP,
-                    acctterminatecause = 'Admin-Reset'
-                WHERE username = ? AND acctsessionid = ? AND acctstoptime IS NULL
-            ''', (username, session['acctsessionid']))
-        else:
-            execute_write('''
-                UPDATE radacct SET 
-                    acctstoptime = CURRENT_TIMESTAMP,
-                    acctterminatecause = 'Admin-Reset'
-                WHERE username = ? AND acctstoptime IS NULL
-            ''', (username,))
-            
-    log_audit(1, admin_username, 'DISCONNECT_USER', 'subscribers', f'Disconnect request for {username} on {nas_ip}: {res.get("message", "")}')
+    if not username:
+        return {'success': False, 'status': 'invalid_user', 'message': 'اسم المستخدم غير محدد'}
+    from services.coa_queue_service import _process_coa_task
+    res = _process_coa_task({'action': 'disconnect', 'username': username,
+                             'admin_username': admin_username,
+                             'reason': 'Subscriber lifecycle disconnect'})
+    log_audit(1, admin_username, 'DISCONNECT_USER', 'subscribers',
+              f'Disconnect request for {username}: {res.get("message", "")}')
     return res
+
 
 def dispatch_async_disconnect(username, admin_username='admin'):
     """
@@ -721,4 +610,3 @@ def clean_stale_sessions(timeout_minutes=10):
         print(f"Error cleaning stale sessions: {e}")
 
     return closed_count
-

@@ -79,8 +79,11 @@ def add_nas_action():
     if request.method == 'GET':
         return render_template('nas_add.html')
     try:
-        add_nas_device(request.form)
-        flash('تمت إضافة راوتر MikroTik بنجاح وتوليد إعدادات RADIUS NAS.', 'success')
+        nas_id, applied, msg = add_nas_device(request.form)
+        if applied:
+            flash('تمت إضافة راوتر MikroTik بنجاح وتطبيق إعدادات RADIUS NAS فوراً.', 'success')
+        else:
+            flash(f'تم حفظ بيانات الراوتر بنجاح، ولكن تعذر تطبيقها فورياً على سيرفر FreeRADIUS: {msg}', 'warning')
     except Exception as e:
         flash(f'خطأ أثناء إضافة الراوتر: {str(e)}', 'danger')
     return redirect(url_for('nas'))
@@ -153,8 +156,11 @@ def edit_nas_action(nas_id):
         return redirect(url_for('nas_details_page', nas_id=nas_id))
         
     try:
-        update_nas_device(nas_id, request.form)
-        flash('تم تحديث بيانات الراوتر بنجاح.', 'success')
+        ok, applied, msg = update_nas_device(nas_id, request.form)
+        if applied:
+            flash('تم تحديث بيانات الراوتر وتطبيق إعدادات RADIUS بنجاح.', 'success')
+        else:
+            flash(f'تم حفظ تعديلات الراوتر بنجاح، ولكن تعذر تطبيقها فورياً على سيرفر FreeRADIUS: {msg}', 'warning')
     except Exception as e:
         flash(f'خطأ أثناء التحديث: {str(e)}', 'danger')
     return redirect(url_for('nas_details_page', nas_id=nas_id))
@@ -167,8 +173,11 @@ def delete_nas_action(nas_id):
     try:
         current_mgr = get_current_manager()
         admin_user = current_mgr['username'] if current_mgr else 'admin'
-        delete_nas_device(nas_id, admin_username=admin_user)
-        flash('تم حذف الراوتر وجميع ارتباطاته في الراديوس بنجاح.', 'warning')
+        ok, applied, msg = delete_nas_device(nas_id, admin_username=admin_user)
+        if applied:
+            flash('تم حذف الراوتر وجميع ارتباطاته في الراديوس وتطبيق التعديل بنجاح.', 'warning')
+        else:
+            flash(f'تم حذف الراوتر من قاعدة البيانات، ولكن تعذر تطبيق التعديل فورياً على سيرفر FreeRADIUS: {msg}', 'warning')
     except Exception as e:
         flash(f'خطأ أثناء الحذف: {str(e)}', 'danger')
     return redirect(url_for('nas'))
@@ -583,6 +592,22 @@ def api_mikrotik_userman_execute():
     profile_costs = req_data.get('profile_costs') or {}
     admin_user = session.get('username', 'admin')
 
+    chunk_index = req_data.get('chunk_index')
+    if chunk_index is not None:
+        try:
+            chunk_index = int(chunk_index)
+        except Exception:
+            chunk_index = None
+
+    total_chunks = req_data.get('total_chunks')
+    if total_chunks is not None:
+        try:
+            total_chunks = int(total_chunks)
+        except Exception:
+            total_chunks = None
+
+    state_cache = req_data.get('state_cache')
+
     res = execute_userman_import(
         parsed_data=parsed_data,
         target_type=target_type,
@@ -591,7 +616,10 @@ def api_mikrotik_userman_execute():
         ignore_expired=ignore_expired,
         import_consumption=import_consumption,
         admin_user=admin_user,
-        profile_costs=profile_costs
+        profile_costs=profile_costs,
+        chunk_index=chunk_index,
+        total_chunks=total_chunks,
+        state_cache=state_cache
     )
     return jsonify(res)
 

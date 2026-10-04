@@ -66,6 +66,87 @@ def _resolve_nas_credentials(nas_ip=None):
 
     return nas_ip, secret, coa_port, api_port, api_user, api_pass
 
+def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None):
+    """Executes disconnect on a single session and updates radacct ONLY for that session if successful."""
+    resolved_ip, secret, coa_port, api_port, api_user, api_pass = _resolve_nas_credentials(nas_ip)
+    target_nas_ip = resolved_ip or nas_ip or '127.0.0.1'
+    client = RadiusCoaClient(nas_ip=target_nas_ip, secret=secret, port=coa_port, timeout=1.8)
+
+    res = client.disconnect_user(
+        username=username,
+        framed_ip=framed_ip,
+        session_id=session_id,
+        mac_address=mac_address
+    )
+
+    # MikroTik API fallback if UDP CoA failed
+    if not res.get('success') and api_port and api_user and (session_id or framed_ip or mac_address):
+        ros = None
+        try:
+            from core.mikrotik_api import RouterOSApiProtocol
+            ros = RouterOSApiProtocol(target_nas_ip, port=int(api_port), timeout=2.5)
+            ros.connect()
+            if ros.login(api_user, api_pass):
+                u_lower = username.lower()
+                candidates = []
+                for path, user_key in (('/ip/hotspot/active', 'user'), ('/ppp/active', 'name')):
+                    replies = ros.talk_raw([path + '/print'])
+                    kinds = [kind for kind, _ in replies]
+                    if '!done' not in kinds or any(kind in kinds for kind in ('!trap', '!fatal')):
+                        raise RuntimeError('Router session inventory could not be verified')
+                    for kind, item in replies:
+                        if kind != '!re':
+                            continue
+                        if str(item.get(user_key, '')).lower() != u_lower or not item.get('.id'):
+                            continue
+                        api_sid = item.get('session-id') or item.get('acct-session-id')
+                        if session_id and api_sid:
+                            matches = str(api_sid) == str(session_id)
+                        elif framed_ip:
+                            matches = str(item.get('address', '')) == str(framed_ip)
+                        elif mac_address:
+                            actual_mac = item.get('mac-address') or item.get('caller-id') or ''
+                            matches = str(actual_mac).replace('-', ':').lower() == str(mac_address).replace('-', ':').lower()
+                        else:
+                            matches = False
+                        if matches:
+                            candidates.append((path, item['.id']))
+                # Ambiguous identities must not disconnect an unrelated session.
+                if len(candidates) == 1:
+                    path, item_id = candidates[0]
+                    replies = ros.talk_raw([path + '/remove', f'=.id={item_id}'])
+                    reply_types = [kind for kind, _ in replies]
+                    if '!done' in reply_types and not any(kind in reply_types for kind in ('!trap', '!fatal')):
+                        res.update(success=True, status='api_ack', message=f'تم فصل الجلسة عبر MikroTik API ({target_nas_ip}).')
+        except Exception:
+            pass
+        finally:
+            if ros is not None:
+                ros.close()
+
+    # Cleanly update radacct session ONLY if CoA / API disconnect succeeded for THIS session
+    if res.get('success'):
+        try:
+            if radacctid:
+                execute_write("""
+                    UPDATE radacct 
+                    SET acctstoptime = CURRENT_TIMESTAMP,
+                        acctterminatecause = 'Admin-Reset-CoA'
+                    WHERE radacctid = %s AND acctstoptime IS NULL
+                """, (radacctid,))
+            elif target_nas_ip and session_id:
+                execute_write("""
+                    UPDATE radacct 
+                    SET acctstoptime = CURRENT_TIMESTAMP,
+                        acctterminatecause = 'Admin-Reset-CoA'
+                    WHERE username = %s AND nasipaddress = %s AND acctsessionid = %s AND acctstoptime IS NULL
+                """, (username, target_nas_ip, session_id))
+        except Exception:
+            pass
+
+    return res
+
+
 def _process_coa_task(task):
     """Executes a single CoA or Disconnect action with failover and audit logging."""
     action = task.get('action', 'disconnect')
@@ -75,6 +156,7 @@ def _process_coa_task(task):
     framed_ip = task.get('framed_ip')
     session_id = task.get('session_id')
     mac_address = task.get('mac_address')
+    radacctid = task.get('radacctid')
     rate_limit = task.get('rate_limit')
     reason = task.get('reason', 'Scheduled Lifecycle / Expiry Disconnect')
 
@@ -82,80 +164,57 @@ def _process_coa_task(task):
     res = {'success': False, 'status': 'unknown', 'message': '', 'latency_ms': 0.0}
 
     try:
-        # 1. Inspect active session from radacct if fields missing
-        if not nas_ip or not session_id or not framed_ip:
-            sess = query_one("""
-                SELECT nasipaddress, acctsessionid, framedipaddress, callingstationid
-                FROM radacct
-                WHERE username = %s AND acctstoptime IS NULL
-                ORDER BY radacctid DESC LIMIT 1
-            """, (username,))
-            if sess:
-                nas_ip = nas_ip or sess.get('nasipaddress')
-                session_id = session_id or sess.get('acctsessionid')
-                framed_ip = framed_ip or sess.get('framedipaddress')
-                mac_address = mac_address or sess.get('callingstationid')
-
-        # 2. Resolve NAS network parameters
-        resolved_ip, secret, coa_port, api_port, api_user, api_pass = _resolve_nas_credentials(nas_ip)
-        nas_ip = resolved_ip or nas_ip or '127.0.0.1'
-
-        # 3. Execute Primary RFC 5176 CoA/PoD
-        client = RadiusCoaClient(nas_ip=nas_ip, secret=secret, port=coa_port, timeout=1.8)
-
         if action == 'disconnect':
-            res = client.disconnect_user(
-                username=username,
-                framed_ip=framed_ip,
-                session_id=session_id,
-                mac_address=mac_address
-            )
-            # MikroTik API fallback if UDP CoA failed
-            if not res.get('success') and api_port and api_user:
-                try:
-                    from core.mikrotik_api import RouterOSApiProtocol
-                    ros = RouterOSApiProtocol(nas_ip, port=int(api_port), timeout=2.5)
-                    ros.connect()
-                    if ros.login(api_user, api_pass):
-                        u_lower = username.lower()
-                        # Drop from hotspot active
-                        try:
-                            items = ros.talk(['/ip/hotspot/active/print'])
-                            for it in (items or []):
-                                if str(it.get('user', '')).lower() == u_lower and it.get('.id'):
-                                    ros.talk(['/ip/hotspot/active/remove', f"=.id={it.get('.id')}"])
-                                    res['success'] = True
-                                    res['status'] = 'api_ack'
-                                    res['message'] = f'تم فصل الجلسة عبر MikroTik API ({nas_ip}).'
-                        except Exception:
-                            pass
-                        # Drop from ppp active
-                        try:
-                            ppp_items = ros.talk(['/ppp/active/print'])
-                            for it in (ppp_items or []):
-                                if str(it.get('name', '')).lower() == u_lower and it.get('.id'):
-                                    ros.talk(['/ppp/active/remove', f"=.id={it.get('.id')}"])
-                                    res['success'] = True
-                                    res['status'] = 'api_ack'
-                                    res['message'] = f'تم فصل جلسة PPPoE عبر MikroTik API ({nas_ip}).'
-                        except Exception:
-                            pass
-                        ros.close()
-                except Exception as api_err:
-                    pass
-
-            # Cleanly update radacct session
-            try:
-                execute_write("""
-                    UPDATE radacct 
-                    SET acctstoptime = CURRENT_TIMESTAMP,
-                        acctterminatecause = 'Admin-Reset-CoA'
+            if radacctid and not (nas_ip and session_id):
+                sess = query_one("SELECT nasipaddress, acctsessionid, framedipaddress, callingstationid FROM radacct WHERE radacctid = %s AND username = %s AND acctstoptime IS NULL", (radacctid, username))
+                if not sess:
+                    raise ValueError('الجلسة المطلوبة غير موجودة أو مغلقة')
+                nas_ip, session_id = sess['nasipaddress'], sess['acctsessionid']
+                framed_ip, mac_address = sess.get('framedipaddress'), sess.get('callingstationid')
+            if radacctid or session_id:
+                # Disconnecting a specific identified session
+                res = _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid)
+            else:
+                # Disconnecting the user entirely: process each active session independently
+                from database.db import query_all
+                session_sql = """
+                    SELECT radacctid, nasipaddress, acctsessionid, framedipaddress, callingstationid
+                    FROM radacct
                     WHERE username = %s AND acctstoptime IS NULL
-                """, (username,))
-            except Exception:
-                pass
+                """
+                params = (username,)
+                if nas_ip:
+                    session_sql += " AND nasipaddress = %s"
+                    params += (nas_ip,)
+                active_sessions = query_all(session_sql, params)
+
+                if active_sessions:
+                    last_res = None
+                    all_success = True
+                    for sess in active_sessions:
+                        s_res = _disconnect_single_session(
+                            username=username,
+                            nas_ip=sess.get('nasipaddress'),
+                            session_id=sess.get('acctsessionid'),
+                            framed_ip=sess.get('framedipaddress'),
+                            mac_address=sess.get('callingstationid'),
+                            radacctid=sess.get('radacctid')
+                        )
+                        all_success = all_success and bool(s_res.get('success'))
+                        last_res = s_res
+                    res = last_res or {'success': False, 'status': 'no_sessions', 'message': 'لا توجد جلسات مفتوحة'}
+                    res['success'] = all_success
+                    if not all_success:
+                        res['status'] = 'incomplete'
+                        res['message'] = 'لم ينجح فصل جميع الجلسات المطلوبة'
+                else:
+                    # No active sessions in radacct; send probe to default NAS
+                    res = _disconnect_single_session(username, nas_ip, None, framed_ip, mac_address, None)
 
         elif action == 'speed_change' and rate_limit:
+            resolved_ip, secret, coa_port, api_port, api_user, api_pass = _resolve_nas_credentials(nas_ip)
+            target_nas_ip = resolved_ip or nas_ip or '127.0.0.1'
+            client = RadiusCoaClient(nas_ip=target_nas_ip, secret=secret, port=coa_port, timeout=1.8)
             res = client.modify_rate_limit(
                 rate_limit_str=rate_limit,
                 username=username,
@@ -220,7 +279,7 @@ def start_coa_worker():
         _worker_thread = threading.Thread(target=_coa_worker_loop, name="CoAQueueWorker", daemon=True)
         _worker_thread.start()
 
-def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, mac_address=None, reason=None, admin_username='admin'):
+def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, mac_address=None, radacctid=None, reason=None, admin_username='admin'):
     """
     Non-blocking enqueue of a Disconnect-Request (RFC 5176).
     Returns immediately (< 1ms).
@@ -237,6 +296,7 @@ def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, m
         'framed_ip': framed_ip,
         'session_id': session_id,
         'mac_address': mac_address,
+        'radacctid': radacctid,
         'reason': reason or 'Manual / Automated Disconnect',
         'admin_username': admin_username,
         'enqueued_at': time.time()

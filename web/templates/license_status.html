@@ -302,7 +302,11 @@
                             ('تحليلات الترافيك المتقدمة', feats.get('traffic_analytics', false) if feats is mapping else false),
                             ('الربط البرمجي REST API', feats.get('api_access', false) if feats is mapping else false),
                             ('العلامة التجارية المخصصة', feats.get('white_label', false) if feats is mapping else false),
-                            ('أنفاق VPN والربط (L2TP / WireGuard)', feats.get('vpn_tunnels', false) if feats is mapping else false)
+                            ('أنفاق VPN والربط (L2TP / WireGuard)', feats.get('vpn_tunnels', false) if feats is mapping else false),
+                            ('بوابة إشعارات وتنبيهات الواتساب', feats.get('whatsapp_gateway', false) if feats is mapping else false),
+                            ('مزامنة وتعدد سيرفرات المايكروتك', feats.get('multi_router_sync', false) if feats is mapping else false),
+                            ('نظام نقاط المكافآت والولاء', feats.get('loyalty_rewards', false) if feats is mapping else false),
+                            ('استوديو تصميم وطباعة الكروت', feats.get('card_designer', false) if feats is mapping else false)
                         ] %}
                         {% for fname, fval in features_list %}
                         <div class="p-2.5 rounded-xl border flex items-center justify-between text-xs font-bold {% if fval %}bg-emerald-500/10 border-emerald-500/30 text-emerald-300{% else %}bg-slate-900/40 border-slate-800/80 text-slate-500 line-through{% endif %}">

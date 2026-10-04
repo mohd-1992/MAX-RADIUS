@@ -224,7 +224,11 @@ def _build_default_license_dict(status="unlicensed", status_text="", message="",
             "traffic_analytics": False,
             "api_access": False,
             "white_label": False,
-            "vpn_tunnels": False
+            "vpn_tunnels": False,
+            "whatsapp_gateway": False,
+            "multi_router_sync": False,
+            "loyalty_rewards": False,
+            "card_designer": False
         },
         "valid": bool(valid),
         "is_over_quota": False,

@@ -30,7 +30,7 @@ from core.rbac import (
     get_current_manager, has_permission, require_permission,
     verify_manager_password, hash_manager_password, login_required
 )
-from web.decorators import require_role_or_permission
+from web.decorators import require_role_or_permission, require_feature
 
 # Services imports
 from services.subscriber_service import *
@@ -90,13 +90,15 @@ def api_coa_status():
 
 
 @accounting_bp.route('/tools/radius-simulator', endpoint="radius_simulator_page")
-
+@login_required
+@require_feature('radius_simulator')
 def radius_simulator_page():
     return render_template('tools/radius_simulator.html')
 
 
 @accounting_bp.route('/api/tools/radius-simulator/test', methods=['POST'], endpoint="api_radius_simulator_test")
-
+@login_required
+@require_feature('radius_simulator')
 def api_radius_simulator_test():
     user = request.form.get('username', '').strip()
     pwd = request.form.get('password', '').strip()
@@ -109,7 +111,8 @@ def api_radius_simulator_test():
 
 
 @accounting_bp.route('/tools/traffic-analytics', endpoint="traffic_analytics_page")
-
+@login_required
+@require_feature('traffic_analytics')
 def traffic_analytics_page():
     from services.traffic_analytics_service import get_traffic_analytics_report
     timeframe = request.args.get('timeframe', '30d')
@@ -118,7 +121,8 @@ def traffic_analytics_page():
 
 
 @accounting_bp.route('/api/tools/traffic-analytics/status', endpoint="api_traffic_analytics_status")
-
+@login_required
+@require_feature('traffic_analytics')
 def api_traffic_analytics_status():
     from services.traffic_analytics_service import get_traffic_analytics_report
     timeframe = request.args.get('timeframe', '30d')
@@ -127,12 +131,15 @@ def api_traffic_analytics_status():
 
 
 @accounting_bp.route('/tools/accounting-archiver', endpoint="accounting_archiver_page")
+@login_required
+@require_feature('accounting_archiver')
 def accounting_archiver_page():
     return redirect(url_for('database_maintenance_page') + '#archiver')
 
 
 @accounting_bp.route('/api/tools/accounting-archiver/status', endpoint="api_accounting_archiver_status")
-
+@login_required
+@require_feature('accounting_archiver')
 def api_accounting_archiver_status():
     from services.accounting_archiver_service import get_archiver_status
     data = get_archiver_status()
@@ -140,6 +147,8 @@ def api_accounting_archiver_status():
 
 
 @accounting_bp.route('/api/tools/accounting-archiver/run', methods=['POST'], endpoint="api_accounting_archiver_run")
+@login_required
+@require_feature('accounting_archiver')
 def api_accounting_archiver_run():
     days = int(request.form.get('days', 90))
     chunk = int(request.form.get('chunk_size', 5000))

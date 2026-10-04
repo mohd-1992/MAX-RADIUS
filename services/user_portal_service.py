@@ -7,11 +7,13 @@ package renewals & changes, and personal session history.
 
 import re
 import datetime
+from core.time_service import get_db_storage_now
 from core.config import DB_TYPE
 from database.db import query_one, query_all, execute_write, execute_update, db_session, adapt_query, is_mysql_conn, log_audit, log_user_audit
 from core.rate_limit import format_bytes, format_duration
 from core.radius_sync import sync_subscriber_to_radius, delete_user_from_radius
 from services.subscriber_service import disconnect_subscriber_session, clean_stale_sessions, get_heartbeat_cutoff_str, dispatch_async_disconnect
+from services.quota_service import calculate_cycle_usage_and_rollover, record_session_baselines
 
 def format_remaining_time(expires_at_val):
     """
@@ -30,7 +32,7 @@ def format_remaining_time(expires_at_val):
     except Exception:
         return str(expires_at_val), 0
 
-    now = datetime.datetime.now()
+    now = get_db_storage_now().replace(tzinfo=None)
     diff = exp_dt - now
     total_seconds = int(diff.total_seconds())
 
@@ -368,7 +370,7 @@ def get_portal_user_data(username):
     # 1. Check if subscriber
     sub = query_one("""
         SELECT s.*, p.name as package_name, p.price as package_price,
-               p.rate_download, p.rate_upload, p.volume_quota_mb,
+               p.rate_download, p.rate_upload, COALESCE(s.snap_volume_quota_mb, p.volume_quota_mb, 0) as volume_quota_mb,
                p.uptime_limit_mins, p.validity_days, p.description as package_desc
         FROM wisp_subscribers s
         LEFT JOIN wisp_packages p ON s.package_id = p.id
@@ -512,46 +514,21 @@ def get_portal_user_data(username):
     elif v_card:
         cycle_start = v_card.get('last_renewed_at') or v_card.get('first_used_at') or v_card.get('created_at')
 
-    # 3. Calculate current cycle consumption (deduplicated by session)
-    if cycle_start:
-        usage = query_one("""
-            SELECT COALESCE(SUM(total_in), 0) as total_in,
-                   COALESCE(SUM(total_out), 0) as total_out,
-                   COALESCE(SUM(total_time), 0) as total_time
-            FROM (
-                SELECT nasipaddress, acctsessionid,
-                       MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
-                       MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out,
-                       MAX(acctsessiontime) as total_time
-                FROM radacct
-                WHERE username = ?
-                  AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
-                GROUP BY nasipaddress, acctsessionid
-            ) AS sub_usage
-        """, (username, str(cycle_start)))
-    else:
-        usage = query_one("""
-            SELECT COALESCE(SUM(total_in), 0) as total_in,
-                   COALESCE(SUM(total_out), 0) as total_out,
-                   COALESCE(SUM(total_time), 0) as total_time
-            FROM (
-                SELECT nasipaddress, acctsessionid,
-                       MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
-                       MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out,
-                       MAX(acctsessiontime) as total_time
-                FROM radacct
-                WHERE username = ?
-                GROUP BY nasipaddress, acctsessionid
-            ) AS sub_usage
-        """, (username,))
-
-    raw_in = usage['total_in'] or 0 if usage else 0
-    raw_out = usage['total_out'] or 0 if usage else 0
-    raw_time = usage['total_time'] or 0 if usage else 0
+    # 3. Calculate current cycle consumption via unified accounting engine (Defect 9)
+    from services.quota_service import get_accounting_totals, AccountingReadError
+    try:
+        usage = get_accounting_totals(username, since_timestamp=cycle_start)
+        user_info['accounting_available'] = True
+    except AccountingReadError:
+        usage = {}
+        user_info['accounting_available'] = False
+    raw_in = usage.get('up_bytes') or 0
+    raw_out = usage.get('down_bytes') or 0
+    raw_time = usage.get('uptime_secs') or 0
 
     user_info['total_download'] = format_bytes(raw_out)
     user_info['total_upload'] = format_bytes(raw_in)
-    user_info['total_traffic'] = format_bytes(raw_in + raw_out)
+    user_info['total_traffic'] = format_bytes(usage.get('total_bytes') or (raw_in + raw_out))
     user_info['total_duration'] = format_duration(raw_time)
 
     # Quota calculations
@@ -559,7 +536,16 @@ def get_portal_user_data(username):
     extra_quota_mb = float(user_info.get('extra_quota_mb') or 0)
     total_allowed_quota_mb = base_quota_mb + extra_quota_mb
 
-    if total_allowed_quota_mb > 0:
+    if not user_info['accounting_available']:
+        unavailable = 'بيانات الاستهلاك غير متاحة مؤقتاً'
+        for field in ('total_download', 'total_upload', 'total_traffic', 'total_duration',
+                      'quota_used_str', 'quota_rem_str'):
+            user_info[field] = unavailable
+        user_info.update(has_quota=base_quota_mb > 0, is_unlimited=base_quota_mb == 0,
+                         quota_used_mb=None, quota_total_mb=total_allowed_quota_mb,
+                         quota_rem_mb=None, quota_total_str=format_mb_or_gb(total_allowed_quota_mb),
+                         quota_percent=0, quota_used_percent=0)
+    elif base_quota_mb > 0:
         total_used_mb = float(raw_in + raw_out) / (1024.0 * 1024.0)
         rem_mb = max(0.0, total_allowed_quota_mb - total_used_mb)
         user_info['has_quota'] = True
@@ -570,8 +556,8 @@ def get_portal_user_data(username):
         user_info['quota_used_str'] = format_mb_or_gb(total_used_mb)
         user_info['quota_total_str'] = format_mb_or_gb(total_allowed_quota_mb)
         user_info['quota_rem_str'] = format_mb_or_gb(rem_mb)
-        user_info['quota_percent'] = max(0.0, min(100.0, round((rem_mb / total_allowed_quota_mb) * 100.0, 1)))
-        user_info['quota_used_percent'] = min(100.0, round((total_used_mb / total_allowed_quota_mb) * 100.0, 1))
+        user_info['quota_percent'] = max(0.0, min(100.0, round((rem_mb / total_allowed_quota_mb) * 100.0, 1))) if total_allowed_quota_mb > 0 else 0
+        user_info['quota_used_percent'] = min(100.0, round((total_used_mb / total_allowed_quota_mb) * 100.0, 1)) if total_allowed_quota_mb > 0 else 100
     else:
         user_info['has_quota'] = False
         user_info['is_unlimited'] = True
@@ -604,13 +590,17 @@ def get_portal_user_data(username):
         loan_stat = int(user_info.get('loan_status') or 0)
         quota_is_low = False
         
-        # Check expired or low quota based on dynamic threshold
-        if rem_sec <= 0 or str(user_info.get('status')).lower() in ['expired', 'disabled', 'suspended']:
-            quota_is_low = True
-        elif isinstance(rem_val, (int, float)) and rem_val <= threshold_mb:
-            quota_is_low = True
-        elif str(user_info.get('quota_rem_str')) == '0 MB':
-            quota_is_low = True
+        user_status = str(user_info.get('status') or '').lower().strip()
+        is_admin_blocked = user_status in ['disabled', 'suspended']
+
+        # Check expired or low quota based on dynamic threshold (excluding administratively blocked accounts)
+        if not is_admin_blocked:
+            if rem_sec <= 0 or user_status == 'expired':
+                quota_is_low = True
+            elif isinstance(rem_val, (int, float)) and rem_val <= threshold_mb:
+                quota_is_low = True
+            elif str(user_info.get('quota_rem_str')) == '0 MB':
+                quota_is_low = True
 
         allow_loan = settings_dict.get('allow_data_loan', '1') in ('1', 'true', 'True', 1, True)
         try:
@@ -625,7 +615,7 @@ def get_portal_user_data(username):
         user_info['loan_amount_str'] = format_mb_or_gb(loan_amount_val)
         user_info['loan_threshold_mb'] = threshold_mb
         user_info['loan_threshold_str'] = format_mb_or_gb(threshold_mb)
-        user_info['can_request_loan'] = bool(allow_loan and loan_stat == 0 and quota_is_low)
+        user_info['can_request_loan'] = bool(user_info['accounting_available'] and allow_loan and loan_stat == 0 and quota_is_low and not is_admin_blocked)
     else:
         user_info['allow_data_loan'] = False
         user_info['loan_amount_mb'] = 1024
@@ -657,6 +647,39 @@ def get_portal_user_data(username):
 
     return user_info
 
+def _sync_recharge_radius(cursor, conn, username, sub, card, target_type, new_fr_exp):
+    """Write authentication on the billing connection; any failure rolls back the billing transaction."""
+    def run(sql, params):
+        cursor.execute(adapt_query(sql, conn), params)
+
+    if target_type == 'subscriber':
+        for table in ('radcheck', 'radreply'):
+            run(f"DELETE FROM {table} WHERE LOWER(username) = LOWER(?)", (username,))
+    else:
+        run("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND (attribute IN ('Cleartext-Password', 'Expiration', 'Max-Total-Octets') OR (attribute = 'Auth-Type' AND value = 'Reject'))", (username,))
+    password = sub.get('password') or sub.get('pin_code') or username
+    run("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (username, password))
+    run("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", (username,))
+    run("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", (username, card['package_name']))
+    if new_fr_exp:
+        run("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_fr_exp))
+    if target_type == 'voucher':
+        run("DELETE FROM radreply WHERE LOWER(username) = LOWER(?) AND attribute IN ('MikroTik-Rate-Limit', 'Mikrotik-Group')", (username,))
+        for attribute, value in (('MikroTik-Rate-Limit', card['policy_rate_limit_str']), ('Mikrotik-Group', card['pkg_mikrotik_group'])):
+            if value:
+                run("INSERT INTO radreply (username, attribute, op, value) VALUES (?, ?, ':=', ?)", (username, attribute, value))
+    if target_type == 'subscriber':
+        mac = str(sub.get('mac_binding') or '').strip()
+        if len(mac) > 5:
+            run("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Calling-Station-Id', '==', ?)", (username, mac.replace('-', ':').upper()))
+        static_ip = str(sub.get('static_ip') or '').strip()
+        if len(static_ip) > 6:
+            run("INSERT INTO radreply (username, attribute, op, value) VALUES (?, 'Framed-IP-Address', ':=', ?)", (username, static_ip))
+        group = str(sub.get('mikrotik_group') or card.get('pkg_mikrotik_group') or '').strip()
+        if group:
+            run("INSERT INTO radreply (username, attribute, op, value) VALUES (?, 'Mikrotik-Group', ':=', ?)", (username, group))
+
+
 def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
     """
     Recharges user balance or directly tops up package data and validity duration using an unused voucher card.
@@ -683,11 +706,17 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
             # 1. Lock and find unused card with package details including loyalty & rollover
             sql_card = adapt_query(f"""
                 SELECT v.*, 
-                       COALESCE(v.snap_price, p.price) as card_price, 
-                       p.name as package_name,
-                       COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb) as volume_quota_mb, 
+                       COALESCE(v.snap_price, p.price, 0) as card_price, 
+                       p.name as package_name, COALESCE(v.snap_mikrotik_group, p.mikrotik_group) as pkg_mikrotik_group,
+                       COALESCE(v.snap_cost, p.cost, 0) as policy_cost,
+                       COALESCE(v.snap_uptime_limit_mins, p.uptime_limit_mins, 0) as uptime_limit_mins,
+                       COALESCE(v.snap_rate_download, p.rate_download, '0') as policy_rate_download,
+                       COALESCE(v.snap_rate_upload, p.rate_upload, '0') as policy_rate_upload,
+                       COALESCE(v.snap_rate_limit_str, CONCAT(p.rate_download, '/', p.rate_upload), '0/0') as policy_rate_limit_str,
+                       COALESCE(v.snap_simultaneous_sessions, p.simultaneous_sessions, 1) as policy_simultaneous_sessions,
+                       COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb, 0) as volume_quota_mb, 
                        COALESCE(v.snap_validity_value, p.validity_value) as validity_value, 
-                       COALESCE(v.snap_validity_unit, p.validity_unit) as validity_unit, 
+                       COALESCE(NULLIF(v.snap_validity_unit, ''), p.validity_unit) as validity_unit, 
                        COALESCE(v.snap_validity_days, p.validity_days) as validity_days,
                        COALESCE(p.is_rollover_enabled, 0) as is_rollover_enabled,
                        COALESCE(p.is_loyalty_enabled, 0) as is_loyalty_enabled,
@@ -728,25 +757,30 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 else:
                     return False, "حساب المشترك غير مسجل في قائمة الاشتراكات أو الكروت."
 
+            if str(sub['username']).lower() == str(card['username']).lower():
+                return False, 'لا يمكن استخدام الكرت لشحن الحساب نفسه'
+            username = sub['username']
             loan_mb = int(sub.get('loan_balance_mb') or 0)
             loan_status = int(sub.get('loan_status') or 0)
             has_active_loan = (loan_status == 1 or loan_mb > 0)
             rem_data_mb = 0.0
             is_rollover = False
 
-            if recharge_type == 'package':
-                add_quota_mb = float(card.get('volume_quota_mb') or 0.0)
-                deducted_loan_mb = 0
-                net_quota_mb = add_quota_mb
+            # Fetch single DB timestamp for cycle boundary and renewal (Defect 3 & 11)
+            cursor.execute("SELECT CURRENT_TIMESTAMP")
+            r_now = cursor.fetchone()
+            db_now = r_now[0] if not isinstance(r_now, dict) else list(r_now.values())[0]
+            if isinstance(db_now, str):
+                db_now_dt = datetime.datetime.strptime(db_now.split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
+            else:
+                db_now_dt = db_now
+            db_now_str = db_now_dt.strftime('%Y-%m-%d %H:%M:%S')
 
-                if has_active_loan:
-                    if add_quota_mb <= loan_mb:
-                        return False, f"حجم باقة الكرت ({format_mb_or_gb(add_quota_mb)}) مساوٍ أو أقل من حجم السلفة المستحقة ({format_mb_or_gb(loan_mb)}). يجب استخدام كرت بسعة أكبر من حجم السلفة لسدادها وتوفير رصيد تصفح فعال."
-                    deducted_loan_mb = loan_mb
-                    net_quota_mb = add_quota_mb - loan_mb
+            if recharge_type == 'package':
+                new_base_quota_mb = float(card.get('volume_quota_mb') or 0.0)
+                add_quota_mb = new_base_quota_mb
 
                 # --- ROLLOVER DATA CALCULATION ---
-                # Check current package
                 curr_pkg_id = sub.get('package_id')
                 curr_pkg = None
                 if curr_pkg_id:
@@ -760,73 +794,74 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                     card.get('is_rollover_enabled')
                 )
 
-                if is_rollover:
-                    # Calculate remaining quota from the active cycle
-                    current_base_mb = float((curr_pkg.get('volume_quota_mb') if curr_pkg else 0) or 0)
-                    current_extra_mb = float(sub.get('extra_quota_mb') or 0.0)
-                    total_allowed_before = current_base_mb + current_extra_mb
-                    
-                    if total_allowed_before > 0:
-                        cycle_start = sub.get('last_renewed_at') or sub.get('created_at')
-                        usage_sql = adapt_query("""
-                            SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
-                            FROM (
-                                SELECT nasipaddress, acctsessionid,
-                                       MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
-                                       MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out
-                                FROM radacct
-                                WHERE LOWER(username) = LOWER(?)
-                                  AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
-                                GROUP BY nasipaddress, acctsessionid
-                            ) t
-                        """, conn)
-                        cursor.execute(usage_sql, (username, str(cycle_start)))
-                        usage_row = cursor.fetchone()
-                        used_bytes = float(usage_row['total_bytes'] or 0) if usage_row else 0.0
-                        used_mb = used_bytes / (1024.0 * 1024.0)
-                        rem_data_mb = max(0.0, total_allowed_before - used_mb)
+                # 1. Defect 1 & 8: Calculate cycle consumption & rollover BEFORE recording session baselines
+                try:
+                    calc = calculate_cycle_usage_and_rollover(sub, curr_pkg, is_rollover, conn=conn, now=db_now_dt)
+                    rem_data_mb = calc['rem_data_mb']
+                    rem_time_delta = calc['rem_time_delta']
+                except Exception as e:
+                    conn.rollback()
+                    return False, f"تعذر قراءة استهلاك الحساب الحالي من سجلات المحاسبة، تم إلغاء عملية الشحن بأمان: {e}"
 
-                # Total new extra quota:
-                # If rollover is active, carry over rem_data_mb.
-                # If rollover is not active, preserve existing positive extra quota (from rewards) if any:
-                existing_extra_mb = max(0.0, float(sub.get('extra_quota_mb') or 0.0))
+                # 2. Record session baselines using the DB renewal timestamp
+                record_session_baselines(username, renewed_at=db_now_str, conn=conn)
+
+                # 3. Defect 4: Comprehensive loan settlement against new package capacity & rollover
+                is_unlimited_quota = (new_base_quota_mb == 0)
+
                 if is_rollover:
-                    card_extra_quota = round(rem_data_mb - deducted_loan_mb, 2)
+                    new_extra_mb = float(rem_data_mb)
                 else:
-                    card_extra_quota = round(existing_extra_mb - deducted_loan_mb, 2)
+                    new_extra_mb = 0.0
 
+                new_loan_balance_mb = 0
+                new_loan_status = 0
+                deducted_loan_mb = 0
+
+                if has_active_loan and target_type == 'subscriber':
+                    if is_unlimited_quota:
+                        deducted_loan_mb = loan_mb
+                        new_loan_balance_mb = 0
+                        new_loan_status = 0
+                    else:
+                        total_capacity = new_base_quota_mb + new_extra_mb
+                        if total_capacity >= loan_mb:
+                            deducted_loan_mb = loan_mb
+                            if new_extra_mb >= loan_mb:
+                                new_extra_mb -= loan_mb
+                            else:
+                                shortfall = loan_mb - new_extra_mb
+                                new_extra_mb = -shortfall
+                            new_loan_balance_mb = 0
+                            new_loan_status = 0
+                        else:
+                            deducted_loan_mb = total_capacity
+                            unsettled_loan = loan_mb - total_capacity
+                            new_extra_mb = -new_base_quota_mb
+                            new_loan_balance_mb = int(unsettled_loan)
+                            new_loan_status = 1
+
+                net_quota_mb = max(0.0, float(new_base_quota_mb + new_extra_mb)) if not is_unlimited_quota else float(new_base_quota_mb)
+
+                # 4. Defect 5: Validity calculation (single addition of remaining time)
                 val = card.get('validity_value') if card.get('validity_value') is not None else (card.get('validity_days') or 30)
                 unit = str(card.get('validity_unit') or 'days').lower().strip()
-                if unit in ['minutes', 'minute', 'دقائق', 'دقيقة']:
-                    delta = datetime.timedelta(minutes=int(val))
-                elif unit in ['hours', 'hour', 'ساعات', 'ساعة']:
-                    delta = datetime.timedelta(hours=int(val))
-                elif unit in ['months', 'month', 'أشهر', 'شهر']:
-                    delta = datetime.timedelta(days=int(val) * 30)
+                if int(val) <= 0:
+                    new_exp_iso = None
+                    new_fr_exp = None
                 else:
-                    delta = datetime.timedelta(days=int(val))
+                    if unit in ['minutes', 'minute', 'دقائق', 'دقيقة']:
+                        delta = datetime.timedelta(minutes=int(val))
+                    elif unit in ['hours', 'hour', 'ساعات', 'ساعة']:
+                        delta = datetime.timedelta(hours=int(val))
+                    elif unit in ['months', 'month', 'أشهر', 'شهر']:
+                        delta = datetime.timedelta(days=int(val) * 30)
+                    else:
+                        delta = datetime.timedelta(days=int(val))
 
-                now = datetime.datetime.now()
-                current_exp = sub.get('expires_at')
-                current_exp_dt = None
-                if current_exp and isinstance(current_exp, str):
-                    try:
-                        current_exp_dt = datetime.datetime.fromisoformat(current_exp.replace('Z', ''))
-                    except Exception:
-                        try:
-                            current_exp_dt = datetime.datetime.strptime(current_exp.split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
-                        except Exception:
-                            pass
-                elif isinstance(current_exp, datetime.datetime):
-                    current_exp_dt = current_exp
-
-                if current_exp_dt and current_exp_dt > now and sub.get('status') == 'active':
-                    new_exp_dt = current_exp_dt + delta
-                else:
-                    new_exp_dt = now + delta
-
-                new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
-                new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
+                    new_exp_dt = db_now_dt + delta + rem_time_delta
+                    new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
+                    new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
 
                 # Mark card as recharged first inside transaction
                 card_expire_msg = f"تم استخدامه في شحن الباقة (تم سداد سلفة {format_mb_or_gb(deducted_loan_mb)})" if deducted_loan_mb > 0 else "تم استخدامه في شحن الباقة والوقت"
@@ -834,13 +869,14 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                     UPDATE wisp_vouchers SET
                         status = 'recharged',
                         expire_reason = ?,
-                        first_used_at = CURRENT_TIMESTAMP,
+                        first_used_at = ?,
                         snap_volume_quota_mb = ?,
                         bound_mac = ?
                     WHERE id = ? AND status = 'unused'
                 """, conn)
-                cursor.execute(sql_up_card, (card_expire_msg, add_quota_mb, f"TOPUP:{username}"[:28], card['id']))
+                cursor.execute(sql_up_card, (card_expire_msg, db_now_str, add_quota_mb, f"TOPUP:{username}"[:28], card['id']))
                 if cursor.rowcount != 1:
+                    conn.rollback()
                     return False, "عذراً، هذا الكرت تم استخدامه في نفس اللحظة أو لم يعد متاحاً."
 
                 # Update subscriber / voucher record inside transaction
@@ -851,12 +887,13 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                             package_id = ?,
                             expires_at = ?,
                             extra_quota_mb = ?,
-                            loan_balance_mb = 0,
-                            loan_status = 0,
-                            last_renewed_at = CURRENT_TIMESTAMP
+                            loan_balance_mb = ?,
+                            loan_status = ?,
+                            snap_volume_quota_mb = ?,
+                            last_renewed_at = ?
                         WHERE id = ?
                     """, conn)
-                    cursor.execute(sql_up_sub, (card['package_id'], new_exp_iso, card_extra_quota, sub['id']))
+                    cursor.execute(sql_up_sub, (card['package_id'], new_exp_iso, new_extra_mb, new_loan_balance_mb, new_loan_status, new_base_quota_mb, db_now_str, sub['id']))
                 else:
                     sql_up_v = adapt_query("""
                         UPDATE wisp_vouchers SET
@@ -865,10 +902,21 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                             expires_at = ?,
                             extra_quota_mb = ?,
                             snap_volume_quota_mb = ?,
-                            last_renewed_at = CURRENT_TIMESTAMP
+                            snap_uptime_limit_mins = ?,
+                            snap_validity_value = ?, snap_validity_unit = ?, snap_validity_days = ?,
+                            snap_price = ?, snap_cost = ?,
+                            snap_rate_download = ?, snap_rate_upload = ?, snap_rate_limit_str = ?,
+                            snap_simultaneous_sessions = ?, snap_mikrotik_group = ?,
+                            expire_reason = '',
+                            last_renewed_at = ?
                         WHERE id = ?
                     """, conn)
-                    cursor.execute(sql_up_v, (card['package_id'], new_exp_iso, card_extra_quota, add_quota_mb, sub['id']))
+                    cursor.execute(sql_up_v, (
+                        card['package_id'], new_exp_iso, new_extra_mb, add_quota_mb,
+                        card['uptime_limit_mins'], val, unit, card['validity_days'],
+                        card_value, card['policy_cost'], card['policy_rate_download'], card['policy_rate_upload'],
+                        card['policy_rate_limit_str'], card['policy_simultaneous_sessions'], card['pkg_mikrotik_group'],
+                        db_now_str, sub['id']))
 
                 # Record in sales inside transaction
                 sql_sales = adapt_query("""
@@ -896,6 +944,7 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 """, conn)
                 cursor.execute(sql_up_card, (f"RECHARGE:{username}"[:28], card['id']))
                 if cursor.rowcount != 1:
+                    conn.rollback()
                     return False, "عذراً، هذا الكرت تم استخدامه في نفس اللحظة أو لم يعد متاحاً."
 
                 # Update subscriber / voucher balance inside transaction
@@ -915,11 +964,12 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 """, conn)
                 cursor.execute(sql_sales, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value))
 
-        # Outside transaction: Post-commit sync, Loyalty Points award & Async Disconnect
-        try:
-            delete_user_from_radius(card['username'])
-        except Exception:
-            pass
+            if recharge_type == 'package':
+                _sync_recharge_radius(cursor, conn, username, sub, card, target_type, new_fr_exp)
+            for table in ('radcheck', 'radreply', 'radusergroup'):
+                cursor.execute(adapt_query(f"DELETE FROM {table} WHERE LOWER(username) = LOWER(?)", conn), (card['username'],))
+
+        # Billing and RADIUS changes are committed together; notifications follow.
 
         # Award loyalty points if package has loyalty enabled
         points_awarded = 0
@@ -939,17 +989,6 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         rollover_msg = f" (تم ترحيل {format_mb_or_gb(rem_data_mb)} من رصيدك السابق)" if is_rollover and rem_data_mb > 0 else ""
 
         if recharge_type == 'package':
-            try:
-                if target_type == 'subscriber':
-                    sync_subscriber_to_radius(sub['id'])
-                execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Max-Total-Octets'", (username,))
-                execute_write("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", (username,))
-                execute_write("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", (username, card['package_name']))
-                execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", (username,))
-                execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_fr_exp))
-            except Exception as e:
-                print(f"Error syncing to RADIUS after recharge: {e}")
-
             dispatch_async_disconnect(username)
 
             # Trigger Telegram alert for recharge if enabled
@@ -995,26 +1034,26 @@ def request_data_loan(username):
     """
     Handles Data Loan (السلفة) for subscribers dynamically based on system settings:
     1. Reads allow_data_loan and loan_amount_mb from wisp_system_settings.
-    2. Validates subscriber exists and loan_status == 0.
-    3. Validates remaining quota < 100 MB or expired.
-    4. Sets loan_balance_mb = loan_amount_mb, loan_status = 1.
-    5. Increases extra_quota_mb by loan_amount_mb.
-    6. Extends expiration by 24 hours.
-    7. Updates FreeRADIUS radcheck:
-       - Increments Max-Total-Octets by (loan_amount_mb * 1024 * 1024) bytes.
-       - Extends Expiration attribute by 24 hours.
-    8. Disconnects user session so new limits apply immediately.
+    2. Validates subscriber exists and loan_status == 0 under FOR UPDATE lock.
+    3. Prevents reactivating administratively disabled or suspended subscribers (Defect 10).
+    4. Validates remaining quota < threshold or expired using get_accounting_totals.
+    5. Sets loan_balance_mb = loan_amount_mb, loan_status = 1.
+    6. Increases extra_quota_mb by loan_amount_mb.
+    7. Extends expiration by 24 hours.
+    8. Updates FreeRADIUS radcheck and disconnects user session.
     """
     username = (username or '').strip()
-    
+    if not username:
+        return False, "اسم المستخدم غير محدد"
+
     # Check system settings
     settings_rows = query_all("SELECT `key`, `value` FROM wisp_system_settings WHERE `key` IN ('allow_data_loan', 'loan_amount_mb', 'loan_threshold_mb')")
     settings_dict = {r['key']: r['value'] for r in settings_rows} if settings_rows else {}
-    
+
     allow_loan = settings_dict.get('allow_data_loan', '1')
     if allow_loan in ('0', 'false', 'False', 0):
         return False, "عذراً، خدمة السلفة معطلة حالياً من قِبل إدارة الشبكة."
-        
+
     try:
         loan_amount_mb = int(settings_dict.get('loan_amount_mb', 1024))
         if loan_amount_mb <= 0:
@@ -1029,218 +1068,282 @@ def request_data_loan(username):
     except Exception:
         threshold_mb = 100.0
 
-    sub = query_one("""
-        SELECT s.*, p.name as package_name, p.volume_quota_mb
-        FROM wisp_subscribers s
-        JOIN wisp_packages p ON s.package_id = p.id
-        WHERE LOWER(s.username) = LOWER(?)
-    """, (username,))
-    
-    if not sub:
-        return False, "حساب المشترك غير مسجل في قائمة الاشتراكات."
-        
-    loan_str = format_mb_or_gb(loan_amount_mb)
-    if int(sub.get('loan_status') or 0) == 1 or int(sub.get('loan_balance_mb') or 0) > 0:
-        existing_loan = int(sub.get('loan_balance_mb') or loan_amount_mb)
-        return False, f"لديك سلفة نشطة مسبقاً بقيمة {format_mb_or_gb(existing_loan)} لم يتم سدادها بعد. يرجى شحن كرت لسداد السلفة."
+    with db_session() as conn:
+        cursor = conn.cursor()
+        lock_clause = "FOR UPDATE" if is_mysql_conn(conn) else ""
 
-    # Verify quota or expiry condition
-    user_info = get_portal_user_data(username)
-    if not user_info.get('can_request_loan'):
-        rem_str = user_info.get('quota_rem_str', '')
-        thresh_str = format_mb_or_gb(threshold_mb)
-        return False, f"طلب السلفة متاح فقط عند اقتراب انتهاء الرصيد (أقل من {thresh_str}). رصيدك المتبقي الحالي: {rem_str}."
+        sql_sub = adapt_query(f"""
+            SELECT s.*, p.name as package_name, COALESCE(s.snap_volume_quota_mb, p.volume_quota_mb, 0) as volume_quota_mb
+            FROM wisp_subscribers s
+            JOIN wisp_packages p ON s.package_id = p.id
+            WHERE LOWER(s.username) = LOWER(?)
+            LIMIT 1 {lock_clause}
+        """, conn)
+        cursor.execute(sql_sub, (username,))
+        sub = cursor.fetchone()
+        if not sub:
+            return False, "حساب المشترك غير مسجل في قائمة الاشتراكات."
+        if not isinstance(sub, dict):
+            sub = dict(sub)
 
-    now = datetime.datetime.now()
-    # 24 Hours extension
-    current_exp = sub.get('expires_at')
-    current_exp_dt = None
-    if current_exp:
-        if isinstance(current_exp, datetime.datetime):
-            current_exp_dt = current_exp
+        # Defect 10: Block suspended and disabled accounts from requesting loans
+        sub_status = str(sub.get('status') or '').lower().strip()
+        if sub_status in ('disabled', 'suspended'):
+            return False, "لا يمكن طلب سلفة لحساب معطل أو موقوف إدارياً من قِبل إدارة الشبكة."
+
+        # Re-verify loan status under lock
+        if int(sub.get('loan_status') or 0) == 1 or int(sub.get('loan_balance_mb') or 0) > 0:
+            existing_loan = int(sub.get('loan_balance_mb') or loan_amount_mb)
+            return False, f"لديك سلفة نشطة مسبقاً بقيمة {format_mb_or_gb(existing_loan)} لم يتم سدادها بعد. يرجى شحن كرت لسداد السلفة."
+
+        # Verify quota / expiry under lock using get_accounting_totals (Defect 9 & 10)
+        from services.quota_service import get_accounting_totals
+        cycle_start = sub.get('last_renewed_at') or sub.get('created_at')
+        try:
+            usage = get_accounting_totals(username, since_timestamp=cycle_start, conn=conn)
+        except Exception as e:
+            return False, f"تعذر التحقق من أهلية السلفة بسبب خطأ في قراءة سجلات الاستهلاك: {e}"
+        base_quota_mb = float(sub.get('volume_quota_mb') or 0)
+        extra_quota_mb = float(sub.get('extra_quota_mb') or 0)
+        total_allowed_quota_mb = base_quota_mb + extra_quota_mb
+
+        quota_is_low = False
+        cursor.execute("SELECT CURRENT_TIMESTAMP")
+        r_now = cursor.fetchone()
+        db_now = r_now[0] if not isinstance(r_now, dict) else list(r_now.values())[0]
+        if isinstance(db_now, str):
+            db_now_dt = datetime.datetime.strptime(db_now.split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
         else:
-            try:
-                current_exp_dt = datetime.datetime.fromisoformat(str(current_exp).replace('Z', ''))
-            except Exception:
+            db_now_dt = db_now
+
+        current_exp = sub.get('expires_at')
+        current_exp_dt = None
+        if current_exp:
+            if isinstance(current_exp, datetime.datetime):
+                current_exp_dt = current_exp.replace(tzinfo=None) if current_exp.tzinfo else current_exp
+            else:
                 try:
                     current_exp_dt = datetime.datetime.strptime(str(current_exp).split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
                 except Exception:
                     current_exp_dt = None
 
-    if current_exp_dt and current_exp_dt > now:
-        new_exp_dt = current_exp_dt + datetime.timedelta(hours=24)
-    else:
-        new_exp_dt = now + datetime.timedelta(hours=24)
+        if current_exp_dt and current_exp_dt <= db_now_dt:
+            quota_is_low = True
+        elif sub_status == 'expired':
+            quota_is_low = True
+        elif total_allowed_quota_mb > 0:
+            used_mb = float(usage['total_bytes']) / (1024.0 * 1024.0)
+            rem_mb = max(0.0, total_allowed_quota_mb - used_mb)
+            if rem_mb <= threshold_mb:
+                quota_is_low = True
 
-    new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
-    new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
-    
-    loan_mb = loan_amount_mb
-    loan_bytes = loan_mb * 1024 * 1024
-    new_extra_mb = float(sub.get('extra_quota_mb') or 0.0) + loan_mb
+        if not quota_is_low:
+            thresh_str = format_mb_or_gb(threshold_mb)
+            return False, f"طلب السلفة متاح فقط عند اقتراب انتهاء الرصيد (أقل من {thresh_str}) أو انتهاء الصلاحية."
 
-    # 1. Update wisp_subscribers
-    execute_write("""
-        UPDATE wisp_subscribers SET
-            loan_balance_mb = ?,
-            loan_status = 1,
-            extra_quota_mb = ?,
-            expires_at = ?,
-            status = 'active'
-        WHERE id = ?
-    """, (loan_mb, new_extra_mb, new_exp_iso, sub['id']))
+        # 24 Hours extension from max(current_exp, db_now)
+        if current_exp_dt and current_exp_dt > db_now_dt:
+            new_exp_dt = current_exp_dt + datetime.timedelta(hours=24)
+        else:
+            new_exp_dt = db_now_dt + datetime.timedelta(hours=24)
 
-    # 2. Ensure no invalid Max-Total-Octets check item exists in radcheck
-    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Max-Total-Octets'", (username,))
+        new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
+        new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
 
-    # 3. Update radcheck Expiration
-    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", (username,))
-    execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_fr_exp))
+        loan_mb = loan_amount_mb
+        new_extra_mb = float(sub.get('extra_quota_mb') or 0.0) + loan_mb
+        new_status = 'active' if sub_status == 'expired' else sub['status']
 
-    # 4. Ensure Cleartext-Password and Group are in RADIUS
-    rad_pwd = query_one("SELECT * FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Cleartext-Password'", (username,))
-    if not rad_pwd:
-        execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (username, sub['password']))
-    
-    rad_grp = query_one("SELECT * FROM radusergroup WHERE LOWER(username) = LOWER(?)", (username,))
-    if not rad_grp:
-        execute_write("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", (username, sub['package_name']))
+        upd_sub = adapt_query("""
+            UPDATE wisp_subscribers SET
+                loan_balance_mb = ?,
+                loan_status = 1,
+                extra_quota_mb = ?,
+                expires_at = ?,
+                status = ?
+            WHERE id = ?
+        """, conn)
+        cursor.execute(upd_sub, (loan_mb, new_extra_mb, new_exp_iso, new_status, sub['id']))
 
-    # 5. Disconnect user to force re-auth with new quota & expiry limits
+        cursor.execute(adapt_query("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Max-Total-Octets'", conn), (username,))
+        cursor.execute(adapt_query("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", conn), (username,))
+        cursor.execute(adapt_query("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", conn), (username, new_fr_exp))
+
+        cursor.execute(adapt_query("SELECT 1 FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Cleartext-Password'", conn), (username,))
+        if not cursor.fetchone():
+            cursor.execute(adapt_query("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", conn), (username, sub['password']))
+
+        cursor.execute(adapt_query("SELECT 1 FROM radusergroup WHERE LOWER(username) = LOWER(?)", conn), (username,))
+        if not cursor.fetchone():
+            cursor.execute(adapt_query("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", conn), (username, sub['package_name']))
+
+    # Outside transaction: Disconnect session and Log audit
     try:
         disconnect_subscriber_session(username)
     except Exception:
         pass
 
-    # 6. Log audit
+    loan_str = format_mb_or_gb(loan_amount_mb)
     try:
         log_user_audit('subscriber', sub['id'], username, 'self', 'DATA_LOAN', f'حصل المشترك على سلفة بيانات ({loan_str}) صالحة لمدة 24 ساعة')
         log_audit(1, 'system', 'DATA_LOAN', 'subscribers', f'Granted {loan_str} ({loan_mb} MB) data loan (24h) to subscriber {username} (ID: {sub["id"]})')
     except Exception:
         pass
 
-    return True, f"تم تفعيل سلفة {loan_str} بنجاح لمدة 24 ساعة إضافية حتى {new_exp_iso}! سيتم خصم {loan_str} تلقائياً من بطاقة الشحن القادمة."
+    return True, f"تم تفعيل سلفة البيانات بنجاح بقيمة {loan_str} وتمديد الصلاحية 24 ساعة."
 
 
 def renew_or_change_package(username, new_pkg_id):
     """
     Renews current package or upgrades to another package from subscriber's balance
-    with Data & Time Rollover support.
+    with Data & Time Rollover support inside an atomic transaction.
     """
     username = (username or '').strip()
-    sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (username,))
-    if not sub:
-        return False, "المشترك غير موجود في سجلات الاشتراكات"
+    if not username:
+        return False, "اسم المشترك غير محدد"
 
-    pkg = query_one("SELECT * FROM wisp_packages WHERE id = ? AND is_active = 1", (new_pkg_id,))
-    if not pkg:
-        return False, "الباقة المطلوبة غير متوفرة أو تم إيقافها"
+    with db_session() as conn:
+        cursor = conn.cursor()
+        lock_clause = "FOR UPDATE" if is_mysql_conn(conn) else ""
 
-    pkg_price = float(pkg['price'] or 0.0)
-    user_balance = float(sub['balance'] or 0.0)
+        sql_sub = adapt_query(f"SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?) LIMIT 1 {lock_clause}", conn)
+        cursor.execute(sql_sub, (username,))
+        sub = cursor.fetchone()
+        if not sub:
+            return False, "المشترك غير موجود في سجلات الاشتراكات"
+        if not isinstance(sub, dict):
+            sub = dict(sub)
 
-    if user_balance < pkg_price:
-        needed = pkg_price - user_balance
-        return False, f"رصيدك الحالي ({user_balance:.2f}) لا يكفي لتفعيل باقة {pkg['name']} (السعر: {pkg_price:.2f}). ينقصك {needed:.2f}. يرجى شحن رصيدك أولاً."
+        cursor.execute(adapt_query("SELECT * FROM wisp_packages WHERE id = ? AND is_active = 1", conn), (new_pkg_id,))
+        pkg = cursor.fetchone()
+        if not pkg:
+            return False, "الباقة المطلوبة غير متوفرة أو تم إيقافها"
+        if not isinstance(pkg, dict):
+            pkg = dict(pkg)
 
-    # 1. التحقق من تفعيل الترحيل في باقة المشترك الحالية
-    curr_pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (sub['package_id'],))
-    is_rollover_enabled = bool(curr_pkg and curr_pkg.get('is_rollover_enabled'))
+        pkg_price = float(pkg['price'] or 0.0)
+        user_balance = float(sub['balance'] or 0.0)
 
-    now = datetime.datetime.now()
-    rem_data_mb = 0.0
-    rem_time_delta = datetime.timedelta(0)
-    rem_days = 0
-    rem_hours = 0
+        if user_balance < pkg_price:
+            needed = pkg_price - user_balance
+            return False, f"رصيدك الحالي ({user_balance:.2f}) لا يكفي لتفعيل باقة {pkg['name']} (السعر: {pkg_price:.2f}). ينقصك {needed:.2f}. يرجى شحن رصيدك أولاً."
 
-    if is_rollover_enabled:
-        # حساب البيانات المتبقية
-        total_allowed_mb = float((curr_pkg.get('volume_quota_mb') if curr_pkg else 0) or 0) + float(sub.get('extra_quota_mb') or 0)
-        if total_allowed_mb > 0:
-            cycle_start = sub.get('last_renewed_at') or sub.get('created_at')
-            usage_q = query_one("""
-                SELECT COALESCE(SUM(total_in + total_out), 0) as total_bytes
-                FROM (
-                    SELECT nasipaddress, acctsessionid,
-                           MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as total_in,
-                           MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as total_out
-                    FROM radacct
-                    WHERE LOWER(username) = LOWER(?)
-                      AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?
-                    GROUP BY nasipaddress, acctsessionid
-                ) t
-            """, (username, str(cycle_start)))
-            used_bytes = float(usage_q['total_bytes'] or 0) if usage_q else 0.0
-            used_mb = used_bytes / (1024.0 * 1024.0)
-            rem_data_mb = max(0.0, total_allowed_mb - used_mb)
+        # Defect 6: Retrieve current / old package to calculate rollover from!
+        curr_pkg_id = sub['package_id']
+        cursor.execute(adapt_query("SELECT * FROM wisp_packages WHERE id = ?", conn), (curr_pkg_id,))
+        curr_pkg = cursor.fetchone()
+        if curr_pkg and not isinstance(curr_pkg, dict):
+            curr_pkg = dict(curr_pkg)
+        if not curr_pkg:
+            curr_pkg = pkg
 
-        # حساب الزمن المتبقي
-        if sub.get('expires_at'):
-            try:
-                exp_str = str(sub['expires_at']).replace('T', ' ').split('.')[0]
-                exp_dt = datetime.datetime.strptime(exp_str, '%Y-%m-%d %H:%M:%S')
-                if exp_dt > now:
-                    rem_time_delta = exp_dt - now
-                    rem_days = int(rem_time_delta.total_seconds() // 86400)
-                    rem_hours = int((rem_time_delta.total_seconds() % 86400) // 3600)
-            except Exception:
-                pass
+        is_rollover_enabled = bool(curr_pkg.get('is_rollover_enabled'))
 
-    # 2. حساب تاريخ الانتهاء الجديد
-    val = int(pkg.get('validity_value') if pkg.get('validity_value') is not None else (pkg.get('validity_days') or 30))
-    unit = pkg.get('validity_unit') or 'days'
-    if val <= 0:
-        new_expiry = None
-        new_fr_exp = None
-    else:
-        if unit == 'hours':
-            base_delta = datetime.timedelta(hours=val)
-        elif unit == 'minutes':
-            base_delta = datetime.timedelta(minutes=val)
-        elif unit == 'months':
-            base_delta = datetime.timedelta(days=val * 30)
+        # Single DB timestamp (Defect 3 & 11)
+        cursor.execute("SELECT CURRENT_TIMESTAMP")
+        r_now = cursor.fetchone()
+        db_now = r_now[0] if not isinstance(r_now, dict) else list(r_now.values())[0]
+        if isinstance(db_now, str):
+            db_now_dt = datetime.datetime.strptime(db_now.split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
         else:
-            base_delta = datetime.timedelta(days=val)
-        new_exp_dt = now + base_delta + rem_time_delta
-        new_expiry = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
-        new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
+            db_now_dt = db_now
+        db_now_str = db_now_dt.strftime('%Y-%m-%d %H:%M:%S')
 
-    existing_extra_mb = max(0.0, float(sub.get('extra_quota_mb') or 0.0))
-    new_extra_mb = round(rem_data_mb, 2) if is_rollover_enabled else existing_extra_mb
+        # 1. Defect 1: Calculate cycle consumption & rollover BEFORE recording session baselines
+        try:
+            calc = calculate_cycle_usage_and_rollover(sub, curr_pkg, is_rollover_enabled, conn=conn, now=db_now_dt)
+            rem_data_mb = calc['rem_data_mb']
+            rem_time_delta = calc['rem_time_delta']
+            rem_days = calc['rem_days']
+            rem_hours = calc['rem_hours']
+        except Exception as e:
+            conn.rollback()
+            return False, f"تعذر قراءة استهلاك الحساب من سجلات المحاسبة، تم إيقاف عملية التجديد بأمان: {e}"
 
-    # 3. تحديث حساب المشترك وتصفير عداد الدورة مع الخصم الذري للرصيد
-    updated_rows = execute_update("""
-        UPDATE wisp_subscribers SET
-            balance = balance - ?,
-            package_id = ?,
-            status = 'active',
-            last_renewed_at = CURRENT_TIMESTAMP,
-            extra_quota_mb = ?,
-            expires_at = ?,
-            loan_balance_mb = 0,
-            loan_status = 0
-        WHERE id = ? AND balance >= ?
-    """, (pkg_price, pkg['id'], new_extra_mb, new_expiry, sub['id'], pkg_price))
+        # 2. Record session baselines for active sessions
+        record_session_baselines(username, renewed_at=db_now_str, conn=conn)
 
-    if not updated_rows or updated_rows == 0:
-        return False, "فشلت العملية: رصيد الحساب غير كافٍ أو حدث تعارض في المعالجة."
+        # 3. Defect 7: Full loan settlement
+        loan_mb = int(sub.get('loan_balance_mb') or 0)
+        has_active_loan = (int(sub.get('loan_status') or 0) == 1 or loan_mb > 0)
+        new_base_quota_mb = int(pkg.get('volume_quota_mb') or 0)
+        is_unlimited_quota = (new_base_quota_mb == 0)
 
-    # 4. تحديث FreeRADIUS radusergroup و radcheck
-    execute_write("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", (username,))
-    execute_write("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", (sub['username'], pkg['name']))
+        if is_rollover_enabled:
+            new_extra_mb = float(rem_data_mb)
+        else:
+            new_extra_mb = 0.0
 
-    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", (username,))
-    if new_fr_exp:
-        execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_fr_exp))
+        new_loan_balance_mb = 0
+        new_loan_status = 0
+        deducted_loan_mb = 0
 
-    # تنظيف أي سمات كوتا زائدة من radcheck (تتم إدارة الكوتا ديناميكياً عبر SQL)
-    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Max-Total-Octets'", (username,))
+        if has_active_loan:
+            if is_unlimited_quota:
+                deducted_loan_mb = loan_mb
+                new_loan_balance_mb = 0
+                new_loan_status = 0
+            else:
+                total_capacity = new_base_quota_mb + new_extra_mb
+                if total_capacity >= loan_mb:
+                    deducted_loan_mb = loan_mb
+                    if new_extra_mb >= loan_mb:
+                        new_extra_mb -= loan_mb
+                    else:
+                        shortfall = loan_mb - new_extra_mb
+                        new_extra_mb = -shortfall
+                    new_loan_balance_mb = 0
+                    new_loan_status = 0
+                else:
+                    deducted_loan_mb = total_capacity
+                    unsettled_loan = loan_mb - total_capacity
+                    new_extra_mb = -new_base_quota_mb
+                    new_loan_balance_mb = int(unsettled_loan)
+                    new_loan_status = 1
 
-    # 5. مزامنة المشترك وفصل الجلسة لتطبيق الإعدادات بشكل غير متزامن
-    try:
-        sync_subscriber_to_radius(sub['id'])
-    except Exception:
-        pass
+        # 4. Defect 8: Expiration calculation (single addition of remaining time)
+        val = int(pkg.get('validity_value') if pkg.get('validity_value') is not None else (pkg.get('validity_days') or 30))
+        unit = pkg.get('validity_unit') or 'days'
+        if val <= 0:
+            new_expiry = None
+            new_fr_exp = None
+        else:
+            if unit == 'hours':
+                base_delta = datetime.timedelta(hours=val)
+            elif unit == 'minutes':
+                base_delta = datetime.timedelta(minutes=val)
+            elif unit == 'months':
+                base_delta = datetime.timedelta(days=val * 30)
+            else:
+                base_delta = datetime.timedelta(days=val)
+            new_exp_dt = db_now_dt + base_delta + rem_time_delta
+            new_expiry = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
+            new_fr_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
+
+        # 5. Atomic update of subscriber
+        upd_sql = adapt_query("""
+            UPDATE wisp_subscribers SET
+                balance = balance - ?,
+                snap_volume_quota_mb = NULL,
+                package_id = ?,
+                status = 'active',
+                last_renewed_at = ?,
+                extra_quota_mb = ?,
+                expires_at = ?,
+                loan_balance_mb = ?,
+                loan_status = ?
+            WHERE id = ? AND balance >= ?
+        """, conn)
+        cursor.execute(upd_sql, (pkg_price, pkg['id'], db_now_str, new_extra_mb, new_expiry, new_loan_balance_mb, new_loan_status, sub['id'], pkg_price))
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return False, "فشلت العملية: رصيد الحساب غير كافٍ أو حدث تعارض في المعالجة."
+
+        # Authentication and wallet changes must commit or roll back together.
+        _sync_recharge_radius(cursor, conn, sub['username'], sub,
+                              {'package_name': pkg['name'],
+                               'pkg_mikrotik_group': pkg.get('mikrotik_group')},
+                              'subscriber', new_fr_exp)
 
     try:
         dispatch_async_disconnect(sub['username'])
@@ -1284,29 +1387,10 @@ def renew_or_change_package(username, new_pkg_id):
     return True, ret_msg
 
 def get_user_sessions_history(username, limit=30):
-    """
-    Get session history for a specific subscriber from radacct.
-    """
-    sessions = query_all("""
-        SELECT radacctid, acctsessionid, nasipaddress, framedipaddress,
-               callingstationid, acctstarttime, acctstoptime, acctsessiontime,
-               acctinputoctets, acctoutputoctets, acctterminatecause
-        FROM radacct
-        WHERE LOWER(username) = LOWER(?)
-        ORDER BY radacctid DESC
-        LIMIT ?
-    """, (username, limit))
+    """Use the same heartbeat display status as admin session history."""
+    from services.subscriber_service import get_subscriber_sessions
+    return get_subscriber_sessions(username, limit=limit)
 
-    for s in sessions:
-        d_bytes = (int(s.get('acctoutputgigawords') or 0) * 4294967296) + int(s.get('acctoutputoctets') or 0)
-        u_bytes = (int(s.get('acctinputgigawords') or 0) * 4294967296) + int(s.get('acctinputoctets') or 0)
-        s['download_str'] = format_bytes(d_bytes)
-        s['upload_str'] = format_bytes(u_bytes)
-        s['total_str'] = format_bytes(d_bytes + u_bytes)
-        s['duration_str'] = format_duration(s['acctsessiontime'] or 0)
-        s['is_active'] = (s['acctstoptime'] is None)
-
-    return sessions
 
 def ensure_initial_package():
     """
@@ -1422,7 +1506,7 @@ def register_portal_subscriber(form_data):
     # 8. ربط الحساب بالباقة الأولية
     pkg_id = ensure_initial_package()
     pkg = query_one("SELECT * FROM wisp_packages WHERE id = ?", (pkg_id,))
-    now_dt = datetime.datetime.now()
+    now_dt = get_db_storage_now().replace(tzinfo=None)
     exp_iso = None
     if pkg:
         val = int(pkg.get('validity_value') or pkg.get('validity_days') or 30)
@@ -1455,28 +1539,29 @@ def register_portal_subscriber(form_data):
     return True, "تم إنشاء حسابك بنجاح، يمكنك الآن تسجيل الدخول وشحن رصيدك"
 
 def change_portal_password(username, old_password, new_password, confirm_password):
-    """
-    Changes password for subscriber from user portal.
-    """
+    """Change portal and RADIUS credentials atomically under the subscriber lock."""
     username = (username or '').strip()
-    sub = query_one("SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)", (username,))
-    if not sub:
-        return False, "حساب المشترك غير مسجل في قائمة المشتركين."
-
-    if sub['password'] != old_password:
-        return False, "كلمة المرور الحالية غير صحيحة."
-
     if not new_password or len(new_password) < 4:
         return False, "كلمة المرور الجديدة يجب أن تتكون من 4 خانات على الأقل."
-
     if new_password != confirm_password:
         return False, "كلمة المرور الجديدة وتأكيدها غير متطابقين."
-
-    execute_write("UPDATE wisp_subscribers SET password = ? WHERE id = ?", (new_password, sub['id']))
-    execute_write("""
-        UPDATE radcheck SET value = ?
-        WHERE LOWER(username) = LOWER(?) AND attribute IN ('Cleartext-Password', 'User-Password')
-    """, (new_password, username))
+    with db_session() as conn:
+        cursor = conn.cursor()
+        lock = 'FOR UPDATE' if is_mysql_conn(conn) else ''
+        cursor.execute(adapt_query(f"SELECT * FROM wisp_subscribers WHERE LOWER(username)=LOWER(?) LIMIT 1 {lock}", conn), (username,))
+        sub = cursor.fetchone()
+        if not sub:
+            return False, "حساب المشترك غير مسجل في قائمة المشتركين."
+        sub = dict(sub)
+        if sub['password'] != old_password:
+            return False, "كلمة المرور الحالية غير صحيحة."
+        cursor.execute(adapt_query("UPDATE wisp_subscribers SET password=? WHERE id=?", conn), (new_password, sub['id']))
+        cursor.execute(adapt_query("UPDATE radcheck SET value=? WHERE LOWER(username)=LOWER(?) AND attribute IN ('Cleartext-Password','User-Password')", conn), (new_password, sub['username']))
+        # A missing credential must not turn a successful password change into an unusable account.
+        if sub['status'] == 'active':
+            cursor.execute(adapt_query("SELECT 1 FROM radcheck WHERE LOWER(username)=LOWER(?) AND attribute IN ('Cleartext-Password','User-Password') LIMIT 1", conn), (sub['username'],))
+            if not cursor.fetchone():
+                cursor.execute(adapt_query("INSERT INTO radcheck(username,attribute,op,value) VALUES (?,'Cleartext-Password',':=',?)", conn), (sub['username'], new_password))
 
     log_user_audit('subscriber', sub['id'], sub['username'], 'UserPortal', 'CHANGE_PASSWORD', 'تعديل كلمة المرور عبر بوابة المشترك')
     return True, "تم تغيير كلمة المرور بنجاح."

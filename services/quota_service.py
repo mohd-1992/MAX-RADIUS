@@ -13,64 +13,300 @@ Single Source of Truth for:
 """
 
 import datetime
-from database.db import query_one, query_all, execute_write, get_connection
+from core.time_service import get_db_storage_now
+from database.db import query_one, query_all, execute_write, get_connection, adapt_query
 
 GIGAWORD_MULTIPLIER = 4294967296  # 2^32 bytes (RFC 2869 / RFC 5176)
 BYTES_PER_MB = 1048576             # 1024 * 1024
 
-def get_accounting_totals(username, since_timestamp=None):
+class AccountingReadError(Exception):
+    """Raised when accounting records or session baselines cannot be queried from the database."""
+    pass
+
+def record_session_baselines(username, renewed_at=None, conn=None):
     """
-    Calculates exact upload, download, total bytes and uptime seconds from radacct
-    using authoritative 64-bit Gigawords formula.
-    
-    If since_timestamp is provided, limits aggregation to sessions that were active
-    or updated at or after that timestamp.
+    Snapshots counters for open sessions and recoverable inactivity-cleanup sessions
+    at cycle renewal. Genuine Stops and confirmed administrative disconnects are excluded.
+    This guarantees that sessions that span across renewals will NOT charge
+    pre-renewal traffic to the new cycle, nor lose post-renewal traffic.
+    Retains prior renewal baselines for cycle tracking and extended sessions.
+    """
+    username = str(username or '').strip()
+    if not username:
+        return
+
+    close_conn = False
+    if conn is None:
+        conn = get_connection()
+        close_conn = True
+
+    cur = None
+    try:
+        from core.time_service import get_system_now
+        renewed_dt = str(renewed_at or get_db_storage_now().strftime('%Y-%m-%d %H:%M:%S'))
+        cur = conn.cursor()
+
+        from database.db import is_mysql_conn
+        if is_mysql_conn(conn):
+            ins_q = """
+                INSERT INTO wisp_session_baselines 
+                    (radacctid, username, baseline_input_bytes, baseline_output_bytes, baseline_bytes, baseline_seconds, renewed_at)
+                SELECT 
+                    radacctid, 
+                    username, 
+                    COALESCE(acctinputoctets, 0) as baseline_input_bytes,
+                    COALESCE(acctoutputoctets, 0) as baseline_output_bytes,
+                    (COALESCE(acctinputoctets, 0) + COALESCE(acctoutputoctets, 0)) as baseline_bytes,
+                    COALESCE(acctsessiontime, 0) as baseline_seconds,
+                    %s as renewed_at
+                FROM radacct
+                WHERE LOWER(username) = LOWER(%s) AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed'))
+                ON DUPLICATE KEY UPDATE
+                    baseline_input_bytes = VALUES(baseline_input_bytes),
+                    baseline_output_bytes = VALUES(baseline_output_bytes),
+                    baseline_bytes = VALUES(baseline_bytes),
+                    baseline_seconds = VALUES(baseline_seconds)
+            """
+            cur.execute(ins_q, (renewed_dt, username))
+        else:
+            ins_q = adapt_query("""
+                INSERT OR REPLACE INTO wisp_session_baselines 
+                    (radacctid, username, baseline_input_bytes, baseline_output_bytes, baseline_bytes, baseline_seconds, renewed_at)
+                SELECT 
+                    radacctid, 
+                    username, 
+                    COALESCE(acctinputoctets, 0) as baseline_input_bytes,
+                    COALESCE(acctoutputoctets, 0) as baseline_output_bytes,
+                    (COALESCE(acctinputoctets, 0) + COALESCE(acctoutputoctets, 0)) as baseline_bytes,
+                    COALESCE(acctsessiontime, 0) as baseline_seconds,
+                    ? as renewed_at
+                FROM radacct
+                WHERE LOWER(username) = LOWER(?) AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed'))
+            """, conn)
+            cur.execute(ins_q, (renewed_dt, username))
+
+        if close_conn and hasattr(conn, 'commit'):
+            conn.commit()
+    except Exception as e:
+        print(f"[Baseline Warning] Could not record session baseline for {username}: {e}")
+        if not close_conn:
+            raise
+    finally:
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if close_conn:
+            conn.close()
+
+
+def get_accounting_totals(username, since_timestamp=None, conn=None):
+    """
+    Calculates exact upload, download, total bytes and uptime seconds from radacct.
+    When since_timestamp is provided, uses cycle baselines to calculate net traffic
+    for sessions that spanned the renewal boundary:
+    - Session started >= since_timestamp: 100% of bytes count
+    - Session started < since_timestamp: only (bytes - baseline_bytes) count if baseline recorded
+    - Late Stop/Interim for session ended before since_timestamp: 0 bytes count
     """
     username = str(username or '').strip()
     if not username:
         return {'up_bytes': 0, 'down_bytes': 0, 'total_bytes': 0, 'uptime_secs': 0, 'sessions_count': 0}
 
-    params = [username]
-    time_filter = ""
-    if since_timestamp:
-        time_filter = "AND COALESCE(acctstoptime, acctupdatetime, acctstarttime, CURRENT_TIMESTAMP) >= %s"
-        params.append(str(since_timestamp))
+    close_conn = False
+    if conn is None:
+        conn = get_connection()
+        close_conn = True
 
-    sql = f"""
-        SELECT 
-            COUNT(DISTINCT acctsessionid) as sessions_count,
-            COALESCE(SUM(
-                (CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * {GIGAWORD_MULTIPLIER}) + 
-                CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)
-            ), 0) as up_bytes,
-            COALESCE(SUM(
-                (CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * {GIGAWORD_MULTIPLIER}) + 
-                CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)
-            ), 0) as down_bytes,
-            COALESCE(SUM(acctsessiontime), 0) as uptime_secs
-        FROM radacct
-        WHERE username = %s {time_filter}
-    """
-    
-    conn = get_connection()
+    cur = None
     try:
-        with conn.cursor() as cur:
-            cur.execute(sql, tuple(params))
-            row = cur.fetchone()
-            if not row:
-                return {'up_bytes': 0, 'down_bytes': 0, 'total_bytes': 0, 'uptime_secs': 0, 'sessions_count': 0}
-            
+        cur = conn.cursor()
+        if since_timestamp:
+            sql = adapt_query("""
+                SELECT 
+                    COUNT(DISTINCT a.acctsessionid) as sessions_count,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN b.radacctid IS NULL AND a.acctstarttime >= ? THEN COALESCE(a.acctinputoctets, 0)
+                            WHEN b.radacctid IS NOT NULL AND COALESCE(a.acctinputoctets, 0) > COALESCE(b.baseline_input_bytes, 0)
+                                 THEN (COALESCE(a.acctinputoctets, 0) - COALESCE(b.baseline_input_bytes, 0))
+                            ELSE 0
+                        END
+                    ), 0) as up_bytes,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN b.radacctid IS NULL AND a.acctstarttime >= ? THEN COALESCE(a.acctoutputoctets, 0)
+                            WHEN b.radacctid IS NOT NULL AND COALESCE(a.acctoutputoctets, 0) > COALESCE(b.baseline_output_bytes, 0)
+                                 THEN (COALESCE(a.acctoutputoctets, 0) - COALESCE(b.baseline_output_bytes, 0))
+                            ELSE 0
+                        END
+                    ), 0) as down_bytes,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN b.radacctid IS NULL AND a.acctstarttime >= ? THEN (COALESCE(a.acctinputoctets, 0) + COALESCE(a.acctoutputoctets, 0))
+                            WHEN b.radacctid IS NOT NULL THEN (
+                                (CASE WHEN COALESCE(a.acctinputoctets, 0) > COALESCE(b.baseline_input_bytes, 0) 
+                                      THEN (COALESCE(a.acctinputoctets, 0) - COALESCE(b.baseline_input_bytes, 0)) ELSE 0 END) +
+                                (CASE WHEN COALESCE(a.acctoutputoctets, 0) > COALESCE(b.baseline_output_bytes, 0) 
+                                      THEN (COALESCE(a.acctoutputoctets, 0) - COALESCE(b.baseline_output_bytes, 0)) ELSE 0 END)
+                            )
+                            ELSE 0
+                        END
+                    ), 0) as total_bytes,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN b.radacctid IS NULL AND a.acctstarttime >= ? THEN COALESCE(a.acctsessiontime, 0)
+                            WHEN b.radacctid IS NOT NULL AND COALESCE(a.acctsessiontime, 0) > COALESCE(b.baseline_seconds, 0)
+                                 THEN (COALESCE(a.acctsessiontime, 0) - COALESCE(b.baseline_seconds, 0))
+                            ELSE 0
+                        END
+                    ), 0) as uptime_secs
+                FROM radacct a
+                LEFT JOIN wisp_session_baselines b 
+                       ON a.radacctid = b.radacctid 
+                      AND b.renewed_at = ?
+                WHERE LOWER(a.username) = LOWER(?)
+                  AND (a.acctstarttime >= ? OR b.radacctid IS NOT NULL)
+            """, conn)
+            cur.execute(sql, (str(since_timestamp), str(since_timestamp), str(since_timestamp), str(since_timestamp), str(since_timestamp), username, str(since_timestamp)))
+        else:
+            sql = adapt_query("""
+                SELECT 
+                    COUNT(DISTINCT a.acctsessionid) as sessions_count,
+                    COALESCE(SUM(COALESCE(a.acctinputoctets, 0)), 0) as up_bytes,
+                    COALESCE(SUM(COALESCE(a.acctoutputoctets, 0)), 0) as down_bytes,
+                    COALESCE(SUM(COALESCE(a.acctinputoctets, 0) + COALESCE(a.acctoutputoctets, 0)), 0) as total_bytes,
+                    COALESCE(SUM(COALESCE(a.acctsessiontime, 0)), 0) as uptime_secs
+                FROM radacct a
+                WHERE LOWER(a.username) = LOWER(?)
+            """, conn)
+            cur.execute(sql, (username,))
+
+        row = cur.fetchone()
+        if not row:
+            return {'up_bytes': 0, 'down_bytes': 0, 'total_bytes': 0, 'uptime_secs': 0, 'sessions_count': 0}
+
+        if isinstance(row, dict):
+            tot_b = int(row.get('total_bytes') or 0)
             up_b = int(row.get('up_bytes') or 0)
             down_b = int(row.get('down_bytes') or 0)
-            return {
-                'up_bytes': up_b,
-                'down_bytes': down_b,
-                'total_bytes': up_b + down_b,
-                'uptime_secs': int(row.get('uptime_secs') or 0),
-                'sessions_count': int(row.get('sessions_count') or 0)
-            }
+            upt = int(row.get('uptime_secs') or 0)
+            cnt = int(row.get('sessions_count') or 0)
+        else:
+            cnt = int(row[0] or 0)
+            up_b = int(row[1] or 0)
+            down_b = int(row[2] or 0)
+            tot_b = int(row[3] or 0)
+            upt = int(row[4] or 0)
+
+        return {
+            'up_bytes': up_b,
+            'down_bytes': down_b,
+            'total_bytes': tot_b,
+            'uptime_secs': upt,
+            'sessions_count': cnt
+        }
+    except Exception as e:
+        print(f"[Accounting Error] Error calculating totals for {username}: {e}")
+        raise AccountingReadError(f"Failed to calculate accounting totals for {username}: {e}") from e
     finally:
-        conn.close()
+        if cur:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if close_conn:
+            conn.close()
+
+
+def calculate_cycle_usage_and_rollover(entity, package, is_rollover_enabled=False, conn=None, now=None):
+    """
+    Authoritative, unified calculation of cycle consumption and remaining balance (Data & Time Rollover)
+    across all renewal and recharge paths (Admin, User Portal, Voucher Recharge).
+    
+    Respects saved snapshot attributes for vouchers (Point 3).
+    Differentiates NULL (missing) from 0 (unlimited) (Point 4).
+    Prevents re-granting consumed extra quota (Point 5).
+    """
+    if now is None:
+        if conn:
+            try:
+                cur_tmp = conn.cursor()
+                cur_tmp.execute("SELECT CURRENT_TIMESTAMP")
+                r_now = cur_tmp.fetchone()
+                if r_now:
+                    now = r_now[0] if not isinstance(r_now, dict) else list(r_now.values())[0]
+                cur_tmp.close()
+            except Exception:
+                now = None
+    if now is None:
+        now = get_db_storage_now().replace(tzinfo=None)
+    if isinstance(now, str):
+        now = datetime.datetime.strptime(now.split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
+    
+    # 1. Base quota and time limits respecting snapshot first (NULL falls back to package, 0 is respected as unlimited)
+    snap_quota = entity.get('snap_volume_quota_mb')
+    if snap_quota is not None:
+        base_quota_mb = int(snap_quota)
+    else:
+        base_quota_mb = int(package.get('volume_quota_mb') or 0) if package else 0
+
+    extra_quota_mb = int(entity.get('extra_quota_mb') or 0)
+    
+    # Check if original plan is unlimited data
+    is_unlimited_quota = (base_quota_mb == 0)
+    total_allowed_mb = base_quota_mb + extra_quota_mb if not is_unlimited_quota else 0
+
+    # 2. Get authoritative cycle consumption
+    cycle_start = entity.get('last_renewed_at') or entity.get('first_used_at') or entity.get('created_at')
+    username = entity['username']
+    
+    usage = get_accounting_totals(username, since_timestamp=cycle_start, conn=conn)
+    used_bytes = usage['total_bytes']
+    used_mb = round(used_bytes / BYTES_PER_MB, 2)
+    used_uptime_secs = usage['uptime_secs']
+
+    # 3. Rollover Data Calculation
+    if is_unlimited_quota or not is_rollover_enabled:
+        rem_data_mb = 0.0
+    else:
+        rem_data_mb = max(0.0, float(total_allowed_mb) - used_mb)
+
+    # 4. Rollover Time Calculation
+    rem_time_delta = datetime.timedelta(0)
+    rem_days = 0
+    rem_hours = 0
+    expires_at = entity.get('expires_at') or entity.get('expiration_date')
+    if expires_at and is_rollover_enabled:
+        exp_dt = None
+        if isinstance(expires_at, str):
+            try:
+                exp_dt = datetime.datetime.strptime(expires_at.replace('T', ' ').split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
+            except Exception:
+                pass
+        elif isinstance(expires_at, datetime.datetime):
+            exp_dt = expires_at.replace(tzinfo=None) if expires_at.tzinfo else expires_at
+
+        if exp_dt and exp_dt > now:
+            rem_time_delta = exp_dt - now
+            rem_days = int(rem_time_delta.total_seconds() // 86400)
+            rem_hours = int((rem_time_delta.total_seconds() % 86400) // 3600)
+
+    return {
+        'used_bytes': used_bytes,
+        'used_mb': used_mb,
+        'used_uptime_secs': used_uptime_secs,
+        'base_quota_mb': base_quota_mb,
+        'total_allowed_mb': total_allowed_mb,
+        'is_unlimited_quota': is_unlimited_quota,
+        'rem_data_mb': round(rem_data_mb, 2),
+        'rem_time_delta': rem_time_delta,
+        'rem_days': rem_days,
+        'rem_hours': rem_hours,
+        'is_rollover_enabled': is_rollover_enabled
+    }
+
 
 def calculate_account_quota(username_or_id, entity_type=None):
     """
@@ -95,7 +331,7 @@ def calculate_account_quota(username_or_id, entity_type=None):
                    COALESCE(v.snap_validity_unit, p.validity_unit, 'days') as resolved_validity_unit
             FROM wisp_vouchers v
             LEFT JOIN wisp_packages p ON v.package_id = p.id
-            WHERE v.id = %s OR v.username = %s OR v.pin_code = %s
+            WHERE v.id = ? OR v.username = ? OR v.pin_code = ?
             LIMIT 1
         """, (target, target, target))
         if entity:
@@ -105,13 +341,13 @@ def calculate_account_quota(username_or_id, entity_type=None):
         entity = query_one("""
             SELECT s.*, p.name as package_name,
                    COALESCE(p.price, 0) as resolved_price,
-                   COALESCE(p.volume_quota_mb, 0) as base_quota_mb,
+                   COALESCE(s.snap_volume_quota_mb, p.volume_quota_mb, 0) as base_quota_mb,
                    COALESCE(p.uptime_limit_mins, 0) as base_uptime_mins,
                    COALESCE(p.validity_value, 0) as resolved_validity_value,
                    COALESCE(p.validity_unit, 'days') as resolved_validity_unit
             FROM wisp_subscribers s
             LEFT JOIN wisp_packages p ON s.package_id = p.id
-            WHERE s.id = %s OR s.username = %s
+            WHERE s.id = ? OR s.username = ?
             LIMIT 1
         """, (target, target))
         if entity:
@@ -127,35 +363,66 @@ def calculate_account_quota(username_or_id, entity_type=None):
     since_ts = last_renewed_at or entity.get('first_used_at') or entity.get('created_at')
 
     # 2. Get authoritative accounting totals
-    usage = get_accounting_totals(username, since_timestamp=since_ts)
-    used_bytes = usage['total_bytes']
-    used_mb = round(used_bytes / BYTES_PER_MB, 2)
-    used_uptime_secs = usage['uptime_secs']
-    used_uptime_mins = round(used_uptime_secs / 60, 1)
+    accounting_error = False
+    accounting_status = 'available'
+    usage = None
+    try:
+        usage = get_accounting_totals(username, since_timestamp=since_ts)
+        used_bytes = usage['total_bytes']
+        used_mb = round(used_bytes / BYTES_PER_MB, 2)
+        used_uptime_secs = usage['uptime_secs']
+        used_uptime_mins = round(used_uptime_secs / 60, 1)
+    except Exception as e:
+        used_bytes = None
+        used_mb = None
+        used_uptime_secs = None
+        used_uptime_mins = None
+        accounting_error = True
+        accounting_status = 'unavailable'
 
     # 3. Quota Calculations (Base + Extra)
     base_quota_mb = int(entity.get('base_quota_mb') or 0)
     extra_quota_mb = int(entity.get('extra_quota_mb') or 0)
-    total_quota_mb = base_quota_mb + extra_quota_mb if base_quota_mb > 0 else 0
-    total_quota_bytes = total_quota_mb * BYTES_PER_MB
+    is_quota_unlimited = (base_quota_mb == 0 and entity.get('base_quota_mb') is not None)
 
-    is_quota_unlimited = (total_quota_mb == 0)
-    if is_quota_unlimited:
+    if accounting_error:
+        total_quota_mb = max(0, base_quota_mb + extra_quota_mb) if not is_quota_unlimited else 0
+        total_quota_bytes = total_quota_mb * BYTES_PER_MB if not is_quota_unlimited else 0
+        remaining_bytes = None
+        remaining_mb = None
+        quota_used_pct = None
+        is_quota_depleted = False
+    elif is_quota_unlimited:
+        total_quota_mb = 0
+        total_quota_bytes = 0
         remaining_bytes = 0
         remaining_mb = 0
         quota_used_pct = 0.0
         is_quota_depleted = False
     else:
-        remaining_bytes = max(0, total_quota_bytes - used_bytes)
-        remaining_mb = round(remaining_bytes / BYTES_PER_MB, 2)
-        quota_used_pct = min(100.0, round((used_bytes / total_quota_bytes) * 100.0, 1)) if total_quota_bytes > 0 else 100.0
-        is_quota_depleted = (used_bytes >= total_quota_bytes)
+        total_quota_mb = max(0, base_quota_mb + extra_quota_mb)
+        total_quota_bytes = total_quota_mb * BYTES_PER_MB
+        if total_quota_mb == 0:
+            remaining_bytes = 0
+            remaining_mb = 0
+            quota_used_pct = 100.0
+            is_quota_depleted = True
+        else:
+            remaining_bytes = max(0, total_quota_bytes - used_bytes)
+            remaining_mb = round(remaining_bytes / BYTES_PER_MB, 2)
+            quota_used_pct = min(100.0, round((used_bytes / total_quota_bytes) * 100.0, 1)) if total_quota_bytes > 0 else 100.0
+            is_quota_depleted = (used_bytes >= total_quota_bytes)
 
     # 4. Time/Uptime Limit Calculations
     base_uptime_mins = int(entity.get('base_uptime_mins') or 0)
     total_uptime_secs = base_uptime_mins * 60
     is_uptime_unlimited = (base_uptime_mins == 0)
-    if is_uptime_unlimited:
+    if accounting_error:
+        remaining_uptime_secs = None
+        remaining_uptime_mins = None
+        uptime_used_pct = None
+        is_uptime_depleted = False
+    elif is_uptime_unlimited:
         remaining_uptime_secs = 0
         remaining_uptime_mins = 0
         uptime_used_pct = 0.0
@@ -168,7 +435,7 @@ def calculate_account_quota(username_or_id, entity_type=None):
 
     # 5. Date Expiry Calculations
     expires_at = entity.get('expires_at') or entity.get('expiration_date')
-    now = datetime.datetime.now()
+    now = get_db_storage_now().replace(tzinfo=None)
     is_time_expired = False
     days_remaining = None
 
@@ -215,8 +482,10 @@ def calculate_account_quota(username_or_id, entity_type=None):
         'days_remaining': days_remaining,
         
         # Traffic Metrics
-        'used_up_bytes': usage['up_bytes'],
-        'used_down_bytes': usage['down_bytes'],
+        'accounting_error': accounting_error,
+        'accounting_status': accounting_status,
+        'used_up_bytes': usage['up_bytes'] if usage else None,
+        'used_down_bytes': usage['down_bytes'] if usage else None,
         'used_total_bytes': used_bytes,
         'used_mb': used_mb,
         'base_quota_mb': base_quota_mb,
@@ -260,15 +529,9 @@ def calculate_batch_quotas(usernames, entity_type='voucher'):
     sql = f"""
         SELECT 
             username,
-            COALESCE(SUM(
-                (CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * {GIGAWORD_MULTIPLIER}) + 
-                CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)
-            ), 0) as up_bytes,
-            COALESCE(SUM(
-                (CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * {GIGAWORD_MULTIPLIER}) + 
-                CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)
-            ), 0) as down_bytes,
-            COALESCE(SUM(acctsessiontime), 0) as uptime_secs,
+            COALESCE(SUM(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) as up_bytes,
+            COALESCE(SUM(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as down_bytes,
+            COALESCE(SUM(COALESCE(acctsessiontime, 0)), 0) as uptime_secs,
             COUNT(DISTINCT acctsessionid) as sessions_count
         FROM radacct
         WHERE username IN ({placeholders})
@@ -358,7 +621,7 @@ def apply_midflight_topup(username_or_id, extra_mb=0, extra_days=0, admin_userna
     execute_write(update_sql, tuple(params))
 
     # Reinstate credentials in radcheck if account was restored to active
-    pwd_row = query_one(f"SELECT password FROM {table_name} WHERE id = %s", (entity_id,))
+    pwd_row = query_one(f"SELECT password, expires_at FROM {table_name} WHERE id = %s", (entity_id,))
     if pwd_row and pwd_row.get('password'):
         pwd = pwd_row['password']
         execute_write("""
@@ -366,6 +629,17 @@ def apply_midflight_topup(username_or_id, extra_mb=0, extra_days=0, admin_userna
             VALUES (%s, 'Cleartext-Password', ':=', %s)
             ON DUPLICATE KEY UPDATE value = %s
         """, (username, pwd, pwd))
+
+    # Clean legacy quota cap in radcheck (managed dynamically in SQL)
+    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(%s) AND attribute = 'Max-Total-Octets'", (username,))
+
+    # Sync new Expiration date to radcheck if extended
+    if extra_days > 0 and pwd_row and pwd_row.get('expires_at'):
+        new_exp = pwd_row['expires_at']
+        if isinstance(new_exp, datetime.datetime):
+            new_fr_exp = new_exp.strftime('%d %b %Y %H:%M:%S')
+            execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(%s) AND attribute = 'Expiration'", (username,))
+            execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (%s, 'Expiration', ':=', %s)", (username, new_fr_exp))
 
     # Trigger Pillar 3 (Asynchronous CoA) to apply quota or refresh session
     try:

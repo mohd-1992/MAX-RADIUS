@@ -15,6 +15,8 @@ import secrets
 import datetime
 from database.db import get_connection, is_mysql_conn, query_all, query_one, execute_write, log_audit
 from core.rate_limit import format_bytes
+from services.import_state_service import (present_value, import_now, imported_state,
+                                           historical_accounting_values, imported_radius_checks, ensure_import_package_radius)
 
 try:
     import openpyxl
@@ -493,8 +495,6 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
         return False, "لا توجد بيانات صالحة للإدخال.", None
 
     total_count = len(cleaned_rows)
-    now_dt = datetime.datetime.now()
-    now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
 
     conn = get_connection()
     is_mysql = is_mysql_conn(conn)
@@ -502,6 +502,9 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
     
     try:
         cursor = conn.cursor()
+        now_dt = import_now(cursor)
+        now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+        ensure_import_package_radius(conn, [row['package_id'] for row in cleaned_rows])
         if is_mysql:
             cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
         else:
@@ -533,102 +536,33 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
 
             for c in cleaned_rows:
                 pkg = c.get('matched_pkg') or {}
-                snap_p = float(c.get('package_price') or pkg.get('price') or 0.0)
-                snap_c = float(c.get('package_cost') or pkg.get('cost') or 0.0)
+                snap_p = float(present_value(c, 'package_price', pkg.get('price') or 0))
+                snap_c = float(present_value(c, 'package_cost', pkg.get('cost') or 0))
                 snap_q = int(pkg.get('volume_quota_mb') or 0)
                 snap_u = int(pkg.get('uptime_limit_mins') or 0)
-                snap_val = int(pkg.get('validity_value') or pkg.get('validity_days') or 30)
-                snap_unit = str(pkg.get('validity_unit') or 'days')
-                snap_days = snap_val if snap_unit == 'days' else 30
+                snap_val = int(present_value(pkg, 'validity_value', present_value(pkg, 'validity_days', 30)))
+                snap_unit = pkg.get('validity_unit') or 'days'
+                snap_days = snap_val if snap_unit == 'days' else int(present_value(pkg, 'validity_days', 30))
                 snap_rd = str(pkg.get('rate_download') or '0')
                 snap_ru = str(pkg.get('rate_upload') or '0')
-                snap_r_str = f"{snap_rd}/{snap_ru}"
                 snap_simul = int(pkg.get('simultaneous_sessions') or 1)
                 snap_group = str(pkg.get('mikrotik_group') or 'ALL-SPEED')
-
-                down_mb = float(c.get('download_used_mb') or 0.0)
-                up_mb = float(c.get('upload_used_mb') or 0.0)
-                uptime_mins = int(c.get('uptime_used_mins') or 0)
-                has_usage = (down_mb > 0 or up_mb > 0 or uptime_mins > 0)
-
-                if import_consumption and has_usage:
-                    first_used_dt = None
-                    if c.get('first_used_at'):
-                        try:
-                            first_used_dt = datetime.datetime.strptime(str(c['first_used_at'])[:19], '%Y-%m-%d %H:%M:%S')
-                        except Exception:
-                            first_used_dt = None
-                    if not first_used_dt:
-                        first_used_dt = now_dt - datetime.timedelta(minutes=max(1, uptime_mins))
-
-                    first_used_str = first_used_dt.strftime('%Y-%m-%d %H:%M:%S')
-                    last_renewed_str = first_used_str
-
-                    exp_dt = None
-                    if c.get('expires_at'):
-                        try:
-                            exp_dt = datetime.datetime.strptime(str(c['expires_at'])[:19], '%Y-%m-%d %H:%M:%S')
-                        except Exception:
-                            exp_dt = None
-                    if not exp_dt:
-                        if snap_unit == 'minutes':
-                            exp_dt = first_used_dt + datetime.timedelta(minutes=snap_val)
-                        elif snap_unit == 'hours':
-                            exp_dt = first_used_dt + datetime.timedelta(hours=snap_val)
-                        elif snap_unit == 'months':
-                            exp_dt = first_used_dt + datetime.timedelta(days=snap_val * 30)
-                        else:
-                            exp_dt = first_used_dt + datetime.timedelta(days=snap_days)
-
-                    exp_str = exp_dt.strftime('%Y-%m-%d %H:%M:%S') if exp_dt else None
-                    v_status = 'expired' if (exp_dt and exp_dt < now_dt) else 'active'
-
-                    if v_status == 'active' and exp_dt:
-                        radcheck_bulk.append((c['username'], 'Expiration', ':=', exp_dt.strftime('%d %b %Y %H:%M:%S')))
-
-                    vouchers_bulk.append((
-                        batch_id, c['package_id'], c['reseller_id'], c['serial_number'],
-                        c['username'], c['password'], c['pin_code'], v_status, c.get('mac_binding', ''),
-                        first_used_str, exp_str, last_renewed_str,
-                        snap_p, snap_c, snap_q, snap_u,
-                        snap_val, snap_unit, snap_days,
-                        snap_rd, snap_ru, snap_r_str,
-                        snap_simul, snap_group
-                    ))
-
-                    # Synthetic accounting session
-                    up_bytes = int(up_mb * 1024 * 1024)
-                    down_bytes = int(down_mb * 1024 * 1024)
-                    up_octets = up_bytes % 4294967296
-                    up_giga = up_bytes // 4294967296
-                    down_octets = down_bytes % 4294967296
-                    down_giga = down_bytes // 4294967296
-                    sess_id = f"EXC-MIG-{c['username']}-{secrets.randbelow(100000):05d}"
-                    uniq_id = f"EXC-MIG-{c['username']}"[:32]
-
-                    radacct_bulk.append((
-                        sess_id, uniq_id, c['username'], '', '127.0.0.1', '1', 'Wireless-802.11',
-                        first_used_str, now_str, now_str, 0, uptime_mins * 60, 'RADIUS', '', '',
-                        up_octets, down_octets, up_giga, down_giga,
-                        '', (c.get('mac_binding') or '').upper(),
-                        'Consolidated-Historical-Import', 'Framed-User', 'PPP', ''
-                    ))
+                state = imported_state(c, pkg, now_dt, import_consumption)
+                status = 'unused' if state['status'] == 'inactive' else state['status']
+                vouchers_bulk.append((
+                    batch_id, c['package_id'], c['reseller_id'], c['serial_number'],
+                    c['username'], c['password'], c['pin_code'], status, c.get('mac_binding', ''),
+                    state['first_used_at'], state['expires_at'], state['last_renewed_at'],
+                    snap_p, snap_c, snap_q, snap_u, snap_val, snap_unit, snap_days,
+                    snap_rd, snap_ru, f"{snap_rd}/{snap_ru}", snap_simul, snap_group
+                ))
+                if state['history']:
+                    radacct_bulk.append(historical_accounting_values(
+                        c['username'], state, now_dt, (c.get('mac_binding') or '').upper()))
                     imported_consumption_count += 1
-                else:
-                    vouchers_bulk.append((
-                        batch_id, c['package_id'], c['reseller_id'], c['serial_number'],
-                        c['username'], c['password'], c['pin_code'], 'unused', c.get('mac_binding', ''),
-                        None, None, None,
-                        snap_p, snap_c, snap_q, snap_u,
-                        snap_val, snap_unit, snap_days,
-                        snap_rd, snap_ru, snap_r_str,
-                        snap_simul, snap_group
-                    ))
-
-                radcheck_bulk.append((c['username'], 'Cleartext-Password', ':=', c['password']))
+                radcheck_bulk.extend(imported_radius_checks(c['username'], c['password'], state))
                 if c.get('mac_binding') and len(c['mac_binding']) > 5:
                     radcheck_bulk.append((c['username'], 'Calling-Station-Id', '==', c['mac_binding'].upper()))
-
                 radusergroup_bulk.append((c['username'], c['package_name'], 1))
 
             # Bulk Execute Vouchers
@@ -710,15 +644,21 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
             radcheck_bulk = []
             radusergroup_bulk = []
             radreply_bulk = []
+            radacct_bulk = []
 
             for s in cleaned_rows:
+                state = imported_state(s, s.get('matched_pkg') or {}, now_dt, import_consumption)
                 subscribers_bulk.append((
                     s['username'], s['password'], s['full_name'], s['phone'], '',
                     s['service_type'], s['package_id'], s['mac_binding'], s['static_ip'],
-                    s['notes'], now_str
+                    s['notes'], now_str, state['status'], state['first_used_at'],
+                    state['expires_at'], state['last_renewed_at']
                 ))
-
-                radcheck_bulk.append((s['username'], 'Cleartext-Password', ':=', s['password']))
+                if state['history']:
+                    radacct_bulk.append(historical_accounting_values(
+                        s['username'], state, now_dt, (s.get('mac_binding') or '').upper()))
+                    imported_consumption_count += 1
+                radcheck_bulk.extend(imported_radius_checks(s['username'], s['password'], state))
                 if s.get('mac_binding') and len(s['mac_binding']) > 5:
                     radcheck_bulk.append((s['username'], 'Calling-Station-Id', '==', s['mac_binding'].upper()))
 
@@ -730,8 +670,9 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
             s_sql = f'''
                 INSERT INTO wisp_subscribers (
                     username, password, full_name, phone, address,
-                    service_type, package_id, mac_binding, static_ip, status, notes, created_at
-                ) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 'active', {ph}, {ph})
+                    service_type, package_id, mac_binding, static_ip, notes, created_at,
+                    status, first_used_at, expires_at, last_renewed_at
+                ) VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
             '''
             for i in range(0, len(subscribers_bulk), 1000):
                 cursor.executemany(s_sql, subscribers_bulk[i:i+1000])
@@ -749,6 +690,18 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
                 for i in range(0, len(radreply_bulk), 1000):
                     cursor.executemany(rr_sql, radreply_bulk[i:i+1000])
 
+            if radacct_bulk:
+                acct_sql = f"""
+                    INSERT INTO radacct (
+                        acctsessionid,acctuniqueid,username,realm,nasipaddress,nasportid,nasporttype,
+                        acctstarttime,acctupdatetime,acctstoptime,acctinterval,acctsessiontime,acctauthentic,
+                        connectinfo_start,connectinfo_stop,acctinputoctets,acctoutputoctets,
+                        acctinputgigawords,acctoutputgigawords,calledstationid,callingstationid,
+                        acctterminatecause,servicetype,framedprotocol,framedipaddress
+                    ) VALUES ({','.join([ph] * 25)})
+                """
+                cursor.executemany(acct_sql, radacct_bulk)
+
             if is_mysql:
                 cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
             conn.commit()
@@ -762,8 +715,8 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
             log_audit(1, admin_username, 'IMPORT_SUBSCRIBERS', 'subscribers',
                       f'Successfully imported {total_count} subscribers from Excel.')
 
-            return True, f"تم بنجاح استيراد {total_count} مشترك ثابت وتفعيل حساباتهم ومزامنتها مع FreeRADIUS.", {
-                'count': total_count
+            return True, f"تم بنجاح استيراد {total_count} مشترك ثابت ومزامنة حساباتهم مع FreeRADIUS.", {
+                'count': total_count, 'imported_consumption_count': imported_consumption_count
             }
 
     except Exception as e:

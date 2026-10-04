@@ -175,6 +175,23 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
     days = int(days_threshold)
     chunk = max(100, min(int(chunk_size or 5000), 20000))
     
+    # Keep every session still used by an account's current-cycle quota or baseline.
+    eligible = """
+        a.acctstoptime IS NOT NULL
+        AND a.acctstoptime < NOW() - INTERVAL %s DAY
+        AND COALESCE(a.acctterminatecause, '') NOT IN
+            ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed')
+        AND NOT EXISTS (
+            SELECT 1 FROM wisp_subscribers s WHERE s.username = a.username
+            AND (s.last_renewed_at IS NULL OR a.acctstarttime >= s.last_renewed_at
+                 OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid = a.radacctid AND b.renewed_at = s.last_renewed_at))
+        )
+        AND NOT EXISTS (
+            SELECT 1 FROM wisp_vouchers v WHERE v.username = a.username
+            AND (v.last_renewed_at IS NULL OR a.acctstarttime >= v.last_renewed_at
+                 OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid = a.radacctid AND b.renewed_at = v.last_renewed_at))
+        )
+    """
     total_archived = 0
     total_deleted = 0
 
@@ -187,12 +204,11 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
                     cur = db.cursor()
                     try:
                         # 1. Fetch batch of radacctids to archive
-                        cur.execute("""
-                            SELECT radacctid FROM radacct
-                            WHERE acctstoptime IS NOT NULL 
-                              AND acctstoptime < NOW() - INTERVAL %s DAY
-                            ORDER BY radacctid ASC
-                            LIMIT %s
+                        cur.execute(f"""
+                            SELECT a.radacctid FROM radacct a
+                            WHERE {eligible}
+                            ORDER BY a.radacctid ASC
+                            LIMIT %s FOR UPDATE
                         """, (days, chunk))
                         rows = cur.fetchall()
                         if not rows:
@@ -227,7 +243,7 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
                         archived_count = cur.rowcount
 
                         # 3. Delete batch from radacct
-                        cur.execute(f"DELETE FROM radacct WHERE radacctid IN ({placeholders})", tuple(ids))
+                        cur.execute(f"DELETE a FROM radacct a WHERE a.radacctid IN ({placeholders}) AND {eligible}", tuple(ids) + (days,))
                         deleted_count = cur.rowcount
 
                         db.commit()

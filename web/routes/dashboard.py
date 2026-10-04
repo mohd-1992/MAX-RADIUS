@@ -30,7 +30,7 @@ from core.rbac import (
     get_current_manager, has_permission, require_permission,
     verify_manager_password, hash_manager_password, login_required
 )
-from web.decorators import require_role_or_permission
+from web.decorators import require_role_or_permission, require_feature
 
 # Services imports
 from services.subscriber_service import *
@@ -113,8 +113,8 @@ def api_system_ping():
 
 
 @dashboard_bp.route('/coverage-map', endpoint="coverage_map_page")
-
 @login_required
+@require_feature('gis_map')
 def coverage_map_page():
     from services.coverage_map_service import get_coverage_map_data
     data = get_coverage_map_data()
@@ -123,8 +123,8 @@ def coverage_map_page():
 
 
 @dashboard_bp.route('/api/coverage-map/data', endpoint="api_coverage_map_data")
-
 @login_required
+@require_feature('gis_map')
 def api_coverage_map_data():
     from services.coverage_map_service import get_coverage_map_data
     data = get_coverage_map_data()

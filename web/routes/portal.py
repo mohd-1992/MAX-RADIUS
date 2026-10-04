@@ -186,6 +186,10 @@ def api_portal_session_status():
     if not user_data:
         return jsonify({'active': False, 'reason': 'user_not_found'})
 
+    if not user_data.get('accounting_available', True):
+        return jsonify({'active': None, 'reason': 'accounting_unavailable',
+                        'accounting_available': False, 'remaining_mb': None}), 503
+
     is_expired = user_data.get('is_expired', False)
     is_quota_depleted = user_data.get('is_quota_depleted', False)
     

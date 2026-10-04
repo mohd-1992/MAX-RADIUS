@@ -420,7 +420,8 @@
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block ml-1 animate-pulse"></span>متصل الآن
                                 </span>
                                 {% else %}
-                                <span class="text-slate-400">{{ s.acctstoptime or '-' }}</span>
+                                <span class="text-slate-400">غير متصل</span>
+                                <span class="block text-slate-500 text-[10px]">{{ s.acctstoptime or '-' }}</span>
                                 {% endif %}
                             </td>
                             <td class="p-3 font-mono text-amber-300 font-semibold">{{ s.duration_str }}</td>

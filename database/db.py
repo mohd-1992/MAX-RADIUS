@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Database Access Layer for WISP FreeRADIUS & MikroTik Manager.
-Supports MySQL / MariaDB (Primary) with SQLite fallback and dynamic query parameter adaptation.
+Supports explicitly selected MySQL / MariaDB or SQLite with query parameter adaptation.
 """
 
 import os
@@ -27,35 +27,21 @@ try:
 except ImportError:
     SQLITE_AVAILABLE = False
 
-_CURRENT_TZ_OFFSET = '+03:00'
+DB_STORAGE_TIMEZONE = os.environ.get('DB_STORAGE_TIMEZONE', 'Asia/Aden')
+_STORAGE_TZ_OFFSET = '+03:00'
 
 def set_active_db_timezone(tz_name_or_offset):
-    """Sets the SQL session time_zone offset (e.g. '+03:00' or 'Asia/Riyadh')."""
-    global _CURRENT_TZ_OFFSET
-    if not tz_name_or_offset:
-        return
-    if isinstance(tz_name_or_offset, str) and (tz_name_or_offset.startswith('+') or tz_name_or_offset.startswith('-')):
-        _CURRENT_TZ_OFFSET = tz_name_or_offset
-        return
-    try:
-        from core.time_service import get_system_timezone
-        tz = get_system_timezone(tz_name_or_offset)
-        now = datetime.datetime.now(tz)
-        utcoffset = now.utcoffset()
-        if utcoffset is not None:
-            total_seconds = int(utcoffset.total_seconds())
-            sign = '+' if total_seconds >= 0 else '-'
-            abs_seconds = abs(total_seconds)
-            hours = abs_seconds // 3600
-            minutes = (abs_seconds % 3600) // 60
-            _CURRENT_TZ_OFFSET = f"{sign}{hours:02d}:{minutes:02d}"
-    except Exception:
-        pass
+    """
+    No-op for DB session time_zone:
+    Database storage timezone is kept fixed to server/storage timezone (+03:00 / Asia/Aden)
+    to maintain strict synchronization with FreeRADIUS and preserve DATETIME integrity.
+    Display timezone is handled exclusively in presentation layer via core.time_service.
+    """
+    pass
 
 def get_db_timezone_offset():
-    """Returns the cached SQL time_zone offset string without executing any database query."""
-    global _CURRENT_TZ_OFFSET
-    return _CURRENT_TZ_OFFSET
+    """Returns the fixed database storage time_zone offset string (+03:00)."""
+    return _STORAGE_TZ_OFFSET
 
 def is_mysql_conn(conn):
     """Returns True if connection is not a standard SQLite connection."""
@@ -63,9 +49,15 @@ def is_mysql_conn(conn):
         return False
     return True
 
+class DatabaseUnavailableError(RuntimeError):
+    """The configured database cannot be reached; switching backends is forbidden."""
+
+
 def get_connection():
-    """Returns a database connection based on configured DB_TYPE or fallback."""
-    if DB_TYPE == 'mysql' and PYMYSQL_AVAILABLE:
+    """Connect only to the configured backend, never to an implicit fallback."""
+    if DB_TYPE == 'mysql':
+        if not PYMYSQL_AVAILABLE:
+            raise DatabaseUnavailableError("MySQL driver is unavailable.")
         try:
             tz_offset = get_db_timezone_offset()
             conn = pymysql.connect(
@@ -81,10 +73,11 @@ def get_connection():
                 init_command=f"SET time_zone = '{tz_offset}';"
             )
             return conn
-        except Exception:
-            # Fallback to SQLite if MySQL is unreachable
-            pass
-            
+        except Exception as exc:
+            raise DatabaseUnavailableError("The configured MySQL database is unavailable.") from exc
+
+    if DB_TYPE != 'sqlite':
+        raise ValueError(f"Unsupported DB_TYPE: {DB_TYPE!r}")
     if SQLITE_AVAILABLE:
         conn = sqlite3.connect(SQLITE_DB_PATH, timeout=25.0, detect_types=sqlite3.PARSE_DECLTYPES)
         conn.row_factory = sqlite3.Row
@@ -239,14 +232,17 @@ def init_database():
     """Executes schema initialization script on first startup."""
     current_dir = os.path.dirname(__file__)
     
-    if DB_TYPE == 'mysql' and PYMYSQL_AVAILABLE:
+    if DB_TYPE == 'mysql':
+        if not PYMYSQL_AVAILABLE:
+            raise DatabaseUnavailableError('MySQL driver is unavailable.')
         schema_file = os.path.join(current_dir, 'schema_mysql.sql')
         if not os.path.exists(schema_file):
             return
             
         try:
-            conn = get_connection()
-            if is_mysql_conn(conn):
+            with get_connection() as conn:
+                mysql = is_mysql_conn(conn)
+            if mysql:
                 print(f"[DB] Initializing MySQL Database ({DB_HOST}:{DB_PORT}/{DB_NAME})...")
                 with open(schema_file, 'r', encoding='utf-8') as f:
                     sql_content = f.read()
@@ -267,10 +263,17 @@ def init_database():
                 except Exception as e:
                     print(f"[Schema Healer Auto-Run Notice]: {e}")
                 return
+        except DatabaseUnavailableError:
+            raise
         except Exception as e:
             print(f"[DB Notice]: MySQL schema check: {e}")
+        return
             
-    if SQLITE_AVAILABLE and (DB_TYPE != 'mysql' or not PYMYSQL_AVAILABLE):
+    if DB_TYPE != 'sqlite':
+        raise ValueError(f'Unsupported DB_TYPE: {DB_TYPE!r}')
+    if not SQLITE_AVAILABLE:
+        raise DatabaseUnavailableError('SQLite driver is unavailable.')
+    if SQLITE_AVAILABLE:
         conn = sqlite3.connect(DB_PATH)
         try:
             cursor = conn.cursor()
@@ -280,6 +283,6 @@ def init_database():
                     with open(path, 'r', encoding='utf-8') as f:
                         cursor.executescript(f.read())
             conn.commit()
-            print("[DB] SQLite Fallback Database initialized successfully.")
+            print("[DB] SQLite Database initialized successfully.")
         finally:
             conn.close()

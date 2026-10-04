@@ -325,13 +325,14 @@
                                 <tr class="hover:bg-[#11192b] transition">
                                     <td class="py-3 px-4 text-slate-300 font-mono whitespace-nowrap">{{ s.acctstarttime }}</td>
                                     <td class="py-3 px-4 text-slate-300 font-mono whitespace-nowrap">
-                                        {% if not s.acctstoptime %}
+                                        {% if s.is_active %}
                                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1">
                                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                                            <span>جلسة نشطة الآن</span>
+                                            <span>متصل الآن</span>
                                         </span>
                                         {% else %}
-                                        {{ s.acctstoptime }}
+                                        غير متصل
+                                        <span class="block text-slate-500 text-[10px]">{{ s.acctstoptime or '-' }}</span>
                                         {% endif %}
                                     </td>
                                     <td class="py-3 px-4 text-slate-300 font-sans whitespace-nowrap">{{ s.duration_str }}</td>

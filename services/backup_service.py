@@ -760,12 +760,19 @@ def restore_backup(filename, admin_username='admin'):
                 finally:
                     conn.close()
                     
-        # Self-heal schema immediately after restoration
+        # Require a healthy schema and verified accounting triggers before reporting success.
+        schema_restore_error = None
         try:
-            from database.schema_healer import heal_database_schema
-            heal_database_schema()
+            from database.schema_healer import heal_database_schema, install_accounting_triggers
+            if not heal_database_schema():
+                raise RuntimeError("Schema repair did not complete successfully.")
+            # The general healer logs some trigger failures; enforce verification here.
+            with db_session() as restored_db:
+                if is_mysql_conn(restored_db):
+                    install_accounting_triggers(restored_db)
         except Exception as e:
-            print(f"[Schema Healer Restore Notice]: {e}")
+            schema_restore_error = str(e)
+            print(f"[Schema Healer Restore Error]: {e}")
 
         # Restore Current Machine License Snapshot (Ensures license is NEVER wiped by foreign backup)
         if saved_license_row:
@@ -803,6 +810,13 @@ def restore_backup(filename, admin_username='admin'):
             print("[Restore Hook] Successfully sanitized and closed restored ghost sessions in radacct.")
         except Exception as e_hook:
             print(f"[Restore Hook Warning]: {e_hook}")
+
+        if schema_restore_error is not None:
+            log_audit(1, admin_username, 'RESTORE_BACKUP_INCOMPLETE', 'backup',
+                      f'Restore from {safe_name} incomplete: {schema_restore_error}')
+            return False, (f"تم تطبيق بيانات النسخة الاحتياطية [{safe_name}]، لكن الاستعادة غير مكتملة: "
+                           f"فشل إصلاح قاعدة البيانات أو التحقق من مشغلات المحاسبة: {schema_restore_error}. "
+                           "لم يتم التراجع عن البيانات المستعادة؛ يلزم معالجة السبب وإعادة الاستعادة قبل اعتماد النظام.")
 
         extra_info = f" واستعادة {restored_files_count} ملف مرفقات/شعارات" if restored_files_count > 0 else ""
         log_audit(1, admin_username, 'RESTORE_BACKUP', 'backup', f'Restored database & files from {safe_name}')
@@ -887,4 +901,4 @@ def send_backup_to_telegram(filename, admin_username='admin', override_chat_id=N
             log_audit(1, admin_username, 'SEND_BACKUP_TELEGRAM', 'backup', f'Sent backup archive {safe_name} to Telegram')
         return ok, msg
     except Exception as e:
-        return False, f"فشل أثناء إرسال النسخة عبر تيليجرام: {str(e)}"
+        return False, f"فشل أثناء إرسال النسخة عبر تيليجرام: {str(e)}"

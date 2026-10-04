@@ -11,6 +11,7 @@ import datetime
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 
 from core.rbac import login_required, require_permission, get_current_manager
+from web.decorators import require_feature
 from services.whatsapp_service import (
     get_whatsapp_settings, update_whatsapp_settings,
     get_all_templates, get_template_by_key, save_template,
@@ -31,6 +32,7 @@ whatsapp_bp = Blueprint('whatsapp_bp', __name__)
 @whatsapp_bp.route('/whatsapp/dashboard', methods=['GET'], endpoint='whatsapp_dashboard')
 @login_required
 @require_permission('settings.manage')
+@require_feature('whatsapp_gateway')
 def whatsapp_dashboard():
     settings = get_whatsapp_settings()
     templates = get_all_templates()

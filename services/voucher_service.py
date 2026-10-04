@@ -7,6 +7,7 @@ QR code generation data, printing templates, and sales tracking.
 import secrets
 import string
 import datetime
+from core.time_service import get_db_storage_now
 import time
 from database.db import query_all, query_one, execute_write, execute_many, log_audit
 from core.radius_sync import sync_voucher_to_radius, delete_user_from_radius
@@ -44,7 +45,7 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
         raise ValueError(err_msg)
         
     same_user_pass = bool(same_user_pass)
-    now_dt = datetime.datetime.now()
+    now_dt = get_db_storage_now().replace(tzinfo=None)
     batch_num = f"B{now_dt.strftime('%y%m%d%H%M%S')}-{secrets.randbelow(1000):03d}"
     
     if not name or not str(name).strip():
@@ -101,7 +102,7 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
             cur_bal = float(mgr.get('wallet_balance') or 0.0)
             new_bal = round(cur_bal - total_cost, 2)
             execute_write('UPDATE wisp_managers SET wallet_balance = ? WHERE id = ?', (new_bal, reseller_id))
-            inv_number = f"INV-CRD-{reseller_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
+            inv_number = f"INV-CRD-{reseller_id}-{get_db_storage_now().replace(tzinfo=None).strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
             execute_write('''
                 INSERT INTO wisp_manager_invoices (
                     invoice_number, manager_id, transaction_type, amount,
@@ -130,7 +131,7 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
     pkg_name = pkg['name']
     
     for i in range(count):
-        serial = f"{datetime.datetime.now().strftime('%y%m')}{secrets.randbelow(100000000):08d}"
+        serial = f"{get_db_storage_now().replace(tzinfo=None).strftime('%y%m')}{secrets.randbelow(100000000):08d}"
         
         if pin_only:
             pin = f"{prefix}{generate_random_code(code_length, char_type)}"
@@ -347,7 +348,7 @@ def delete_batch(batch_id, admin_username='admin'):
                 bal_before = float(mgr.get('wallet_balance') or 0.0)
                 bal_after = round(bal_before + refund_amount, 2)
                 execute_write('UPDATE wisp_managers SET wallet_balance = ? WHERE id = ?', (bal_after, reseller_id))
-                inv_number = f"INV-REF-{reseller_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
+                inv_number = f"INV-REF-{reseller_id}-{get_db_storage_now().replace(tzinfo=None).strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
                 execute_write('''
                     INSERT INTO wisp_manager_invoices (
                         invoice_number, manager_id, transaction_type, amount,
@@ -469,9 +470,9 @@ def calculate_package_expiration(validity_value, validity_unit='days', start_dt=
     if start_dt is None:
         try:
             from core.time_service import get_system_now
-            start_dt = get_system_now()
+            start_dt = get_db_storage_now()
         except Exception:
-            start_dt = datetime.datetime.now()
+            start_dt = get_db_storage_now().replace(tzinfo=None)
     
     unit = str(validity_unit or 'days').lower().strip()
     
@@ -530,14 +531,20 @@ def check_and_update_expired_vouchers():
                 FROM radacct a
                 JOIN wisp_vouchers v2 ON a.username = v2.username AND v2.status IN ('active', 'used')
                 JOIN wisp_packages p ON v2.package_id = p.id
+                LEFT JOIN wisp_session_baselines b ON a.radacctid = b.radacctid AND b.renewed_at = v2.last_renewed_at
                 WHERE COALESCE(v2.snap_volume_quota_mb, p.volume_quota_mb, 0) > 0
-                  AND (v2.last_renewed_at IS NULL OR COALESCE(a.acctstoptime, a.acctupdatetime, CURRENT_TIMESTAMP) >= v2.last_renewed_at)
+                  AND (v2.last_renewed_at IS NULL OR a.acctstarttime >= v2.last_renewed_at OR b.radacctid IS NOT NULL)
                 GROUP BY a.username, v2.snap_volume_quota_mb, p.volume_quota_mb, v2.extra_quota_mb
                 HAVING SUM(
-                    (CAST(COALESCE(a.acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + 
-                    (CAST(COALESCE(a.acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + 
-                    CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + 
-                    CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED)
+                    CASE 
+                        WHEN v2.last_renewed_at IS NULL THEN (CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED))
+                        WHEN b.radacctid IS NULL AND a.acctstarttime >= v2.last_renewed_at THEN (CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED))
+                        WHEN b.radacctid IS NOT NULL THEN (
+                            (CASE WHEN a.acctinputoctets > b.baseline_input_bytes THEN a.acctinputoctets - b.baseline_input_bytes ELSE 0 END) +
+                            (CASE WHEN a.acctoutputoctets > b.baseline_output_bytes THEN a.acctoutputoctets - b.baseline_output_bytes ELSE 0 END)
+                        )
+                        ELSE 0
+                    END
                 ) >= ((COALESCE(v2.snap_volume_quota_mb, p.volume_quota_mb, 0) + COALESCE(v2.extra_quota_mb, 0)) * 1048576)
             ) over_limit ON v.username = over_limit.username
             SET v.status = 'expired',
@@ -553,15 +560,21 @@ def check_and_update_expired_vouchers():
                 FROM radacct a
                 JOIN wisp_subscribers s2 ON a.username = s2.username AND s2.status = 'active'
                 JOIN wisp_packages p ON s2.package_id = p.id
-                WHERE p.volume_quota_mb > 0
-                  AND (s2.last_renewed_at IS NULL OR COALESCE(a.acctstoptime, a.acctupdatetime, CURRENT_TIMESTAMP) >= s2.last_renewed_at)
-                GROUP BY a.username, p.volume_quota_mb, s2.extra_quota_mb
+                LEFT JOIN wisp_session_baselines b ON a.radacctid = b.radacctid AND b.renewed_at = s2.last_renewed_at
+                WHERE COALESCE(s2.snap_volume_quota_mb, p.volume_quota_mb, 0) > 0
+                  AND (s2.last_renewed_at IS NULL OR a.acctstarttime >= s2.last_renewed_at OR b.radacctid IS NOT NULL)
+                GROUP BY a.username, s2.snap_volume_quota_mb, p.volume_quota_mb, s2.extra_quota_mb
                 HAVING SUM(
-                    (CAST(COALESCE(a.acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + 
-                    (CAST(COALESCE(a.acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + 
-                    CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + 
-                    CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED)
-                ) >= ((p.volume_quota_mb + COALESCE(s2.extra_quota_mb, 0)) * 1048576)
+                    CASE 
+                        WHEN s2.last_renewed_at IS NULL THEN (CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED))
+                        WHEN b.radacctid IS NULL AND a.acctstarttime >= s2.last_renewed_at THEN (CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED))
+                        WHEN b.radacctid IS NOT NULL THEN (
+                            (CASE WHEN a.acctinputoctets > b.baseline_input_bytes THEN a.acctinputoctets - b.baseline_input_bytes ELSE 0 END) +
+                            (CASE WHEN a.acctoutputoctets > b.baseline_output_bytes THEN a.acctoutputoctets - b.baseline_output_bytes ELSE 0 END)
+                        )
+                        ELSE 0
+                    END
+                ) >= ((COALESCE(s2.snap_volume_quota_mb, p.volume_quota_mb, 0) + COALESCE(s2.extra_quota_mb, 0)) * 1048576)
             ) over_limit ON s.username = over_limit.username
             SET s.status = 'expired'
             WHERE s.status = 'active'
@@ -575,10 +588,18 @@ def check_and_update_expired_vouchers():
                 FROM radacct a
                 JOIN wisp_vouchers v2 ON a.username = v2.username AND v2.status IN ('active', 'used')
                 JOIN wisp_packages p ON v2.package_id = p.id
+                LEFT JOIN wisp_session_baselines b ON a.radacctid = b.radacctid AND b.renewed_at = v2.last_renewed_at
                 WHERE COALESCE(v2.snap_uptime_limit_mins, p.uptime_limit_mins, 0) > 0
-                  AND (v2.last_renewed_at IS NULL OR COALESCE(a.acctstoptime, a.acctupdatetime, CURRENT_TIMESTAMP) >= v2.last_renewed_at)
+                  AND (v2.last_renewed_at IS NULL OR a.acctstarttime >= v2.last_renewed_at OR b.radacctid IS NOT NULL)
                 GROUP BY a.username, v2.snap_uptime_limit_mins, p.uptime_limit_mins
-                HAVING SUM(COALESCE(a.acctsessiontime, 0)) >= (COALESCE(v2.snap_uptime_limit_mins, p.uptime_limit_mins, 0) * 60)
+                HAVING SUM(
+                    CASE 
+                        WHEN v2.last_renewed_at IS NULL THEN COALESCE(a.acctsessiontime, 0)
+                        WHEN b.radacctid IS NULL AND a.acctstarttime >= v2.last_renewed_at THEN COALESCE(a.acctsessiontime, 0)
+                        WHEN b.radacctid IS NOT NULL THEN (CASE WHEN a.acctsessiontime > b.baseline_seconds THEN a.acctsessiontime - b.baseline_seconds ELSE 0 END)
+                        ELSE 0
+                    END
+                ) >= (COALESCE(v2.snap_uptime_limit_mins, p.uptime_limit_mins, 0) * 60)
             ) over_uptime ON v.username = over_uptime.username
             SET v.status = 'expired',
                 v.expire_reason = 'تم استهلاك رصيد الوقت المسموح للباقة'
@@ -641,7 +662,7 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
     Activates a voucher card upon first login or manual activation.
     1. Locks the row with SELECT ... FOR UPDATE within an atomic transaction.
     2. Checks idempotency: if status != 'unused', returns False.
-    3. Captures live package snapshot at this exact moment and saves it into wisp_vouchers snap_* columns.
+    3. Preserves the issued voucher policy, falling back to its package only for missing snapshots.
     4. Calculates exact expiration date from validity_value and validity_unit natively in SQL.
     5. Updates status = 'active', first_used_at, and expires_at.
     6. Writes snapshotted rate-limit and VSAs to radreply.
@@ -684,40 +705,59 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
             if card['status'] != 'unused':
                 return False
 
-            val = card.get('validity_value') if card.get('validity_value') is not None else (card.get('validity_days') or 30)
-            unit = card.get('validity_unit') or 'days'
-            quota_mb = int(card.get('volume_quota_mb') or 0)
-            uptime_mins = int(card.get('uptime_limit_mins') or 0)
-            pkg_price = float(card.get('price') or 0.0)
-            pkg_cost = float(card.get('cost') or 0.0)
-            simul = int(card.get('simultaneous_sessions') or 1)
-            mgroup = str(card.get('mikrotik_group') or '').strip()
-            
-            rate_str = build_mikrotik_rate_limit(
-                download=card['rate_download'],
-                upload=card['rate_upload'],
-                burst_down=card.get('burst_download'),
-                burst_up=card.get('burst_upload'),
-                threshold_down=card.get('burst_threshold_down'),
-                threshold_up=card.get('burst_threshold_up'),
-                burst_time=card.get('burst_time', 16),
-                priority=card.get('priority', 8),
-                min_down=card.get('min_download'),
-                min_up=card.get('min_upload')
-            )
+            def policy(field, default=None):
+                saved = card.get('snap_' + field)
+                if saved is not None:
+                    return saved
+                live = card.get(field)
+                return default if live is None else live
 
+            cursor.execute(adapt_query("""
+                SELECT COALESCE(
+                    (SELECT MIN(acctstarttime) FROM radacct WHERE LOWER(username) = LOWER(?)),
+                    (SELECT MIN(authdate) FROM radpostauth WHERE LOWER(username) = LOWER(?)
+                     AND reply = 'Access-Accept' AND authdate >= COALESCE(?, authdate)),
+                    CURRENT_TIMESTAMP) AS activation_at
+            """, conn), (card['username'], card['username'], card.get('created_at')))
+            activation_row = cursor.fetchone()
+            activation_at = card.get('first_used_at') or activation_row['activation_at']
+            val = int(policy('validity_value', policy('validity_days', 30)))
+            unit = policy('validity_unit', 'days') or 'days'
+            quota_mb = int(policy('volume_quota_mb', 0) or 0)
+            uptime_mins = int(policy('uptime_limit_mins', 0) or 0)
+            pkg_price = float(policy('price', 0.0) or 0.0)
+            pkg_cost = float(policy('cost', 0.0) or 0.0)
+            simul = int(policy('simultaneous_sessions', 1) or 1)
+            mgroup = str(policy('mikrotik_group', '') or '').strip()
+            
+            rate_str = card.get('snap_rate_limit_str')
+            if rate_str is None or not str(rate_str).strip():
+                rate_str = build_mikrotik_rate_limit(
+                    download=policy('rate_download', '0'),
+                    upload=policy('rate_upload', '0'),
+                    burst_down=card.get('burst_download'),
+                    burst_up=card.get('burst_upload'),
+                    threshold_down=card.get('burst_threshold_down'),
+                    threshold_up=card.get('burst_threshold_up'),
+                    burst_time=card.get('burst_time', 16),
+                    priority=card.get('priority', 8),
+                    min_down=card.get('min_download'),
+                    min_up=card.get('min_upload')
+                )
+    
             # 1. Update card status and freeze snapshot on voucher record
             update_sql = adapt_query('''
                 UPDATE wisp_vouchers
                 SET status = 'active',
-                    first_used_at = IFNULL(first_used_at, CURRENT_TIMESTAMP),
-                    last_renewed_at = IFNULL(last_renewed_at, CURRENT_TIMESTAMP),
+                    first_used_at = IFNULL(first_used_at, ?),
+                    last_renewed_at = IFNULL(last_renewed_at, ?),
                     expires_at = IFNULL(expires_at, 
                         CASE 
-                            WHEN ? = 'minutes' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? MINUTE)
-                            WHEN ? = 'hours' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? HOUR)
-                            WHEN ? = 'months' THEN DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? MONTH)
-                            ELSE DATE_ADD(CURRENT_TIMESTAMP, INTERVAL ? DAY)
+                            WHEN ? <= 0 THEN NULL
+                            WHEN ? = 'minutes' THEN DATE_ADD(?, INTERVAL ? MINUTE)
+                            WHEN ? = 'hours' THEN DATE_ADD(?, INTERVAL ? HOUR)
+                            WHEN ? = 'months' THEN DATE_ADD(?, INTERVAL ? MONTH)
+                            ELSE DATE_ADD(?, INTERVAL ? DAY)
                         END
                     ),
                     expire_reason = '',
@@ -737,9 +777,10 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
                 WHERE id = ? AND batch_id = ?
             ''', conn)
             cursor.execute(update_sql, (
-                unit, val, unit, val, unit, val, val,
+                activation_at, activation_at, val,
+                unit, activation_at, val, unit, activation_at, val, unit, activation_at, val, activation_at, val,
                 pkg_price, pkg_cost, quota_mb, uptime_mins,
-                val, unit, val, str(card.get('rate_download') or ''), str(card.get('rate_upload') or ''),
+                val, unit, policy('validity_days', val), str(policy('rate_download', '0')), str(policy('rate_upload', '0')),
                 rate_str, simul, mgroup,
                 card['id'], card['batch_id']
             ))
