@@ -267,14 +267,11 @@ def edit_package_action(pkg_id):
 
 def delete_package_action(pkg_id):
     try:
-        pkg = query_one('SELECT name FROM wisp_packages WHERE id = ?', (pkg_id,))
-        if pkg:
-            execute_write('DELETE FROM radgroupreply WHERE groupname = ?', (pkg['name'],))
-            execute_write('DELETE FROM radgroupcheck WHERE groupname = ?', (pkg['name'],))
-            execute_write('DELETE FROM wisp_packages WHERE id = ?', (pkg_id,))
-            flash('تم حذف الباقة بنجاح.', 'info')
-    except Exception as e:
-        flash(f'خطأ أثناء الحذف: {str(e)}', 'danger')
+        from services.account_lifecycle_service import delete_packages
+        count = delete_packages([pkg_id])
+        flash('تم حذف الباقة.' if count else 'الباقة غير موجودة.', 'info')
+    except Exception as exc:
+        flash(str(exc), 'danger')
     return redirect(url_for('packages'))
 
 
@@ -349,13 +346,9 @@ def packages_bulk_action():
         placeholders = ','.join(['?'] * count)
 
         if action == 'delete':
-            # 1. Fetch names to clean RADIUS groups
-            pkgs = query_all(f"SELECT name FROM wisp_packages WHERE id IN ({placeholders})", tuple(pkg_ids))
-            for p in pkgs:
-                execute_write('DELETE FROM radgroupreply WHERE groupname = ?', (p['name'],))
-                execute_write('DELETE FROM radgroupcheck WHERE groupname = ?', (p['name'],))
-            execute_write(f"DELETE FROM wisp_packages WHERE id IN ({placeholders})", tuple(pkg_ids))
-            msg = f'تم حذف {count} باقة محددة بنجاح.'
+            from services.account_lifecycle_service import delete_packages
+            deleted = delete_packages(pkg_ids)
+            msg = f'تم حذف {deleted} باقة غير مرتبطة بنجاح.'
 
         elif action == 'activate':
             execute_write(f"UPDATE wisp_packages SET is_active = 1 WHERE id IN ({placeholders})", tuple(pkg_ids))

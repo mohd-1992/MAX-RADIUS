@@ -46,8 +46,8 @@ curl -sSL https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/install.sh
 git clone https://github.com/mohd-1992/MAX-RADIUS.git /opt/max-radius
 cd /opt/max-radius
 cp env.example .env
-docker compose pull
-docker compose up -d
+docker compose -f docker-compose.production.yml pull
+docker compose -f docker-compose.production.yml up -d
 ```
 
 ---

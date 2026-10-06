@@ -750,6 +750,10 @@ session {
 #  Once we KNOW that the user has been authenticated, there are
 #  additional steps we can take.
 post-auth {
+	# MAX_MESSAGE_AUTHENTICATOR_ACCEPT
+	update reply {
+		Message-Authenticator := 0x00000000000000000000000000000000
+	}
 	#
 	#  If you need to have a State attribute, you can
 	#  add it here.  e.g. for later CoA-Request with
@@ -963,6 +967,10 @@ post-auth {
 		# log failed authentications in SQL, too.
 		sql
 		attr_filter.access_reject
+		# MAX_MESSAGE_AUTHENTICATOR_REJECT
+		update reply {
+			Message-Authenticator := 0x00000000000000000000000000000000
+		}
 
 		# Insert EAP-Failure message if the request was
 		# rejected by policy instead of because of an

@@ -6,7 +6,7 @@ MAX RADIUS Application Factory & Blueprint Initializer.
 import os
 import datetime
 import logging
-from flask import Flask, request, jsonify, redirect, url_for, session, render_template, flash
+from flask import Flask, g, request, jsonify, redirect, url_for, session, render_template, flash
 
 logger = logging.getLogger('web')
 
@@ -51,10 +51,15 @@ def create_app(config=None):
 
     # Register Template Filters
     register_template_filters(app)
+    from core.license_security import install_csrf
+    install_csrf(app, lambda req: req.path in (
+        '/settings/license/activate', '/settings/license/sync-heartbeat'))
 
     # Start Background 5-minute Real-Time License Heartbeat Sync Daemon
     try:
         start_license_heartbeat_daemon(interval_seconds=300)
+        from services.license_guard_service import start_radius_license_state_daemon
+        start_radius_license_state_daemon()
     except Exception:
         pass
 
@@ -66,6 +71,40 @@ def create_app(config=None):
         elif request.path.startswith('/static/'):
             response.headers['Cache-Control'] = 'public, max-age=86400'
         return response
+
+    @app.before_request
+    def enforce_maintenance_mode():
+        import os
+        if request.method in ('POST','PUT','PATCH','DELETE') and request.path not in (
+            '/api/tools/database-maintenance/factory-reset', '/login', '/logout'):
+            try:
+                from services.factory_reset_service import begin_operational_request
+                if not begin_operational_request():
+                    return jsonify(success=False,message='إعادة المصنع قيد التنفيذ؛ انتظر اكتمالها قبل إجراء عمليات أخرى.'),409
+                g.factory_operational_request = True
+            except Exception:
+                return jsonify(success=False,message='تعذر التأكد من حالة إعادة المصنع.'),503
+        if os.environ.get('MAX_MAINTENANCE_MODE') != '1':
+            return None
+        if request.path.startswith(('/static/', '/api/tools/database-maintenance', '/tools/database-maintenance', '/backups', '/api/backups', '/login', '/logout', '/settings/license')):
+            if request.method in ('POST','PUT','PATCH','DELETE'):
+                from services.account_lifecycle_service import job_lock
+                guard=job_lock('maintenance-request')
+                if not guard.__enter__():
+                    guard.__exit__(None,None,None)
+                    return jsonify(success=False,message='توجد عملية صيانة قيد التنفيذ.'),409
+                g.maintenance_guard=guard
+            return None
+        return jsonify(success=False,message='النظام في وضع الصيانة؛ عمليات الحسابات متوقفة مؤقتًا.'), 503
+
+    @app.teardown_request
+    def release_maintenance_request(error=None):
+        if g.pop('factory_operational_request',False):
+            from services.factory_reset_service import end_operational_request
+            end_operational_request()
+        guard=g.pop('maintenance_guard',None)
+        if guard is not None:
+            guard.__exit__(None,None,None)
 
     # 2. License Guard Interceptor
     @app.before_request
@@ -250,12 +289,19 @@ def create_app(config=None):
                 'license_info': lic_stat,
                 'is_over_quota': lic_stat.get('is_over_quota', False),
                 'quota_warning': lic_stat.get('quota_warning', ''),
+                'current_active_sessions': lic_stat.get('current_active_sessions'),
+                'max_active_sessions': lic_stat.get('max_active_sessions', 0),
+                'available_capacity': lic_stat.get('available_capacity', 0),
+                'pending_reservations': lic_stat.get('pending_reservations', 0),
+                'capacity_usage_pct': lic_stat.get('capacity_usage_pct', 0.0),
+                'active_sessions_read_error': lic_stat.get('active_sessions_read_error', False),
+                'is_legacy_license': lic_stat.get('is_legacy_license', False),
                 'current_year': sys_now.year,
                 'app_name': APP_NAME,
                 'app_version': APP_VERSION,
-                'app_edition': APP_EDITION,
+                'app_edition': (lic_stat.get('plan_tier') if lic_stat and lic_stat.get('plan_tier') else APP_EDITION),
                 'system_version': APP_VERSION_FULL,
-                'app_version_badge': APP_VERSION_BADGE
+                'app_version_badge': f"v{APP_VERSION} {lic_stat.get('plan_tier') if lic_stat and lic_stat.get('plan_tier') else APP_EDITION}"
             }
         except Exception as _ctx_err:
             logger.error(f"[Global Settings Context Fallback Triggered]: {_ctx_err}")
@@ -362,4 +408,19 @@ def create_app(config=None):
     ]:
         app.register_blueprint(bp)
 
+    # Recover only the service state of an interrupted reset, never repeat its wipe.
+    from services.factory_reset_service import recover_factory_reset
+    import threading
+    def recover_reset_service():
+        try:
+            # A newly queued job gets a short grace period, including after a process crash.
+            from services.factory_reset_service import get_factory_reset
+            import time
+            for attempt in range(4):
+                recover_factory_reset()
+                job=get_factory_reset()
+                if not job or job['state']!='queued':break
+                if attempt<3:time.sleep(20)
+        except Exception:logger.exception('Unable to recover interrupted factory reset')
+    threading.Thread(target=recover_reset_service,name='FactoryResetRecovery',daemon=True).start()
     return app

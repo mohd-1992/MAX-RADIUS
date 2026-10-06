@@ -1962,7 +1962,7 @@
         {% endwith %}
 
         {% if is_over_quota %}
-        <!-- Over Quota Soft Freeze Alert Banner -->
+        <!-- Over Quota Active Sessions Banner -->
         <div class="bg-gradient-to-r from-amber-950/90 via-rose-950/90 to-amber-950/90 border-y border-amber-500/40 text-amber-200 px-4 py-3 shadow-xl backdrop-blur-md">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-sm">
                 <div class="flex items-center gap-3">
@@ -1971,11 +1971,20 @@
                     </span>
                     <div>
                         <strong class="font-bold text-amber-300 text-sm flex items-center gap-2">
-                            <span>تنبيه: تجاوز سقف المشتركين المسموح به في باقة الترخيص!</span>
-                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">وضع التجميد التشغيلي</span>
+                            {% if license_info.license_mode == 'active_sessions' %}
+                            <span>تنبيه: بلوغ الحد الأقصى للجلسات المتصلة المسموح بها في باقة الترخيص!</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">سقف الجلسات المتزامنة</span>
+                            {% else %}
+                            <span>تنبيه: يتطلب النظام تحديث ملف الترخيص إلى النظام الجديد المعتمد!</span>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">ترخيص سابق</span>
+                            {% endif %}
                         </strong>
                         <p class="text-xs text-amber-200/80 mt-0.5 leading-relaxed">
-                            المشتركين الحاليين: <span class="font-bold text-white">{{ license_info.current_subscribers|default(0) }}</span> من أصل سقف الباقة: <span class="font-bold text-white">{{ license_info.max_subscribers|default(0) }}</span>. تم تجميد توليد/إضافة الكروت والمشتركين الجدد. يمكنك تصفح النظام وحذف الكروت أو المشتركين الفائضة للنزول تحت السقف المرخص أو طلب ترقية للترخيص.
+                            {% if license_info.license_mode == 'active_sessions' %}
+                            الجلسات المتصلة حالياً: <span class="font-bold text-white">{{ license_info.current_active_sessions|default(0) }}</span> من أصل سقف الباقة: <span class="font-bold text-white">{{ license_info.max_active_sessions|default(0) }}</span> جلسة. تم بلوغ السقف؛ يتم منع أي اتصالات جديدة فقط، بينما تستمر الجلسات القائمة ولوحة التحكم وتوليد الكروت بالعمل بكفاءة تامة.
+                            {% else %}
+                            يعمل هذا النظام بحزمة ترخيص سابقة. يرجى مراجعة إدارة الترخيص لترقية الحزمة إلى نظام الجلسات المتصلة المتزامنة المعتمد.
+                            {% endif %}
                         </p>
                     </div>
                 </div>

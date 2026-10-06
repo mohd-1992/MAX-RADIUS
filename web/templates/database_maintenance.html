@@ -16,7 +16,7 @@
                 <h2 class="text-xl font-black text-white flex items-center gap-2">
                     صيانة وتطهير قاعدة البيانات وتحليل التخزين (Database & Storage Optimization)
                 </h2>
-                <p class="text-xs text-slate-400 mt-0.5">الحذف الجذري الذكي للكروت المنتهية، تنظيف السجلات التاريخية، إلغاء تجزئة جداول InnoDB، ومحرك الفحص الهندسي</p>
+                <p class="text-xs text-slate-400 mt-0.5">حذف الكروت المنتهية بعد إغلاق جلساتها، تنظيف التاريخ المحمي، وضغط الجداول بعد تأكيد العملية</p>
             </div>
         </div>
         <div class="flex items-center gap-3 flex-wrap">
@@ -381,7 +381,7 @@
                     </div>
                     <h4 class="text-base font-bold text-white">الصيانة التلقائية الأسبوعية (Auto-Cleanup)</h4>
                     <p class="text-xs text-slate-400 leading-relaxed">
-                        يقوم محرك المراقبة الذاتية (Watchdog) أسبوعياً بتنظيف السجلات المتراكمة وإعادة بناء الجداول لمنع تضخم القاعدة مستقبلاً دون تدخل يدوي.
+                        ينظف محرك المراقبة السجلات القديمة أسبوعياً مع حماية الدورة الحالية. ضغط الجداول إجراء منفصل بعد تأكيد العملية.
                     </p>
                 </div>
                 <div class="mt-5 pt-4 border-t border-[#162136] flex items-center justify-between text-xs text-emerald-400 font-mono">
@@ -511,8 +511,8 @@
                         حذف كافة الكروت المنتهية بأي سبب دفعة واحدة وتفريغ المساحة في قاعدة البيانات.
                     </p>
                     <label class="flex items-center gap-2 mt-2 cursor-pointer text-xs text-slate-300">
-                        <input type="checkbox" id="chkDeleteAcct" class="w-4 h-4 rounded border-slate-700 bg-[#070b14] text-rose-600 focus:ring-0">
-                        <span>مسح سجلات الجلسات (radacct) التابعة لها أيضاً</span>
+                        <input type="checkbox" disabled id="chkDeleteAcct" class="w-4 h-4 rounded border-slate-700 bg-[#070b14] text-rose-600 focus:ring-0">
+                        <span>السجل المالي والمحاسبي محفوظ؛ تنظيف التاريخ يتم من الأداة المخصصة</span>
                     </label>
                 </div>
                 <div class="mt-6 pt-4 border-t border-[#162136]">
@@ -526,6 +526,55 @@
     </div>
 
     <!-- ================================================================= -->
+    <style>
+        #cleanupJobProgress { --cleanup-surface:#0b0f19; --cleanup-inset:#070b14; --cleanup-border:#1c2840; --cleanup-text:#f1f5f9; --cleanup-muted:#94a3b8; --cleanup-accent:#22d3ee; background:var(--cleanup-surface); border:1px solid var(--cleanup-border); border-radius:1rem; padding:1.5rem; color:var(--cleanup-text); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+        #cleanupJobProgress[hidden] { display:none !important; }
+        html.theme-light #cleanupJobProgress { --cleanup-surface:#fff; --cleanup-inset:#f8fafc; --cleanup-border:#e2e8f0; --cleanup-text:#0f172a; --cleanup-muted:#64748b; --cleanup-accent:#0891b2; }
+        #cleanupJobProgress .cleanup-header, #cleanupJobProgress .cleanup-heading, #cleanupJobProgress .cleanup-bar-label { display:flex; align-items:center; gap:.75rem; }
+        #cleanupJobProgress .cleanup-header { justify-content:space-between; flex-wrap:wrap; gap:1rem; }
+        #cleanupJobProgress .cleanup-icon { display:grid; place-items:center; width:2.75rem; height:2.75rem; flex-shrink:0; border-radius:.75rem; color:var(--cleanup-accent); background:rgba(6,182,212,.1); border:1px solid rgba(6,182,212,.2); font-size:1.1rem; }
+        #cleanupJobProgress .cleanup-title { font-size:1rem; font-weight:800; color:var(--cleanup-text); margin:0; }
+        #cleanupJobProgress .cleanup-subtitle { color:var(--cleanup-muted); font-size:.75rem; margin:.2rem 0 0; }
+        #cleanupJobProgress .cleanup-actions { display:flex; align-items:center; gap:.75rem; }
+        #cleanupJobProgress .cleanup-badge { display:flex; align-items:center; gap:.4rem; font-size:.7rem; font-weight:700; border:1px solid rgba(6,182,212,.2); border-radius:999px; padding:.35rem .7rem; color:var(--cleanup-accent); background:rgba(6,182,212,.08); }
+        #cleanupJobProgress .cleanup-badge::before { content:''; width:.4rem; height:.4rem; border-radius:50%; background:currentColor; }
+        #cleanupJobProgress .cleanup-refresh { display:grid; place-items:center; width:2.25rem; height:2.25rem; border-radius:.65rem; border:1px solid var(--cleanup-border); background:var(--cleanup-inset); color:var(--cleanup-muted); transition:color .15s,border-color .15s; }
+        #cleanupJobProgress .cleanup-refresh:hover { color:var(--cleanup-accent); border-color:var(--cleanup-accent); }
+        #cleanupJobProgress .cleanup-refresh:focus-visible { outline:2px solid var(--cleanup-accent); outline-offset:3px; }
+        #cleanupJobProgress .cleanup-bar-label { justify-content:space-between; margin:1.25rem 0 .55rem; color:var(--cleanup-muted); font-size:.75rem; }
+        #cleanupJobProgress .cleanup-percentage { font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; color:var(--cleanup-accent); }
+        #cleanupJobProgress .cleanup-track { height:.5rem; border-radius:999px; overflow:hidden; background:var(--cleanup-border); }
+        #cleanupJobProgress .cleanup-fill { height:100%; width:0; border-radius:inherit; background:var(--cleanup-accent); transition:width .35s ease; }
+        #cleanupJobProgress .cleanup-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; margin:1.2rem 0 0; }
+        #cleanupJobProgress .cleanup-metric { display:flex; align-items:center; gap:.7rem; padding:.85rem 1rem; border:1px solid var(--cleanup-border); border-radius:.75rem; background:var(--cleanup-inset); }
+        #cleanupJobProgress .cleanup-metric > i { color:var(--cleanup-accent); font-size:.9rem; }
+        #cleanupJobProgress .cleanup-metric dt { color:var(--cleanup-muted); font-size:.7rem; margin:0 0 .15rem; }
+        #cleanupJobProgress .cleanup-metric dd { font-size:1.15rem; font-weight:800; font-variant-numeric:tabular-nums; margin:0; }
+        #cleanupJobProgress .cleanup-note { font-size:.73rem; line-height:1.7; color:var(--cleanup-muted); margin:.9rem 0 0; overflow-wrap:anywhere; }
+        @media(max-width:600px) { #cleanupJobProgress {padding:1rem;} #cleanupJobProgress .cleanup-metrics {grid-template-columns:1fr; gap:.5rem;} #cleanupJobProgress .cleanup-metric {padding:.65rem .8rem;} #cleanupJobProgress .cleanup-metric > div {display:flex; flex:1; align-items:center; justify-content:space-between; gap:.5rem;} #cleanupJobProgress .cleanup-metric dt {margin:0;} }
+        @media(prefers-reduced-motion:reduce) { #cleanupJobProgress .cleanup-fill {transition:none;} }
+    </style>
+    <section id="cleanupJobProgress" hidden aria-labelledby="cleanupJobTitle">
+        <div class="cleanup-header">
+            <div class="cleanup-heading">
+                <span class="cleanup-icon" aria-hidden="true"><i class="fa-solid fa-broom"></i></span>
+                <div><h3 id="cleanupJobTitle" class="cleanup-title">متابعة حذف الكروت المنتهية</h3><p class="cleanup-subtitle">يمكنك متابعة العمل في اللوحة أثناء تنفيذ المهمة</p></div>
+            </div>
+            <div class="cleanup-actions">
+                <span id="cleanupJobState" class="cleanup-badge">قيد التجهيز</span>
+                <button type="button" onclick="resumeCleanupTracking()" class="cleanup-refresh" title="تحديث تقدم المهمة" aria-label="تحديث تقدم المهمة"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i></button>
+            </div>
+        </div>
+        <div class="cleanup-bar-label"><span id="cleanupJobCounts">جارٍ تحديد الكروت المؤهلة</span><span id="cleanupJobPercent" class="cleanup-percentage">0%</span></div>
+        <div id="cleanupJobBar" class="cleanup-track" role="progressbar" aria-label="تقدم معالجة الكروت" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="cleanupJobFill" class="cleanup-fill"></div></div>
+        <dl class="cleanup-metrics">
+            <div class="cleanup-metric"><i class="fa-solid fa-check" aria-hidden="true"></i><div><dt>كروت حُذفت</dt><dd id="cleanupJobDeleted">0</dd></div></div>
+            <div class="cleanup-metric"><i class="fa-solid fa-clock" aria-hidden="true"></i><div><dt>بانتظار إغلاق الجلسات</dt><dd id="cleanupJobPending">0</dd></div></div>
+            <div class="cleanup-metric"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><div><dt>كروت تغيرت حالتها</dt><dd id="cleanupJobSkipped">0</dd></div></div>
+        </dl>
+        <p id="cleanupJobMessage" class="cleanup-note" aria-live="polite">السجلات المالية والمحاسبية محفوظة.</p>
+    </section>
+
     <!-- القسم الثالث: لوحة الفحص الهندسي وتصحيح الأخطاء (Database Audit Engine) -->
     <!-- ================================================================= -->
     <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-sm space-y-6">
@@ -687,7 +736,7 @@
                         <span>إعادة ضبط وتصفير قاعدة البيانات بالكامل (Factory Data Reset)</span>
                         <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold fr-badge border">إجراء حرج</span>
                     </h3>
-                    <p class="text-xs fr-desc mt-0.5">حذف شامل لكافة الكروت، المشتركين، الجلسات، المبيعات، الفواتير، وحسابات الراديوس لتعود قاعدة البيانات جديدة 100% كأنها منصبة لأول مرة</p>
+                    <p class="text-xs fr-desc mt-0.5">يُنشئ نسخة استرجاعية ويفصل الجلسات ويوقف الراديوس مؤقتًا في الخلفية، ثم يعيد الخدمة مع حفظ الإعدادات والترخيص</p>
                 </div>
             </div>
             <div>
@@ -726,6 +775,19 @@
 
 
 </div>
+
+<style>
+.factory-reset-progress { text-align:right; font-family:inherit; }
+.factory-reset-progress p { margin:0 0 1.25rem; line-height:1.8; }
+.factory-reset-progress-label { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:.6rem; font-size:.85rem; }
+.factory-reset-progress-label strong { color:#0891b2; font-size:1.2rem; font-variant-numeric:tabular-nums; }
+.factory-reset-progress-track { height:.65rem; overflow:hidden; border-radius:999px; background:#e2e8f0; }
+.factory-reset-progress-fill { height:100%; background:linear-gradient(90deg,#0891b2,#22d3ee); border-radius:inherit; transition:width .35s ease; }
+.factory-reset-progress small { display:block; margin-top:1rem; font-size:.75rem; line-height:1.8; opacity:.75; }
+html:not(.theme-light) .factory-reset-progress-track { background:#1c2840; }
+html:not(.theme-light) .factory-reset-progress-label strong { color:#22d3ee; }
+@media(prefers-reduced-motion:reduce) { .factory-reset-progress-fill { transition:none; } }
+</style>
 
 <!-- JavaScript Logic -->
 <script>
@@ -767,41 +829,72 @@ function confirmFactoryReset() {
         }
     }).then((result) => {
         if (result.isConfirmed) {
-            Swal.fire({
-                title: 'جاري تصفير قاعدة البيانات...',
-                text: 'يتم الآن حذف السجلات وتصفير عدادات الترقيم التلقائي وإعادة ضبط راديوس...',
-                allowOutsideClick: false,
-                didOpen: () => { Swal.showLoading(); }
-            });
-
             fetch('{{ url_for("api_factory_reset_database") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ confirm_code: result.value, keep_packages: true, keep_resellers: false })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    Swal.fire({
-                        title: 'تم التصفير بنجاح!',
-                        text: data.message,
-                        icon: 'success',
-                        confirmButtonText: 'حسناً'
-                    }).then(() => {
-                        refreshStats();
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                    });
-                } else {
-                    Swal.fire('فشل التصفير', data.message || 'حدث خطأ غير معروف', 'error');
-                }
-            })
-            .catch(err => {
-                Swal.fire('خطأ في الاتصال', err.toString(), 'error');
-            });
+            }).then(res => res.json()).then(data => {
+                if (!data.success) throw new Error(data.message || 'تعذر بدء إعادة المصنع');
+                trackFactoryReset(data.job, true);
+            }).catch(err => Swal.fire('تعذر بدء إعادة المصنع', err.message, 'error'));
         }
     });
 }
 
+
+function factoryResetProgressHtml(message, percent) {
+    const escaped = String(message).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    return `<div class="factory-reset-progress" dir="rtl">
+        <p role="status" aria-live="polite">${escaped}</p>
+        <div class="factory-reset-progress-label"><span>تقدم مراحل العملية</span><strong>${percent}%</strong></div>
+        <div class="factory-reset-progress-track" role="progressbar" aria-label="تقدم إعادة المصنع" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
+            <div class="factory-reset-progress-fill" style="width:${percent}%"></div>
+        </div>
+        <small>يرجى الانتظار حتى انتهاء العملية؛ تُحدّث هذه النافذة تلقائيًا.</small>
+    </div>`;
+}
+let factoryResetTimer = null;
+let factoryResetModalOpen = false;
+function trackFactoryReset(job, notify) {
+    if (!job) return;
+    const active = ['queued','running'].includes(job.state);
+    const outcome = job.result || {};
+    if (active) {
+        const numericPercent = Number(outcome.percent);
+        const percent = Number.isFinite(numericPercent) ? Math.min(100, Math.max(0, Math.round(numericPercent))) : 0;
+        const display = {asModal: true, title: 'إعادة المصنع قيد التنفيذ',
+            html: factoryResetProgressHtml(outcome.message || 'جارٍ التحضير', percent),
+            allowOutsideClick: false, allowEscapeKey: false, showCloseButton: false, showConfirmButton: false};
+        if (factoryResetModalOpen && Swal.isVisible()) Swal.update(display);
+        else {
+            factoryResetModalOpen = true;
+            Swal.fire(display);
+        }
+        clearTimeout(factoryResetTimer);
+        factoryResetTimer = setTimeout(() => {
+            fetch('{{ url_for("api_factory_reset_status") }}?job_id=' + encodeURIComponent(job.job_id))
+                .then(res => res.json()).then(data => {
+                    if (!data.success || !data.job) throw new Error(data.message || 'سجل المهمة غير متاح');
+                    trackFactoryReset(data.job, true);
+                })
+                .catch(() => { factoryResetModalOpen = false; Swal.fire('تعذر تحديث التقدم', 'العملية مستمرة في الخلفية؛ أعد فتح الصفحة لمتابعة حالتها.', 'warning'); });
+        }, 1500);
+    } else {
+        clearTimeout(factoryResetTimer);
+        if (factoryResetModalOpen) { Swal.close(); factoryResetModalOpen = false; }
+        const key = 'factory-reset-notified-' + job.job_id;
+        if (notify && !sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1');
+            Swal.fire({asModal: true,
+                title: job.state === 'completed' ? 'اكتملت إعادة المصنع بنجاح' : 'لم تكتمل إعادة المصنع',
+                text: outcome.message || 'انقطعت المهمة؛ لم يُستأنف المسح تلقائيًا.',
+                icon: job.state === 'completed' ? 'success' : 'error',
+                confirmButtonText: 'حسنًا', showConfirmButton: true});
+            refreshStats();
+        }
+    }
+}
+fetch('{{ url_for("api_factory_reset_status") }}').then(res => res.json())
+    .then(data => trackFactoryReset(data.job, false)).catch(() => {});
 
 // 1. Refresh Stats via AJAX
 function refreshStats() {
@@ -961,7 +1054,7 @@ function triggerArchivingFromMaintenance() {
 function confirmPruneLogs(days) {
     Swal.fire({
         title: `تنظيف السجلات الأقدم من ${days} يوماً`,
-        html: `هل تريد حذف جلسات المحاسبة المغلقة القديمة في <strong>radacct</strong> ومحاولات المصادقة في <strong>radpostauth</strong> الأقدم من <strong>${days} يوماً</strong>؟<br><span class="text-xs text-slate-400">لن تتأثر الجلسات الحية أو بيانات المشتركين الحالية.</span>`,
+        html: `هل تريد حذف جلسات المحاسبة المغلقة القديمة في <strong>radacct</strong> ومحاولات المصادقة في <strong>radpostauth</strong> الأقدم من <strong>${days} يوماً</strong>؟<br><span class="text-xs text-slate-400">تُحفظ الجلسات الحية وسجلات دورة الاشتراك الحالية وخطوط أساس التجديد.</span>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#0284c7',
@@ -1074,30 +1167,89 @@ function confirmCascadeDelete(deleteType, label) {
 }
 
 // 6. Execute Cascade Delete
-function executeCascadeDelete(deleteType, deleteAcct) {
-    Swal.fire({
-        title: 'جاري تنفيذ الحذف الجذري...',
-        text: 'يرجى الانتظار ريثما يتم تطهير الجداول وتحرير المساحة',
-        allowOutsideClick: false,
-        didOpen: () => { Swal.showLoading(); }
-    });
-
-    fetch('{{ url_for("api_clean_expired_vouchers") }}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ delete_type: deleteType, delete_acct: deleteAcct })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            Swal.fire('تم الحذف بنجاح!', data.message, 'success');
+let cascadeDeleteBusy = false;
+let cleanupJobId = null;
+let cleanupPollTimer = null;
+function showCleanupProgress(job) {
+    const r = job.result || {};
+    const active = ['queued','running'].includes(job.state);
+    cascadeDeleteBusy = active;
+    cleanupJobId = job.job_id;
+    document.getElementById('cleanupJobProgress').hidden = !active;
+    if (!active) return false;
+    const format = value => Number(value || 0).toLocaleString('ar');
+    const percent = r.total ? Math.min(100,100*(r.processed || 0)/r.total) : 0;
+    document.getElementById('cleanupJobState').textContent = job.state === 'queued' ? 'قيد التجهيز' : 'جارٍ التنفيذ';
+    document.getElementById('cleanupJobCounts').textContent = r.total ? `تمت معالجة ${format(r.processed)} من ${format(r.total)} كرت` : 'جارٍ تحديد الكروت المؤهلة';
+    document.getElementById('cleanupJobPercent').textContent = `${Math.round(percent)}%`;
+    document.getElementById('cleanupJobFill').style.width = `${percent}%`;
+    document.getElementById('cleanupJobBar').setAttribute('aria-valuenow',Math.round(percent));
+    document.getElementById('cleanupJobDeleted').textContent = format(r.deleted_vouchers);
+    document.getElementById('cleanupJobPending').textContent = format(r.pending);
+    document.getElementById('cleanupJobSkipped').textContent = format(r.skipped);
+    document.getElementById('cleanupJobMessage').textContent = 'السجلات المالية والمحاسبية محفوظة. الكروت ذات الجلسات القائمة تنتظر إغلاقها قبل الحذف.';
+    return true;
+}
+let cleanupNotifiedJob = null;
+function notifyCleanupFinished(job) {
+    if (cleanupNotifiedJob === job.job_id) return;
+    const storageKey = 'cleanup-notified-' + job.job_id;
+    try { if (sessionStorage.getItem(storageKey)) return; sessionStorage.setItem(storageKey,'1'); } catch (_) {}
+    cleanupNotifiedJob = job.job_id;
+    const r = job.result || {};
+    const completed = job.state === 'completed';
+    Swal.fire({title:completed ? 'اكتملت معالجة الحذف' : 'لم تكتمل عملية الحذف',text:r.message || 'توقفت المهمة؛ يمكنك إعادة المحاولة لمعالجة المتبقي.',icon:completed ? (r.pending ? 'info' : 'success') : 'warning',confirmButtonText:'حسنًا'});
+}
+function pollCleanupJob(notifyFinished=true) {
+    clearTimeout(cleanupPollTimer);
+    const url = '{{ url_for("api_cleanup_job_status", job_id="JOB_ID") }}'.replace('JOB_ID',cleanupJobId);
+    fetch(url).then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'تعذر قراءة تقدم المهمة');
+        return data.job;
+    }).then(job => {
+        if (showCleanupProgress(job)) cleanupPollTimer = setTimeout(() => pollCleanupJob(notifyFinished),1500);
+        else {
             refreshStats();
-        } else {
-            Swal.fire('خطأ أثناء الحذف', data.message || 'فشلت العملية', 'error');
+            if (notifyFinished) notifyCleanupFinished(job);
         }
-    })
-    .catch(err => {
-        Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+    }).catch(err => {
+        document.getElementById('cleanupJobMessage').textContent = 'تعذرت المتابعة؛ قد تستمر المهمة في الخلفية. ' + err.message;
+        // Keep the busy flag: losing a response must not submit another deletion.
+        cleanupPollTimer = setTimeout(() => pollCleanupJob(notifyFinished),5000);
+    });
+}
+function resumeCleanupTracking() {
+    fetch('{{ url_for("api_latest_cleanup_job") }}').then(async res => {
+        const data=await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'تعذر قراءة المهمة');
+        return data.job;
+    }).then(job => {
+        if (job && showCleanupProgress(job)) pollCleanupJob(true);
+    }).catch(err => {
+        document.getElementById('cleanupJobProgress').hidden=false;
+        document.getElementById('cleanupJobMessage').textContent=err.message;
+    });
+}
+document.addEventListener('DOMContentLoaded',resumeCleanupTracking);
+function executeCascadeDelete(deleteType, deleteAcct) {
+    if (cascadeDeleteBusy) { resumeCleanupTracking(); return; }
+    cascadeDeleteBusy = true;
+    fetch('{{ url_for("api_clean_expired_vouchers") }}', {
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({delete_type:deleteType,delete_acct:false})
+    }).then(async res => {
+        const data=await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'تعذر بدء المهمة');
+        return data.job;
+    }).then(job => {
+        showCleanupProgress(job);
+        pollCleanupJob();
+    }).catch(err => {
+        document.getElementById('cleanupJobProgress').hidden=false;
+        document.getElementById('cleanupJobMessage').textContent='تعذر تأكيد بدء المهمة: '+err.message;
+        cascadeDeleteBusy=false;
+        resumeCleanupTracking();
     });
 }
 
@@ -1124,6 +1276,7 @@ function runDatabaseAudit() {
         if (data.success && data.audit) {
             const a = data.audit;
             currentAuditIssues = a.issues || [];
+            if (a.truncated) Swal.fire('نتائج الفحص محدودة', 'تجاوزت النتائج حد العرض؛ الأعداد المعروضة تخص البنود المرصودة فقط. أعد الفحص بعد المعالجة.', 'warning');
             
             document.getElementById('audit_total_issues').innerText = a.total_issues;
             document.getElementById('audit_orphaned').innerText = a.orphaned_count;
@@ -1148,7 +1301,7 @@ function runDatabaseAudit() {
             if (a.total_issues === 0) {
                 Swal.fire({
                     icon: 'success',
-                    title: 'قاعدة البيانات سليمة 100%!',
+                    title: 'اكتمل الفحص دون مشكلات مرصودة',
                     text: `تم استكمال الفحص الهندسي في ${a.duration_seconds} ثانية دون العثور على أي تضاربات أو كروت يتيمة.`,
                     timer: 3000,
                     showConfirmButton: false
@@ -1161,9 +1314,14 @@ function runDatabaseAudit() {
                     confirmButtonText: 'عرض النتائج'
                 });
             }
+        } else {
+            throw new Error(data.message || 'تعذر إكمال الفحص الهندسي');
         }
     })
     .catch(err => {
+        currentAuditIssues = [];
+        document.getElementById('btnFixAll').classList.add('hidden');
+        document.getElementById('auditTableBody').innerHTML = '<tr><td colspan="6" class="p-6 text-center text-rose-400">تعذر إكمال الفحص؛ لا توجد نتيجة يمكن اعتمادها.</td></tr>';
         spinner.className = 'fa-solid fa-play';
         btn.disabled = false;
         if (btnTop) btnTop.disabled = false;
@@ -1186,7 +1344,7 @@ function renderAuditTable() {
                 <tr>
                     <td colspan="6" class="py-12 text-center text-emerald-400 bg-emerald-500/5">
                         <i class="fa-solid fa-circle-check text-4xl mb-3 block"></i>
-                        <h4 class="text-sm font-bold text-white">قاعدة البيانات متناسقة وسليمة 100%</h4>
+                        <h4 class="text-sm font-bold text-white">لم يرصد هذا الفحص مشكلات</h4>
                         <p class="text-xs text-slate-400 mt-1">لا توجد أي كروت يتيمة أو قيود مفقودة أو تضاربات في FreeRADIUS.</p>
                     </td>
                 </tr>
@@ -1257,7 +1415,7 @@ function fixSingleIssue(actionCode, username, sessionId, rowId) {
     fetch('{{ url_for("api_fix_audit_issue") }}', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action_code: actionCode, username: username, session_id: sessionId })
+        body: JSON.stringify({ action_code: actionCode, username: username, session_id: sessionId, ...(() => { const issue=currentAuditIssues.find(item => item.id===rowId) || {}; return {record_id:issue.record_id,attribute_name:issue.attribute_name}; })() })
     })
     .then(res => res.json())
     .then(data => {
@@ -1313,7 +1471,9 @@ function fixAllAuditIssues() {
                     runDatabaseAudit();
                     refreshStats();
                 } else {
-                    Swal.fire('خطأ أثناء الإصلاح', data.message || 'فشلت العملية', 'error');
+                    Swal.fire('لم تكتمل المعالجة', data.message || 'فشلت العملية', 'warning');
+                    runDatabaseAudit();
+                    refreshStats();
                 }
             })
             .catch(err => {

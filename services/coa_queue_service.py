@@ -26,6 +26,11 @@ _RECENT_COA_LOG = deque(maxlen=100)
 _LOG_LOCK = threading.Lock()
 
 _worker_thread = None
+_WORKER_START_LOCK = threading.Lock()
+_PENDING_LOCK = threading.Lock()
+_PENDING_KEYS = set()
+_WORKERS = []
+_USER_LOCKS = [threading.Lock() for _ in range(64)]
 _stop_event = threading.Event()
 _stats = {
     'total_enqueued': 0,
@@ -111,6 +116,8 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
                             matches = False
                         if matches:
                             candidates.append((path, item['.id']))
+                if not candidates:
+                    res.update(success=True,status='api_confirmed_absent',message='أكدت قراءة قوائم الراوتر أن الجلسة المطلوبة غير موجودة.')
                 # Ambiguous identities must not disconnect an unrelated session.
                 if len(candidates) == 1:
                     path, item_id = candidates[0]
@@ -130,14 +137,14 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
             if radacctid:
                 execute_write("""
                     UPDATE radacct 
-                    SET acctstoptime = CURRENT_TIMESTAMP,
+                    SET acctstoptime = COALESCE(acctstoptime, CURRENT_TIMESTAMP),
                         acctterminatecause = 'Admin-Reset-CoA'
-                    WHERE radacctid = %s AND acctstoptime IS NULL
+                    WHERE radacctid = %s AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed'))
                 """, (radacctid,))
             elif target_nas_ip and session_id:
                 execute_write("""
                     UPDATE radacct 
-                    SET acctstoptime = CURRENT_TIMESTAMP,
+                    SET acctstoptime = COALESCE(acctstoptime, CURRENT_TIMESTAMP),
                         acctterminatecause = 'Admin-Reset-CoA'
                     WHERE username = %s AND nasipaddress = %s AND acctsessionid = %s AND acctstoptime IS NULL
                 """, (username, target_nas_ip, session_id))
@@ -149,6 +156,9 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
 
 def _process_coa_task(task):
     """Executes a single CoA or Disconnect action with failover and audit logging."""
+    from services.account_lifecycle_service import lifecycle_disconnect_still_required
+    if not lifecycle_disconnect_still_required(task):
+        return {'success': True, 'status': 'cancelled_after_state_change', 'message': 'ألغيت المهمة بعد تغير حالة الحساب أو دورته'}
     action = task.get('action', 'disconnect')
     username = task.get('username')
     admin_user = task.get('admin_username', 'system')
@@ -165,8 +175,8 @@ def _process_coa_task(task):
 
     try:
         if action == 'disconnect':
-            if radacctid and not (nas_ip and session_id):
-                sess = query_one("SELECT nasipaddress, acctsessionid, framedipaddress, callingstationid FROM radacct WHERE radacctid = %s AND username = %s AND acctstoptime IS NULL", (radacctid, username))
+            if radacctid:
+                sess = query_one("SELECT nasipaddress, acctsessionid, framedipaddress, callingstationid FROM radacct WHERE radacctid = %s AND username = %s AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed'))", (radacctid, username))
                 if not sess:
                     raise ValueError('الجلسة المطلوبة غير موجودة أو مغلقة')
                 nas_ip, session_id = sess['nasipaddress'], sess['acctsessionid']
@@ -257,29 +267,59 @@ def _process_coa_task(task):
 
     return res
 
+def _task_key(task):
+    return tuple(str(task.get(k) or '') for k in ('action','username','nas_ip','session_id','radacctid','reason','lifecycle_cycle','rate_limit'))
+
+
+def _enqueue(task):
+    key = _task_key(task)
+    with _PENDING_LOCK:
+        if key in _PENDING_KEYS:
+            return True, 'المهمة موجودة في الطابور بالفعل.'
+        _PENDING_KEYS.add(key)
+        try:
+            _COA_TASK_QUEUE.put_nowait(task)
+        except queue.Full:
+            _PENDING_KEYS.discard(key)
+            return False, 'طابور الفصل ممتلئ؛ لم يتم قبول المهمة. أعد المحاولة.'
+        _stats['total_enqueued'] += 1
+    return True, 'تم قبول المهمة في الطابور؛ لم يكتمل التنفيذ بعد.'
+
+
 def _coa_worker_loop():
-    """Background worker daemon processing queued CoA tasks."""
     while not _stop_event.is_set():
         try:
-            task = _COA_TASK_QUEUE.get(timeout=1.0)
-            if task is None:
-                break
-            _process_coa_task(task)
-            _COA_TASK_QUEUE.task_done()
+            task = _COA_TASK_QUEUE.get(timeout=1)
         except queue.Empty:
             continue
-        except Exception as e:
-            print(f"Error in CoA worker daemon: {e}")
+        try:
+            if task is None:
+                return
+            with _USER_LOCKS[hash(task.get('username')) % len(_USER_LOCKS)]:
+                _process_coa_task(task)
+        except Exception as exc:
+            print(f'CoA task failed: {exc}')
+        finally:
+            if task:
+                with _PENDING_LOCK:
+                    _PENDING_KEYS.discard(_task_key(task))
+            _COA_TASK_QUEUE.task_done()
+
 
 def start_coa_worker():
-    """Starts the background worker thread if not already running."""
     global _worker_thread
-    if _worker_thread is None or not _worker_thread.is_alive():
+    with _WORKER_START_LOCK:
+        alive = [worker for worker in _WORKERS if worker.is_alive()]
+        _WORKERS[:] = alive
         _stop_event.clear()
-        _worker_thread = threading.Thread(target=_coa_worker_loop, name="CoAQueueWorker", daemon=True)
-        _worker_thread.start()
+        while len(_WORKERS) < 3:
+            worker = threading.Thread(target=_coa_worker_loop, name='CoAQueueWorker', daemon=True)
+            _WORKERS.append(worker)
+            worker.start()
+        _worker_thread = _WORKERS[0]
 
-def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, mac_address=None, radacctid=None, reason=None, admin_username='admin'):
+
+def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, mac_address=None, radacctid=None, reason=None, admin_username='admin', lifecycle_kind=None, lifecycle_id=None, lifecycle_cycle=None):
     """
     Non-blocking enqueue of a Disconnect-Request (RFC 5176).
     Returns immediately (< 1ms).
@@ -299,11 +339,11 @@ def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, m
         'radacctid': radacctid,
         'reason': reason or 'Manual / Automated Disconnect',
         'admin_username': admin_username,
-        'enqueued_at': time.time()
+        'enqueued_at': time.time(),
+        'lifecycle_kind': lifecycle_kind, 'lifecycle_id': lifecycle_id, 'lifecycle_cycle': lifecycle_cycle
     }
-    _COA_TASK_QUEUE.put(task)
-    _stats['total_enqueued'] += 1
-    return True, f"تمت جدولة أمر قطع الاتصال للمشترك [{username}] في طابور المعالجة اللحظية بنجاح."
+    return _enqueue(task)
+
 
 def enqueue_speed_change(username, rate_limit_str, nas_ip=None, admin_username='admin'):
     """
@@ -325,9 +365,8 @@ def enqueue_speed_change(username, rate_limit_str, nas_ip=None, admin_username='
         'admin_username': admin_username,
         'enqueued_at': time.time()
     }
-    _COA_TASK_QUEUE.put(task)
-    _stats['total_enqueued'] += 1
-    return True, f"تمت جدولة أمر تعديل السرعة إلى ({rate_limit_str}) في طابور المعالجة اللحظية."
+    return _enqueue(task)
+
 
 def enqueue_bulk_disconnect(usernames, reason=None, admin_username='admin'):
     """
@@ -341,8 +380,8 @@ def enqueue_bulk_disconnect(usernames, reason=None, admin_username='admin'):
     for u in usernames:
         clean_u = str(u or '').strip()
         if clean_u:
-            enqueue_disconnect(clean_u, reason=reason, admin_username=admin_username)
-            count += 1
+            ok, _ = enqueue_disconnect(clean_u, reason=reason, admin_username=admin_username)
+            count += int(ok)
     return count
 
 def get_coa_queue_status():
@@ -351,8 +390,12 @@ def get_coa_queue_status():
     with _LOG_LOCK:
         recent = list(_RECENT_COA_LOG)
 
+    with _COA_TASK_QUEUE.mutex:
+        queued = list(_COA_TASK_QUEUE.queue)
     return {
         'queue_size': _COA_TASK_QUEUE.qsize(),
+        'worker_count': sum(worker.is_alive() for worker in _WORKERS),
+        'oldest_pending_seconds': max([time.time()-task.get('enqueued_at',time.time()) for task in queued if task] or [0]),
         'worker_alive': bool(_worker_thread and _worker_thread.is_alive()),
         'total_enqueued': _stats['total_enqueued'],
         'total_processed': _stats['total_processed'],
@@ -361,5 +404,4 @@ def get_coa_queue_status():
         'recent_tasks': recent
     }
 
-# Ensure worker starts on module load
-start_coa_worker()
+# Workers start lazily when a task is submitted.

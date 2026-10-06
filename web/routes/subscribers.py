@@ -265,7 +265,8 @@ def edit_subscriber_action(sub_id):
 
 def delete_subscriber_action(sub_id):
     try:
-        delete_subscriber(sub_id)
+        if not delete_subscriber(sub_id):
+            raise ValueError("المشترك غير موجود أو لم يكتمل الحذف")
         flash('تم حذف المشترك وإلغاء صلاحياته من RADIUS.', 'warning')
     except Exception as e:
         flash(f'خطأ أثناء الحذف: {str(e)}', 'danger')

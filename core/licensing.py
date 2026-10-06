@@ -47,13 +47,13 @@ def decode_license_string(lic_input):
     except Exception:
         return None, "تنسيق مفتاح الترخيص غير معروف (يجب أن يكون ملف .lic أو نص Base64 مشفر)"
 
-def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
+def verify_license_package(package_dict, current_active_sessions=0, current_nas=0, current_subscribers=0):
     """
     Performs complete verification of a license package:
     1. Signature validity (Ed25519)
-    2. Machine ID matching
+    2. Machine ID & Instance UUID matching
     3. Expiration date
-    4. Limits compliance
+    4. Limits compliance (Supports new max_active_sessions and legacy max_subscribers)
     """
     if not isinstance(package_dict, dict) or 'payload' not in package_dict or 'signature' not in package_dict:
         return False, "هيكل ملف الترخيص غير مكتمل", {}
@@ -99,14 +99,18 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
     expires_at_str = payload.get('expires_at', '')
     is_lifetime = payload.get('is_lifetime', False)
     
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     days_left = 9999
+
+    if type(is_lifetime) is not bool or (not is_lifetime and not expires_at_str):
+        return False, 'تاريخ انتهاء الترخيص غير معرف', {}
     
     if not is_lifetime and expires_at_str:
         try:
             # Format: 2026-09-01T23:59:59Z
-            exp_clean = expires_at_str.replace('Z', '').split('+')[0]
-            exp_date = datetime.datetime.fromisoformat(exp_clean)
+            exp_date = datetime.datetime.fromisoformat(expires_at_str.replace('Z', '+00:00'))
+            if exp_date.tzinfo is None:
+                exp_date = exp_date.replace(tzinfo=datetime.timezone.utc)
             diff = exp_date - now
             days_left = diff.days
             
@@ -116,17 +120,37 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
         except Exception as e:
             return False, f"خطأ في قراءة تاريخ انتهاء الترخيص: {str(e)}", payload
             
-    # 4. Check Limits Compliance (Soft Freeze: keeps valid=True, flags in info)
+    # 4. Check Limits Compliance (Distinguish new active_sessions from legacy subscribers)
     limits = payload.get('limits', {})
-    max_subs = limits.get('max_subscribers', 5000)
+    if not isinstance(limits, dict):
+        return False, 'حدود الترخيص غير صالحة', {}
+    for name in ('max_active_sessions','max_subscribers','max_nas','max_managers'):
+        if name in limits and limits[name] is not None and (type(limits[name]) is not int or limits[name] < 0):
+            return False, 'حدود الترخيص يجب أن تكون أعدادًا صحيحة غير سالبة', {}
+    max_active_sessions = limits.get('max_active_sessions')
+    max_subs = limits.get('max_subscribers')
     max_nas = limits.get('max_nas', 15)
     max_managers = limits.get('max_managers', 10)
     
     is_over_quota = False
     quota_reason = ""
-    if max_subs and int(max_subs) > 0 and int(current_subscribers) > int(max_subs):
-        is_over_quota = True
-        quota_reason = f"عدد المشتركين الحاليين ({int(current_subscribers):,}) يتجاوز سقف باقة الترخيص ({int(max_subs):,})"
+    
+    if max_active_sessions is not None:
+        license_mode = 'active_sessions'
+        max_active_int = int(max_active_sessions)
+        if max_active_int < 0:
+            return False, 'سعة الترخيص لا تقبل قيمة سالبة', payload
+        if max_active_int > 0 and int(current_active_sessions) > max_active_int:
+            is_over_quota = True
+            quota_reason = f"عدد الجلسات المتصلة حالياً ({int(current_active_sessions):,}) يتجاوز سقف باقة الترخيص ({max_active_int:,})"
+    elif max_subs is not None:
+        license_mode = 'legacy_subscribers'
+        max_subs_int = int(max_subs)
+        if max_subs_int > 0 and int(current_subscribers) > max_subs_int:
+            is_over_quota = True
+            quota_reason = f"عدد المشتركين الحاليين ({int(current_subscribers):,}) يتجاوز سقف باقة الترخيص القديمة ({max_subs_int:,})"
+    else:
+        return False, 'بيانات سقف الترخيص غير معرفة في حزمة الترخيص', payload
 
     if max_nas and int(max_nas) > 0 and int(current_nas) > int(max_nas):
         is_over_quota = True
@@ -140,7 +164,12 @@ def verify_license_package(package_dict, current_subscribers=0, current_nas=0):
         "is_lifetime": is_lifetime,
         "expires_at": expires_at_str,
         "days_left": days_left,
-        "max_subscribers": max_subs,
+        "license_mode": license_mode,
+        "is_legacy_license": (license_mode == 'legacy_subscribers'),
+        "max_active_sessions": int(max_active_sessions) if max_active_sessions is not None else None,
+        "current_active_sessions": int(current_active_sessions),
+        "max_subscribers": int(max_subs) if max_subs is not None else 0,
+        "current_subscribers": int(current_subscribers),
         "max_nas": max_nas,
         "max_managers": max_managers,
         "features": payload.get('features', {}),

@@ -31,6 +31,9 @@ _SCHEDULER_STATE = {
 
 def _scheduled_backup_job(scheduled_time_str):
     """Execution wrapper for scheduled backup trigger."""
+    from services.factory_reset_service import factory_reset_active
+    if factory_reset_active():
+        return
     now_str = get_system_now_str()
     logger.info(f"Triggering automated backup scheduled at {scheduled_time_str} (System Time: {now_str})...")
     
@@ -53,6 +56,9 @@ def _scheduled_backup_job(scheduled_time_str):
         _SCHEDULER_STATE['last_error'] = str(err)
 def _scheduled_expiry_check_job():
     """Periodic task to scan active accounts and mark expired vouchers and subscribers."""
+    from services.factory_reset_service import factory_reset_active
+    if factory_reset_active():
+        return
     try:
         from services.voucher_service import check_and_update_expired_vouchers
         check_and_update_expired_vouchers()
@@ -61,7 +67,15 @@ def _scheduled_expiry_check_job():
 
 def _scheduled_daily_sales_summary_job():
     """Trigger daily sales summary dispatch to Telegram at 23:59."""
+    from services.factory_reset_service import factory_reset_active
+    if factory_reset_active():
+        return
     try:
+        # The user rule replaces this legacy timer once explicitly enabled.
+        from database.db import query_one
+        rule=query_one("SELECT COUNT(*) n FROM wisp_automation_rules WHERE action_type='SEND_DAILY_SALES_REPORT' AND is_active=1 AND schedule_enabled=1")
+        if rule and rule['n']:
+            return
         from services.bot_notifications_service import trigger_daily_sales_summary
         ok, res = trigger_daily_sales_summary()
         logger.info(f"Daily sales summary job completed: ok={ok}, res={res}")
@@ -70,6 +84,9 @@ def _scheduled_daily_sales_summary_job():
 
 def _scheduled_nas_watchdog_job():
     """Probe all NAS routers and alert via Telegram if any router goes down/recovers."""
+    from services.factory_reset_service import factory_reset_active
+    if factory_reset_active():
+        return
     try:
         from core.mikrotik_api import get_all_nas_live_status
         from services.bot_notifications_service import trigger_nas_down_notification, trigger_nas_recovered_notification
@@ -91,6 +108,9 @@ def _scheduled_nas_watchdog_job():
 
 def _scheduled_low_quota_check_job():
     """Scan active subscribers for low quota thresholds and dispatch warnings."""
+    from services.factory_reset_service import factory_reset_active
+    if factory_reset_active():
+        return
     try:
         from database.db import query_all
         from services.bot_notifications_service import trigger_low_quota_notification
@@ -120,17 +140,9 @@ def _register_background_jobs(scheduler, system_tz):
     from apscheduler.triggers.interval import IntervalTrigger
     from apscheduler.triggers.cron import CronTrigger
 
-    # 1. Expiry check & disconnect every 1 minute
-    try:
-        scheduler.add_job(
-            _scheduled_expiry_check_job,
-            trigger=IntervalTrigger(seconds=60),
-            id="auto_voucher_expiry_check",
-            name="Automated Voucher and Subscriber Expiry Check & Disconnect",
-            replace_existing=True
-        )
-    except Exception as e:
-        logger.error(f"Failed to add expiry check job: {e}")
+    # Lifecycle expiry is owned exclusively by core.watchdog.
+    scheduler.add_job(_scheduled_automation_rules_job, trigger=IntervalTrigger(seconds=60),
+                      id='automation_rules', name='Automation rules', replace_existing=True, max_instances=1, coalesce=True)
 
     # 2. Daily sales summary at 23:59
     try:
@@ -170,11 +182,16 @@ def _register_background_jobs(scheduler, system_tz):
 
 def init_backup_scheduler():
     """Initialize and start the backup scheduler with the database configured Timezone."""
+    import os
+    if os.environ.get('MAX_MAINTENANCE_MODE') == '1':
+        return None
     global _SCHEDULER
     with _SCHEDULER_LOCK:
         if _SCHEDULER is not None and _SCHEDULER_STATE['is_running']:
             return _SCHEDULER
 
+        from services.automation_rules_service import ensure_automation_tables
+        ensure_automation_tables()
         settings = get_backup_settings()
         system_tz = get_system_timezone()
         
@@ -238,7 +255,7 @@ def _start_thread_scheduler(settings):
                 # 1. Expiry check (every 60s)
                 if now_ts - last_expiry_check >= 60:
                     last_expiry_check = now_ts
-                    _scheduled_expiry_check_job()
+                    _scheduled_automation_rules_job()
 
                 # 2. NAS Watchdog (every 120s)
                 if now_ts - last_nas_check >= 120:
@@ -427,3 +444,11 @@ def healthcheck_backup_scheduler():
         'last_run': status['last_run'],
         'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
+
+
+def _scheduled_automation_rules_job():
+    from services.factory_reset_service import factory_reset_active
+    if factory_reset_active():
+        return
+    from services.automation_rules_service import run_due_rules
+    run_due_rules()

@@ -1465,16 +1465,18 @@ def execute_database_migration(file_input, options=None):
         except Exception as audit_error:
             print(f"[Migration Audit Warning] {audit_error}")
 
-        # Post-Migration Quota Audit
+        # Post-Migration License Quota Audit
         quota_warning = ""
         try:
             from services.license_guard_service import get_active_license_status
             lic_st = get_active_license_status(force_refresh=True)
             if lic_st.get('valid'):
-                c_subs = lic_st.get('current_subscribers', 0)
-                m_subs = lic_st.get('max_subscribers', 0)
-                if m_subs > 0 and c_subs > m_subs:
-                    quota_warning = f" ⚠️ (تنبيه الترخيص: إجمالي المشتركين {c_subs:,} يتجاوز سقف باقة ترخيصك {m_subs:,} - تم تفعيل تجميد الإضافات الجديدة، والواجهة مفتوحة بالكامل للمعاينة وحذف وتعديل السجلات حتى النزول تحت السقف المرخص)."
+                lic_mode = lic_st.get('license_mode', 'active_sessions')
+                if lic_mode == 'active_sessions':
+                    c_act = lic_st.get('current_active_sessions', 0)
+                    m_act = lic_st.get('max_active_sessions', 0)
+                    if m_act > 0 and c_act >= m_act:
+                        quota_warning = f" ⚠️ (تنبيه الترخيص: الجلسات المتصلة {c_act:,} بلغت سقف باقة ترخيصك {m_act:,} - يتم رفض الاتصالات الجديدة فقط مع استمرار عمل النظام وإدارة المشتركين)."
         except Exception:
             pass
 

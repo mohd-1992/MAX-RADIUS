@@ -200,32 +200,37 @@
     </div>
 
 </div>
+<p class="text-xs text-slate-400">القواعد القديمة تحتاج تفعيلًا صريحًا لبدء الجدولة الفعلية؛ قاعدة الحذف تحمي الجلسات وتستهدف الكروت المنتهية وصلاحيتها قبل 60 يومًا.</p>
 {% endblock %}
 
 {% block scripts %}
 <script>
+    const runningRules = new Set();
     function runRuleNow(ruleId) {
+        if (runningRules.has(ruleId)) return;
         Swal.fire({
             title: 'تشغيل مهمة الأتمتة الآن',
-            text: 'هل تريد تنفيذ هذه القاعدة فوراً في الخلفية؟',
+            text: 'هل تريد تنفيذ القاعدة الآن؟ ستعرض النتيجة الفعلية بعد اكتمالها.',
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'نعم، تشغيل الآن',
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
+                runningRules.add(ruleId);
                 Swal.fire({ title: 'جارٍ التنفيذ...', didOpen: () => Swal.showLoading() });
                 const fd = new FormData();
                 fd.append('rule_id', ruleId);
                 fetch('/api/automation-rules/run', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(data => {
+                        runningRules.delete(ruleId);
                         if (data.success) {
                             Swal.fire('اكتمل التنفيذ', data.message, 'success').then(() => location.reload());
                         } else {
                             Swal.fire('خطأ', data.message, 'error');
                         }
-                    });
+                    }).catch(error => { runningRules.delete(ruleId); Swal.fire('خطأ', String(error), 'error'); });
             }
         });
     }

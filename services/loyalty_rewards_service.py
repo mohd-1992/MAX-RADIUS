@@ -10,6 +10,7 @@ import datetime
 from core.time_service import get_db_storage_now
 import logging
 from database.db import get_connection, is_mysql_conn
+from database.loyalty_schema import ensure_loyalty_schema
 
 logger = logging.getLogger('loyalty_rewards_service')
 _get_db = get_connection
@@ -18,54 +19,12 @@ _get_db = get_connection
 def ensure_loyalty_tables():
     """Ensure subscriber points, customizable rewards catalog, and transaction log tables exist and are up to date."""
     db = _get_db()
-    if not is_mysql_conn(db):
-        return
     try:
+        ensure_loyalty_schema(db)
+        if not is_mysql_conn(db):
+            return
         cur = db.cursor()
         try:
-            # 1. Subscriber points wallet
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS wisp_loyalty_wallets (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(64) NOT NULL UNIQUE,
-                    points_balance INT DEFAULT 0,
-                    total_points_earned INT DEFAULT 0,
-                    total_points_redeemed INT DEFAULT 0,
-                    tier_level ENUM('bronze', 'silver', 'gold', 'vip') DEFAULT 'bronze',
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_points_user (username)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            """)
-
-            # 2. Customizable Rewards catalog
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS wisp_loyalty_rewards (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    reward_name VARCHAR(120) NOT NULL,
-                    points_cost INT NOT NULL,
-                    reward_type VARCHAR(50) DEFAULT 'data_bonus_mb',
-                    reward_value BIGINT NOT NULL,
-                    description VARCHAR(255) NULL,
-                    icon VARCHAR(50) DEFAULT 'fa-gift',
-                    is_active TINYINT(1) DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            """)
-
-            # 3. Transactions log
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS wisp_loyalty_transactions (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(64) NOT NULL,
-                    transaction_type VARCHAR(50) NOT NULL,
-                    points INT NOT NULL,
-                    balance_after INT NOT NULL,
-                    notes VARCHAR(255) NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_trx_user (username)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-            """)
-
             # Populate default rewards catalog if table is empty
             cur.execute("SELECT COUNT(*) as cnt FROM wisp_loyalty_rewards")
             if (cur.fetchone() or {}).get('cnt', 0) == 0:
@@ -317,6 +276,20 @@ def redeem_reward(username, reward_id):
 
             cost = reward['points_cost']
 
+            lock_clause = "FOR UPDATE" if is_mysql else ""
+            entity = None
+            for table, etype in (("wisp_subscribers", "subscriber"), ("wisp_vouchers", "voucher")):
+                cur.execute(f"SELECT * FROM {table} WHERE LOWER(username)=LOWER({ph}) LIMIT 1 {lock_clause}", (username,))
+                entity = cur.fetchone()
+                if entity:
+                    entity = dict(entity)
+                    entity['etype'] = etype
+                    break
+            if not entity:
+                return False, "الحساب أو الكرت غير موجود."
+            if entity['etype'] == 'voucher' and str(entity.get('status') or '').lower() not in ('unused', 'used', 'active', 'expired', 'disabled', 'suspended'):
+                return False, "لا يمكن صرف مكافأة لكرت مستهلك للشحن أو ملغى."
+
             # 3. ATOMIC point deduction: prevents race conditions & negative balances
             cur.execute(f"""
                 UPDATE wisp_loyalty_wallets 
@@ -340,16 +313,6 @@ def redeem_reward(username, reward_id):
             if new_bal_row and not isinstance(new_bal_row, dict):
                 new_bal_row = dict(new_bal_row)
             new_balance = new_bal_row['points_balance'] if new_bal_row else 0
-
-            # 5. Check subscriber or voucher entity
-            cur.execute(f"""
-                SELECT id, username, status, expires_at, password, 'subscriber' as etype FROM wisp_subscribers WHERE LOWER(username) = LOWER({ph})
-                UNION ALL
-                SELECT id, username, status, expires_at, COALESCE(NULLIF(password, ''), pin_code, username) as password, 'voucher' as etype FROM wisp_vouchers WHERE LOWER(username) = LOWER({ph})
-            """, (username, username))
-            entity = cur.fetchone()
-            if entity and not isinstance(entity, dict):
-                entity = dict(entity)
 
             now_dt = get_db_storage_now().replace(tzinfo=None)
             reward_type = reward.get('reward_type') or 'data_bonus_mb'

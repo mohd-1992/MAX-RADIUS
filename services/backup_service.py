@@ -1,6 +1,5 @@
-def split_sql_statements(sql_text):
+def iter_sql_statements(source):
     """Splits a multi-statement SQL script into individual executable statements respecting quotes and comments."""
-    statements = []
     current = []
     in_single_quote = False
     in_double_quote = False
@@ -9,85 +8,109 @@ def split_sql_statements(sql_text):
     in_block_comment = False
     escape = False
 
-    i = 0
-    length = len(sql_text)
-    while i < length:
-        ch = sql_text[i]
-        next_ch = sql_text[i+1] if i + 1 < length else ''
+    def characters():
+        while True:
+            chunk = source.read(65536)
+            if not chunk:
+                break
+            yield from chunk
+    chars = iter(characters())
+    ch = next(chars, '')
+    previous = ''
+    while ch:
+        next_ch = next(chars, '')
 
         if in_line_comment:
             if ch == '\n':
                 in_line_comment = False
-            i += 1
+            previous = ch
+            ch = next_ch
             continue
 
         if in_block_comment:
             if ch == '*' and next_ch == '/':
                 in_block_comment = False
-                i += 2
+                previous = next_ch
+                ch = next(chars, '')
                 continue
-            i += 1
+            previous = ch
+            ch = next_ch
             continue
 
         if escape:
             current.append(ch)
             escape = False
-            i += 1
+            previous = ch
+            ch = next_ch
             continue
 
         if ch == '\\':
             current.append(ch)
             escape = True
-            i += 1
+            previous = ch
+            ch = next_ch
             continue
 
         if ch == "'" and not in_double_quote and not in_backtick:
             in_single_quote = not in_single_quote
             current.append(ch)
-            i += 1
+            previous = ch
+            ch = next_ch
             continue
 
         if ch == '"' and not in_single_quote and not in_backtick:
             in_double_quote = not in_double_quote
             current.append(ch)
-            i += 1
+            previous = ch
+            ch = next_ch
             continue
 
         if ch == '`' and not in_single_quote and not in_double_quote:
             in_backtick = not in_backtick
             current.append(ch)
-            i += 1
+            previous = ch
+            ch = next_ch
             continue
 
         if not in_single_quote and not in_double_quote and not in_backtick:
             if ch == '-' and next_ch == '-':
                 in_line_comment = True
-                i += 2
+                previous = next_ch
+                ch = next(chars, '')
                 continue
-            if ch == '#' and (i == 0 or (i > 0 and sql_text[i-1] in '\r\n ')):
+            if ch == '#' and (not previous or previous in '\r\n '):
                 in_line_comment = True
-                i += 1
+                previous = ch
+                ch = next_ch
                 continue
             if ch == '/' and next_ch == '*':
                 in_block_comment = True
-                i += 2
+                previous = next_ch
+                ch = next(chars, '')
                 continue
             if ch == ';':
                 stmt = ''.join(current).strip()
                 if stmt:
-                    statements.append(stmt)
+                    yield stmt
                 current = []
-                i += 1
+                previous = ch
+                ch = next_ch
                 continue
 
         current.append(ch)
-        i += 1
+        previous = ch
+        ch = next_ch
 
     remaining = ''.join(current).strip()
     if remaining:
-        statements.append(remaining)
+        yield remaining
 
-    return statements
+
+
+
+
+def split_sql_statements(sql_text):
+    return list(iter_sql_statements(io.StringIO(sql_text)))
 
 
 # -*- coding: utf-8 -*-
@@ -99,6 +122,9 @@ atomic multi-component restores, and settings management.
 
 import os
 import io
+import tempfile
+import subprocess
+from contextlib import contextmanager
 import json
 import tarfile
 import zipfile
@@ -346,9 +372,9 @@ def list_backups():
         
     return backups
 
-def generate_mysql_dump():
+def generate_mysql_dump(output=None):
     """Exports all MySQL tables as a valid SQL script using batched fetching to prevent OOM."""
-    sql_buffer = io.StringIO()
+    sql_buffer = output if output is not None else io.StringIO()
     sql_buffer.write("-- MAX RADIUS MySQL Database Dump\n")
     sql_buffer.write(f"-- Generated at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
     sql_buffer.write("SET FOREIGN_KEY_CHECKS = 0;\n\n")
@@ -374,40 +400,110 @@ def generate_mysql_dump():
                     pass
 
                 # Fetch rows in chunks of 500 to keep memory flat
-                cur.execute(f"SELECT * FROM `{tname}`")
-                batch_size = 500
-                while True:
-                    rows = cur.fetchmany(batch_size)
-                    if not rows:
-                        break
+                from pymysql.cursors import SSDictCursor
+                data_cur = conn.cursor(SSDictCursor)
+                try:
+                    data_cur.execute(f"SELECT * FROM `{tname}`")
+                    batch_size = 500
+                    while True:
+                        rows = data_cur.fetchmany(batch_size)
+                        if not rows:
+                            break
 
-                    cols_str = ", ".join([f"`{k}`" for k in rows[0].keys()])
-                    values_clauses = []
-                    for row in rows:
-                        vals = []
-                        for v in row.values():
-                            if v is None:
-                                vals.append("NULL")
-                            elif isinstance(v, (int, float)):
-                                vals.append(str(v))
-                            elif isinstance(v, (bytes, bytearray)):
-                                vals.append(f"0x{v.hex()}")
-                            else:
-                                escaped = str(v).replace("\\", "\\\\").replace("'", "\\'")
-                                vals.append(f"'{escaped}'")
-                        values_clauses.append(f"({', '.join(vals)})")
+                        cols_str = ", ".join([f"`{k}`" for k in rows[0].keys()])
+                        values_clauses = []
+                        for row in rows:
+                            vals = []
+                            for v in row.values():
+                                if v is None:
+                                    vals.append("NULL")
+                                elif isinstance(v, (int, float)):
+                                    vals.append(str(v))
+                                elif isinstance(v, (bytes, bytearray)):
+                                    vals.append(f"0x{v.hex()}")
+                                else:
+                                    escaped = str(v).replace("\\", "\\\\").replace("'", "\\'")
+                                    vals.append(f"'{escaped}'")
+                            values_clauses.append(f"({', '.join(vals)})")
 
-                    if values_clauses:
-                        sql_buffer.write(f"INSERT INTO `{tname}` ({cols_str}) VALUES\n" + ",\n".join(values_clauses) + ";\n")
+                        if values_clauses:
+                            sql_buffer.write(f"INSERT INTO `{tname}` ({cols_str}) VALUES\n" + ",\n".join(values_clauses) + ";\n")
 
+                finally:
+                    data_cur.close()
                 sql_buffer.write("\n")
 
         sql_buffer.write("SET FOREIGN_KEY_CHECKS = 1;\n")
-        return sql_buffer.getvalue(), table_names
+        return (sql_buffer.getvalue() if output is None else None), table_names
     finally:
         conn.close()
 
-def create_backup(admin_username='admin', notes='نسخة يدوية'):
+@contextmanager
+def _native_mysql_options():
+    # Credentials stay in a private temporary file, never command-line arguments.
+    from database import db
+    def quote(value):
+        value = str(value).replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+        return '"' + value + '"'
+    with tempfile.TemporaryDirectory(prefix='max-radius-db-client-') as directory:
+        path = os.path.join(directory, 'client.cnf')
+        with open(path, 'w', encoding='utf-8') as config:
+            os.chmod(path, 0o600)
+            config.write('[client]\n' + '\n'.join(key + '=' + quote(value) for key, value in (
+                ('host', db.DB_HOST), ('port', db.DB_PORT), ('user', db.DB_USER),
+                ('password', db.DB_PASSWORD), ('default-character-set', 'utf8mb4'))) + '\n')
+        yield path, str(db.DB_NAME)
+
+
+def _run_mysql_tool(command, stdin=None, stdout=None):
+    with tempfile.TemporaryFile(mode='w+b') as errors:
+        result = subprocess.run(command, stdin=stdin, stdout=stdout or subprocess.DEVNULL,
+                                stderr=errors, timeout=3600, check=False)
+        if result.returncode:
+            errors.seek(0, os.SEEK_END)
+            errors.seek(max(0, errors.tell() - 4096))
+            detail = errors.read().decode('utf-8', errors='replace').strip()
+            from database import db
+            if db.DB_PASSWORD:
+                detail = detail.replace(str(db.DB_PASSWORD), '[redacted]')
+            raise RuntimeError('MariaDB client failed (exit %s): %s' % (result.returncode, detail))
+
+
+def _native_mysql_dump(output):
+    executable = shutil.which('mariadb-dump') or shutil.which('mysqldump')
+    if not executable:
+        raise RuntimeError('MariaDB dump client is missing; install the database client in the web image.')
+    with _native_mysql_options() as (options, database):
+        _run_mysql_tool([executable, '--defaults-extra-file=' + options, '--protocol=TCP', '--skip-ssl',
+                         '--single-transaction', '--quick', '--hex-blob', '--skip-triggers',
+                         '--skip-routines', '--skip-events', database], stdout=output)
+    return [next(iter(row.values())) for row in query_all('SHOW TABLES')]
+
+
+def _native_mysql_restore(sql_path):
+    executable = shutil.which('mariadb') or shutil.which('mysql')
+    if not executable:
+        raise RuntimeError('MariaDB client is missing; install the database client in the web image.')
+    from database.db import get_db_timezone_offset
+    # A disk stream also lets legacy dumps finish their last transaction explicitly.
+    with tempfile.TemporaryFile(mode='w+b') as stream:
+        prefix = "SET SESSION time_zone='%s'; SET SESSION innodb_lock_wait_timeout=180; SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0; SET autocommit=0;\n" % get_db_timezone_offset()
+        stream.write(prefix.encode('utf-8'))
+        with open(sql_path, 'rb') as source:
+            shutil.copyfileobj(source, stream, 1024 * 1024)
+        stream.write(b'\nCOMMIT; SET FOREIGN_KEY_CHECKS=1; SET UNIQUE_CHECKS=1;\n')
+        stream.seek(0)
+        with _native_mysql_options() as (options, database):
+            _run_mysql_tool([executable, '--defaults-extra-file=' + options,
+                             '--protocol=TCP', '--skip-ssl', '--binary-mode', database], stdin=stream)
+
+
+def create_backup(admin_username='admin', notes='نسخة يدوية', dispatch_notifications=True):
+    with tempfile.TemporaryFile(mode='w+b') as sql_file:
+        return _create_backup(sql_file, admin_username, notes, dispatch_notifications)
+
+
+def _create_backup(sql_file, admin_username, notes, dispatch_notifications):
     """
     Generate a full comprehensive backup containing:
     1. Full MySQL / MariaDB database dump
@@ -428,7 +524,7 @@ def create_backup(admin_username='admin', notes='نسخة يدوية'):
     conn.close()
     
     if is_mysql:
-        sql_content, table_names = generate_mysql_dump()
+        table_names = _native_mysql_dump(sql_file)
         db_engine_name = 'mysql'
     else:
         # SQLite dump
@@ -464,13 +560,17 @@ def create_backup(admin_username='admin', notes='نسخة يدوية'):
     }
     
     # Pack into TAR.GZ
-    with tarfile.open(filepath, 'w:gz') as tar:
+    with tarfile.open(filepath, 'w:gz', compresslevel=3) as tar:
         # 1. Database dump
-        sql_bytes = sql_content.encode('utf-8')
+        if not is_mysql:
+            sql_file.write(sql_content.encode('utf-8'))
+        sql_file.seek(0, os.SEEK_END)
+        sql_size = sql_file.tell()
+        sql_file.seek(0)
         ti_sql = tarfile.TarInfo(name='database_dump.sql')
-        ti_sql.size = len(sql_bytes)
+        ti_sql.size = sql_size
         ti_sql.mtime = int(now.timestamp())
-        tar.addfile(ti_sql, io.BytesIO(sql_bytes))
+        tar.addfile(ti_sql, sql_file)
         
         # 2. Metadata JSON
         meta_bytes = json.dumps(meta, default=str, ensure_ascii=False, indent=2).encode('utf-8')
@@ -559,7 +659,7 @@ def create_backup(admin_username='admin', notes='نسخة يدوية'):
     try:
         from services.bot_notifications_service import get_notification_settings
         n_settings = (get_notification_settings().get('settings') or {})
-        if n_settings.get('is_enabled') and n_settings.get('auto_send_backups') and n_settings.get('bot_token'):
+        if dispatch_notifications and n_settings.get('is_enabled') and n_settings.get('auto_send_backups') and n_settings.get('bot_token'):
             import threading
             threading.Thread(
                 target=send_backup_to_telegram,
@@ -627,6 +727,11 @@ def upload_backup_file(file_storage, admin_username='admin'):
     return True, f"تم رفع النسخة الاحتياطية [{clean_name}] بنجاح بحجم ({size_mb} MB)."
 
 def restore_backup(filename, admin_username='admin'):
+    with tempfile.TemporaryDirectory(prefix='max-radius-restore-') as temp_dir:
+        return _restore_backup(filename, admin_username, temp_dir)
+
+
+def _restore_backup(filename, admin_username, temp_dir):
     """
     Comprehensive restore:
     1. Extracts database SQL dump and updates MariaDB/MySQL.
@@ -640,7 +745,8 @@ def restore_backup(filename, admin_username='admin'):
         return False, f"ملف النسخة الاحتياطية [{safe_name}] غير موجود على القرص."
         
     try:
-        sql_content = ""
+        sql_path = None
+        extracted_sql = os.path.join(temp_dir, 'database_dump.sql')
         is_tar = safe_name.endswith('.tar.gz') or safe_name.endswith('.tgz')
         is_zip = safe_name.endswith('.zip')
         is_sql = safe_name.endswith('.sql')
@@ -658,12 +764,14 @@ def restore_backup(filename, admin_username='admin'):
         
         # 1. Extract from TAR.GZ
         if is_tar:
-            with tarfile.open(filepath, 'r:gz') as tar:
-                for member in tar.getmembers():
+            with tarfile.open(filepath, 'r|gz') as tar:
+                for member in tar:
                     if member.name == 'database_dump.sql':
                         f = tar.extractfile(member)
                         if f:
-                            sql_content = f.read().decode('utf-8', errors='replace')
+                            with open(extracted_sql, 'wb') as out:
+                                shutil.copyfileobj(f, out, 1024 * 1024)
+                            sql_path = extracted_sql
                     elif member.name.startswith('uploads/') and not member.isdir():
                         rel_file = member.name[len('uploads/'):]
                         f = tar.extractfile(member)
@@ -684,7 +792,9 @@ def restore_backup(filename, admin_username='admin'):
             with zipfile.ZipFile(filepath, 'r') as zf:
                 namelist = zf.namelist()
                 if 'database_dump.sql' in namelist:
-                    sql_content = zf.read('database_dump.sql').decode('utf-8', errors='replace')
+                    with zf.open('database_dump.sql') as src, open(extracted_sql, 'wb') as out:
+                        shutil.copyfileobj(src, out, 1024 * 1024)
+                    sql_path = extracted_sql
                 elif 'radius_wisp_raw.db' in namelist and not is_mysql_conn(get_connection()):
                     raw_bytes = zf.read('radius_wisp_raw.db')
                     with open(DB_PATH, 'wb') as f:
@@ -705,8 +815,7 @@ def restore_backup(filename, admin_username='admin'):
                         
         # 3. Plain SQL
         elif is_sql:
-            with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
-                sql_content = f.read()
+            sql_path = filepath
                 
         # Preserve Current Machine License Snapshot to prevent foreign backup overwrite
         saved_license_row = None
@@ -716,7 +825,6 @@ def restore_backup(filename, admin_username='admin'):
         except Exception as e_lic_save:
             print(f"[License Backup Isolation Notice]: {e_lic_save}")
 
-        commands = split_sql_statements(sql_content) if sql_content else []
 
         from database.db import set_import_maintenance_active
         set_import_maintenance_active(True)
@@ -724,28 +832,13 @@ def restore_backup(filename, admin_username='admin'):
         quota_warning = ""
 
         # Execute database restoration
-        if sql_content:
+        if sql_path:
             conn = get_connection()
             is_mysql = is_mysql_conn(conn)
             conn.close()
             
             if is_mysql:
-                commands = split_sql_statements(sql_content)
-                with db_session() as c:
-                    cursor = c.cursor()
-                    try:
-                        cursor.execute("SET SESSION innodb_lock_wait_timeout = 180;")
-                        cursor.execute("SET SESSION tx_isolation = 'READ-COMMITTED';")
-                    except Exception:
-                        pass
-                    cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
-                    cursor.execute("SET UNIQUE_CHECKS = 0;")
-                    for cmd in commands:
-                        cleaned = cmd.strip()
-                        if cleaned and not cleaned.startswith('--') and not cleaned.startswith('/*') and not cleaned.startswith('#'):
-                            cursor.execute(cleaned)
-                    cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
-                    cursor.execute("SET UNIQUE_CHECKS = 1;")
+                _native_mysql_restore(sql_path)
             else:
                 conn = get_connection()
                 try:
@@ -755,7 +848,8 @@ def restore_backup(filename, admin_username='admin'):
                     for row in tbl_rows:
                         cursor.execute(f'DROP TABLE IF EXISTS "{row[0]}";')
                     conn.commit()
-                    conn.executescript(sql_content)
+                    with open(sql_path, 'r', encoding='utf-8', errors='replace') as sql_stream:
+                        conn.executescript(sql_stream.read())
                     conn.commit()
                 finally:
                     conn.close()
@@ -764,7 +858,7 @@ def restore_backup(filename, admin_username='admin'):
         schema_restore_error = None
         try:
             from database.schema_healer import heal_database_schema, install_accounting_triggers
-            if not heal_database_schema():
+            if not heal_database_schema(install_triggers=False):
                 raise RuntimeError("Schema repair did not complete successfully.")
             # The general healer logs some trigger failures; enforce verification here.
             with db_session() as restored_db:
@@ -788,16 +882,25 @@ def restore_backup(filename, admin_username='admin'):
             except Exception as e_lic_restore:
                 print(f"[License Isolation Warning]: {e_lic_restore}")
 
-        # Post-Restore Quota Audit (Open UI policy: allow navigation & deletion to reduce quota)
+        # Post-Restore License Quota Audit
         try:
             from services.license_guard_service import get_active_license_status
             lic_st = get_active_license_status(force_refresh=True)
-            c_subs = lic_st.get('current_subscribers', 0)
-            m_subs = lic_st.get('max_subscribers', 0)
-            if m_subs > 0 and c_subs > m_subs:
-                quota_warning = f" ⚠️ (تنبيه الترخيص: إجمالي المشتركين {c_subs:,} يتجاوز سقف باقة ترخيصك {m_subs:,} - تم تجميد الإضافات الجديدة، والواجهة مفتوحة بالكامل لحذف وتعديل السجلات حتى النزول تحت السقف)."
+            lic_mode = lic_st.get('license_mode', 'active_sessions')
+            if lic_mode == 'active_sessions':
+                c_act = lic_st.get('current_active_sessions', 0)
+                m_act = lic_st.get('max_active_sessions', 0)
+                if m_act > 0 and c_act >= m_act:
+                    quota_warning = f" ⚠️ (تنبيه الترخيص: الجلسات المتصلة {c_act:,} بلغت سقف باقة ترخيصك {m_act:,} - يتم رفض الاتصالات الجديدة فقط مع استمرار عمل النظام وإدارة المشتركين)."
         except Exception as e_post_check:
             print(f"[Post-Restore Check Exception]: {e_post_check}")
+
+        # Never restore an active worker/container-control journal from a backup.
+        try:
+            from services.factory_reset_service import sanitize_restored_jobs
+            sanitize_restored_jobs()
+        except Exception as jobs_error:
+            schema_restore_error = schema_restore_error or str(jobs_error)
 
         # Layer 1: Cleanly sanitize restored open sessions
         try:

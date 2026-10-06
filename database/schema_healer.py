@@ -11,7 +11,10 @@ import sys
 from database.db import get_connection, is_mysql_conn, adapt_query
 
 # Schema Definition Registry
+from database.maintenance_jobs import MAINTENANCE_JOBS_DDL
+
 REQUIRED_TABLES = {
+    'wisp_maintenance_jobs': MAINTENANCE_JOBS_DDL,
     'wisp_whatsapp_settings': """
         CREATE TABLE IF NOT EXISTS wisp_whatsapp_settings (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -132,10 +135,31 @@ REQUIRED_TABLES = {
             PRIMARY KEY (radacctid, renewed_at),
             INDEX idx_username_renewed (username, renewed_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    """,
+    'wisp_session_reservations': """
+        CREATE TABLE IF NOT EXISTS wisp_session_reservations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            session_key VARCHAR(191) NOT NULL,
+            username VARCHAR(64) NOT NULL,
+            nasipaddress VARCHAR(45) NOT NULL,
+            callingstationid VARCHAR(50) NOT NULL,
+            reserved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at DATETIME NOT NULL,
+            UNIQUE KEY uk_session_key (session_key),
+            INDEX idx_res_expires (expires_at),
+            INDEX idx_res_nas (nasipaddress)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     """
 }
 
 REQUIRED_COLUMNS = {
+    'wisp_license_info': [
+        ('max_active_sessions', 'INT DEFAULT 0 AFTER max_subscribers')
+    ],
+    'radpostauth': [
+        ('nasipaddress', 'VARCHAR(45) DEFAULT NULL'),
+        ('callingstationid', 'VARCHAR(50) DEFAULT NULL')
+    ],
     'wisp_subscribers': [
         ('snap_volume_quota_mb', 'BIGINT NULL DEFAULT NULL'),
         ('global_seq_id', 'BIGINT NULL AFTER id'),
@@ -343,16 +367,24 @@ BEGIN
 END;
 """
 
+from database.license_capacity import (LINK_SQL as TRIGGER_RESERVATION_RELEASE_INSERT_SQL,
+    STOP_SQL as TRIGGER_RESERVATION_RELEASE_UPDATE_SQL, install_capacity_schema)
+
 def install_accounting_triggers(conn):
-    """Install the shared definitions and fail if either definition is not active."""
+    """Install the shared definitions and fail if any definition is not active."""
     import re
     if not is_mysql_conn(conn):
         return
+    install_capacity_schema(conn)
     with conn.cursor() as cur:
         cur.execute('SELECT VERSION() AS version')
         maria = 'mariadb' in str(cur.fetchone()['version']).lower()
-        for name, sql in (('trg_radacct_subscriber_activate', TRIGGER_SUB_SQL),
-                          ('trg_radacct_activate_voucher', TRIGGER_VOUCHER_SQL)):
+        for name, sql in (
+            ('trg_radacct_subscriber_activate', TRIGGER_SUB_SQL),
+            ('trg_radacct_activate_voucher', TRIGGER_VOUCHER_SQL),
+            ('trg_radacct_release_reservation_insert', TRIGGER_RESERVATION_RELEASE_INSERT_SQL),
+            ('trg_radacct_release_reservation_update', TRIGGER_RESERVATION_RELEASE_UPDATE_SQL)
+        ):
             if maria:
                 cur.execute(sql.replace('CREATE TRIGGER', 'CREATE OR REPLACE TRIGGER', 1))
             else:
@@ -364,10 +396,10 @@ def install_accounting_triggers(conn):
             normalize = lambda text: re.sub(r'\s+', ' ', text.strip().rstrip(';')).strip()
             expected = sql.split('FOR EACH ROW', 1)[1]
             if not row or normalize(row['ACTION_STATEMENT']) != normalize(expected):
-                raise RuntimeError(f'Accounting trigger verification failed: {name}')
+                raise RuntimeError(f'Trigger verification failed: {name}')
 
 
-def heal_database_schema(backfill=True):
+def heal_database_schema(backfill=True, install_triggers=True):
     """
     Scans the database schema, compares against REQUIRED_TABLES and REQUIRED_COLUMNS,
     and executes ALTER / CREATE statements for any missing element.
@@ -377,6 +409,9 @@ def heal_database_schema(backfill=True):
         conn = get_connection()
         is_mysql = is_mysql_conn(conn)
         cur = conn.cursor()
+
+        from database.loyalty_schema import ensure_loyalty_schema
+        ensure_loyalty_schema(conn)
 
         # 1. Create any missing tables
         for tbl_name, create_sql in REQUIRED_TABLES.items():
@@ -414,6 +449,12 @@ def heal_database_schema(backfill=True):
                         print(f"[Schema Healer] Added missing column `{col_name}` to `{tbl_name}`.")
                     except Exception as e:
                         print(f"[Schema Healer] Notice adding column `{col_name}` to `{tbl_name}`: {e}")
+
+        # Preserve the first session as the first cycle; defaults must not timestamp unused accounts.
+        if is_mysql:
+            for table in ('wisp_vouchers', 'wisp_subscribers'):
+                cur.execute(f"ALTER TABLE {table} ALTER COLUMN last_renewed_at SET DEFAULT NULL")
+            conn.commit()
 
         # 3. Backfill missing global sequence IDs
         try:
@@ -491,7 +532,7 @@ def heal_database_schema(backfill=True):
 
         # 5. Ensure Triggers Exist
         try:
-            if is_mysql:
+            if is_mysql and install_triggers:
                 install_accounting_triggers(conn)
                 conn.commit()
         except Exception as e:

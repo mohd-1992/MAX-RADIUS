@@ -2,8 +2,8 @@
 set -e
 
 echo "===================================================================="
-echo "  🚀 Starting Official FreeRADIUS 3.x Engine with MySQL Backend"
-echo "  🗄️  Target DB: ${DB_HOST:-mariadb}:${DB_PORT:-3306}/${DB_NAME:-radius_wisp}"
+echo "  ظ‹ع؛ع‘â‚¬ Starting Official FreeRADIUS 3.x Engine with MySQL Backend"
+echo "  ظ‹ع؛â€”â€‍أ¯آ¸عˆ  Target DB: ${DB_HOST:-mariadb}:${DB_PORT:-3306}/${DB_NAME:-radius_wisp}"
 echo "===================================================================="
 
 CONF_DIR="/etc/freeradius/3.0"
@@ -40,7 +40,8 @@ VALUES ('healthcheck', 'Cleartext-Password', ':=', 'healthpass')
 ON DUPLICATE KEY UPDATE value='healthpass';
 EOSQL
 
-DEFAULT_SECRET="${RADIUS_SECRET_DEFAULT:-max123}"
+DEFAULT_SECRET="${RADIUS_SECRET_DEFAULT:-${RADIUS_SECRET:-max123}}"
+WEB_CLIENT_IP="${RADIUS_WEB_CLIENT_IP:-172.18.0.4}"
 
 # 1. Write the clean SQL module configuration
 cat << EOF > ${CONF_DIR}/mods-available/sql
@@ -92,10 +93,10 @@ EOF
 # Enable SQL module
 ln -sf ${CONF_DIR}/mods-available/sql ${CONF_DIR}/mods-enabled/sql
 
-# 2. Write clean clients.conf (Dynamic clients from MySQL nas table + fallback for standard routers)
+# 2. Write clean clients.conf (Internal clients + Dynamic clients from MySQL nas table)
 cat << EOF > ${CONF_DIR}/clients.conf
 # -----------------------------------------------------------------------------
-# FreeRADIUS Clients Configuration (MikroTik & Localhost)
+# FreeRADIUS Clients Configuration (MikroTik & Internal Services)
 # -----------------------------------------------------------------------------
 
 client localhost {
@@ -112,15 +113,8 @@ client localhost_ipv6 {
     nas_type = other
 }
 
-client docker_internal_net {
-    ipaddr = 172.18.0.0/16
-    secret = ${DEFAULT_SECRET}
-    require_message_authenticator = no
-    nas_type = other
-}
-
-client all_mikrotik_routers {
-    ipaddr = 0.0.0.0/0
+client web_container {
+    ipaddr = ${WEB_CLIENT_IP}
     secret = ${DEFAULT_SECRET}
     require_message_authenticator = no
     nas_type = other
@@ -141,6 +135,21 @@ if [ -f "${CONF_DIR}/sites-available/default" ]; then
     if ! grep -q "REPLY_MESSAGE_REJECT_FORWARDING" ${CONF_DIR}/sites-available/default; then
         sed -i '/Post-Auth-Type REJECT {/a \	# REPLY_MESSAGE_REJECT_FORWARDING\n	if (&control:Reply-Message) {\n		update reply {\n			&Reply-Message := &control:Reply-Message\n		}\n	}\n	elsif (&reply:Reply-Message) {\n		update reply {\n			&Reply-Message := &reply:Reply-Message\n		}\n	}' ${CONF_DIR}/sites-available/default
     fi
+fi
+
+
+# Reserve only after successful authentication, before sending Access-Accept.
+# The packet authenticator makes retries idempotent and new sessions distinct.
+if ! grep -q 'MAX_LICENSE_ATOMIC_CAPACITY' "${CONF_DIR}/sites-available/default"; then
+    sed -i '/^post-auth {/r /etc/freeradius/3.0/license-capacity-postauth.conf' "${CONF_DIR}/sites-available/default"
+fi
+
+# Authenticate successful responses and rejects, including replies without EAP.
+if ! grep -q 'MAX_MESSAGE_AUTHENTICATOR_ACCEPT' "${CONF_DIR}/sites-available/default"; then
+    sed -i '/^post-auth {/a # MAX_MESSAGE_AUTHENTICATOR_ACCEPT\n\tupdate reply {\n\t\tMessage-Authenticator := 0x00000000000000000000000000000000\n\t}' "${CONF_DIR}/sites-available/default"
+fi
+if ! grep -q 'MAX_MESSAGE_AUTHENTICATOR_REJECT' "${CONF_DIR}/sites-available/default"; then
+    sed -i '/^[[:space:]]*attr_filter\.access_reject$/a # MAX_MESSAGE_AUTHENTICATOR_REJECT\n\t\tupdate reply {\n\t\t\tMessage-Authenticator := 0x00000000000000000000000000000000\n\t\t}' "${CONF_DIR}/sites-available/default"
 fi
 
 chown -R freerad:freerad ${CONF_DIR} 2>/dev/null || true

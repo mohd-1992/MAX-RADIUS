@@ -4,11 +4,36 @@ Synchronizer between WISP Billing models and standard FreeRADIUS tables
 (radcheck, radreply, radgroupreply, radgroupcheck, radusergroup).
 """
 
-from database.db import execute_write, query_one, query_all
+from database.db import db_session, adapt_query, is_mysql_conn
 from core.rate_limit import build_mikrotik_rate_limit
 
-def sync_package_to_radius(package_id):
+def _write(conn, sql, params=()):
+    cursor = conn.cursor()
+    try:
+        cursor.execute(adapt_query(sql, conn), params)
+        return cursor.lastrowid
+    finally:
+        cursor.close()
+
+
+def _one(conn, sql, params=()):
+    cursor = conn.cursor()
+    try:
+        cursor.execute(adapt_query(sql, conn), params)
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        cursor.close()
+
+
+def sync_package_to_radius(package_id, conn=None):
     """Syncs a WISP package to radgroupreply and radgroupcheck."""
+    if conn is None:
+        with db_session() as connection:
+            return sync_package_to_radius(package_id, conn=connection)
+    execute_write = lambda sql, params=(): _write(conn, sql, params)
+    query_one = lambda sql, params=(): _one(conn, sql, params)
+
     pkg = query_one('SELECT * FROM wisp_packages WHERE id = ?', (package_id,))
     if not pkg:
         return False
@@ -64,14 +89,20 @@ def sync_package_to_radius(package_id):
         
     return True
 
-def sync_subscriber_to_radius(subscriber_id):
+def sync_subscriber_to_radius(subscriber_id, conn=None):
     """Syncs a subscriber credentials and attributes to radcheck, radreply, radusergroup."""
+    if conn is None:
+        with db_session() as connection:
+            return sync_subscriber_to_radius(subscriber_id, conn=connection)
+    execute_write = lambda sql, params=(): _write(conn, sql, params)
+    query_one = lambda sql, params=(): _one(conn, sql, params)
+
     sub = query_one('''
         SELECT s.*, p.name as package_name, p.mikrotik_group as pkg_mikrotik_group 
         FROM wisp_subscribers s 
         JOIN wisp_packages p ON s.package_id = p.id 
         WHERE s.id = ?
-    ''', (subscriber_id,))
+    ''' + (' FOR UPDATE' if is_mysql_conn(conn) else ''), (subscriber_id,))
     if not sub:
         return False
         
@@ -138,12 +169,18 @@ def sync_subscriber_to_radius(subscriber_id):
                     (username, 'Expiration', ':=', freeradius_exp)
                 )
         except Exception as e:
-            print(f"Error syncing subscriber expiration: {e}")
+            raise
 
     return True
 
-def sync_voucher_to_radius(voucher_id):
+def sync_voucher_to_radius(voucher_id, conn=None):
     """Syncs a voucher card to radcheck, radreply, and radusergroup based on activation state."""
+    if conn is None:
+        with db_session() as connection:
+            return sync_voucher_to_radius(voucher_id, conn=connection)
+    execute_write = lambda sql, params=(): _write(conn, sql, params)
+    query_one = lambda sql, params=(): _one(conn, sql, params)
+
     v = query_one('''
         SELECT v.*, 
                p.name as package_name,
@@ -154,7 +191,7 @@ def sync_voucher_to_radius(voucher_id):
         FROM wisp_vouchers v 
         JOIN wisp_packages p ON v.package_id = p.id 
         WHERE v.id = ?
-    ''', (voucher_id,))
+    ''' + (' FOR UPDATE' if is_mysql_conn(conn) else ''), (voucher_id,))
     if not v:
         return False
         
@@ -209,7 +246,7 @@ def sync_voucher_to_radius(voucher_id):
                 (username, 'Expiration', ':=', freeradius_exp)
             )
         except Exception:
-            pass
+            raise
 
     # 5. MAC Binding if already locked
     if v.get('bound_mac') and len(v['bound_mac'].strip()) > 5:
@@ -226,8 +263,14 @@ def sync_voucher_to_radius(voucher_id):
         )
     return True
 
-def delete_user_from_radius(username):
+def delete_user_from_radius(username, conn=None):
     """Removes user completely from FreeRADIUS tables."""
+    if conn is None:
+        with db_session() as connection:
+            return delete_user_from_radius(username, conn=connection)
+    execute_write = lambda sql, params=(): _write(conn, sql, params)
+    query_one = lambda sql, params=(): _one(conn, sql, params)
+
     execute_write('DELETE FROM radcheck WHERE username = ?', (username,))
     execute_write('DELETE FROM radreply WHERE username = ?', (username,))
     execute_write('DELETE FROM radusergroup WHERE username = ?', (username,))

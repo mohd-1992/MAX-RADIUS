@@ -19,7 +19,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Application Environment & Web Port
 APP_ENV = os.environ.get('APP_ENV', 'production')
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 't')
-SECRET_KEY = os.environ.get('SECRET_KEY', 'max-radius-secret-key-prod-2026')
+from core.license_security import persistent_secret
+SECRET_KEY = persistent_secret(Path(os.environ.get('STORAGE_DIR', BASE_DIR / 'storage')))
 APP_HOST = os.environ.get('HOST', '0.0.0.0')
 APP_PORT = int(os.environ.get('PORT', 5090))
 

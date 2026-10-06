@@ -22,10 +22,14 @@ def ensure_archive_tables():
     try:
         cur = db.cursor()
         try:
+            cur.execute("SELECT GET_LOCK(CONCAT(DATABASE(), ':archive-schema'), 10) AS acquired")
+            if (cur.fetchone() or {}).get('acquired') != 1:
+                raise RuntimeError('تعذر حجز ترقية مخطط الأرشيف؛ أعد المحاولة لاحقًا.')
+            cur.execute('SET SESSION lock_wait_timeout=10')
             # 1. Create table if it does not exist
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS radacct_archive (
-                    radacctid BIGINT NOT NULL PRIMARY KEY,
+                    radacctid BIGINT NOT NULL,
                     acctsessionid VARCHAR(64) NOT NULL,
                     acctuniqueid VARCHAR(32) NOT NULL,
                     username VARCHAR(64) NOT NULL,
@@ -54,20 +58,21 @@ def ensure_archive_tables():
                     framedprotocol VARCHAR(32) DEFAULT NULL,
                     framedipaddress VARCHAR(15) NOT NULL DEFAULT '',
                     archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (radacctid, acctuniqueid),
                     INDEX idx_arch_user (username),
                     INDEX idx_arch_start (acctstarttime),
                     INDEX idx_arch_stop (acctstoptime)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """)
-            
+
             # 2. Check and add missing gigawords/class columns on existing radacct_archive tables
             cur.execute("""
-                SELECT column_name 
-                FROM information_schema.COLUMNS 
+                SELECT column_name
+                FROM information_schema.COLUMNS
                 WHERE table_schema = DATABASE() AND table_name = 'radacct_archive'
             """)
             existing_cols = {row['column_name'].lower() for row in cur.fetchall()}
-            
+
             if 'acctinputgigawords' not in existing_cols:
                 try:
                     cur.execute("ALTER TABLE radacct_archive ADD COLUMN acctinputgigawords BIGINT UNSIGNED DEFAULT 0")
@@ -84,8 +89,16 @@ def ensure_archive_tables():
                 except Exception:
                     pass
 
+            cur.execute("SHOW INDEX FROM radacct_archive WHERE Key_name='PRIMARY'")
+            primary = [r['Column_name'] for r in sorted(cur.fetchall(),key=lambda r:r['Seq_in_index'])]
+            if primary == ['radacctid']:
+                # Retain source IDs and all historical rows. Different sessions can reuse a source ID.
+                cur.execute('ALTER TABLE radacct_archive DROP PRIMARY KEY, ADD PRIMARY KEY (radacctid,acctuniqueid)')
+            elif primary != ['radacctid','acctuniqueid']:
+                raise RuntimeError('مفتاح أرشيف غير متوقع؛ لم يتم تغيير السجلات.')
             db.commit()
         finally:
+            cur.execute("SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':archive-schema'))")
             cur.close()
     finally:
         db.close()
@@ -99,7 +112,7 @@ def get_archiver_status():
         try:
             # Live radacct count and session timestamps
             cur.execute("""
-                SELECT 
+                SELECT
                     COUNT(*) as live_count,
                     MIN(acctstarttime) as oldest_session,
                     MAX(acctstarttime) as newest_session,
@@ -112,10 +125,10 @@ def get_archiver_status():
 
             # Archive count & oldest archive record
             cur.execute("""
-                SELECT 
-                    COUNT(*) as archive_count, 
+                SELECT
+                    COUNT(*) as archive_count,
                     MIN(archived_at) as oldest_archive,
-                    COALESCE(SUM((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) + CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED)) * 4294967296 + 
+                    COALESCE(SUM((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) + CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED)) * 4294967296 +
                                  CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_archived_bytes
                 FROM radacct_archive
             """)
@@ -124,7 +137,7 @@ def get_archiver_status():
             # Table sizes in MB
             db_name = DB_NAME or 'radius_wisp'
             cur.execute("""
-                SELECT 
+                SELECT
                     table_name,
                     ROUND(((data_length + index_length) / 1024 / 1024), 2) AS size_mb
                 FROM information_schema.TABLES
@@ -133,13 +146,13 @@ def get_archiver_status():
             table_sizes = {r['table_name']: r['size_mb'] for r in cur.fetchall()}
 
             archived_gb = round(float(arch_stats.get('total_archived_bytes') or 0) / (1024 ** 3), 2)
-            
+
             oldest_s = live_stats.get('oldest_session')
             if oldest_s and hasattr(oldest_s, 'strftime'):
                 oldest_s = oldest_s.strftime('%Y-%m-%d %H:%M')
             elif oldest_s:
                 oldest_s = str(oldest_s)
-                
+
             newest_s = live_stats.get('newest_session')
             if newest_s and hasattr(newest_s, 'strftime'):
                 newest_s = newest_s.strftime('%Y-%m-%d %H:%M')
@@ -165,6 +178,19 @@ def get_archiver_status():
         db.close()
 
 def archive_old_sessions(days_threshold=90, chunk_size=5000):
+    from services.account_lifecycle_service import job_lock
+    try:
+        if int(days_threshold) < 1:
+            return False, 'مدة الاحتفاظ يجب أن تكون يومًا واحدًا على الأقل.'
+        with job_lock('accounting-archive') as acquired, job_lock('factory-reset') as reset_idle:
+            if not acquired or not reset_idle:
+                return False, 'الأرشفة أو إعادة المصنع قيد التنفيذ؛ أعد المحاولة بعد اكتمالها.'
+            return _archive_old_sessions_locked(days_threshold,chunk_size)
+    except Exception as exc:
+        return False, 'تعذر تنفيذ الأرشفة: '+str(exc)
+
+
+def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000):
     """
     Move closed accounting sessions older than days_threshold into radacct_archive
     in controlled chunks to avoid database locking.
@@ -174,7 +200,7 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
     db = _get_db()
     days = int(days_threshold)
     chunk = max(100, min(int(chunk_size or 5000), 20000))
-    
+
     # Keep every session still used by an account's current-cycle quota or baseline.
     eligible = """
         a.acctstoptime IS NOT NULL
@@ -219,9 +245,15 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
                         ids = [r['radacctid'] for r in rows]
                         placeholders = ','.join(['%s'] * len(ids))
 
-                        # 2. Insert batch into radacct_archive with gigawords
+                        identity = " AND ".join(
+                            f"(BINARY h.{field} <=> BINARY a.{field})" for field in
+                            ('acctuniqueid','username','nasipaddress','acctsessionid','acctstarttime','callingstationid','framedipaddress'))
+                        cur.execute(f"SELECT COUNT(*) n FROM radacct a JOIN radacct_archive h ON h.radacctid=a.radacctid AND BINARY h.acctuniqueid=BINARY a.acctuniqueid WHERE a.radacctid IN ({placeholders}) AND NOT ({identity})",tuple(ids))
+                        if int(cur.fetchone()['n']):
+                            raise RuntimeError('هوية الجلسة متعارضة؛ تم الاحتفاظ بالمحاسبة الأصلية.')
+                        # 2. Strict copy; a repeated snapshot merges counters without decreasing history.
                         cur.execute(f"""
-                            INSERT IGNORE INTO radacct_archive (
+                            INSERT INTO radacct_archive (
                                 radacctid, acctsessionid, acctuniqueid, username, groupname, realm,
                                 nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime,
                                 acctstoptime, acctinterval, acctsessiontime, acctauthentic, connectinfo_start,
@@ -229,7 +261,7 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
                                 acctoutputgigawords, class, calledstationid, callingstationid,
                                 acctterminatecause, servicetype, framedprotocol, framedipaddress
                             )
-                            SELECT 
+                            SELECT
                                 radacctid, acctsessionid, acctuniqueid, username, '' as groupname, realm,
                                 nasipaddress, nasportid, nasporttype, acctstarttime, acctupdatetime,
                                 acctstoptime, acctinterval, acctsessiontime, acctauthentic, connectinfo_start,
@@ -239,16 +271,38 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
                                 acctterminatecause, servicetype, framedprotocol, framedipaddress
                             FROM radacct
                             WHERE radacctid IN ({placeholders})
+                            ON DUPLICATE KEY UPDATE
+                                acctinputoctets=GREATEST(COALESCE(radacct_archive.acctinputoctets,0),COALESCE(VALUES(acctinputoctets),0)),
+                                acctoutputoctets=GREATEST(COALESCE(radacct_archive.acctoutputoctets,0),COALESCE(VALUES(acctoutputoctets),0)),
+                                acctinputgigawords=GREATEST(COALESCE(radacct_archive.acctinputgigawords,0),COALESCE(VALUES(acctinputgigawords),0)),
+                                acctoutputgigawords=GREATEST(COALESCE(radacct_archive.acctoutputgigawords,0),COALESCE(VALUES(acctoutputgigawords),0)),
+                                acctsessiontime=GREATEST(COALESCE(radacct_archive.acctsessiontime,0),COALESCE(VALUES(acctsessiontime),0)),
+                                acctupdatetime=GREATEST(COALESCE(radacct_archive.acctupdatetime,VALUES(acctupdatetime)),COALESCE(VALUES(acctupdatetime),radacct_archive.acctupdatetime)),
+                                acctstoptime=GREATEST(COALESCE(radacct_archive.acctstoptime,VALUES(acctstoptime)),COALESCE(VALUES(acctstoptime),radacct_archive.acctstoptime)),
+                                realm=VALUES(realm),nasportid=VALUES(nasportid),nasporttype=VALUES(nasporttype),
+                                acctinterval=VALUES(acctinterval),acctauthentic=VALUES(acctauthentic),
+                                connectinfo_start=VALUES(connectinfo_start),connectinfo_stop=VALUES(connectinfo_stop),
+                                class=VALUES(class),calledstationid=VALUES(calledstationid),
+                                acctterminatecause=VALUES(acctterminatecause),servicetype=VALUES(servicetype),framedprotocol=VALUES(framedprotocol)
                         """, tuple(ids))
-                        archived_count = cur.rowcount
+                        counters = " AND ".join(f"COALESCE(h.{field},0)>=COALESCE(a.{field},0)" for field in
+                            ('acctinputoctets','acctoutputoctets','acctinputgigawords','acctoutputgigawords','acctsessiontime'))
+                        metadata = " AND ".join(f"(BINARY h.{field} <=> BINARY a.{field})" for field in
+                            ('realm','nasportid','nasporttype','acctinterval','acctauthentic','connectinfo_start','connectinfo_stop','class','calledstationid','acctterminatecause','servicetype','framedprotocol'))
+                        timestamps = " AND ".join(f"(a.{field} IS NULL OR h.{field}>=a.{field})" for field in ('acctupdatetime','acctstoptime'))
+                        cur.execute(f"SELECT COUNT(*) n FROM radacct a JOIN radacct_archive h ON h.radacctid=a.radacctid AND BINARY h.acctuniqueid=BINARY a.acctuniqueid WHERE a.radacctid IN ({placeholders}) AND {identity} AND {counters} AND {metadata} AND {timestamps}",tuple(ids))
+                        if int(cur.fetchone()['n']) != len(ids):
+                            raise RuntimeError('لم يكتمل التحقق من نسخ الجلسات؛ تم الاحتفاظ بالمحاسبة الأصلية.')
 
                         # 3. Delete batch from radacct
                         cur.execute(f"DELETE a FROM radacct a WHERE a.radacctid IN ({placeholders}) AND {eligible}", tuple(ids) + (days,))
                         deleted_count = cur.rowcount
+                        if deleted_count != len(ids):
+                            raise RuntimeError('تغيرت أهلية إحدى الجلسات أثناء الأرشفة؛ لم تنقل الدفعة.')
 
                         db.commit()
 
-                        total_archived += archived_count
+                        total_archived += deleted_count
                         total_deleted += deleted_count
                         chunk_success = True
                         break
@@ -282,27 +336,11 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
         return True, f"تم بنجاح أرشفة {total_archived} جلسة قديمة وتحرير مساحة جدول المحاسبة."
     except Exception as e:
         db.rollback()
-        return False, f"خطأ أثناء أرشفة الجلسات: {str(e)}"
+        return False, f"لم تكتمل الأرشفة: نُقلت {total_archived} جلسة في الدفعات السابقة؛ الدفعة المتعثرة محفوظة. {str(e)}"
     finally:
         db.close()
 
 def optimize_accounting_tables():
-    """
-    Defragments table storage and rebuilds indexes for radacct and radacct_archive.
-    Uses ANALYZE TABLE and OPTIMIZE TABLE.
-    """
-    ensure_archive_tables()
-    db = _get_db()
-    try:
-        cur = db.cursor()
-        try:
-            cur.execute("ANALYZE TABLE radacct")
-            cur.execute("OPTIMIZE TABLE radacct_archive")
-            db.commit()
-            return True, "تم بنجاح تحسين وضغط جداول المحاسبة وإعادة بناء الفهارس."
-        finally:
-            cur.close()
-    except Exception as e:
-        return False, f"خطأ أثناء ضغط الجداول: {str(e)}"
-    finally:
-        db.close()
+    from services.db_maintenance_service import optimize_database_tables
+    result=optimize_database_tables(['radacct','radacct_archive'])
+    return result['success'],result['message']

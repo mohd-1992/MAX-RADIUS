@@ -18,6 +18,8 @@ from core.time_service import get_utc_cutoff_str
 
 SYSTEM_RESERVED_USERS = ('healthcheck', 'probe_user', 'admin')
 
+VALID_CHECK_ATTRIBUTES = frozenset(('Cleartext-Password','Calling-Station-Id','Auth-Type','Expiration','Simultaneous-Use','Max-All-Session','Max-Daily-Session','User-Password','Crypt-Password','MD5-Password','SMD5-Password','SHA-Password','SSHA-Password','NT-Password','LM-Password','CHAP-Password','NAS-IP-Address','NAS-Identifier','NAS-Port','NAS-Port-Type','Called-Station-Id','Service-Type','Framed-Protocol','Login-Time','Group','Huntgroup-Name'))
+
 def get_heartbeat_cutoff(minutes=10):
     return get_utc_cutoff_str(minutes)
 
@@ -255,75 +257,66 @@ def get_detailed_table_sizes():
 
 
 def prune_historical_logs(days=30, prune_postauth=True, prune_audit=False):
-    """
-    Prunes closed accounting sessions (radacct) and auth logs (radpostauth) older than the specified days.
-    """
-    start_t = time.time()
-    result = {
-        'success': True,
-        'retention_days': int(days),
-        'deleted_radacct': 0,
-        'deleted_radpostauth': 0,
-        'deleted_audit_logs': 0,
-        'duration_seconds': 0.0,
-        'message': ''
-    }
-    
+    from services.account_lifecycle_service import run_transaction, sql, job_lock, HISTORY_ELIGIBLE
+    days = max(1, int(days))
+    result = dict(success=True, retention_days=days, deleted_radacct=0, deleted_radpostauth=0, deleted_audit_logs=0)
+    started = time.time()
     try:
-        days = int(days)
-        if days < 1:
-            days = 30
-            
-        # 1. Prune closed sessions from radacct
-        ra_del = execute_update("""
-            DELETE FROM radacct 
-            WHERE acctstoptime IS NOT NULL 
-              AND acctstoptime < DATE_SUB(NOW(), INTERVAL ? DAY)
-        """, (days,))
-        result['deleted_radacct'] = ra_del or 0
-        
-        # 2. Prune radpostauth logs
-        if prune_postauth:
-            rp_del = execute_update("""
-                DELETE FROM radpostauth 
-                WHERE authdate < DATE_SUB(NOW(), INTERVAL ? DAY)
-            """, (days,))
-            result['deleted_radpostauth'] = rp_del or 0
-            
-        # 3. Optional Audit logs
-        if prune_audit:
-            al_del = execute_update("""
-                DELETE FROM wisp_audit_logs 
-                WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
-            """, (days,))
-            result['deleted_audit_logs'] = al_del or 0
-            
-        result['duration_seconds'] = round(time.time() - start_t, 2)
-        result['message'] = (
-            f"تم تنظيف السجلات الأقدم من {days} يوماً بنجاح: "
-            f"({result['deleted_radacct']:,} جلسة محاسبة من radacct، "
-            + (f"{result['deleted_radpostauth']:,} سجل مصادقة من radpostauth" if prune_postauth else "")
-            + f") خلال {result['duration_seconds']} ثانية."
-        )
-    except Exception as e:
-        result['success'] = False
-        result['message'] = f"خطأ أثناء تنظيف السجلات: {str(e)}"
-        
+        with job_lock('history-maintenance') as acquired:
+            if not acquired:
+                raise ValueError('توجد عملية صيانة سجلات أخرى قيد التنفيذ.')
+            while True:
+                def chunk(conn):
+                    rows = sql(conn, 'SELECT a.radacctid FROM radacct a WHERE '+HISTORY_ELIGIBLE+' ORDER BY a.radacctid LIMIT 250 FOR UPDATE', (days,), 'all')
+                    if not rows:
+                        return 0
+                    ids = [row['radacctid'] for row in rows]
+                    marks = ','.join(['?']*len(ids))
+                    return sql(conn, f'DELETE a FROM radacct a WHERE a.radacctid IN ({marks}) AND '+HISTORY_ELIGIBLE, tuple(ids)+(days,))
+                count = run_transaction(chunk)
+                result['deleted_radacct'] += count
+                if not count:
+                    break
+            for table, column, enabled, field in [('radpostauth','authdate',prune_postauth,'deleted_radpostauth'),('wisp_audit_logs','created_at',prune_audit,'deleted_audit_logs')]:
+                if enabled:
+                    while True:
+                        count=run_transaction(lambda conn: sql(conn,f'DELETE FROM {table} WHERE {column}<NOW()-INTERVAL ? DAY LIMIT 500',(days,)))
+                        result[field]+=count
+                        if count<500:break
+        result['message'] = f"تم حذف {result['deleted_radacct']} سجل محاسبة قديم مع حماية الدورة الحالية وخطوط الأساس."
+    except Exception as exc:
+        result['success']=False
+        result['message']=f'تعذر إكمال التنظيف: {exc}'
+    result['duration_seconds']=round(time.time()-started,2)
     return result
 
 
 def optimize_database_tables(tables=None):
+    from services.account_lifecycle_service import job_lock
+    try:
+        with job_lock('factory-reset') as acquired, job_lock('expired-card-delete') as cleanup_idle:
+            if not acquired or not cleanup_idle:
+                return dict(success=False,message='توجد عملية حذف أو أرشفة أو تحسين أو إعادة مصنع قيد التنفيذ؛ أعد المحاولة بعد اكتمالها.')
+            return _optimize_database_tables_locked(tables)
+    except Exception as exc:
+        return dict(success=False,message='تعذر تحسين الجداول: '+str(exc))
+
+
+def _optimize_database_tables_locked(tables=None, progress_callback=None):
     """
     Runs OPTIMIZE TABLE on database tables to rebuild InnoDB tablespaces,
     defragment index structures, and reclaim unused disk space.
     """
     start_t = time.time()
+    import re
     if not tables:
         tables = [
-            'radacct', 'radpostauth', 'radcheck', 'radusergroup', 
+            'radacct', 'radacct_archive', 'radpostauth', 'radcheck', 'radusergroup', 
             'wisp_vouchers', 'wisp_voucher_sales', 'wisp_subscribers', 'wisp_audit_logs'
         ]
         
+    if any(not isinstance(table,str) or not re.fullmatch(r'[A-Za-z0-9_]+',table) for table in tables):
+        return dict(success=False,message='قائمة جداول غير صالحة')
     before_stats = get_detailed_table_sizes()
     before_mb = before_stats.get('total_db_mb', 0.0)
     
@@ -333,12 +326,16 @@ def optimize_database_tables(tables=None):
         conn = get_connection()
         cursor = conn.cursor()
         
-        for tbl in tables:
+        for table_index, tbl in enumerate(tables):
+            if progress_callback:
+                progress_callback(table_index, len(tables), tbl)
             t0 = time.time()
             try:
                 # OPTIMIZE TABLE
                 cursor.execute(f"OPTIMIZE TABLE {tbl}")
                 res = cursor.fetchall()
+                if any(str(row.get('Msg_type','')).lower()=='error' for row in res):
+                    raise RuntimeError('; '.join(str(row.get('Msg_text','')) for row in res))
                 t_elapsed = round(time.time() - t0, 2)
                 optimized_results.append({
                     'table': tbl,
@@ -360,13 +357,13 @@ def optimize_database_tables(tables=None):
         elapsed = round(time.time() - start_t, 2)
         
         return {
-            'success': True,
+            'success': all(item['status']=='OK' for item in optimized_results),
             'before_mb': before_mb,
             'after_mb': after_mb,
             'freed_mb': freed_mb,
             'duration_seconds': elapsed,
             'details': optimized_results,
-            'message': f"تم تحسين وإلغاء تجزئة {len(tables)} جداول بنجاح خلال {elapsed} ثانية. (الحجم الحالي: {after_mb} MB)."
+            'message': f"انتهت معالجة {len(tables)} جداول؛ راجع نتيجة كل جدول خلال {elapsed} ثانية. (الحجم الحالي: {after_mb} MB)."
         }
         
     except Exception as e:
@@ -378,166 +375,59 @@ def optimize_database_tables(tables=None):
 
 
 def run_auto_maintenance_job(retention_days=90):
-    """
-    Weekly automated cleanup job executed by Watchdog/Scheduler.
-    Prunes historical logs older than 90 days and logs the event.
-    """
+    result = prune_historical_logs(days=retention_days, prune_postauth=True)
+    if not result['success']:
+        raise RuntimeError(result['message'])
+    # Compaction is explicit maintenance, never an automatic consequence of pruning.
+    return True
+
+
+def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000, min_age_days=0, progress_callback=None):
+    from services.account_lifecycle_service import delete_account, job_lock
+    result=dict(success=True,deleted_vouchers=0,deleted_radcheck=0,deleted_radusergroup=0,deleted_radreply=0,deleted_radacct=0,pending=0,skipped=0,processed=0,total=0,queue_failures=0)
+    started=time.time()
+    if delete_type not in ('all','time','quota'):
+        return dict(result,success=False,message='نوع حذف غير صالح')
+    def report():
+        result['duration_seconds']=round(time.time()-started,2)
+        result['message']=f"تمت معالجة {result['processed']} من {result['total']}؛ حذف {result['deleted_vouchers']} كرت، و{result['pending']} ينتظر إغلاق الجلسات، و{result['skipped']} تغيرت حالته. السجل المالي والمحاسبي محفوظ."
+        if progress_callback:progress_callback(dict(result))
     try:
-        print(f"[Auto-Cleanup] Starting weekly database log pruning (Retention: {retention_days} days)...")
-        prune_res = prune_historical_logs(days=retention_days, prune_postauth=True, prune_audit=False)
-        
-        if prune_res.get('deleted_radacct', 0) > 0 or prune_res.get('deleted_radpostauth', 0) > 0:
-            # Optimize key log tables to reclaim space
-            optimize_res = optimize_database_tables(tables=['radacct', 'radpostauth'])
-            print(f"[Auto-Cleanup] Completed: {prune_res['message']} | {optimize_res['message']}")
-            
-            # Log audit
-            execute_write("""
-                INSERT INTO wisp_audit_logs (admin_id, username, action, module, details, ip_address)
-                VALUES (1, 'system_scheduler', 'AUTO_DB_CLEANUP', 'maintenance', ?, '127.0.0.1')
-            """, (f"Auto pruned {prune_res['deleted_radacct']} sessions and {prune_res['deleted_radpostauth']} auth logs. Freed {optimize_res.get('freed_mb', 0)} MB",))
-            
-            return True
-        else:
-            print("[Auto-Cleanup] No historical logs required pruning.")
-            return False
-            
-    except Exception as e:
-        print(f"[ERROR] run_auto_maintenance_job: {str(e)}")
-        return False
-
-
-def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000):
-    """
-    Cascades deletion of expired vouchers across all related tables:
-    - wisp_vouchers
-    - radcheck
-    - radreply
-    - radusergroup
-    - radacct (if delete_acct is True)
-    """
-    start_t = time.time()
-    result = {
-        'success': True,
-        'delete_type': delete_type,
-        'deleted_vouchers': 0,
-        'deleted_radcheck': 0,
-        'deleted_radusergroup': 0,
-        'deleted_radreply': 0,
-        'deleted_radacct': 0,
-        'duration_seconds': 0.0,
-        'message': ''
-    }
-    
-    try:
-        # Determine target usernames based on delete_type
-        if delete_type == 'quota':
-            target_users_query = """
-                SELECT v.username FROM wisp_vouchers v
-                WHERE v.status = 'expired'
-                  AND (
-                      v.expire_reason LIKE ? 
-                      OR v.expire_reason LIKE ? 
-                      OR v.expire_reason LIKE ?
-                  )
-                LIMIT ?
-            """
-            target_rows = query_all(target_users_query, ("%البيانات%", "%كوتا%", "%quota%", batch_limit))
-        elif delete_type == 'time':
-            target_users_query = """
-                SELECT v.username FROM wisp_vouchers v
-                WHERE v.status = 'expired'
-                  AND (
-                      v.expire_reason LIKE ? 
-                      OR v.expire_reason LIKE ? 
-                      OR v.expire_reason LIKE ?
-                      OR v.expire_reason IS NULL
-                      OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)
-                  )
-                  AND (v.expire_reason NOT LIKE ? AND v.expire_reason NOT LIKE ?)
-                LIMIT ?
-            """
-            target_rows = query_all(target_users_query, (
-                "%الصلاحية%", "%الوقت%", "%time%", "%البيانات%", "%كوتا%", batch_limit
-            ))
-        else: # 'all'
-            target_users_query = """
-                SELECT v.username FROM wisp_vouchers v
-                WHERE v.status = 'expired'
-                LIMIT ?
-            """
-            target_rows = query_all(target_users_query, (batch_limit,))
-            
-        usernames = [r['username'] for r in target_rows if r.get('username')]
-        
-        # 0. Ensure historical sales ledger is 100% synchronized and protected before deletion
-        try:
-            from services.voucher_service import sync_voucher_sales
-            sync_voucher_sales()
-        except Exception as _sync_err:
-            print(f"[Sales Sync Notice before purge]: {_sync_err}")
-
-        try:
-            conn = get_connection()
-            if is_mysql_conn(conn):
-                cur = conn.cursor()
-                cur.execute("""
-                    SELECT CONSTRAINT_NAME
-                    FROM information_schema.KEY_COLUMN_USAGE
-                    WHERE TABLE_SCHEMA = DATABASE()
-                      AND TABLE_NAME = 'wisp_voucher_sales'
-                      AND REFERENCED_TABLE_NAME IS NOT NULL
-                """)
-                for fk in cur.fetchall():
-                    fk_name = fk['CONSTRAINT_NAME'] if isinstance(fk, dict) else fk[0]
-                    try:
-                        cur.execute(f"ALTER TABLE `wisp_voucher_sales` DROP FOREIGN KEY `{fk_name}`;")
-                    except Exception:
-                        pass
-                conn.commit()
-            conn.close()
-        except Exception:
-            pass
-
-        # Process in chunks of 500 for optimal memory and SQL efficiency
-        chunk_size = 500
-        for i in range(0, len(usernames), chunk_size):
-            chunk = usernames[i:i + chunk_size]
-            placeholders = ','.join(['?'] * len(chunk))
-            
-            # 1. Cascade radcheck
-            rc_del = execute_update(f'DELETE FROM radcheck WHERE username IN ({placeholders})', tuple(chunk))
-            result['deleted_radcheck'] += rc_del or 0
-            
-            # 2. Cascade radreply
-            rr_del = execute_update(f'DELETE FROM radreply WHERE username IN ({placeholders})', tuple(chunk))
-            result['deleted_radreply'] += rr_del or 0
-            
-            # 3. Cascade radusergroup
-            rg_del = execute_update(f'DELETE FROM radusergroup WHERE username IN ({placeholders})', tuple(chunk))
-            result['deleted_radusergroup'] += rg_del or 0
-            
-            # 4. Cascade radacct (Optional)
-            if delete_acct:
-                ra_del = execute_update(f'DELETE FROM radacct WHERE username IN ({placeholders})', tuple(chunk))
-                result['deleted_radacct'] += ra_del or 0
-                
-            # 5. Delete from wisp_vouchers
-            wv_del = execute_update(f'DELETE FROM wisp_vouchers WHERE username IN ({placeholders})', tuple(chunk))
-            result['deleted_vouchers'] += wv_del or 0
-            
-        result['duration_seconds'] = round(time.time() - start_t, 2)
-        result['message'] = (
-            f"تم حذف {result['deleted_vouchers']} كرت منتهي جذرياً وتطهير "
-            f"({result['deleted_radcheck']} في radcheck، {result['deleted_radusergroup']} في radusergroup"
-            + (f"، {result['deleted_radacct']} جلسة محاسبة" if delete_acct else "")
-            + f") خلال {result['duration_seconds']} ثانية بنجاح."
-        )
-        
-    except Exception as e:
-        result['success'] = False
-        result['message'] = f"حدث خطأ أثناء عملية الحذف: {str(e)}"
-        
+        with job_lock('expired-card-delete') as acquired:
+            if not acquired:raise ValueError('الحذف أو إعادة المصنع قيد التنفيذ بالفعل.')
+            where="status='expired'";params=[]
+            if min_age_days:
+                where+=' AND expires_at < NOW()-INTERVAL ? DAY';params.append(max(1,int(min_age_days)))
+            if delete_type=='quota':
+                where+=" AND (COALESCE(expire_reason,'') LIKE ? OR COALESCE(expire_reason,'') LIKE ? OR COALESCE(expire_reason,'') LIKE ?)";params+=['%البيانات%','%كوتا%','%quota%']
+            elif delete_type=='time':
+                where+=" AND COALESCE(expire_reason,'') NOT LIKE ? AND COALESCE(expire_reason,'') NOT LIKE ? AND COALESCE(expire_reason,'') NOT LIKE ?";params+=['%البيانات%','%كوتا%','%quota%']
+            rows=query_all('SELECT id,last_renewed_at,expires_at,expire_reason FROM wisp_vouchers WHERE '+where+' ORDER BY id LIMIT ?',tuple(params)+(max(1,min(int(batch_limit),50000)),))
+            result['total']=len(rows);report()
+            for offset in range(0,len(rows),50):
+                conn=get_connection()
+                try:
+                    for row in rows[offset:offset+50]:
+                        result['current_card_id']=row['id']
+                        state=delete_account('voucher',row['id'],expected_expired=True,delete_acct=delete_acct,min_age_days=min_age_days,expected_cycle=str(row.get('last_renewed_at') or ''),expected_reason=row.get('expire_reason'),connection=conn)
+                        result['deleted_vouchers']+=bool(state.get('deleted'))
+                        result['pending']+=bool(state.get('pending'))
+                        result['skipped']+=not state.get('deleted') and not state.get('pending')
+                        result['queue_failures']+=state.get('queue_failures',0)
+                        for field in ('deleted_radcheck','deleted_radusergroup','deleted_radreply'):result[field]+=state.get(field,0)
+                        result['processed']+=1
+                finally:conn.close()
+                report()
+                if offset+50<len(rows):time.sleep(.02)
+            if result['queue_failures']:
+                result['success']=False;result['error']='تعذر إدراج بعض مهام الفصل؛ الحسابات محفوظة وتحتاج إعادة المحاولة.'
+    except Exception as exc:
+        result['success']=False;result['error']=str(exc)
+        if result.get('current_card_id'):result['failed_card_id']=result['current_card_id']
+    result.pop('current_card_id',None)
+    result['duration_seconds']=round(time.time()-started,2)
+    result['message']=f"تم حذف {result['deleted_vouchers']} كرت؛ {result['pending']} ينتظر إغلاق الجلسات و{result['skipped']} تغيرت حالته. السجل المالي والمحاسبي محفوظ."
+    if not result['success']:result['message']+=' لم تكتمل العملية: '+result['error']
     return result
 
 
@@ -553,6 +443,8 @@ def run_database_audit():
     start_t = time.time()
     audit_results = {
         'timestamp': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'success': True,
+        'truncated': False,
         'total_issues': 0,
         'orphaned_count': 0,
         'missing_limits_count': 0,
@@ -594,14 +486,16 @@ def run_database_audit():
         # 2. Missing Auth / Limits in FreeRADIUS
         # -------------------------------------------------------------
         missing_auth = query_all("""
-            SELECT v.id, v.username, v.status, p.name as package_name,
-                   rc.id as rc_id, rg.id as rg_id
-            FROM wisp_vouchers v
-            JOIN wisp_packages p ON v.package_id = p.id
-            LEFT JOIN radcheck rc ON v.username = rc.username AND rc.attribute = 'Cleartext-Password'
-            LEFT JOIN radusergroup rg ON v.username = rg.username
-            WHERE v.status IN ('active', 'used', 'unused')
-              AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP)
+            SELECT t.id,t.username,t.status,p.name AS package_name,rc.id AS rc_id,rg.id AS rg_id
+            FROM (
+                SELECT id,username,status,package_id,expires_at FROM wisp_vouchers WHERE status IN ('active','used','unused')
+                UNION ALL
+                SELECT id,username,status,package_id,expires_at FROM wisp_subscribers WHERE status='active'
+            ) t
+            JOIN wisp_packages p ON t.package_id=p.id
+            LEFT JOIN radcheck rc ON t.username=rc.username AND rc.attribute='Cleartext-Password'
+            LEFT JOIN radusergroup rg ON t.username=rg.username
+            WHERE (t.expires_at IS NULL OR t.expires_at>CURRENT_TIMESTAMP)
               AND (rc.id IS NULL OR rg.id IS NULL)
             LIMIT 200
         """)
@@ -629,10 +523,13 @@ def run_database_audit():
         # 3. Status Mismatches (Expired/Recharged/Disabled lingering in radcheck)
         # -------------------------------------------------------------
         mismatches = query_all("""
-            SELECT v.id, v.username, v.status, v.expire_reason, rc.attribute, rc.value
-            FROM wisp_vouchers v
-            JOIN radcheck rc ON v.username = rc.username AND rc.attribute = 'Cleartext-Password'
-            WHERE v.status IN ('expired', 'recharged', 'disabled')
+            SELECT t.id,t.username,t.status,t.expire_reason,rc.attribute,rc.value
+            FROM (
+                SELECT id,username,status,expire_reason FROM wisp_vouchers WHERE status IN ('expired','recharged','disabled','suspended')
+                UNION ALL
+                SELECT id,username,status,NULL AS expire_reason FROM wisp_subscribers WHERE status IN ('expired','disabled','suspended')
+            ) t
+            JOIN radcheck rc ON t.username=rc.username AND rc.attribute='Cleartext-Password'
             LIMIT 200
         """)
         for row in mismatches:
@@ -652,7 +549,8 @@ def run_database_audit():
         # -------------------------------------------------------------
         # 4. Stale Zombie Accounting Sessions (> 10m no heartbeat)
         # -------------------------------------------------------------
-        cutoff_str = get_heartbeat_cutoff(10)
+        from services.autoheal_service import get_zombie_session_timeout
+        cutoff_str = get_heartbeat_cutoff(get_zombie_session_timeout())
         
         stale_acct = query_all("""
             SELECT radacctid, username, acctstarttime, acctupdatetime, nasipaddress, framedipaddress
@@ -679,12 +577,8 @@ def run_database_audit():
         # -------------------------------------------------------------
         # 5. Invalid Check Attributes in radcheck (Causes Login Rejection)
         # -------------------------------------------------------------
-        invalid_attrs = query_all("""
-            SELECT id, username, attribute, value, op
-            FROM radcheck
-            WHERE attribute NOT IN ('Cleartext-Password', 'Calling-Station-Id', 'Auth-Type', 'Expiration')
-            LIMIT 200
-        """)
+        allowed=sorted(VALID_CHECK_ATTRIBUTES)
+        invalid_attrs = query_all("SELECT id,username,attribute,value,op FROM radcheck WHERE attribute NOT IN (" + ','.join('?' for _ in allowed) + ") LIMIT 200", tuple(allowed))
         for row in invalid_attrs:
             audit_results['issues'].append({
                 'id': f"invalid_attr_{row['id']}",
@@ -702,330 +596,167 @@ def run_database_audit():
         audit_results['invalid_attrs_count'] = len(invalid_attrs)
         
         # Total counts
+        audit_results['truncated'] = any(len(rows)>=200 for rows in (orphans,missing_auth,mismatches,stale_acct,invalid_attrs))
         audit_results['total_issues'] = len(audit_results['issues'])
         audit_results['duration_seconds'] = round(time.time() - start_t, 2)
         
     except Exception as e:
+        audit_results.update(success=False,error=str(e),duration_seconds=round(time.time()-start_t,2))
         print(f"[ERROR] run_database_audit: {str(e)}")
         
     return audit_results
 
 
 def fix_audit_issue(action_code, username, extra_data=None):
-    """
-    Resolves a specific audit issue based on action_code.
-    """
-    if not username:
-        return {'success': False, 'message': 'اسم المستخدم مطلوب'}
-        
-    extra_data = extra_data or {}
-    
+    from services.account_lifecycle_service import job_lock
     try:
-        if action_code == 'purge_orphan':
-            execute_update('DELETE FROM radcheck WHERE username = ?', (username,))
-            execute_update('DELETE FROM radreply WHERE username = ?', (username,))
-            execute_update('DELETE FROM radusergroup WHERE username = ?', (username,))
-            return {'success': True, 'message': f"تم حذف السجلات اليتيمة للمستخدم [{username}] من FreeRADIUS بنجاح."}
-            
-        elif action_code == 'sync_auth_limits':
-            v = query_one("""
-                SELECT v.*, p.name as package_name 
-                FROM wisp_vouchers v
-                JOIN wisp_packages p ON v.package_id = p.id
-                WHERE v.username = ?
-            """, (username,))
-            if not v:
-                return {'success': False, 'message': f"لم يتم العثور على الكرت [{username}] في جدول الكروت."}
-                
-            # Upsert radcheck
-            execute_update('DELETE FROM radcheck WHERE username = ? AND attribute = "Cleartext-Password"', (username,))
-            execute_write("""
-                INSERT INTO radcheck (username, attribute, op, value)
-                VALUES (?, 'Cleartext-Password', ':=', ?)
-            """, (username, v['password'] or username))
-            
-            # Upsert radusergroup
-            execute_update('DELETE FROM radusergroup WHERE username = ?', (username,))
-            execute_write("""
-                INSERT INTO radusergroup (username, groupname, priority)
-                VALUES (?, ?, 1)
-            """, (username, v['package_name']))
-            
-            return {'success': True, 'message': f"تمت إعادة مزامنة بيانات المصادقة والباقة للكرت [{username}] بنجاح."}
-            
-        elif action_code == 'revoke_auth':
-            execute_update('DELETE FROM radcheck WHERE username = ?', (username,))
-            execute_update('DELETE FROM radusergroup WHERE username = ?', (username,))
-            execute_update('DELETE FROM radreply WHERE username = ?', (username,))
-            return {'success': True, 'message': f"تم تطهير وإلغاء صلاحيات الدخول للمستخدم المعطل [{username}] بنجاح."}
-            
-        elif action_code == 'close_stale_session':
-            session_id = extra_data.get('session_id')
-            if session_id:
-                execute_update("""
-                    UPDATE radacct 
-                    SET acctstoptime = COALESCE(acctupdatetime, CURRENT_TIMESTAMP),
-                        acctterminatecause = 'Admin-Reset-Stale'
-                    WHERE radacctid = ? AND acctstoptime IS NULL
-                """, (int(session_id),))
-            else:
-                execute_update("""
-                    UPDATE radacct 
-                    SET acctstoptime = COALESCE(acctupdatetime, CURRENT_TIMESTAMP),
-                        acctterminatecause = 'Admin-Reset-Stale'
-                    WHERE username = ? AND acctstoptime IS NULL
-                """, (username,))
-            return {'success': True, 'message': f"تم إغلاق الجلسة المعلقة للمستخدم [{username}] بنجاح."}
-            
-        elif action_code == 'purge_invalid_attr':
-            rec_id = extra_data.get('record_id')
-            attr_name = extra_data.get('attribute_name')
-            if rec_id:
-                execute_write("DELETE FROM radcheck WHERE id = ?", (int(rec_id),))
-            elif attr_name:
-                execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = ?", (username, attr_name))
-            else:
-                execute_write("DELETE FROM radcheck WHERE username = ? AND attribute NOT IN ('Cleartext-Password', 'Calling-Station-Id', 'Auth-Type', 'Expiration')", (username,))
-            return {'success': True, 'message': f"تم حذف السمة الخاطئة للمستخدم [{username}] من FreeRADIUS بنجاح."}
+        with job_lock('factory-reset') as idle:
+            if not idle:return dict(success=False,message='إعادة المصنع أو الصيانة قيد التنفيذ؛ أعد المحاولة لاحقًا.')
+            return _fix_audit_issue_locked(action_code,username,extra_data)
+    except Exception as exc:
+        return dict(success=False,message=str(exc))
 
-        else:
-            return {'success': False, 'message': f"نوع الإجراء غير معروف: {action_code}"}
-            
-    except Exception as e:
-        return {'success': False, 'message': f"خطأ أثناء الإصلاح: {str(e)}"}
+
+def _fix_audit_issue_locked(action_code, username, extra_data=None):
+    from services.account_lifecycle_service import run_transaction, sql, expiry_reason
+    from services.autoheal_service import get_zombie_session_timeout
+    extra_data=extra_data or {}
+    if not username or username in SYSTEM_RESERVED_USERS:
+        return dict(success=False,message='حساب غير صالح للإصلاح')
+    try:
+        def operation(conn):
+            voucher=sql(conn,'SELECT *,CURRENT_TIMESTAMP checked_at FROM wisp_vouchers WHERE username=? FOR UPDATE',(username,),'one')
+            subscriber=sql(conn,'SELECT *,CURRENT_TIMESTAMP checked_at FROM wisp_subscribers WHERE username=? FOR UPDATE',(username,),'one')
+            row=voucher or subscriber
+            if action_code=='close_stale_session':
+                cutoff=get_heartbeat_cutoff(get_zombie_session_timeout())
+                statement="UPDATE radacct SET acctstoptime=COALESCE(acctupdatetime,acctstarttime),acctterminatecause='Stale-Session-Timeout' WHERE username=? AND acctstoptime IS NULL AND COALESCE(acctupdatetime,acctstarttime)<?"
+                params=(username,cutoff)
+                if extra_data.get('session_id'):
+                    statement+=' AND radacctid=?';params+=(int(extra_data['session_id']),)
+                affected=sql(conn,statement,params)
+                return dict(success=True,message=f'تم إغلاق {affected} جلسة متقادمة فقط؛ التحديثات المتأخرة تبقى قابلة للمصالحة.')
+            if action_code=='purge_orphan':
+                if row:raise ValueError('الحساب أصبح مرتبطًا؛ أُلغي حذف اليتيم.')
+            elif action_code=='revoke_auth':
+                if not row or row['status'] not in ('expired','disabled','suspended','recharged'):
+                    raise ValueError('الحساب صالح أو تغيرت حالته؛ لم تحذف المصادقة.')
+            elif action_code=='sync_auth_limits':
+                kind='voucher' if voucher else 'subscriber'
+                if voucher and subscriber:raise ValueError('اسم المستخدم مرتبط بكرت ومشترك؛ يلزم حل التعارض أولًا.')
+                states=('unused','active','used') if voucher else ('active',)
+                if not row or row['status'] not in states or expiry_reason(conn,kind,row):
+                    raise ValueError('الحساب غير مؤهل لمزامنة الدخول.')
+                pkg=sql(conn,'SELECT name FROM wisp_packages WHERE id=?',(row['package_id'],),'one')
+                if not pkg:raise ValueError('الباقة غير موجودة')
+                sql(conn,"DELETE FROM radcheck WHERE username=? AND (attribute='Cleartext-Password' OR (attribute='Auth-Type' AND value='Reject'))",(username,))
+                sql(conn,"INSERT INTO radcheck (username,attribute,op,value) VALUES (?,'Cleartext-Password',':=',?)",(username,row['password'] or username))
+                sql(conn,'DELETE FROM radusergroup WHERE username=?',(username,))
+                sql(conn,'INSERT INTO radusergroup (username,groupname,priority) VALUES (?,?,1)',(username,pkg['name']))
+                return dict(success=True,message='تمت المزامنة بعد التحقق من الحالة والرصيد.')
+            elif action_code=='purge_invalid_attr':
+                allowed=VALID_CHECK_ATTRIBUTES
+                if extra_data.get('record_id'):
+                    attr=sql(conn,'SELECT attribute FROM radcheck WHERE id=? AND username=? FOR UPDATE',(int(extra_data['record_id']),username),'one')
+                    if not attr or attr['attribute'] in allowed:raise ValueError('سمة صحيحة أو سجل غير مطابق؛ لم يحذف.')
+                    sql(conn,'DELETE FROM radcheck WHERE id=? AND username=?',(int(extra_data['record_id']),username))
+                else:
+                    attr=extra_data.get('attribute_name')
+                    if not attr or attr in allowed:raise ValueError('يجب تحديد سمة غير صحيحة بعينها.')
+                    sql(conn,'DELETE FROM radcheck WHERE username=? AND attribute=?',(username,attr))
+                return dict(success=True,message='تم حذف السمة المحددة فقط.')
+            else:raise ValueError('نوع إصلاح غير معروف')
+            for table in ('radcheck','radreply','radusergroup'):
+                sql(conn,f'DELETE FROM {table} WHERE username=?',(username,))
+            return dict(success=True,message='تم الإصلاح بعد إعادة فحص حالة الحساب.')
+        return run_transaction(operation)
+    except Exception as exc:
+        return dict(success=False,message=str(exc))
 
 
 def fix_all_audit_issues():
-    """
-    High-Performance Bulk Engineering Fix:
-    1. Purges lingering radcheck, radusergroup, radreply entries for expired/disabled/recharged vouchers and subscribers.
-    2. Purges orphaned FreeRADIUS records not linked to any active voucher or subscriber.
-    3. Purges invalid check attributes from radcheck (such as misplaced Simultaneous-Use).
-    4. Closes stale zombie sessions older than 10m.
-    5. Synchronizes missing authentication credentials for active/unused vouchers.
-    """
-    start_t = time.time()
-    total_fixed = 0
-    
+    from services.voucher_service import check_and_update_expired_vouchers
+    from services.autoheal_service import purge_stale_zombie_sessions
+    from services.account_lifecycle_service import job_lock
+    started=time.time()
+    fixed=0;errors=[]
     try:
-        # 1. Purge radcheck for expired/recharged/disabled vouchers
-        del_v_rc = execute_update("""
-            DELETE FROM radcheck 
-            WHERE username IN (
-                SELECT username FROM wisp_vouchers 
-                WHERE status IN ('expired', 'recharged', 'disabled')
-            )
-        """) or 0
-        total_fixed += del_v_rc
-        
-        # Purge radusergroup for expired vouchers
-        execute_update("""
-            DELETE FROM radusergroup 
-            WHERE username IN (
-                SELECT username FROM wisp_vouchers 
-                WHERE status IN ('expired', 'recharged', 'disabled')
-            )
-        """)
-        
-        # Purge radreply for expired vouchers
-        execute_update("""
-            DELETE FROM radreply 
-            WHERE username IN (
-                SELECT username FROM wisp_vouchers 
-                WHERE status IN ('expired', 'recharged', 'disabled')
-            )
-        """)
-
-        # 2. Purge radcheck for expired subscribers
-        del_s_rc = execute_update("""
-            DELETE FROM radcheck 
-            WHERE username IN (
-                SELECT username FROM wisp_subscribers 
-                WHERE status IN ('expired', 'disabled', 'suspended')
-            )
-        """) or 0
-        total_fixed += del_s_rc
-
-        # 3. Purge orphaned FreeRADIUS records
-        del_orphans = execute_update("""
-            DELETE FROM radcheck 
-            WHERE username NOT IN ('healthcheck', 'probe_user', 'admin')
-              AND username NOT IN (SELECT username FROM wisp_vouchers)
-              AND username NOT IN (SELECT username FROM wisp_subscribers)
-        """) or 0
-        total_fixed += del_orphans
-
-        execute_update("""
-            DELETE FROM radusergroup 
-            WHERE username NOT IN ('healthcheck', 'probe_user', 'admin')
-              AND username NOT IN (SELECT username FROM wisp_vouchers)
-              AND username NOT IN (SELECT username FROM wisp_subscribers)
-        """)
-
-        # 4. Purge invalid check attributes
-        del_invalid = execute_update("""
-            DELETE FROM radcheck 
-            WHERE attribute NOT IN ('Cleartext-Password', 'Calling-Station-Id', 'Auth-Type', 'Expiration')
-        """) or 0
-        total_fixed += del_invalid
-
-        # 5. Close stale zombie sessions
-        cutoff_str = get_heartbeat_cutoff(10)
-        closed_zombies = execute_update("""
-            UPDATE radacct 
-            SET acctstoptime = COALESCE(acctupdatetime, CURRENT_TIMESTAMP),
-                acctterminatecause = 'Admin-Reset-Stale'
-            WHERE acctstoptime IS NULL 
-              AND (acctupdatetime < ? OR (acctupdatetime IS NULL AND acctstarttime < ?))
-        """, (cutoff_str, cutoff_str)) or 0
-        total_fixed += closed_zombies
-
-        # 6. Resync missing auth credentials for active/unused/used vouchers
-        missing_vouchers = query_all("""
-            SELECT v.username, v.password, p.name as package_name
-            FROM wisp_vouchers v
-            JOIN wisp_packages p ON v.package_id = p.id
-            LEFT JOIN radcheck rc ON v.username = rc.username AND rc.attribute = 'Cleartext-Password'
-            WHERE v.status IN ('active', 'used', 'unused')
-              AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP)
-              AND rc.id IS NULL
-            LIMIT 500
-        """)
-        for mv in missing_vouchers:
-            execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (mv['username'], mv['password'] or mv['username']))
-            total_fixed += 1
-
-        elapsed = round(time.time() - start_t, 2)
-        return {
-            'success': True,
-            'fixed_count': total_fixed,
-            'errors_count': 0,
-            'duration_seconds': elapsed,
-            'message': f"تم بنجاح تطهير ومعالجة {total_fixed:,} سجلاً ومطابقة حالة قاعدة البيانات بالكامل خلال {elapsed} ثانية."
-        }
-    except Exception as e:
-        elapsed = round(time.time() - start_t, 2)
-        return {
-            'success': False,
-            'fixed_count': total_fixed,
-            'errors_count': 1,
-            'duration_seconds': elapsed,
-            'message': f"حدث خطأ أثناء المعالجة: {str(e)}"
-        }
+        with job_lock('audit-fix-all') as acquired:
+            if not acquired:raise ValueError('توجد عملية إصلاح شامل قيد التنفيذ.')
+            if not check_and_update_expired_vouchers():raise ValueError('فحص الانتهاء قيد التنفيذ؛ أعد المحاولة لاحقًا.')
+            ok,msg=purge_stale_zombie_sessions()
+            if not ok:raise RuntimeError(msg)
+            audit=run_database_audit()
+            if not audit.get('success'):raise RuntimeError(audit.get('error','تعذر إكمال الفحص'))
+            seen=set()
+            for issue in audit['issues']:
+                key=(issue['action_code'],issue['username'],issue.get('record_id'),issue.get('session_id'))
+                if key in seen:continue
+                seen.add(key)
+                result=fix_audit_issue(issue['action_code'],issue['username'],issue)
+                if result['success']:fixed+=1
+                else:errors.append(dict(issue_id=issue['id'],message=result.get('message','تعذر الإصلاح')))
+            remaining=run_database_audit()
+            if not remaining.get('success'):
+                errors.append(dict(issue_id='verification',message=remaining.get('error','تعذر فحص النتيجة')))
+            complete=remaining.get('success') and not remaining.get('truncated') and remaining['total_issues']==0 and not errors
+            return dict(success=bool(complete),fixed_count=fixed,errors_count=len(errors),errors=errors,
+                        remaining_issues=remaining.get('total_issues'),truncated=remaining.get('truncated',False),
+                        duration_seconds=round(time.time()-started,2),
+                        message=f'تم إصلاح {fixed} بند؛ تعثر {len(errors)}. ' + ('لم يرصد الفحص المتاح مشكلات متبقية.' if complete else 'لم تكتمل المعالجة؛ أعد الفحص وراجع البنود المتبقية.'))
+    except Exception as exc:
+        return dict(success=False,fixed_count=fixed,errors_count=len(errors)+1,errors=errors,
+                    message=f'لم تكتمل المعالجة: {exc}',duration_seconds=round(time.time()-started,2))
 
 
-def factory_reset_database(keep_packages=True, keep_resellers=False, admin_user='admin'):
-    """
-    Complete Factory Reset / Wipe of all operational data:
-    - Vouchers, Batches, Sales, Invoices
-    - Subscribers
-    - FreeRADIUS tables: radcheck, radreply, radusergroup, radgroupcheck, radgroupreply, radacct, radpostauth
-    - Reseller transactions and wallet balances
-    - Global sequence tables
-    - Optionally wipes packages and resellers (keeping primary admin).
-    - Resets AUTO_INCREMENT counters on all operational tables.
-    """
-    from database.db import get_connection, is_mysql_conn, log_audit
-    db = get_connection()
-    cur = db.cursor()
-    try:
-        if is_mysql_conn(db):
-            cur.execute("SET foreign_key_checks = 0;")
-            cur.execute("SET unique_checks = 0;")
+FACTORY_RESET_TABLES = ('radcheck','radreply','radusergroup','radacct','radacct_archive','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
 
-        # 1. Clear FreeRADIUS Tables
-        cur.execute("DELETE FROM radcheck;")
-        cur.execute("DELETE FROM radreply;")
-        cur.execute("DELETE FROM radusergroup;")
-        cur.execute("DELETE FROM radgroupcheck;")
-        cur.execute("DELETE FROM radgroupreply;")
-        cur.execute("DELETE FROM radacct;")
-        cur.execute("DELETE FROM radpostauth;")
 
-        # 2. Clear WISP Application Tables
-        cur.execute("DELETE FROM wisp_voucher_sales;")
-        cur.execute("DELETE FROM wisp_vouchers;")
-        cur.execute("DELETE FROM wisp_voucher_batches;")
-        cur.execute("DELETE FROM wisp_subscribers;")
-        cur.execute("DELETE FROM wisp_invoices;")
-        cur.execute("DELETE FROM wisp_reseller_transactions;")
-        cur.execute("DELETE FROM wisp_global_sequence;")
-
+def _wipe_factory_database(keep_packages=True, keep_resellers=False):
+    """Atomic wipe; called only by the reset coordinator after safe preparation."""
+    from services.account_lifecycle_service import sql, run_transaction
+    def wipe(conn):
+        existing={row['TABLE_NAME'] for row in sql(conn,"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE'",fetch='all')}
+        tables=set(FACTORY_RESET_TABLES) & existing
+        if not keep_packages:tables.add('wisp_packages')
+        refs=sql(conn,'SELECT TABLE_NAME,REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL',fetch='all')
+        ordered=[];visiting=set()
+        def visit(table):
+            if table in ordered:return
+            if table in visiting:raise ValueError('توجد دورة مفاتيح خارجية تتطلب ترحيلًا قبل إعادة المصنع.')
+            visiting.add(table)
+            for ref in refs:
+                if ref['REFERENCED_TABLE_NAME']==table and ref['TABLE_NAME'] in tables:visit(ref['TABLE_NAME'])
+            visiting.remove(table);ordered.append(table)
+        for table in sorted(tables):visit(table)
+        for table in ordered:
+            if table in ('radcheck','radreply','radusergroup'):
+                sql(conn,f"DELETE FROM `{table}` WHERE username NOT IN ('healthcheck','probe_user')")
+            else:
+                sql(conn,f'DELETE FROM `{table}`')
+        sql(conn,'UPDATE wisp_managers SET wallet_balance=0')
+        if 'wisp_resellers' in existing:sql(conn,'UPDATE wisp_resellers SET balance=0')
         if not keep_resellers:
-            # Keep primary admin account
-            cur.execute("DELETE FROM wisp_managers WHERE id > 1 AND LOWER(username) NOT IN ('admin', 'super_admin', 'root');")
-            cur.execute("UPDATE wisp_managers SET wallet_balance = 0.00 WHERE id = 1 OR LOWER(username) IN ('admin', 'super_admin', 'root');")
-        else:
-            cur.execute("UPDATE wisp_managers SET wallet_balance = 0.00;")
+            sql(conn,"DELETE FROM wisp_managers WHERE id>1 AND LOWER(username) NOT IN ('admin','super_admin','root')")
+            if 'wisp_resellers' in existing:sql(conn,'DELETE FROM wisp_resellers')
+        sql(conn,'DELETE FROM radgroupreply');sql(conn,'DELETE FROM radgroupcheck')
+        if keep_packages:
+            from core.radius_sync import sync_package_to_radius
+            for row in sql(conn,'SELECT id FROM wisp_packages ORDER BY id',fetch='all'):sync_package_to_radius(row['id'],conn=conn)
+        # Retain monotonic IDs, constraints, license, NAS and the rollback archive.
+        return len(ordered)
+    return run_transaction(wipe)
 
-        if not keep_packages:
-            cur.execute("DELETE FROM wisp_packages;")
+def _reclaim_factory_space(keep_packages=True, keep_resellers=False, progress_callback=None):
+    # The coordinator already owns factory-reset and cleanup locks.
+    existing={row['TABLE_NAME'] for row in query_all("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_TYPE='BASE TABLE'")}
+    tables=set(FACTORY_RESET_TABLES) | {'radgroupcheck', 'radgroupreply'}
+    if not keep_packages:tables.add('wisp_packages')
+    if not keep_resellers:tables.update(('wisp_managers','wisp_resellers'))
+    return _optimize_database_tables_locked(sorted(tables & existing), progress_callback)
 
-        # 3. Reset AUTO_INCREMENT on wiped tables
-        tables_to_reset = [
-            'wisp_subscribers', 'wisp_vouchers', 'wisp_voucher_batches',
-            'wisp_voucher_sales', 'wisp_invoices', 'wisp_reseller_transactions',
-            'wisp_global_sequence', 'radacct', 'radpostauth'
-        ]
-        if not keep_packages:
-            tables_to_reset.append('wisp_packages')
-        if not keep_resellers:
-            tables_to_reset.append('wisp_managers')
 
-        if is_mysql_conn(db):
-            for tbl in tables_to_reset:
-                try:
-                    cur.execute(f"ALTER TABLE {tbl} AUTO_INCREMENT = 1;")
-                except Exception:
-                    pass
-            cur.execute("SET foreign_key_checks = 1;")
-            cur.execute("SET unique_checks = 1;")
-
-            # Automatic tablespace optimization & disk space reclaim (Option 1)
-            all_wiped_tables = [
-                'radcheck', 'radreply', 'radusergroup', 'radgroupcheck', 'radgroupreply',
-                'radacct', 'radpostauth', 'wisp_vouchers', 'wisp_voucher_batches',
-                'wisp_voucher_sales', 'wisp_subscribers', 'wisp_invoices',
-                'wisp_reseller_transactions', 'wisp_global_sequence', 'wisp_audit_logs'
-            ]
-            if not keep_packages:
-                all_wiped_tables.append('wisp_packages')
-            if not keep_resellers:
-                all_wiped_tables.append('wisp_managers')
-
-            for tbl in all_wiped_tables:
-                try:
-                    cur.execute(f"OPTIMIZE TABLE {tbl}")
-                    cur.fetchall()
-                except Exception:
-                    pass
-        else:
-            try:
-                cur.execute("VACUUM;")
-            except Exception:
-                pass
-
-        db.commit()
-        log_audit(1, admin_user or 'admin', 'FACTORY_RESET', 'system', 'Complete database wipe and factory reset executed with auto-optimization.', '127.0.0.1')
-        
-        return {
-            'success': True,
-            'message': 'تم تصفير وإعادة ضبط قاعدة البيانات بالكامل بنجاح، وتم ضغط الجداول واسترجاع مساحة القرص المحررة فوراً (100% نظيفة).'
-        }
-    except Exception as e:
-        db.rollback()
-        if is_mysql_conn(db):
-            try:
-                cur.execute("SET foreign_key_checks = 1;")
-                cur.execute("SET unique_checks = 1;")
-                db.commit()
-            except Exception:
-                pass
-        return {
-            'success': False,
-            'message': f"فشل تصفير قاعدة البيانات: {str(e)}"
-        }
-    finally:
-        cur.close()
-        db.close()
-
+def factory_reset_database(keep_packages=True, keep_resellers=False, admin_user="admin"):
+    from services.factory_reset_service import start_factory_reset
+    job, created = start_factory_reset(keep_packages, keep_resellers, admin_user)
+    return dict(success=True, job=job, created=created)

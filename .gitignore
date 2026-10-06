@@ -72,3 +72,10 @@ Thumbs.db
 desktop.ini
 backup_card_designs/
 storage/*.py
+
+# Local secrets and verification artifacts
+storage/license.key
+storage/secrets/
+storage/*_report*.md
+pre_*_unstaged.patch
+tests/

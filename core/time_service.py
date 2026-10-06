@@ -55,6 +55,19 @@ _NTP_WORKER_THREAD = None
 _NTP_WORKER_RUNNING = False
 
 DEFAULT_TIMEZONE = 'Asia/Aden'
+DB_STORAGE_TIMEZONE = os.environ.get('DB_STORAGE_TIMEZONE', 'Asia/Aden')
+
+
+def get_db_storage_timezone():
+    """Returns the fixed storage timezone of the database and FreeRADIUS."""
+    # Match database.db's fixed +03:00 session offset, independently of display settings.
+    return datetime.timezone(datetime.timedelta(hours=3))
+
+
+def get_db_storage_now():
+    """Returns the current real datetime (NTP corrected) in the DB storage timezone."""
+    utc_now = get_real_utc_now()
+    return utc_now.astimezone(get_db_storage_timezone())
 
 
 def sync_ntp_time(timeout=2.5):
@@ -214,12 +227,7 @@ def update_system_timezone(new_tz_name):
     with _CACHED_TZ_LOCK:
         _CACHED_TIMEZONE_NAME = tz_clean
 
-    os.environ['TZ'] = tz_clean
-    if hasattr(time, 'tzset'):
-        try:
-            time.tzset()
-        except Exception:
-            pass
+    # Display preferences must not change the process clock used by billing.
 
     try:
         from database.db import set_active_db_timezone
@@ -228,12 +236,39 @@ def update_system_timezone(new_tz_name):
         pass
 
 
+KNOWN_TZ_OFFSETS = {
+    'asia/aden': 3,
+    'asia/riyadh': 3,
+    'asia/baghdad': 3,
+    'asia/kuwait': 3,
+    'asia/qatar': 3,
+    'asia/bahrain': 3,
+    'africa/cairo': 2,
+    'asia/dubai': 4,
+    'asia/muscat': 4,
+    'africa/tripoli': 2,
+    'africa/khartoum': 2,
+    'europe/istanbul': 3,
+    'utc': 0,
+    'gmt': 0,
+}
+
+
 def get_system_timezone(tz_name=None):
     """
-    Returns a timezone object (ZoneInfo or pytz.timezone) for the system or requested name.
+    Returns a timezone object (ZoneInfo or pytz.timezone or datetime.timezone) for the system or requested name.
     """
+    import re
     target_name = (tz_name or get_configured_timezone_name()).strip()
-    
+
+    # Offset string parsing like "+03:00", "+03", "-05:00"
+    m = re.match(r'^([+-])(\d{1,2})(?::?(\d{2}))?$', target_name)
+    if m:
+        sign = 1 if m.group(1) == '+' else -1
+        hours = int(m.group(2))
+        minutes = int(m.group(3) or 0)
+        return datetime.timezone(datetime.timedelta(hours=sign * hours, minutes=sign * minutes))
+
     # Try standard zoneinfo
     try:
         from zoneinfo import ZoneInfo
@@ -247,6 +282,11 @@ def get_system_timezone(tz_name=None):
             return pytz.timezone(target_name)
         except Exception:
             pass
+
+    # Fallback to known standard timezone offsets
+    lower_name = target_name.lower()
+    if lower_name in KNOWN_TZ_OFFSETS:
+        return datetime.timezone(datetime.timedelta(hours=KNOWN_TZ_OFFSETS[lower_name]))
 
     # Fallback to UTC
     return datetime.timezone.utc
@@ -266,16 +306,24 @@ def get_utc_now_str(fmt='%Y-%m-%d %H:%M:%S'):
     return get_real_utc_now().strftime(fmt)
 
 
-def get_utc_cutoff_str(timeout_minutes=5):
+def get_db_cutoff_str(timeout_minutes=5):
     """
-    Returns timestamp string for database queries (radacct, sessions, heartbeats)
-    which accurately matches the active MariaDB/FreeRADIUS timestamp clock.
+    Returns naive wall-clock timestamp string (%Y-%m-%d %H:%M:%S) for database queries
+    (radacct, active sessions, heartbeats) which accurately matches the active
+    MariaDB/FreeRADIUS server wall clock in the DB storage timezone.
     """
     try:
-        now_dt = get_system_now()
+        now_dt = get_db_storage_now()
     except Exception:
         now_dt = datetime.datetime.now()
     return (now_dt - datetime.timedelta(minutes=int(timeout_minutes))).strftime('%Y-%m-%d %H:%M:%S')
+
+
+def get_utc_cutoff_str(timeout_minutes=5):
+    """
+    Alias for get_db_cutoff_str to preserve backwards compatibility for existing callers.
+    """
+    return get_db_cutoff_str(timeout_minutes=timeout_minutes)
 
 
 def get_system_now_str(fmt='%Y-%m-%d %H:%M:%S', tz_name=None):
@@ -283,14 +331,17 @@ def get_system_now_str(fmt='%Y-%m-%d %H:%M:%S', tz_name=None):
     return get_system_now(tz_name).strftime(fmt)
 
 
-def to_system_timezone(dt, tz_name=None):
+def to_system_timezone(dt, tz_name=None, source_tz=None):
     """
-    Converts any datetime object (naive or aware) to the configured system timezone.
+    Converts any datetime object (naive or aware) to the configured display system timezone.
+    If dt is naive, it is assumed to originate from the database storage timezone (Asia/Aden / UTC+3),
+    preventing spurious timezone shifts when displaying database timestamps.
     """
     if dt is None:
         return None
 
     target_tz = get_system_timezone(tz_name)
+    src_tz = get_system_timezone(source_tz) if source_tz else get_db_storage_timezone()
 
     # String input conversion
     if isinstance(dt, str):
@@ -313,9 +364,9 @@ def to_system_timezone(dt, tz_name=None):
     if isinstance(dt, datetime.date) and not isinstance(dt, datetime.datetime):
         dt = datetime.datetime.combine(dt, datetime.time.min)
 
-    # If naive, assume UTC or system local
+    # If naive, assume it originated from database storage timezone
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
+        dt = dt.replace(tzinfo=src_tz)
 
     return dt.astimezone(target_tz)
 

@@ -179,16 +179,18 @@ def check_radius_engine_health():
     return is_responsive
 
 def check_auto_database_cleanup():
-    """Weekly automated maintenance routine (Pruning > 90 days)."""
-    global _last_auto_cleanup_time
-    now_ts = time.time()
-    if now_ts - _last_auto_cleanup_time >= 604800:
-        _last_auto_cleanup_time = now_ts
-        try:
-            from services.db_maintenance_service import run_auto_maintenance_job
-            run_auto_maintenance_job(retention_days=90)
-        except Exception as e:
-            print(f"  [Watchdog] Auto cleanup error: {e}")
+    from services.account_lifecycle_service import job_lock
+    with job_lock('weekly-maintenance') as acquired:
+        if not acquired:return
+        now=time.time()
+        row=query_one("SELECT value FROM wisp_system_settings WHERE `key`='history_cleanup_last_success'")
+        if not row:
+            execute_write("INSERT IGNORE INTO wisp_system_settings (`key`,value) VALUES ('history_cleanup_last_success',?)",(str(now),))
+            return
+        if now-float(row['value'] or now)<604800:return
+        from services.db_maintenance_service import run_auto_maintenance_job
+        if run_auto_maintenance_job(retention_days=90):
+            execute_write("UPDATE wisp_system_settings SET value=? WHERE `key`='history_cleanup_last_success'",(str(now),))
 
 def enforce_license_compliance_hook():
     """
@@ -244,6 +246,11 @@ def enforce_license_compliance_hook():
 
 def run_watchdog_cycle():
     """Execute one full watchdog cycle with auto-healing and auto-resolution."""
+    from services.factory_reset_service import factory_reset_active
+    if factory_reset_active():
+        return {'status':'factory-reset'}
+    if os.environ.get('MAX_MAINTENANCE_MODE') == '1':
+        return {'status':'maintenance'}
     try:
         db_ok = check_database_health()
         disk_ok, free_pct = check_disk_space()

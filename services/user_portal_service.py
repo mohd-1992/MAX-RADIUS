@@ -326,7 +326,23 @@ def authenticate_portal_user(username, password):
     """
     username = (username or '').strip()
     password = (password or '').strip()
-    if not username or not password:
+    if not username:
+        return None, "يرجى إدخال اسم المستخدم"
+    setting = query_one("SELECT value FROM wisp_system_settings WHERE `key`='portal_login_username_only'")
+    username_only = bool(setting and str(setting.get('value')) == '1')
+    if username_only:
+        # This policy applies to portal login only, including expired accounts.
+        sub = query_one("SELECT id,username FROM wisp_subscribers WHERE LOWER(username)=LOWER(?)", (username,))
+        if sub:
+            return {'username': sub['username'], 'type': 'subscriber', 'id': sub['id']}, None
+        voucher = query_one("SELECT id,username FROM wisp_vouchers WHERE LOWER(username)=LOWER(?) OR pin_code=?", (username, username))
+        if voucher:
+            return {'username': voucher['username'], 'type': 'voucher', 'id': voucher['id']}, None
+        radius_user = query_one("SELECT username FROM radcheck WHERE LOWER(username)=LOWER(?) AND attribute IN ('Cleartext-Password','User-Password','MD5-Password') LIMIT 1", (username,))
+        if radius_user:
+            return {'username': radius_user['username'], 'type': 'radius_user', 'id': None}, None
+        return None, "اسم المستخدم غير صحيح"
+    if not password:
         return None, "يرجى إدخال اسم المستخدم وكلمة المرور"
 
     # 1. Check radcheck
@@ -364,7 +380,7 @@ def get_portal_user_data(username):
     Fetch comprehensive dashboard data for the authenticated subscriber.
     """
     try:
-        clean_stale_sessions(timeout_minutes=10)
+        pass  # Background watchdog owns stale-session cleanup.
     except Exception:
         pass
     # 1. Check if subscriber
@@ -759,6 +775,8 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
 
             if str(sub['username']).lower() == str(card['username']).lower():
                 return False, 'لا يمكن استخدام الكرت لشحن الحساب نفسه'
+            if recharge_type == 'package' and str(sub.get('status') or '').lower() in ('disabled', 'suspended', 'recharged'):
+                return False, 'لا يمكن شحن باقة لحساب معطل أو موقوف أو كرت مستهلك للشحن.'
             username = sub['username']
             loan_mb = int(sub.get('loan_balance_mb') or 0)
             loan_status = int(sub.get('loan_status') or 0)
@@ -1131,7 +1149,7 @@ def request_data_loan(username):
             quota_is_low = True
         elif sub_status == 'expired':
             quota_is_low = True
-        elif total_allowed_quota_mb > 0:
+        elif base_quota_mb > 0:
             used_mb = float(usage['total_bytes']) / (1024.0 * 1024.0)
             rem_mb = max(0.0, total_allowed_quota_mb - used_mb)
             if rem_mb <= threshold_mb:

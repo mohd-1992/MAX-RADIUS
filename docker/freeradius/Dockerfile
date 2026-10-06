@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create working directory and copy entrypoint script
 WORKDIR /etc/freeradius/3.0
 COPY entrypoint.sh /entrypoint.sh
+COPY license-capacity-postauth.conf /etc/freeradius/3.0/license-capacity-postauth.conf
 COPY queries.conf /etc/freeradius/3.0/mods-config/sql/main/mysql/queries.conf
 RUN chmod +x /entrypoint.sh
 

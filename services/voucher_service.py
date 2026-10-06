@@ -38,11 +38,13 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
     if count <= 0:
         raise ValueError('العدد المطلوب توليده يجب أن يكون أكبر من الصفر.')
     
-    # Enforce strict license quota ceiling
-    from services.license_guard_service import check_subscriber_quota
-    allowed, err_msg, _, _ = check_subscriber_quota(count)
-    if not allowed:
-        raise ValueError(err_msg)
+    # Verify license validity and permissions
+    from services.license_guard_service import get_active_license_status
+    lic_st = get_active_license_status()
+    if not lic_st.get('valid'):
+        raise ValueError(lic_st.get('message', "النظام مقفل أو غير مرخص. لا يمكن توليد كروت جديدة."))
+    if lic_st.get('status') == 'revoked':
+        raise ValueError("الترخيص محظور من قِبل المطور. لا يمكن توليد كروت جديدة.")
         
     same_user_pass = bool(same_user_pass)
     now_dt = get_db_storage_now().replace(tzinfo=None)
@@ -330,58 +332,11 @@ def get_batch_cards_for_print(batch_id):
     return batch, cards, template
 
 def delete_batch(batch_id, admin_username='admin'):
-    batch = query_one('SELECT * FROM wisp_voucher_batches WHERE id = ?', (batch_id,))
-    if not batch:
-        return False
-
-    # Check for unused cards to refund
-    unused_row = query_one("SELECT COUNT(*) as cnt FROM wisp_vouchers WHERE batch_id = ? AND status = 'unused'", (batch_id,))
-    unused_count = unused_row['cnt'] if unused_row else 0
-    reseller_id = batch.get('reseller_id')
-
-    if reseller_id and unused_count > 0:
-        cost_per_card = float(batch.get('cost') or (float(batch.get('price', 0)) * 0.8))
-        refund_amount = round(unused_count * cost_per_card, 2)
-        if refund_amount > 0:
-            mgr = query_one('SELECT * FROM wisp_managers WHERE id = ?', (reseller_id,))
-            if mgr:
-                bal_before = float(mgr.get('wallet_balance') or 0.0)
-                bal_after = round(bal_before + refund_amount, 2)
-                execute_write('UPDATE wisp_managers SET wallet_balance = ? WHERE id = ?', (bal_after, reseller_id))
-                inv_number = f"INV-REF-{reseller_id}-{get_db_storage_now().replace(tzinfo=None).strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
-                execute_write('''
-                    INSERT INTO wisp_manager_invoices (
-                        invoice_number, manager_id, transaction_type, amount,
-                        payment_type, balance_before, balance_after, notes, is_voided, created_by
-                    ) VALUES (?, ?, 'refund', ?, 'cash', ?, ?, ?, 0, ?)
-                ''', (
-                    inv_number, reseller_id, refund_amount, bal_before, bal_after,
-                    f'استرجاع قيمة {unused_count} كرت غير مستخدم عند حذف الدفعة #{batch.get("batch_number", batch_id)}',
-                    admin_username
-                ))
-            else:
-                reseller = query_one('SELECT * FROM wisp_resellers WHERE id = ?', (reseller_id,))
-                if reseller:
-                    new_bal = float(reseller['balance']) + refund_amount
-                    execute_write('UPDATE wisp_resellers SET balance = ? WHERE id = ?', (new_bal, reseller_id))
-                    execute_write('''
-                        INSERT INTO wisp_reseller_transactions (reseller_id, type, amount, balance_after, description, reference_id)
-                        VALUES (?, 'refund', ?, ?, ?, ?)
-                    ''', (reseller_id, refund_amount, new_bal, f'استرجاع قيمة {unused_count} كرت لحذف الدفعة', batch.get('batch_number', '')))
-
-    cards = query_all('SELECT username FROM wisp_vouchers WHERE batch_id = ?', (batch_id,))
-    for c in cards:
-        delete_user_from_radius(c['username'])
-        
-    execute_write('DELETE FROM wisp_vouchers WHERE batch_id = ?', (batch_id,))
-    execute_write('DELETE FROM wisp_voucher_batches WHERE id = ?', (batch_id,))
-    try:
-        from services.license_guard_service import clear_license_cache
-        clear_license_cache()
-    except Exception:
-        pass
-    log_audit(1, admin_username, 'DELETE_BATCH', 'vouchers', f'Deleted batch ID {batch_id} (refunded {unused_count} unused cards)')
-    return True
+    from services.account_lifecycle_service import delete_voucher_batch
+    ok = delete_voucher_batch(batch_id, admin_username)
+    if ok:
+        log_audit(1, admin_username, 'DELETE_BATCH', 'vouchers', f'Deleted batch {batch_id}; refund committed atomically')
+    return ok
 
 def update_voucher_batch(batch_id, name, package_id, admin_username='admin'):
     batch = query_one('SELECT * FROM wisp_voucher_batches WHERE id = ?', (batch_id,))
@@ -492,169 +447,8 @@ def calculate_package_expiration(validity_value, validity_unit='days', start_dt=
     return expiry_iso, freeradius_exp
 
 def check_and_update_expired_vouchers():
-    """
-    Core Architecture Pillar 4: Scans active/used vouchers and subscribers,
-    marks depleted/expired accounts as 'expired', purges FreeRADIUS credentials,
-    and enqueues asynchronous CoA Disconnect requests.
-    1. Time expiration: marks expired with 'تم استهلاك مدة الصلاحية'.
-    2. Data Quota expiration (including 64-bit gigawords): 'تم استهلاك رصيد البيانات بالكامل'.
-    3. Uptime limit expiration: 'تم استهلاك رصيد الوقت المسموح للباقة'.
-    4. Credential purging from radcheck.
-    5. Non-blocking asynchronous CoA Disconnect via coa_queue_service.
-    """
-    # 1. Voucher Time expiration (using DB CURRENT_TIMESTAMP directly)
-    execute_write("""
-        UPDATE wisp_vouchers
-        SET status = 'expired',
-            expire_reason = 'تم استهلاك مدة الصلاحية'
-        WHERE status IN ('active', 'used')
-          AND expires_at IS NOT NULL
-          AND expires_at <= CURRENT_TIMESTAMP
-    """)
-
-    execute_write("""
-        UPDATE wisp_subscribers
-        SET status = 'expired'
-        WHERE status = 'active'
-          AND expires_at IS NOT NULL
-          AND expires_at <= CURRENT_TIMESTAMP
-    """)
-
-    # 2. Voucher & Subscriber Data Quota expiration (including 64-bit Gigawords)
-    has_acct = query_one("SELECT 1 FROM radacct LIMIT 1")
-    if has_acct:
-        # Vouchers Data Quota
-        execute_write("""
-            UPDATE wisp_vouchers v
-            JOIN (
-                SELECT a.username
-                FROM radacct a
-                JOIN wisp_vouchers v2 ON a.username = v2.username AND v2.status IN ('active', 'used')
-                JOIN wisp_packages p ON v2.package_id = p.id
-                LEFT JOIN wisp_session_baselines b ON a.radacctid = b.radacctid AND b.renewed_at = v2.last_renewed_at
-                WHERE COALESCE(v2.snap_volume_quota_mb, p.volume_quota_mb, 0) > 0
-                  AND (v2.last_renewed_at IS NULL OR a.acctstarttime >= v2.last_renewed_at OR b.radacctid IS NOT NULL)
-                GROUP BY a.username, v2.snap_volume_quota_mb, p.volume_quota_mb, v2.extra_quota_mb
-                HAVING SUM(
-                    CASE 
-                        WHEN v2.last_renewed_at IS NULL THEN (CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED))
-                        WHEN b.radacctid IS NULL AND a.acctstarttime >= v2.last_renewed_at THEN (CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED))
-                        WHEN b.radacctid IS NOT NULL THEN (
-                            (CASE WHEN a.acctinputoctets > b.baseline_input_bytes THEN a.acctinputoctets - b.baseline_input_bytes ELSE 0 END) +
-                            (CASE WHEN a.acctoutputoctets > b.baseline_output_bytes THEN a.acctoutputoctets - b.baseline_output_bytes ELSE 0 END)
-                        )
-                        ELSE 0
-                    END
-                ) >= ((COALESCE(v2.snap_volume_quota_mb, p.volume_quota_mb, 0) + COALESCE(v2.extra_quota_mb, 0)) * 1048576)
-            ) over_limit ON v.username = over_limit.username
-            SET v.status = 'expired',
-                v.expire_reason = 'تم استهلاك رصيد البيانات بالكامل'
-            WHERE v.status IN ('active', 'used')
-        """)
-
-        # Subscribers Data Quota
-        execute_write("""
-            UPDATE wisp_subscribers s
-            JOIN (
-                SELECT a.username
-                FROM radacct a
-                JOIN wisp_subscribers s2 ON a.username = s2.username AND s2.status = 'active'
-                JOIN wisp_packages p ON s2.package_id = p.id
-                LEFT JOIN wisp_session_baselines b ON a.radacctid = b.radacctid AND b.renewed_at = s2.last_renewed_at
-                WHERE COALESCE(s2.snap_volume_quota_mb, p.volume_quota_mb, 0) > 0
-                  AND (s2.last_renewed_at IS NULL OR a.acctstarttime >= s2.last_renewed_at OR b.radacctid IS NOT NULL)
-                GROUP BY a.username, s2.snap_volume_quota_mb, p.volume_quota_mb, s2.extra_quota_mb
-                HAVING SUM(
-                    CASE 
-                        WHEN s2.last_renewed_at IS NULL THEN (CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED))
-                        WHEN b.radacctid IS NULL AND a.acctstarttime >= s2.last_renewed_at THEN (CAST(COALESCE(a.acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(a.acctoutputoctets, 0) AS UNSIGNED))
-                        WHEN b.radacctid IS NOT NULL THEN (
-                            (CASE WHEN a.acctinputoctets > b.baseline_input_bytes THEN a.acctinputoctets - b.baseline_input_bytes ELSE 0 END) +
-                            (CASE WHEN a.acctoutputoctets > b.baseline_output_bytes THEN a.acctoutputoctets - b.baseline_output_bytes ELSE 0 END)
-                        )
-                        ELSE 0
-                    END
-                ) >= ((COALESCE(s2.snap_volume_quota_mb, p.volume_quota_mb, 0) + COALESCE(s2.extra_quota_mb, 0)) * 1048576)
-            ) over_limit ON s.username = over_limit.username
-            SET s.status = 'expired'
-            WHERE s.status = 'active'
-        """)
-
-        # 3. Uptime Limit Expiration
-        execute_write("""
-            UPDATE wisp_vouchers v
-            JOIN (
-                SELECT a.username
-                FROM radacct a
-                JOIN wisp_vouchers v2 ON a.username = v2.username AND v2.status IN ('active', 'used')
-                JOIN wisp_packages p ON v2.package_id = p.id
-                LEFT JOIN wisp_session_baselines b ON a.radacctid = b.radacctid AND b.renewed_at = v2.last_renewed_at
-                WHERE COALESCE(v2.snap_uptime_limit_mins, p.uptime_limit_mins, 0) > 0
-                  AND (v2.last_renewed_at IS NULL OR a.acctstarttime >= v2.last_renewed_at OR b.radacctid IS NOT NULL)
-                GROUP BY a.username, v2.snap_uptime_limit_mins, p.uptime_limit_mins
-                HAVING SUM(
-                    CASE 
-                        WHEN v2.last_renewed_at IS NULL THEN COALESCE(a.acctsessiontime, 0)
-                        WHEN b.radacctid IS NULL AND a.acctstarttime >= v2.last_renewed_at THEN COALESCE(a.acctsessiontime, 0)
-                        WHEN b.radacctid IS NOT NULL THEN (CASE WHEN a.acctsessiontime > b.baseline_seconds THEN a.acctsessiontime - b.baseline_seconds ELSE 0 END)
-                        ELSE 0
-                    END
-                ) >= (COALESCE(v2.snap_uptime_limit_mins, p.uptime_limit_mins, 0) * 60)
-            ) over_uptime ON v.username = over_uptime.username
-            SET v.status = 'expired',
-                v.expire_reason = 'تم استهلاك رصيد الوقت المسموح للباقة'
-            WHERE v.status IN ('active', 'used')
-        """)
-
-    # 4. Clean up FreeRADIUS credentials for expired vouchers and subscribers
-    try:
-        execute_write("""
-            DELETE FROM radcheck 
-            WHERE attribute = 'Cleartext-Password'
-              AND username IN (
-                  SELECT username FROM wisp_vouchers 
-                  WHERE status IN ('expired', 'disabled', 'suspended', 'recharged')
-              )
-        """)
-        
-        execute_write("""
-            DELETE FROM radcheck 
-            WHERE attribute = 'Cleartext-Password'
-              AND username IN (
-                  SELECT username FROM wisp_subscribers 
-                  WHERE status IN ('expired', 'disabled', 'suspended')
-              )
-        """)
-    except Exception:
-        pass
-
-    # 5. Pillar 3 & 4 Asynchronous CoA Disconnect Watchdog
-    try:
-        from services.coa_queue_service import enqueue_bulk_disconnect
-        
-        has_live_sessions = query_one("SELECT 1 FROM radacct WHERE acctstoptime IS NULL LIMIT 1")
-        if has_live_sessions:
-            expired_users = query_all("""
-                SELECT DISTINCT a.username
-                FROM radacct a
-                LEFT JOIN wisp_vouchers v ON a.username = v.username
-                LEFT JOIN wisp_subscribers s ON a.username = s.username
-                WHERE a.acctstoptime IS NULL
-                  AND (
-                      (v.id IS NOT NULL AND (v.status IN ('expired', 'disabled', 'suspended', 'recharged') OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)))
-                      OR
-                      (s.id IS NOT NULL AND (s.status IN ('expired', 'disabled', 'suspended') OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP)))
-                  )
-            """)
-            
-            if expired_users:
-                usernames_to_kick = [r['username'] for r in expired_users if r.get('username')]
-                if usernames_to_kick:
-                    enqueue_bulk_disconnect(usernames_to_kick, reason="Account Expired / Quota Depleted")
-    except Exception as err:
-        print(f"Error in auto-disconnect watchdog: {err}")
-
-    return True
+    from services.account_lifecycle_service import sweep_expired_accounts
+    return sweep_expired_accounts()
 
 
 def activate_voucher_card(username, bound_mac=None, nas_ip=None):
@@ -917,7 +711,7 @@ def sync_voucher_activations(force=False):
                        COALESCE(r.nasipaddress, '') as nas_ip
                 FROM wisp_vouchers v
                 INNER JOIN radacct r ON v.username = r.username
-                WHERE v.status = 'unused'
+                WHERE v.status = 'unused' AND r.acctstarttime >= v.created_at
                 LIMIT 50
             ''')
             for c in cards_to_activate:
@@ -928,13 +722,12 @@ def sync_voucher_activations(force=False):
                    '' as nas_ip
             FROM wisp_vouchers v
             INNER JOIN radpostauth p ON v.username = p.username
-            WHERE v.status = 'unused' AND p.reply = 'Access-Accept'
+            WHERE v.status = 'unused' AND p.reply = 'Access-Accept' AND p.authdate >= v.created_at
             LIMIT 50
         ''')
         for c in postauth_cards:
             activate_voucher_card(c['username'], bound_mac=None, nas_ip=c.get('nas_ip'))
 
-        check_and_update_expired_vouchers()
     except Exception:
         pass
 

@@ -245,24 +245,94 @@
                         <span>مؤشرات استهلاك الحصص المعتمدة في الترخيص:</span>
                     </h4>
 
-                    <!-- Subscribers Quota -->
-                    <div class="p-4 rounded-2xl bg-[#070b14] border border-[#162136] space-y-2">
-                        <div class="flex items-center justify-between text-xs font-bold">
-                            <span class="text-slate-300 flex items-center gap-2">
-                                <i class="fa-solid fa-users text-blue-400"></i>
-                                المشتركين والمستخدمين المسجلين
+                    {% if license.license_mode == 'active_sessions' %}
+                    <!-- Active Sessions Concurrent Capacity Section -->
+                    <div class="p-5 rounded-2xl bg-[#070b14] border border-[#162136] space-y-4">
+                        <div class="flex items-center justify-between border-b border-[#162136] pb-3">
+                            <span class="text-xs font-black text-white flex items-center gap-2">
+                                <i class="fa-solid fa-bolt-lightning text-cyan-400"></i>
+                                <span>سعة الجلسات المتصلة المتزامنة (Concurrent Sessions Capacity)</span>
                             </span>
-                            <span class="font-mono text-blue-400 font-black">
-                                {{ license.current_subscribers or 0 }} / {{ license.max_subscribers or 0 }} مشترك
+                            <span class="text-[11px] font-mono font-bold px-2.5 py-1 rounded-xl {% if (license.capacity_usage_pct|default(0, true)) >= 100 %}bg-rose-500/20 text-rose-400 border border-rose-500/30{% elif (license.capacity_usage_pct|default(0, true)) > 80 %}bg-amber-500/20 text-amber-400 border border-amber-500/30{% else %}bg-blue-500/20 text-blue-400 border border-blue-500/30{% endif %}">
+                                استهلاك السعة: {{ "غير متاح" if license.capacity_read_error else ("غير محدود" if license.is_unlimited_capacity else (license.capacity_usage_pct|default(0, true)|string ~ "%")) }}
                             </span>
                         </div>
-                        {% set max_s = (license.max_subscribers or 0) | int %}
-                        {% set cur_s = (license.current_subscribers or 0) | int %}
-                        {% set subs_pct = ((cur_s / max_s) * 100) | round if max_s > 0 else 0 %}
-                        <div class="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
-                            <div class="h-full rounded-full transition-all duration-500 {% if subs_pct > 90 %}bg-rose-500{% elif subs_pct > 75 %}bg-amber-500{% else %}bg-blue-500{% endif %}" style="width: {{ [subs_pct, 100] | min }}%"></div>
+
+                        <!-- 4 Metric Grid -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <!-- Metric 1: Max Active Sessions -->
+                            <div class="p-3 bg-[#0b0f19] rounded-xl border border-[#1c2840] space-y-1">
+                                <span class="text-[10px] text-slate-400 block font-bold">الحد الأقصى للجلسات:</span>
+                                <span class="text-sm font-black font-mono text-cyan-400">{{ "{:,}".format(license.max_active_sessions|default(0)) }} <span class="text-[10px] text-slate-400 font-sans">جلسة</span></span>
+                            </div>
+
+                            <!-- Metric 2: Current Connected Sessions -->
+                            <div class="p-3 bg-[#0b0f19] rounded-xl border border-[#1c2840] space-y-1">
+                                <span class="text-[10px] text-slate-400 block font-bold">الجلسات المتصلة حالياً:</span>
+                                {% if license.active_sessions_read_error %}
+                                    <span class="text-xs font-black text-rose-400">خطأ في قراءة العداد</span>
+                                {% else %}
+                                    <span class="text-sm font-black font-mono text-white">{{ "{:,}".format(license.current_active_sessions|default(0)) }} <span class="text-[10px] text-slate-400 font-sans">متصل</span></span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Metric 3: Pending Reservations -->
+                            <div class="p-3 bg-[#0b0f19] rounded-xl border border-[#1c2840] space-y-1">
+                                <span class="text-[10px] text-slate-400 block font-bold">حجوزات مصادقة بانتظار المحاسبة:</span>
+                                <span class="text-sm font-black font-mono text-amber-400">{{ "غير متاح" if license.pending_reservations is none else "{:,}".format(license.pending_reservations|default(0)) }} <span class="text-[10px] text-slate-400 font-sans">معلق</span></span>
+                            </div>
+
+                            <!-- Metric 4: Available Capacity -->
+                            <div class="p-3 bg-[#0b0f19] rounded-xl border border-[#1c2840] space-y-1">
+                                <span class="text-[10px] text-slate-400 block font-bold">السعة المتاحة لاتصالات جديدة:</span>
+                                <span class="text-sm font-black font-mono {% if (license.available_capacity|default(0, true)) > 0 %}text-emerald-400{% else %}text-rose-400{% endif %}">{{ "غير متاح" if license.capacity_read_error else ("غير محدود" if license.is_unlimited_capacity else ("غير متاح" if license.available_capacity is none else "{:,}".format(license.available_capacity|default(0)))) }} <span class="text-[10px] text-slate-400 font-sans">مقعد متاح</span></span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="space-y-1.5 pt-1">
+                            <div class="w-full h-3 rounded-full bg-slate-800 overflow-hidden shadow-inner">
+                                <div class="h-full rounded-full transition-all duration-500 {% if (license.capacity_usage_pct|default(0, true)) >= 100 %}bg-rose-500{% elif (license.capacity_usage_pct|default(0, true)) > 80 %}bg-amber-500{% else %}bg-gradient-to-r from-blue-500 to-cyan-400{% endif %}" style="width: {{ [license.capacity_usage_pct|default(0, true), 100] | min }}%"></div>
+                            </div>
+                            <div class="flex items-center justify-between text-[11px] text-slate-400">
+                                <span class="flex items-center gap-1.5 text-emerald-400 font-bold">
+                                    <i class="fa-solid fa-circle-check text-[10px]"></i>
+                                    توليد الكروت والمشتركين المخزنين: غير محدود (Unlimited)
+                                </span>
+                                <span>{{ license.total_consumed_capacity|default(0) }} مستهلك من أصل {{ license.max_active_sessions|default(0) }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Explanatory Policy Banner -->
+                        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 text-[11px] text-slate-300 leading-relaxed space-y-1">
+                            <div class="font-bold text-cyan-300 flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-info text-xs"></i>
+                                <span>توضيح معيار الترخيص والسعة المعتمد:</span>
+                            </div>
+                            <p>
+                                • يشمل الحد الأقصى جميع جلسات <strong>Hotspot</strong> و <strong>PPPoE</strong> المتصلة متزامناً للكروت والمشتركين معاً.<br>
+                                • معيار احتساب الجلسة: جلسة مفتوحة وآخر تحديث محاسبة خلال 5 دقائق (أو وقت البداية فقط عند غياب وقت التحديث).<br>
+                                • الحساب المتصل بأكثر من جلسة يستهلك سعة ترخيص بعدد جلساته المتصلة.<br>
+                                • <strong>لا يوجد أي سقف ترخيص على عدد الحسابات أو الكروت المخزنة في النظام.</strong><br>
+                                • عند بلوغ السقف، تُمنع الاتصالات الجديدة فقط حتى تتوفر سعة، وتستمر الجلسات القائمة ولوحة التحكم وتوليد الكروت بالعمل بصورة طبيعية.
+                            </p>
                         </div>
                     </div>
+                    {% else %}
+                    <!-- Legacy License Notice Card (No subscriber numbers or fake capacity) -->
+                    <div class="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 space-y-2">
+                        <div class="flex items-center gap-2.5 font-bold text-sm text-amber-300">
+                            <i class="fa-solid fa-triangle-exclamation text-base"></i>
+                            <span>تنبيه: حزمة ترخيص سابقة (Legacy License)</span>
+                        </div>
+                        <p class="text-xs text-amber-200/90 leading-relaxed">
+                            يعمل هذا النظام بحزمة ترخيص سابقة تعتمد المعيار القديم. يرجى طلب تحديث وتجديد الترخيص من الإدارة للانتقال إلى نظام السعة المتزامنة المعتمد (سقف الجلسات المتصلة).
+                        </p>
+                        <div class="text-[11px] text-slate-400 pt-1">
+                            ملاحظة: النظام مستمر بالعمل وفق قواعد التوافق الداخلي السابقة إلى حين استلام وتفعيل حزمة الترخيص المحدثة.
+                        </div>
+                    </div>
+                    {% endif %}
 
                     <!-- NAS / Routers Quota -->
                     <div class="p-4 rounded-2xl bg-[#070b14] border border-[#162136] space-y-2">
@@ -342,6 +412,11 @@
                     </h3>
                 </div>
 
+                <div class="space-y-2 mb-4 text-xs">
+                    <p>هوية الاتصال الآمن: اعتمد هذا المفتاح العام في لوحة إصدار التراخيص قبل التفعيل.</p>
+                    <input readonly value="{{ license.current_instance_uuid }}" class="w-full bg-[#070b14] rounded-xl p-3" dir="ltr">
+                    <input readonly value="{{ license.instance_public_key }}" class="w-full bg-[#070b14] rounded-xl p-3 font-mono" dir="ltr">
+                </div>
                 <form method="POST" action="{{ url_for('activate_license_action') }}" enctype="multipart/form-data" class="space-y-4">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}">
 
@@ -365,7 +440,7 @@
                     </div>
 
                     <!-- Hidden Master Server URL -->
-                    <input type="hidden" name="master_server_url" value="{{ license.master_server_url or 'http://license.max-net.net' }}">
+                    <input type="hidden" name="master_server_url" value="{{ license.master_server_url or 'https://license.max-net.net' }}">
 
                     <button type="submit" class="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm shadow-xl shadow-emerald-600/30 transition-all flex items-center justify-center gap-2.5 cursor-pointer transform active:scale-[0.98]">
                         <i class="fa-solid fa-circle-check text-base"></i>
@@ -481,7 +556,7 @@ async function syncHeartbeat() {
     icon.classList.add("fa-spin");
     
     try {
-        const resp = await fetch("{{ url_for('sync_license_heartbeat_action') }}", { method: "POST" });
+        const resp = await fetch("{{ url_for('sync_license_heartbeat_action') }}", { method: "POST", headers: {'X-CSRF-Token': {{ (csrf_token() if csrf_token else '')|tojson }}} });
         const data = await resp.json();
         
         if (window.Swal) {

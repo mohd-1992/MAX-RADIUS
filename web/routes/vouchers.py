@@ -122,11 +122,14 @@ def generate_vouchers_action():
         package_id = int(request.form['package_id'])
         count = int(request.form['count'])
         
-        # 1. Enforce strict license quota ceiling
-        from services.license_guard_service import check_subscriber_quota
-        allowed, err_msg, _, _ = check_subscriber_quota(count)
-        if not allowed:
-            flash(err_msg, 'danger')
+        # 1. License validity verification
+        from services.license_guard_service import get_active_license_status
+        lic_st = get_active_license_status()
+        if not lic_st.get('valid'):
+            flash(lic_st.get('message', "النظام مقفل أو غير مرخص. لا يمكن توليد كروت جديدة."), 'danger')
+            return redirect(url_for('vouchers'))
+        if lic_st.get('status') == 'revoked':
+            flash("الترخيص محظور من قِبل المطور. لا يمكن توليد كروت جديدة.", 'danger')
             return redirect(url_for('vouchers'))
         format_type = request.form.get('format_type', 'pin_only')
         char_type = request.form.get('char_type', 'numbers')
@@ -742,6 +745,17 @@ def edit_active_card_action(card_id):
         if str(old_card.get('expires_at') or '') != str(expires_at or ''):
             changes.append(f"تعديل تاريخ الانتهاء إلى '{expires_at or 'تلقائي'}'")
 
+        if old_card.get('package_id') != new_pkg_id:
+            profile = dict(username=new_username, password=new_password, bound_mac=bound_mac, status=status)
+            old_exp = str(old_card.get('expires_at') or '').replace('T', ' ')[:16]
+            submitted_exp = str(expires_at or '').replace('T', ' ')[:16]
+            if old_exp != submitted_exp:
+                profile['expires_at'] = expires_at
+            ok, message = action_change_package('voucher', card_id, new_pkg_id,
+                                                admin_username=admin_user, voucher_profile=profile)
+            flash(message, 'success' if ok else 'danger')
+            return redirect(url_for('active_card_user_details', card_id=card_id))
+
         execute_write('''
             UPDATE wisp_vouchers
             SET username = ?, password = ?, pin_code = ?, package_id = ?, bound_mac = ?, status = ?, expires_at = ?
@@ -1265,8 +1279,8 @@ def print_cards(batch_id):
 
 def delete_batch_action(batch_id):
     try:
-        delete_batch(batch_id)
-        flash('تم حذف دفعة الكروت ومسحها من RADIUS.', 'info')
+        deleted = delete_batch(batch_id)
+        flash('تم حذف الدفعة واسترداد قيمتها ذريًا.' if deleted else 'الدفعة غير موجودة.', 'info')
     except Exception as e:
         flash(f'خطأ أثناء حذف الدفعة: {str(e)}', 'danger')
     return redirect(url_for('vouchers'))

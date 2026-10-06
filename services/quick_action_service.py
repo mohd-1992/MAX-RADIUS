@@ -18,7 +18,7 @@ from core.time_service import get_db_storage_now
 import uuid
 from database.db import query_one, query_all, execute_write, log_audit, log_user_audit, db_session, is_mysql_conn, adapt_query
 from core.coa import RadiusCoaClient
-from core.rate_limit import format_bytes, format_duration
+from core.rate_limit import format_bytes, format_duration, build_mikrotik_rate_limit
 from services.voucher_service import calculate_package_expiration
 from services.quota_service import calculate_cycle_usage_and_rollover, record_session_baselines
 
@@ -100,35 +100,17 @@ def get_target_entity(entity_type, entity_id=None):
 
 
 def action_delete_entity(entity_type, entity_id, admin_username='admin'):
-    """0. حذف المشترك أو الكرت بالكامل ومسح سمات الراديوس وطرد الجلسة"""
-    entity, etype = get_target_entity(entity_type, entity_id)
+    from services.account_lifecycle_service import delete_account
+    entity, kind = get_target_entity(entity_type, entity_id)
     if not entity:
-        return False, "المشترك أو الكرت غير موجود"
-        
-    username = entity['username']
-    
-    # 1. Disconnect user first via CoA Disconnect if active
-    try:
-        action_disconnect_user(entity_type, entity_id, admin_username=admin_username)
-    except Exception:
-        pass
-        
-    # 2. FreeRADIUS tables deletion
-    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?)", (username,))
-    execute_write("DELETE FROM radreply WHERE LOWER(username) = LOWER(?)", (username,))
-    execute_write("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", (username,))
-    
-    # 3. System database tables deletion
-    if etype == 'subscriber':
-        execute_write("DELETE FROM wisp_invoices WHERE subscriber_id = ?", (entity['id'],))
-        execute_write("DELETE FROM wisp_subscribers WHERE id = ?", (entity['id'],))
-        log_audit(1, admin_username, 'DELETE_SUBSCRIBER', 'subscribers', f'Deleted subscriber {username} (ID: {entity["id"]})')
-    else:
-        # Preserve historical sales/revenue ledger in wisp_voucher_sales upon voucher deletion
-        execute_write("DELETE FROM wisp_vouchers WHERE id = ?", (entity['id'],))
-        log_audit(1, admin_username, 'DELETE_VOUCHER', 'vouchers', f'Deleted voucher card {username} (ID: {entity["id"]})')
-        
-    return True, f"تم حذف [{username}] بالكامل من النظام والراديوس بنجاح."
+        return False, 'الحساب غير موجود'
+    result = delete_account(kind, entity['id'])
+    if result.get('pending'):
+        return False, 'الحذف قيد الانتظار: تم منع الدخول وطلب فصل جميع الجلسات؛ أعد المحاولة بعد إغلاقها.'
+    if result.get('deleted'):
+        log_audit(1, admin_username, 'DELETE_ACCOUNT', kind, f'Deleted {entity["username"]}; financial history retained')
+        return True, 'تم الحذف مع حفظ السجل المالي والمحاسبي.'
+    return False, 'لم يتم الحذف؛ أعد التحقق من حالة الحساب.'
 
 def action_bulk_execute(action_fn, entity_type, target_ids, **kwargs):
     """
@@ -492,7 +474,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
     return True, res_msg
 
 
-def action_change_package(entity_type, entity_id, new_package_id, enable_rollover=None, admin_username='admin'):
+def action_change_package(entity_type, entity_id, new_package_id, enable_rollover=None, admin_username='admin', voucher_profile=None):
     """4. تغيير الباقة مع خيار ترحيل الرصيد الذكي (Data & Time Rollover) وتسوية السلفة"""
     with db_session() as conn:
         cursor = conn.cursor()
@@ -510,6 +492,12 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
             return False, "الحساب أو الكرت غير موجود"
         if not isinstance(entity, dict):
             entity = dict(entity)
+
+        if voucher_profile is not None and etype != 'voucher':
+            return False, 'تعديل بيانات الكرت متاح للكروت فقط'
+        if etype == 'voucher' and str(entity.get('status') or '').lower() == 'recharged':
+            return False, 'لا يمكن تغيير باقة كرت مستهلك للشحن'
+        keep_unused = voucher_profile is not None and entity.get('status') == 'unused' and voucher_profile.get('status') == 'unused'
 
         cursor.execute(adapt_query("SELECT * FROM wisp_packages WHERE id = ?", conn), (new_package_id,))
         new_pkg = cursor.fetchone()
@@ -529,7 +517,9 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
         if not old_pkg:
             old_pkg = new_pkg
 
-        if enable_rollover is None:
+        if keep_unused:
+            enable_rollover = False
+        elif enable_rollover is None:
             enable_rollover = bool(old_pkg.get('is_rollover_enabled'))
         else:
             enable_rollover = bool(enable_rollover)
@@ -665,7 +655,12 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
                 int(val),
                 unit, int(new_pkg.get('validity_days') or 30),
                 new_pkg.get('rate_download') or '', new_pkg.get('rate_upload') or '',
-                new_pkg.get('rate_limit_str') or '',
+                new_pkg.get('rate_limit_str') or build_mikrotik_rate_limit(
+                    download=new_pkg.get('rate_download') or '0', upload=new_pkg.get('rate_upload') or '0',
+                    burst_down=new_pkg.get('burst_download'), burst_up=new_pkg.get('burst_upload'),
+                    threshold_down=new_pkg.get('burst_threshold_down'), threshold_up=new_pkg.get('burst_threshold_up'),
+                    burst_time=new_pkg.get('burst_time') or 16, priority=new_pkg.get('priority') or 8,
+                    min_down=new_pkg.get('min_download'), min_up=new_pkg.get('min_upload')),
                 int(new_pkg.get('simultaneous_sessions') or 1),
                 new_pkg.get('mikrotik_group') or '',
                 entity['id']
@@ -677,13 +672,33 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
                     package_name, price, cost, reseller_id, activated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, conn)
-            cursor.execute(ins_sale, (
-                entity['id'], entity.get('batch_id') or 1, entity.get('batch_name') or 'Direct',
-                entity['username'], entity.get('serial_number') or '',
-                new_pkg['name'], new_pkg['price'], new_pkg.get('cost') or 0, entity.get('reseller_id'), db_now_str
-            ))
+            if not keep_unused:
+                cursor.execute(ins_sale, (
+                    entity['id'], entity.get('batch_id') or 1, entity.get('batch_name') or 'Direct',
+                    entity['username'], entity.get('serial_number') or '',
+                    new_pkg['name'], new_pkg['price'], new_pkg.get('cost') or 0, entity.get('reseller_id'), db_now_str
+                ))
 
         # 6. RADIUS attributes
+        if voucher_profile is not None:
+            if keep_unused:
+                new_exp_iso = entity.get('expires_at')
+                new_fr_exp = new_exp_iso.strftime('%d %b %Y %H:%M:%S') if new_exp_iso else None
+                cursor.execute(adapt_query('UPDATE wisp_vouchers SET last_renewed_at = ? WHERE id = ?', conn), (entity.get('last_renewed_at'), entity['id']))
+            if 'expires_at' in voucher_profile:
+                new_exp_iso = voucher_profile['expires_at']
+                parsed_exp = datetime.datetime.fromisoformat(str(new_exp_iso)) if new_exp_iso else None
+                new_fr_exp = parsed_exp.strftime('%d %b %Y %H:%M:%S') if parsed_exp else None
+            if voucher_profile['username'] != username:
+                for table in ('radcheck', 'radreply', 'radusergroup'):
+                    cursor.execute(adapt_query(f'DELETE FROM {table} WHERE username = ?', conn), (username,))
+            username = voucher_profile['username']
+            entity['password'] = voucher_profile['password']
+            cursor.execute(adapt_query('UPDATE wisp_vouchers SET username=?, password=?, pin_code=?, bound_mac=?, status=?, expires_at=? WHERE id=?', conn),
+                           (username, entity['password'], entity['password'], voucher_profile.get('bound_mac') or None, voucher_profile['status'], new_exp_iso, entity['id']))
+            cursor.execute(adapt_query("DELETE FROM radcheck WHERE username=? AND attribute='Calling-Station-Id'", conn), (username,))
+            if voucher_profile.get('bound_mac'):
+                cursor.execute(adapt_query("INSERT INTO radcheck(username,attribute,op,value) VALUES (?, 'Calling-Station-Id', '==', ?)", conn), (username, voucher_profile['bound_mac']))
         cursor.execute(adapt_query("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", conn), (username,))
         if new_fr_exp:
             cursor.execute(adapt_query("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", conn), (username, new_fr_exp))
@@ -869,35 +884,8 @@ def action_deduct_wallet_balance(entity_type, entity_id, amount, notes='', admin
     return True, f"تم خصم/سحب {val} من رصيد المحفظة بنجاح. الرصيد المتبقي: {curr_balance - val}"
 
 def action_disconnect_user(entity_type, entity_id=None, admin_username='admin'):
-    """9. قطع الاتصال وطرد المشترك عبر CoA Disconnect-Request بنمط غير متزامن فوري"""
-    entity, etype = get_target_entity(entity_type, entity_id)
+    entity, kind = get_target_entity(entity_type, entity_id)
     if not entity:
-        return False, "الحساب أو الكرت غير موجود"
-        
-    username = entity['username']
-    
-    # 1. Look up active session
-    active_session = query_one("""
-        SELECT nasipaddress, acctsessionid, framedipaddress, callingstationid
-        FROM radacct
-        WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL
-        ORDER BY radacctid DESC
-        LIMIT 1
-    """, (username,))
-    
-    if active_session:
-        from services.coa_queue_service import enqueue_disconnect
-        enqueue_disconnect(
-            username=username,
-            nas_ip=active_session.get('nasipaddress'),
-            framed_ip=active_session.get('framedipaddress'),
-            session_id=active_session.get('acctsessionid'),
-            mac_address=active_session.get('callingstationid'),
-            reason="Admin Quick Action Disconnect",
-            admin_username=admin_username
-        )
-        log_audit(1, admin_username, 'DISCONNECT_USER', etype, f'Enqueued CoA Disconnect for active user {username} on NAS {active_session.get("nasipaddress")}.')
-        return True, f"تم إرسال أمر قطع الاتصال (CoA Disconnect) للمشترك [{username}] إلى طابور المعالجة اللحظية بنجاح."
-    else:
-        log_audit(1, admin_username, 'DISCONNECT_USER', etype, f'Disconnect called for offline user {username}.')
-        return True, f"المشترك [{username}] غير متصل حالياً (لا توجد جلسة نشطة)."
+        return False, 'الحساب غير موجود'
+    from services.coa_queue_service import enqueue_disconnect
+    return enqueue_disconnect(entity['username'], reason='Admin Manual Disconnect All Sessions', admin_username=admin_username)

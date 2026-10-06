@@ -935,7 +935,7 @@ def api_maintenance_stats():
 def api_run_database_audit():
     from services.db_maintenance_service import run_database_audit
     audit = run_database_audit()
-    return jsonify({'success': True, 'audit': audit})
+    return jsonify({'success': audit.get('success',False), 'audit': audit, 'message': audit.get('error','')})
 
 
 @system_bp.route('/api/tools/database-maintenance/fix', methods=['POST'], endpoint="api_fix_audit_issue")
@@ -947,7 +947,7 @@ def api_fix_audit_issue():
     session_id = data.get('session_id')
     
     from services.db_maintenance_service import fix_audit_issue
-    res = fix_audit_issue(action_code, username, {'session_id': session_id})
+    res = fix_audit_issue(action_code, username, {key:data.get(key) for key in ('session_id','record_id','attribute_name')})
     if res.get('success'):
         log_audit(1, 'admin', 'DB_AUDIT_FIX', 'tools', f'Fixed {action_code} for user {username}')
     return jsonify(res)
@@ -958,22 +958,36 @@ def api_fix_audit_issue():
 def api_fix_all_audit_issues():
     from services.db_maintenance_service import fix_all_audit_issues
     res = fix_all_audit_issues()
-    log_audit(1, 'admin', 'DB_AUDIT_FIX_ALL', 'tools', f'Fixed all issues: {res.get("fixed_count")} resolved')
+    log_audit(1, 'admin', 'DB_AUDIT_FIX_ALL', 'tools', f'Audit repair: {res.get("fixed_count")} fixed; {res.get("errors_count")} failed; complete={res.get("success")}')
     return jsonify(res)
 
 
 @system_bp.route('/api/tools/database-maintenance/clean-expired', methods=['POST'], endpoint="api_clean_expired_vouchers")
 
 def api_clean_expired_vouchers():
-    data = request.json if request.is_json else request.form.to_dict()
-    delete_type = data.get('delete_type', 'all')
-    delete_acct = bool(data.get('delete_acct', False))
-    
-    from services.db_maintenance_service import delete_expired_vouchers
-    res = delete_expired_vouchers(delete_type=delete_type, delete_acct=delete_acct)
-    if res.get('success'):
-        log_audit(1, 'admin', 'DB_CASCADE_CLEAN', 'tools', f'Deleted expired vouchers ({delete_type}): {res.get("deleted_vouchers")} vouchers, {res.get("deleted_radcheck")} radcheck, {res.get("deleted_radusergroup")} radusergroup')
-    return jsonify(res)
+    data = request.get_json(silent=True) if request.is_json else request.form.to_dict()
+    data = data or {}
+    from services.maintenance_job_service import start_cleanup_job
+    try:
+        job, created = start_cleanup_job(data.get('delete_type','all'),session.get('admin_username','admin'))
+        return jsonify(success=True,job=job,already_running=not created),202
+    except ValueError as exc:
+        return jsonify(success=False,message=str(exc)),409
+    except Exception as exc:
+        logger.exception('Unable to start expired-card cleanup')
+        return jsonify(success=False,message='تعذر بدء مهمة الحذف: '+str(exc)),500
+
+
+@system_bp.route('/api/tools/database-maintenance/clean-expired/jobs/latest', methods=['GET'], endpoint='api_latest_cleanup_job')
+@system_bp.route('/api/tools/database-maintenance/clean-expired/jobs/<job_id>', methods=['GET'], endpoint='api_cleanup_job_status')
+def api_cleanup_job_status(job_id=None):
+    from services.maintenance_job_service import get_cleanup_job
+    try:
+        job = get_cleanup_job(job_id)
+        if job_id and job is None:return jsonify(success=False,message='المهمة غير موجودة'),404
+        return jsonify(success=True,job=job)
+    except Exception as exc:
+        return jsonify(success=False,message='تعذر قراءة تقدم المهمة: '+str(exc)),503
 
 
 @system_bp.route('/api/tools/database-maintenance/table-sizes', endpoint="api_table_sizes")
@@ -1034,16 +1048,33 @@ def api_optimize_tables():
 
 @system_bp.route('/api/tools/database-maintenance/factory-reset', methods=['POST'], endpoint="api_factory_reset_database")
 
+@require_permission('settings_manage')
 def api_factory_reset_database():
-    data = request.json if request.is_json else request.form.to_dict()
-    confirm_code = data.get('confirm_code')
-    keep_packages = bool(data.get('keep_packages', True))
-    keep_resellers = bool(data.get('keep_resellers', False))
-    from services.db_maintenance_service import factory_reset_database
-    res = factory_reset_database(keep_packages=keep_packages, keep_resellers=keep_resellers)
-    if res.get('success'):
-        log_audit(1, 'admin', 'DB_FACTORY_RESET', 'tools', f'Factory reset performed: {res.get("message")}')
-    return jsonify(res)
+    data = (request.get_json(silent=True) or {}) if request.is_json else request.form.to_dict()
+    if str(data.get('confirm_code','')).strip().upper() not in ('RESET','تصفير','CONFIRM'):
+        return jsonify(success=False,message='رمز تأكيد إعادة المصنع غير صحيح.'),400
+    def flag(name, default):
+        value=data.get(name,default)
+        if type(value) is bool:return value
+        if value in ('true','1'):return True
+        if value in ('false','0'):return False
+        raise ValueError('خيارات إعادة المصنع غير صالحة.')
+    try:
+        from services.factory_reset_service import start_factory_reset
+        job,created=start_factory_reset(flag('keep_packages',True),flag('keep_resellers',False),session.get('username','admin'))
+        return jsonify(success=True,job=job,created=created),202
+    except Exception as exc:
+        return jsonify(success=False,message=str(exc)),409
+
+
+@system_bp.route('/api/tools/database-maintenance/factory-reset/status', methods=['GET'], endpoint='api_factory_reset_status')
+@require_permission('settings_manage')
+def api_factory_reset_status():
+    from services.factory_reset_service import get_factory_reset
+    job=get_factory_reset(request.args.get('job_id'))
+    if request.args.get('job_id') and not job:
+        return jsonify(success=False,message='سجل المهمة غير موجود؛ أعد فتح الصفحة للتحقق من الحالة.'),404
+    return jsonify(success=True,job=job)
 
 
 @system_bp.route('/notifications', endpoint="notifications_center_page")
@@ -1587,18 +1618,17 @@ def license_status_page():
     if not manager:
         return redirect(url_for('login', next=url_for('license_status_page')))
     lic_info = get_active_license_status()
+    from core.license_protocol import instance_public_key
+    lic_info = dict(lic_info, instance_public_key=instance_public_key(STORAGE_DIR),
+                    current_instance_uuid=get_instance_uuid())
     return render_template('license_status.html', license=lic_info)
 
 
 @system_bp.route('/settings/license/activate', methods=['POST'], endpoint="activate_license_action")
-
+@login_required
+@require_permission('settings_manage')
 def activate_license_action():
-    lic_info = get_active_license_status()
-    manager = get_current_manager()
-    if lic_info.get('valid') and manager:
-        require_permission('settings_manage')
-        
-    master_url = request.form.get('master_server_url', 'http://license.max-net.net').strip()
+    master_url = request.form.get('master_server_url', DEFAULT_MASTER_SERVER_URL).strip()
     
     lic_file = request.files.get('license_file')
     lic_token = request.form.get('license_token', '').strip()
@@ -1628,6 +1658,7 @@ def activate_license_action():
 @system_bp.route('/settings/license/sync-heartbeat', methods=['POST'], endpoint="sync_license_heartbeat_action")
 
 @login_required
+@require_permission('settings_manage')
 def sync_license_heartbeat_action():
     success, msg = sync_license_heartbeat_with_server()
     return jsonify({"success": success, "message": msg})

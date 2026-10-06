@@ -245,7 +245,7 @@ def _execute_update_worker(target_version):
             # 2. Create transient updater using docker:cli
             create_payload = {
                 "Image": "docker:cli",
-                "Cmd": ["sh", "-c", "sleep 3 && docker compose -f /opt/max-radius/docker-compose.yml pull wisp-web && docker compose -f /opt/max-radius/docker-compose.yml up -d --no-deps wisp-web && docker rm -f max_radius_update_orchestrator"],
+                "Cmd": ["sh", "-c", "sleep 3 && cd /opt/max-radius && docker compose -f docker-compose.production.yml pull wisp-web freeradius l2tp && docker compose -f docker-compose.production.yml up -d --no-deps wisp-web freeradius l2tp && docker rm -f max_radius_update_orchestrator"],
                 "HostConfig": {
                     "Binds": [
                         "/var/run/docker.sock:/var/run/docker.sock",

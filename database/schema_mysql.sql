@@ -300,8 +300,11 @@ CREATE TABLE `radpostauth` (
   `reply` varchar(32) NOT NULL DEFAULT '',
   `authdate` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `class` varchar(64) DEFAULT NULL,
+  `nasipaddress` varchar(45) DEFAULT NULL,
+  `callingstationid` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_radpostauth_username` (`username`(32))
+  KEY `idx_radpostauth_username` (`username`(32)),
+  KEY `idx_radpostauth_station` (`callingstationid`)
 ) ENGINE=InnoDB AUTO_INCREMENT=17216 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -502,6 +505,7 @@ CREATE TABLE `wisp_license_info` (
   `plan_tier` varchar(50) DEFAULT 'Enterprise',
   `hardware_id` varchar(100) DEFAULT 'ANY',
   `max_subscribers` int(11) DEFAULT 5000,
+  `max_active_sessions` int(11) DEFAULT 0,
   `max_nas` int(11) DEFAULT 15,
   `max_managers` int(11) DEFAULT 10,
   `features_json` longtext DEFAULT NULL,
@@ -520,6 +524,25 @@ CREATE TABLE `wisp_license_info` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_license` (`license_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `wisp_session_reservations` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `radacctid` bigint DEFAULT NULL,
+  `nasportid` varchar(50) NOT NULL DEFAULT '',
+  `session_key` varchar(191) NOT NULL,
+  `username` varchar(64) NOT NULL,
+  `nasipaddress` varchar(45) NOT NULL,
+  `callingstationid` varchar(50) NOT NULL,
+  `reserved_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `expires_at` datetime NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_session_key` (`session_key`),
+  KEY `idx_res_expires` (`expires_at`),
+  KEY `idx_res_nas` (`nasipaddress`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
@@ -758,7 +781,7 @@ CREATE TABLE `wisp_subscribers` (
   `loan_status` tinyint(1) DEFAULT 0,
   `first_used_at` datetime DEFAULT NULL,
   `expires_at` datetime DEFAULT NULL,
-  `last_renewed_at` datetime DEFAULT current_timestamp(),
+  `last_renewed_at` datetime DEFAULT NULL,
   `notes` text DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
@@ -882,7 +905,7 @@ CREATE TABLE `wisp_vouchers` (
   `status` varchar(20) DEFAULT 'unused',
   `first_used_at` datetime DEFAULT NULL,
   `expires_at` datetime DEFAULT NULL,
-  `last_renewed_at` datetime DEFAULT current_timestamp(),
+  `last_renewed_at` datetime DEFAULT NULL,
   `bound_mac` varchar(50) DEFAULT NULL,
   `extra_quota_mb` bigint(20) DEFAULT 0,
   `expire_reason` varchar(60) DEFAULT '',
@@ -1047,5 +1070,41 @@ INSERT INTO `wisp_system_settings` VALUES
 INSERT INTO `wisp_managers` (`id`, `username`, `password_hash`, `full_name`, `phone`, `email`, `role_id`, `wallet_balance`, `credit_limit`, `commission_percent`, `allowed_packages`, `is_active`, `is_deleted`, `notes`, `created_at`) 
 VALUES (1, 'admin', 'admin', 'مدير النظام الرئيسي', '+967 770 000 000', 'admin@max-net.net', 1, 0.00, 0.00, 0.00, NULL, 1, 0, 'حساب المدير العام الأساسي للمنظومة', NOW())
 ON DUPLICATE KEY UPDATE `is_active` = 1;
+
+
+-- Loyalty catalog, wallets and transactions
+CREATE TABLE IF NOT EXISTS wisp_loyalty_wallets (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(64) NOT NULL UNIQUE,
+                    points_balance INT DEFAULT 0,
+                    total_points_earned INT DEFAULT 0,
+                    total_points_redeemed INT DEFAULT 0,
+                    tier_level ENUM('bronze', 'silver', 'gold', 'vip') DEFAULT 'bronze',
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_points_user (username)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS wisp_loyalty_rewards (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    reward_name VARCHAR(120) NOT NULL,
+                    points_cost INT NOT NULL,
+                    reward_type VARCHAR(50) DEFAULT 'data_bonus_mb',
+                    reward_value BIGINT NOT NULL,
+                    description VARCHAR(255) NULL,
+                    icon VARCHAR(50) DEFAULT 'fa-gift',
+                    is_active TINYINT(1) DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS wisp_loyalty_transactions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    username VARCHAR(64) NOT NULL,
+                    transaction_type VARCHAR(50) NOT NULL,
+                    points INT NOT NULL,
+                    balance_after INT NOT NULL,
+                    notes VARCHAR(255) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_trx_user (username)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS=1;

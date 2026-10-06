@@ -387,10 +387,12 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
     return subs
 
 def create_subscriber(data, admin_username='admin'):
-    from services.license_guard_service import check_subscriber_quota
-    allowed, err_msg, _, _ = check_subscriber_quota(1)
-    if not allowed:
-        raise ValueError(err_msg)
+    from services.license_guard_service import get_active_license_status
+    lic_st = get_active_license_status()
+    if not lic_st.get('valid'):
+        raise ValueError(lic_st.get('message', "النظام مقفل أو غير مرخص. لا يمكن إضافة مشتركين جدد."))
+    if lic_st.get('status') == 'revoked':
+        raise ValueError("الترخيص محظور من قِبل المطور. لا يمكن إضافة مشتركين جدد.")
 
     exp_iso = data.get('expires_at') or None
     validity_mode = data.get('validity_mode', 'package')
@@ -473,13 +475,15 @@ def update_subscriber(sub_id, data, admin_username='admin'):
     new_expires_at = data.get('expires_at') or None
     new_notes = data.get('notes', '')
 
-    # Strict License Check: If transitioning to active from suspended/expired
+    # License Check: If transitioning to active from suspended/expired
     old_status = str(old_sub.get('status') or '').lower()
     if old_status != 'active' and str(new_status).lower() == 'active':
-        from services.license_guard_service import check_subscriber_quota
-        allowed, err_msg, _, _ = check_subscriber_quota(1)
-        if not allowed:
-            raise ValueError(f"لا يمكن تنشيط المشترك: {err_msg}")
+        from services.license_guard_service import get_active_license_status
+        lic_st = get_active_license_status()
+        if not lic_st.get('valid'):
+            raise ValueError(f"لا يمكن تنشيط المشترك: {lic_st.get('message', 'النظام غير مرخص')}")
+        if lic_st.get('status') == 'revoked':
+            raise ValueError("لا يمكن تنشيط المشترك: الترخيص محظور من قِبل المطور.")
 
     new_pkg = query_one('SELECT name FROM wisp_packages WHERE id = ?', (new_pkg_id,))
     new_pkg_name = new_pkg['name'] if new_pkg else str(new_pkg_id)
@@ -524,18 +528,13 @@ def update_subscriber(sub_id, data, admin_username='admin'):
     return True
 
 def delete_subscriber(sub_id, admin_username='admin'):
-    sub = query_one('SELECT username FROM wisp_subscribers WHERE id = ?', (sub_id,))
-    if sub:
-        delete_user_from_radius(sub['username'])
-        execute_write('DELETE FROM wisp_subscribers WHERE id = ?', (sub_id,))
-        try:
-            from services.license_guard_service import clear_license_cache
-            clear_license_cache()
-        except Exception:
-            pass
-        log_audit(1, admin_username, 'DELETE_SUBSCRIBER', 'subscribers', f'Deleted subscriber {sub["username"]}')
-        return True
-    return False
+    from services.account_lifecycle_service import delete_account
+    result = delete_account('subscriber', sub_id)
+    if result.get('pending'):
+        raise ValueError('تم منع الدخول وطلب فصل جميع الجلسات؛ أعد الحذف بعد إغلاقها. الفواتير محفوظة.')
+    if result.get('deleted'):
+        log_audit(1, admin_username, 'DELETE_SUBSCRIBER', 'subscribers', f'Deleted subscriber {sub_id}; invoices retained')
+    return bool(result.get('deleted'))
 
 def get_subscriber_sessions(username, limit=15):
     cutoff_str = get_heartbeat_cutoff_str(5)
@@ -574,23 +573,23 @@ def disconnect_subscriber_session(username, admin_username='admin'):
 
 
 def dispatch_async_disconnect(username, admin_username='admin'):
-    """
-    Submits a disconnect request to background thread pool.
-    Guarantees zero HTTP blocking and immediate web response even if NAS is offline.
-    """
     if not username:
         return
-    try:
-        _COA_EXECUTOR.submit(disconnect_subscriber_session, username, admin_username)
-    except Exception as e:
-        print(f"Error submitting async disconnect for {username}: {e}")
+    from services.coa_queue_service import enqueue_disconnect
+    ok,message=enqueue_disconnect(username,reason='Subscriber administrative disconnect',admin_username=admin_username)
+    if not ok:
+        log_audit(1, admin_username, 'DISCONNECT_QUEUE_REJECTED', 'subscribers', message)
+    return ok
 
-def clean_stale_sessions(timeout_minutes=10):
+def clean_stale_sessions(timeout_minutes=None):
     """
     Finds and forcibly closes orphaned/ghost sessions where acctstoptime IS NULL
     and no interim-update has been received for longer than timeout_minutes.
     Preserves multiple simultaneous connections for the same user if they are active.
     """
+    if timeout_minutes is None:
+        from services.autoheal_service import get_zombie_session_timeout
+        timeout_minutes = get_zombie_session_timeout()
     cutoff_str = get_heartbeat_cutoff_str(timeout_minutes)
 
     closed_count = 0

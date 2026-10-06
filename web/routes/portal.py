@@ -9,6 +9,7 @@ import json
 import time
 import datetime
 import secrets
+import hmac
 import logging
 
 from flask import (
@@ -208,7 +209,7 @@ def api_portal_session_status():
 def api_portal_login_session():
     data = request.json if request.is_json else request.form.to_dict()
     username = (data.get('username') or '').strip()
-    password = (data.get('password') or username).strip()
+    password = (data.get('password') or '').strip()
     speed_profile = (data.get('speed_profile') or data.get('speed_id') or '').strip()
     
     user_obj, err = authenticate_portal_user(username, password)
@@ -258,6 +259,7 @@ def api_portal_login_session():
         return jsonify({
             'success': True,
             'username': user_obj['username'],
+            'csrf_token': session.setdefault('_license_csrf', secrets.token_urlsafe(32)),
             'speed_id': session.get('portal_selected_speed_id')
         })
     return jsonify({'success': False, 'error': err or 'فشل التحقق'})
@@ -454,40 +456,37 @@ def user_recharge_action():
     return redirect(url_for('user_dashboard'))
 
 
-@portal_bp.route('/user/loan/request', methods=['POST'], endpoint="user_loan_request_action")
+def _portal_loan_request_error():
+    if not session.get('portal_user'):
+        return jsonify(success=False, message='يرجى تسجيل الدخول أولاً'), 401
+    expected = session.get('_license_csrf', '')
+    supplied = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token', '')
+    if not expected or not isinstance(supplied, str) or not hmac.compare_digest(expected.encode('utf-8'), supplied.encode('utf-8')):
+        return jsonify(success=False, message='انتهت صلاحية طلب السلفة؛ حدّث الصفحة وأعد المحاولة.'), 403
+    return None
 
+
+@portal_bp.route('/user/loan/request', methods=['POST'], endpoint="user_loan_request_action")
 def user_loan_request_action():
-    username = session.get('portal_user')
-    if not username:
-        if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({'success': False, 'message': 'يرجى تسجيل الدخول أولاً'}), 401
-        return redirect(url_for('user_login'))
-        
-    success, msg = request_data_loan(username)
-    
+    error = _portal_loan_request_error()
+    if error:
+        if error[1] == 401 and not (request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest'):
+            return redirect(url_for('user_login'))
+        return error
+    # Never accept the beneficiary from request data.
+    success, msg = request_data_loan(session['portal_user'])
     if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({'success': success, 'message': msg})
-        
-    if success:
-        flash(msg, 'success')
-    else:
-        flash(msg, 'danger')
-        
+    flash(msg, 'success' if success else 'danger')
     return redirect(url_for('user_dashboard'))
 
 
 @portal_bp.route('/user/api/loan/request', methods=['POST'], endpoint="api_user_loan_request")
-
 def api_user_loan_request():
-    username = session.get('portal_user')
-    if not username:
-        data = request.json if request.is_json else request.form.to_dict()
-        username = data.get('username', '').strip()
-        
-    if not username:
-        return jsonify({'success': False, 'message': 'اسم المشترك غير محدد'}), 400
-        
-    success, msg = request_data_loan(username)
+    error = _portal_loan_request_error()
+    if error:
+        return error
+    success, msg = request_data_loan(session['portal_user'])
     return jsonify({'success': success, 'message': msg})
 
 
@@ -607,7 +606,7 @@ def user_disconnect_session_action():
         return jsonify({'success': False, 'message': 'غير مصرح'}), 401
     
     from services.quick_action_service import action_disconnect_user
-    res = action_disconnect_user(username)
-    return jsonify(res)
+    ok, message = action_disconnect_user(username)
+    return jsonify(success=ok,message=message,status='queued' if ok else 'failed')
 
 

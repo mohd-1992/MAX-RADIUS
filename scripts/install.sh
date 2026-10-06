@@ -164,8 +164,8 @@ fi
 
 # Launch Docker Containers
 echo -e "${BLUE}[6/6] Pulling images and starting MAX RADIUS services...${NC}"
-docker compose pull
-docker compose up -d
+docker compose -f docker-compose.production.yml pull
+docker compose -f docker-compose.production.yml up -d --remove-orphans
 
 # ------------------------------------------------------------
 # Configure Nginx Reverse Proxy (Port 80 alongside Port 5090)
@@ -243,7 +243,7 @@ echo -e "  ⚡ ${BOLD}CoA / PoD Port:${NC}   Port 37990 / UDP"
 echo -e "  🛡️ ${BOLD}L2TP VPN Server:${NC}  Port 1701 / UDP"
 echo ""
 echo -e "  📂 ${BOLD}Install Location:${NC} ${INSTALL_DIR}"
-echo -e "  📋 ${BOLD}Logs & Status:${NC}    cd ${INSTALL_DIR} && docker compose ps"
+echo -e "  📋 ${BOLD}Logs & Status:${NC}    cd ${INSTALL_DIR} && docker compose -f docker-compose.production.yml ps"
 echo ""
 echo -e "${CYAN}Tip: Change the default admin password upon initial login.${NC}"
 echo -e "${GREEN}==================================================================${NC}"

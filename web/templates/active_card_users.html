@@ -516,7 +516,22 @@
 
                         <!-- 7. الاستهلاك والكوتا -->
                         <td class="py-3.5 px-4 text-xs col-consumption min-w-[220px] whitespace-nowrap">
-                            {% if c.has_quota %}
+                            {% if c.status == 'recharged' %}
+                                <div class="text-slate-300 text-[11px] mb-1">
+                                    {% if 'شحن الرصيد' in (c.expire_reason or '') %}
+                                        الكوتا: غير منطبق — شحن رصيد مالي
+                                    {% elif 'شحن الباقة' in (c.expire_reason or '') %}
+                                        {% if c.has_quota %}
+                                            كوتا كرت الشحن: <span class="font-mono font-semibold">{{ c.quota_bytes_str }}</span> — شحن باقة
+                                        {% else %}
+                                            الكوتا: غير محدودة — شحن باقة
+                                        {% endif %}
+                                    {% else %}
+                                        الكوتا: غير منطبق — مستخدم للشحن
+                                    {% endif %}
+                                </div>
+                                <div class="text-slate-400 text-[10px]">الاستهلاك: غير منطبق — استُخدم للشحن</div>
+                            {% elif c.has_quota %}
                                 <div class="flex items-center justify-between text-[11px] font-mono mb-1 gap-2">
                                     <span class="text-slate-300 font-semibold">{{ c.used_bytes_str }}</span>
                                     <span class="text-slate-400">من {{ c.quota_bytes_str }}</span>
