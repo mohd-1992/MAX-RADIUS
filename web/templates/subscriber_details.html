@@ -298,7 +298,7 @@
                             {% elif subscriber.status == 'expired' %}
                             <span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30">منتهي (Expired)</span>
                             {% else %}
-                            <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">موقوف (Disabled)</span>
+                            <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">موقوف</span>
                             {% endif %}
                         </div>
                         <div class="flex items-center justify-between">
@@ -373,7 +373,7 @@
                         <label class="block text-slate-300 font-semibold mb-1">حالة الحساب</label>
                         <select name="status" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
                             <option value="active" {% if subscriber.status == 'active' %}selected{% endif %}>نشط (Active)</option>
-                            <option value="disabled" {% if subscriber.status == 'disabled' %}selected{% endif %}>موقوف مؤقتاً (Disabled)</option>
+                            <option value="suspended" {% if subscriber.status in ('suspended', 'disabled') %}selected{% endif %}>موقوف</option>
                             <option value="expired" {% if subscriber.status == 'expired' %}selected{% endif %}>منتهي (Expired)</option>
                         </select>
                     </div>

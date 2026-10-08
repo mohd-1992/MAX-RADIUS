@@ -362,7 +362,7 @@
                         <select name="status" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
                             <option value="active" {% if card.status == 'active' %}selected{% endif %}>مفعل (Active)</option>
                             <option value="expired" {% if card.status == 'expired' %}selected{% endif %}>منتهي (Expired)</option>
-                            <option value="disabled" {% if card.status == 'disabled' %}selected{% endif %}>موقوف (Disabled)</option>
+                            <option value="suspended" {% if card.status in ('suspended', 'disabled') %}selected{% endif %}>موقوف</option>
                             <option value="unused" {% if card.status == 'unused' %}selected{% endif %}>غير مستخدم (Unused)</option>
                         </select>
                     </div>

@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from decimal import Decimal
 from database.db import get_connection, is_mysql_conn, adapt_query
 
+ACCOUNTING_UNCERTAIN_REASON = 'تعذر تسوية حدود دورة المحاسبة'
+
 
 def run_transaction(operation, connection=None):
     for attempt in range(3):
@@ -69,6 +71,12 @@ def expiry_reason(conn, kind, row):
     if not (base or uptime):
         return None
     cycle = row.get('last_renewed_at')
+    if cycle and sql(conn, '''SELECT a.radacctid FROM radacct a
+        LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at=?
+        WHERE a.username=? AND a.acctstarttime<?
+        AND (a.acctstoptime IS NULL OR a.acctstoptime>?)
+        AND b.radacctid IS NULL LIMIT 1''', (cycle,row['username'],cycle,cycle),'one'):
+        return ACCOUNTING_UNCERTAIN_REASON
     totals = sql(conn, '''SELECT
         COALESCE(SUM(CASE WHEN b.radacctid IS NOT NULL THEN
             GREATEST(0,CAST(COALESCE(a.acctinputoctets,0) AS SIGNED)-CAST(b.baseline_input_bytes AS SIGNED))+
@@ -104,11 +112,14 @@ def sweep_expired_accounts():
                         return None
                     reason = expiry_reason(conn, kind, row)
                     if reason:
+                        next_status = 'suspended' if reason == ACCOUNTING_UNCERTAIN_REASON else 'expired'
                         if kind == 'voucher':
-                            sql(conn, f"UPDATE {table} SET status='expired',expire_reason=? WHERE id=?", (reason,row['id']))
+                            sql(conn, f"UPDATE {table} SET status=?,expire_reason=? WHERE id=?", (next_status,reason,row['id']))
                         else:
-                            sql(conn, f"UPDATE {table} SET status='expired' WHERE id=?", (row['id'],))
-                        row['status'] = 'expired'
+                            sql(conn, f"UPDATE {table} SET status=? WHERE id=?", (next_status,row['id']))
+                        if next_status == 'suspended':
+                            sql(conn, f"UPDATE {table} SET pause_reason=? WHERE id=?", (reason,row['id']))
+                        row['status'] = next_status
                     if row['status'] in ('expired','disabled','suspended','recharged'):
                         sql(conn, "DELETE FROM radcheck WHERE username=? AND attribute='Cleartext-Password'", (row['username'],))
                         return row
@@ -150,7 +161,8 @@ def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, m
         reserved = sql(conn, 'SELECT id FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() FOR UPDATE', (row['username'],), 'all')
         if sessions or reserved:
             if not expected_expired:
-                sql(conn, f"UPDATE {table} SET status='disabled' WHERE id=?", (entity_id,))
+                sql(conn, f"UPDATE {table} SET status='suspended',pause_reason=? WHERE id=?",
+                    ('إيقاف لحين إكمال حذف الحساب', entity_id))
             removed = sql(conn,"DELETE FROM radcheck WHERE username=? AND attribute='Cleartext-Password'",(row['username'],))
             return {'deleted':False,'pending':True,'username':row['username'],'sessions':sessions,'deleted_radcheck':removed,'cycle':str(row.get('last_renewed_at') or '')}
         removed = {}

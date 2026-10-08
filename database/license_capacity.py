@@ -16,6 +16,8 @@ CREATE OR REPLACE FUNCTION fn_check_license_auth(p_username VARCHAR(64) CHARACTE
 RETURNS VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci READS SQL DATA
 BEGIN
  DECLARE ok_count INT DEFAULT 0;
+ IF EXISTS (SELECT 1 FROM wisp_renewal_guards WHERE username=p_username AND expires_at>NOW())
+ THEN RETURN 'Account renewal awaiting final accounting'; END IF;
  SELECT COUNT(*) INTO ok_count FROM wisp_license_runtime_state s
  JOIN wisp_license_info l ON l.id=s.license_row_id
  WHERE s.id=1 AND s.is_valid=1 AND s.valid_until>UTC_TIMESTAMP()
@@ -121,6 +123,8 @@ BEGIN
 END"""
 
 def install_capacity_schema(conn):
+    from database.cycle_safety import install_cycle_safety
+    install_cycle_safety(conn)
     with conn.cursor() as cur:
         cur.execute(SCHEMA_SQL)
         cur.execute("INSERT IGNORE INTO wisp_license_runtime_state(id) VALUES(1)")

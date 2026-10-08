@@ -967,7 +967,7 @@ def execute_database_migration(file_input, options=None):
 
                         status = 'active'
                         if str(u_enabled) == '0' or str(u_state) == '0':
-                            status = 'disabled'
+                            status = 'suspended'
                         elif str(u_state) == '2':
                             status = 'expired'
                         elif u_exp:

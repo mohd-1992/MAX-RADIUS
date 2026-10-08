@@ -32,7 +32,7 @@
     </div>
 
     <!-- Quick Overview Stats (4 Cards) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div id="autohealStats" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- 1. Autoheal Container Status -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between">
@@ -43,7 +43,7 @@
             </div>
             <div class="mt-3 flex items-baseline justify-between">
                 <span id="stat_autoheal_state" class="text-xl font-black font-mono text-emerald-400">
-                    {% if data.autoheal_container and data.autoheal_container.is_healthy %}نشط وصحي (Healthy){% else %}يعمل{% endif %}
+                    {{ data.autoheal_container.health_label if data.autoheal_container else 'غير متحقق' }}
                 </span>
             </div>
             <p class="text-[11px] text-emerald-500/80 mt-2 flex items-center gap-1">
@@ -62,7 +62,7 @@
             </div>
             <div class="mt-3 flex items-baseline justify-between">
                 <span id="stat_watchdog_state" class="text-xl font-black font-mono {% if data.watchdog_active %}text-indigo-400{% else %}text-amber-400{% endif %}">
-                    {% if data.watchdog_active %}يعمل (دورة 5 دقائق){% else %}خامل{% endif %}
+                    {% if data.watchdog_active %}يعمل (دورة دقيقة){% else %}خامل{% endif %}
                 </span>
             </div>
             <p class="text-[11px] text-slate-400 mt-2">فحص مسبح SQL، سعة القرص، ومنافذ RADIUS</p>
@@ -77,8 +77,8 @@
                 </div>
             </div>
             <div class="mt-3 flex items-baseline justify-between">
-                <span id="stat_fleet_count" class="text-2xl font-black font-mono text-blue-400">{{ data.fleet|length }} / {{ data.fleet|length }}</span>
-                <span class="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">100% متصلة</span>
+                <span id="stat_fleet_count" class="text-2xl font-black font-mono text-blue-400">{{ data.fleet|selectattr('is_healthy')|list|length }} / {{ data.fleet|length }}</span>
+                <span class="text-xs font-mono text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">حسب نتيجة فحص الصحة</span>
             </div>
             <p class="text-[11px] text-slate-400 mt-2">FreeRADIUS • Web GUI • MariaDB • L2TP VPN • Autoheal</p>
         </div>
@@ -145,7 +145,7 @@
         </div>
 
         <!-- 5 Containers Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4" id="containersFleetGrid">
+        <div id="autohealFleet" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             {% for c in data.fleet %}
             <div class="bg-[#070b14] border border-[#162136] hover:border-{{ c.color }}-500/40 rounded-2xl p-5 flex flex-col justify-between transition shadow-sm relative overflow-hidden group">
                 <!-- Top Header -->
@@ -240,10 +240,10 @@
                     </div>
                     <h4 class="font-bold text-white text-sm">إعادة تهيئة حاوية التعافي (Reload Autoheal)</h4>
                     <p class="text-xs text-slate-400 mt-1 leading-relaxed">
-                        إعادة تشغيل وتنشيط حاوية `max_radius_autoheal` ومزامنة خيط المراقبة الداخلي لقراءة الحاويات الجديدة.
+                        إعادة تشغيل مراقب Docker؛ المراقب الداخلي يعمل داخل حاوية الويب بشكل مستقل.
                     </p>
                 </div>
-                <button onclick="confirmRestartContainer('max_radius_autoheal', 'حاوية التعافي التلقائي')" class="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
+                <button onclick="confirmRestartContainer('{{ data.autoheal_container.name if data.autoheal_container else '' }}', 'حاوية التعافي التلقائي')" class="w-full py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-heart-pulse"></i>
                     <span>إعادة تشغيل حاوية Autoheal</span>
                 </button>
@@ -279,7 +279,7 @@
                 <i class="fa-solid fa-bolt mr-1"></i>حاوية الدوكر (Autoheal): كل 10 ثوانٍ
             </span>
             <span class="px-2.5 py-1 rounded-lg bg-[#0b0f19] border border-slate-700 text-indigo-400">
-                <i class="fa-solid fa-microchip mr-1"></i>المراقب الداخلي (Watchdog): كل 5 دقائق
+                <i class="fa-solid fa-microchip mr-1"></i>المراقب الداخلي (Watchdog): كل دقيقة
             </span>
             <span class="px-2.5 py-1 rounded-lg bg-[#0b0f19] border border-slate-700 text-cyan-400">
                 <i class="fa-solid fa-arrows-rotate mr-1"></i>مزامنة الشاشة: كل 15 ثانية
@@ -305,8 +305,9 @@
                 <!-- Filter Tabs -->
                 <div class="flex items-center bg-[#070b14] p-1 rounded-xl border border-slate-800 text-[11px] font-bold">
                     <button type="button" onclick="filterAlerts('all')" id="tabAlertsAll" class="px-3 py-1 rounded-lg text-white bg-blue-600 transition">الكل</button>
-                    <button type="button" onclick="filterAlerts('unresolved')" id="tabAlertsUnresolved" class="px-3 py-1 rounded-lg text-slate-400 hover:text-white transition">جارية ({{ data.unresolved_alerts_count }})</button>
-                    <button type="button" onclick="filterAlerts('resolved')" id="tabAlertsResolved" class="px-3 py-1 rounded-lg text-slate-400 hover:text-white transition">تم حلها تلقائياً ✅</button>
+                    <button type="button" onclick="filterAlerts('unresolved')" id="tabAlertsUnresolved" class="px-3 py-1 rounded-lg text-slate-400 hover:text-white transition">جارية ({{ data.ongoing_alerts_count }})</button>
+                    <button type="button" onclick="filterAlerts('failed')" id="tabAlertsFailed" class="px-3 py-1 rounded-lg text-slate-400 hover:text-white transition">فاشلة ({{ data.failed_alerts_count }})</button>
+                    <button type="button" onclick="filterAlerts('resolved')" id="tabAlertsResolved" class="px-3 py-1 rounded-lg text-slate-400 hover:text-white transition">المحلولة ✅</button>
                 </div>
                 <button onclick="clearResolvedAlerts()" class="px-3.5 py-1.5 bg-[#070b14] hover:bg-[#11192b] text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
                     <i class="fa-solid fa-trash-can text-rose-400 text-[11px]"></i>
@@ -330,7 +331,7 @@
                 </thead>
                 <tbody class="divide-y divide-[#162136]" id="alertsTableBody">
                     {% for a in data.alerts %}
-                    <tr data-resolved="{{ 'true' if a.is_resolved else 'false' }}" class="alert-row hover:bg-blue-500/5 transition {% if not a.is_resolved %}bg-amber-500/[0.02]{% endif %}">
+                    <tr data-state="{{ 'resolved' if a.is_resolved else ('failed' if a.alert_type.endswith('FAILED') else 'unresolved') }}" data-resolved="{{ 'true' if a.is_resolved else 'false' }}" class="alert-row hover:bg-blue-500/5 transition {% if not a.is_resolved %}bg-amber-500/[0.02]{% endif %}">
                         <!-- Severity -->
                         <td class="py-3 px-4">
                             {% if a.severity in ('critical', 'danger') %}
@@ -358,12 +359,13 @@
                         <!-- Action -->
                         <td class="py-3 px-4 text-center">
                             {% if not a.is_resolved %}
+                            <span class="block mb-1 text-amber-400">{{ 'فشل / يتطلب إجراء' if a.alert_type.endswith('FAILED') else 'جاري' }}</span>
                             <button onclick="resolveAlert({{ a.id }})" class="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-[11px] font-bold transition">
                                 تمييز كمحلول
                             </button>
                             {% else %}
                             <span class="text-slate-500 text-[11px] flex items-center justify-center gap-1">
-                                <i class="fa-solid fa-check text-emerald-400"></i>محلول
+                                <i class="fa-solid fa-check text-emerald-400"></i>{{ 'محلول يدويًا' if ':manual' in (a.source or '') else 'محلول تلقائيًا' }}
                             </span>
                             {% endif %}
                         </td>
@@ -372,7 +374,7 @@
                     <tr>
                         <td colspan="6" class="py-8 text-center text-slate-500">
                             <i class="fa-solid fa-shield-check text-3xl text-emerald-400/50 block mb-2"></i>
-                            لا توجد أي تنبيهات أو حوادث مسجلة، النظام مستقر 100%.
+                            لا توجد تنبيهات أو حوادث مسجلة.
                         </td>
                     </tr>
                     {% endfor %}
@@ -431,37 +433,6 @@
 let currentViewingContainer = '';
 
 // Refresh full dashboard
-function refreshDashboard() {
-    const icon = document.getElementById('refreshIcon');
-    if (icon) icon.classList.add('fa-spin');
-    
-    fetch('/api/tools/autoheal/status')
-        .then(res => res.json())
-        .then(data => {
-            if (icon) icon.classList.remove('fa-spin');
-            if (data.success) {
-                // Update fleet counts
-                const fleet = data.data.fleet || [];
-                const healthyCount = fleet.filter(c => c.is_healthy).length;
-                document.getElementById('stat_fleet_count').innerText = `${healthyCount} / ${fleet.length}`;
-                document.getElementById('stat_unresolved_alerts').innerText = data.data.unresolved_alerts_count;
-                
-                Swal.fire({
-                    toast: true,
-                    position: 'top-end',
-                    icon: 'success',
-                    title: 'تم تحديث حالة الحاويات بنجاح',
-                    showConfirmButton: false,
-                    timer: 2000
-                });
-            }
-        })
-        .catch(() => {
-            if (icon) icon.classList.remove('fa-spin');
-            window.location.reload();
-        });
-}
-
 // Deep System Diagnostic Run
 function runDeepDiagnostic() {
     const btn = document.getElementById('btnRunDiagnostic');
@@ -523,12 +494,12 @@ function renderDiagnosticResults(diag) {
             <div class="flex items-start gap-2.5">
                 <i class="${iconClass} text-sm mt-0.5"></i>
                 <div>
-                    <h5 class="font-bold text-white text-xs">${f.title}</h5>
-                    <p class="text-slate-300 text-[11px] mt-1">${f.desc}</p>
+                    <h5 class="font-bold text-white text-xs">${escapeAutoheal(f.title)}</h5>
+                    <p class="text-slate-300 text-[11px] mt-1">${escapeAutoheal(f.desc)}</p>
                 </div>
             </div>
             <span class="px-2.5 py-1 rounded-lg bg-[#070b14] border border-slate-700 text-slate-300 font-mono text-[10px] flex-shrink-0">
-                ${f.action}
+                ${escapeAutoheal(f.action)}
             </span>
         `;
         list.appendChild(item);
@@ -553,15 +524,15 @@ function probeAllPorts() {
             if (res.success && res.ports) {
                 let html = '<div class="text-right space-y-2.5 text-xs font-mono">';
                 res.ports.forEach(p => {
-                    const statusColor = p.is_ok ? 'text-emerald-400' : 'text-rose-400';
+                    const statusColor = p.is_ok === null ? 'text-amber-400' : p.is_ok ? 'text-emerald-400' : 'text-rose-400';
                     const icon = p.is_ok ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-circle-xmark text-rose-400';
                     html += `
                         <div class="p-3 bg-[#070b14] border border-slate-800 rounded-xl flex items-center justify-between">
                             <div class="flex items-center gap-2">
                                 <i class="${icon}"></i>
-                                <span class="text-white font-bold">${p.name}</span>
+                                <div><span class="text-white font-bold">${escapeAutoheal(p.name)}</span><p class="text-xs text-slate-400 mt-1">${escapeAutoheal(p.status_str)}</p></div>
                             </div>
-                            <span class="${statusColor} font-bold">${p.latency_ms} ms</span>
+                            <span class="${statusColor} font-bold">${p.latency_ms == null ? '—' : p.latency_ms} ms</span>
                         </div>
                     `;
                 });
@@ -741,18 +712,21 @@ function clearResolvedAlerts() {
                 .then(data => {
                     if (data.success) {
                         Swal.fire('تم بنجاح', data.message, 'success').then(() => window.location.reload());
-                    }
-                });
+                    } else { Swal.fire('خطأ', data.message || 'لم يتم المسح', 'error'); }
+                }).catch(error => Swal.fire('خطأ', error.message, 'error'));
         }
     });
 }
 
-function filterAlerts(mode) {
+let currentAlertFilter = 'all';
+function filterAlerts(mode, refresh = true) {
+    currentAlertFilter = mode;
     const btnAll = document.getElementById('tabAlertsAll');
     const btnUnresolved = document.getElementById('tabAlertsUnresolved');
     const btnResolved = document.getElementById('tabAlertsResolved');
+    const btnFailed = document.getElementById('tabAlertsFailed');
 
-    [btnAll, btnUnresolved, btnResolved].forEach(btn => {
+    [btnAll, btnUnresolved, btnResolved, btnFailed].forEach(btn => {
         if (btn) {
             btn.classList.remove('bg-blue-600', 'text-white');
             btn.classList.add('text-slate-400');
@@ -763,39 +737,43 @@ function filterAlerts(mode) {
         btnAll.classList.add('bg-blue-600', 'text-white');
     } else if (mode === 'unresolved' && btnUnresolved) {
         btnUnresolved.classList.add('bg-blue-600', 'text-white');
+    } else if (mode === 'failed' && btnFailed) {
+        btnFailed.classList.add('bg-blue-600', 'text-white');
     } else if (mode === 'resolved' && btnResolved) {
         btnResolved.classList.add('bg-blue-600', 'text-white');
     }
 
+    if (refresh) updateLiveDashboard(false);
     const rows = document.querySelectorAll('.alert-row');
     rows.forEach(r => {
         const isResolved = r.getAttribute('data-resolved') === 'true';
-        if (mode === 'all') {
-            r.style.display = '';
-        } else if (mode === 'unresolved') {
-            r.style.display = !isResolved ? '' : 'none';
-        } else if (mode === 'resolved') {
-            r.style.display = isResolved ? '' : 'none';
-        }
+        r.style.display = mode === 'all' || r.getAttribute('data-state') === mode ? '' : 'none';
     });
 }
 
 // Background auto-refresh every 15 seconds
-function silentRefreshDashboard() {
-    fetch('/api/tools/autoheal/status')
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                const fleet = data.data.fleet || [];
-                const healthyCount = fleet.filter(c => c.is_healthy).length;
-                const fleetEl = document.getElementById('stat_fleet_count');
-                const alertsEl = document.getElementById('stat_unresolved_alerts');
-                if (fleetEl) fleetEl.innerText = `${healthyCount} / ${fleet.length}`;
-                if (alertsEl) alertsEl.innerText = data.data.unresolved_alerts_count;
-            }
-        })
-        .catch(() => {});
+function escapeAutoheal(text) { const node = document.createElement('span'); node.textContent = text || ''; return node.innerHTML; }
+let refreshInFlight = false;
+async function updateLiveDashboard(notify = false) {
+    if (refreshInFlight) return;
+    refreshInFlight = true;
+    try {
+        const response = await fetch(window.location.pathname + '?alert_state=' + encodeURIComponent(currentAlertFilter), {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+        if (!response.ok || response.redirected) throw new Error('تعذر تحديث الصفحة؛ تحقق من الجلسة والصلاحيات');
+        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        for (const id of ['autohealStats', 'autohealFleet', 'alertsTableBody', 'tabAlertsUnresolved', 'tabAlertsFailed']) {
+            const source = doc.getElementById(id), target = document.getElementById(id);
+            if (!source || !target) throw new Error('استجابة التحديث غير مكتملة');
+            target.innerHTML = source.innerHTML;
+        }
+        filterAlerts(currentAlertFilter, false);
+        if (notify) Swal.fire({toast: true, icon: 'success', title: 'تم تحديث الحالات والسجل', timer: 1500, showConfirmButton: false});
+    } catch (error) {
+        if (notify) Swal.fire('خطأ', error.message, 'error');
+    } finally { refreshInFlight = false; }
 }
+function refreshDashboard() { return updateLiveDashboard(true); }
+function silentRefreshDashboard() { return updateLiveDashboard(false); }
 setInterval(silentRefreshDashboard, 15000);
 </script>
 {% endblock %}

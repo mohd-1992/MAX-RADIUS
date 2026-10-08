@@ -21,6 +21,7 @@ from core.coa import RadiusCoaClient
 from core.rate_limit import format_bytes, format_duration, build_mikrotik_rate_limit
 from services.voucher_service import calculate_package_expiration
 from services.quota_service import calculate_cycle_usage_and_rollover, record_session_baselines
+from services.renewal_settlement_service import settle_cycle_operation
 
 def format_mb_or_gb(mb):
     if not mb:
@@ -97,6 +98,43 @@ def get_target_entity(entity_type, entity_id=None):
         if s_res:
             return s_res, 'subscriber'
         return None, 'unknown'
+
+
+def action_disable_account(entity_type, entity_id, admin_username='admin'):
+    """Block login without changing paid entitlements; disconnect every session."""
+    from services.account_lifecycle_service import run_transaction, lock_account, sql
+    from services.coa_queue_service import enqueue_disconnect
+    if entity_type not in ('subscriber', 'voucher'):
+        return False, 'نوع الحساب غير صالح'
+
+    def disable(conn):
+        table, row = lock_account(conn, entity_type, entity_id)
+        if not row:
+            return None
+        if entity_type == 'voucher' and row['status'] == 'recharged':
+            return {'consumed': True}
+        sql(conn, f"UPDATE {table} SET status='suspended',pause_reason=? WHERE id=?",
+            (row.get('pause_reason') if row['status'] in ('suspended','disabled') and row.get('pause_reason')
+             else 'إيقاف يدوي من الإدارة', entity_id))
+        return row
+
+    account = run_transaction(disable)
+    if not account:
+        return False, 'الحساب غير موجود'
+    if account.get('consumed'):
+        return False, 'الكرت مستخدم للشحن؛ لا يمكن تغيير حالته'
+    log_audit(1, admin_username, 'DISABLE_ACCOUNT', entity_type,
+              f'Disabled {account["username"]}; balances and validity preserved')
+    try:
+        queued, _ = enqueue_disconnect(account['username'], reason='Admin Disable Account',
+            admin_username=admin_username, lifecycle_kind=entity_type,
+            lifecycle_id=account['id'], lifecycle_cycle=str(account.get('last_renewed_at') or ''),
+            require_accounting_stop=True)
+    except Exception:
+        queued = False
+    if not queued:
+        return True, 'تم إيقاف الحساب ومنع الدخول؛ تعذر جدولة الفصل، وقد تبقى جلساته الحالية متصلة.'
+    return True, 'تم إيقاف الحساب مع حفظ الرصيد والصلاحية، وطُلب فصل جميع جلساته؛ قبول الطلب لا يؤكد اكتمال الفصل.'
 
 
 def action_delete_entity(entity_type, entity_id, admin_username='admin'):
@@ -251,6 +289,7 @@ def action_terminate_subscription(entity_type, entity_id, admin_username='admin'
     log_audit(1, admin_username, 'TERMINATE_SUBSCRIPTION', etype, f'Terminated subscription for {username}')
     return True, "تم إنهاء الاشتراك فوراً، تصفير الرصيد المتبقي، وفصل المشترك من الميكروتيك."
 
+@settle_cycle_operation
 def action_renew_package(entity_type, entity_id, admin_username='admin'):
     """3. تجديد الباقة الحالية مع دعم ميزة ترحيل الرصيد (Data & Time Rollover) وتسوية السلفة"""
     with db_session() as conn:
@@ -447,8 +486,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
         cursor.execute(adapt_query("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", conn), (username,))
         cursor.execute(adapt_query("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", conn), (username, pkg['name']))
 
-    # Outside transaction: Disconnect & Audit
-    action_disconnect_user(entity_type, entity_id, admin_username=admin_username)
+    # Sessions were finalized before billing; only audit remains outside the transaction.
 
     rolled_gb = round(rem_data_mb / 1024.0, 2)
     rollover_parts = []
@@ -474,6 +512,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
     return True, res_msg
 
 
+@settle_cycle_operation
 def action_change_package(entity_type, entity_id, new_package_id, enable_rollover=None, admin_username='admin', voucher_profile=None):
     """4. تغيير الباقة مع خيار ترحيل الرصيد الذكي (Data & Time Rollover) وتسوية السلفة"""
     with db_session() as conn:
@@ -711,8 +750,7 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
         cursor.execute(adapt_query("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", conn), (username,))
         cursor.execute(adapt_query("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", conn), (username, new_pkg['name']))
 
-    # Outside transaction: Disconnect & Audit
-    action_disconnect_user(entity_type, entity_id, admin_username=admin_username)
+    # Sessions were finalized before billing; only audit remains outside the transaction.
 
     rolled_gb = round(rem_data_mb / 1024.0, 2)
     rollover_parts = []

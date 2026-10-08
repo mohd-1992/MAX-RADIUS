@@ -208,7 +208,7 @@ def get_batches(search=None, package_id=None, reseller_id=None):
                    SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active_count,
                    SUM(CASE WHEN status = 'expired' THEN 1 ELSE 0 END) as expired_count,
                    SUM(CASE WHEN status = 'recharged' THEN 1 ELSE 0 END) as recharged_count,
-                   SUM(CASE WHEN status = 'disabled' THEN 1 ELSE 0 END) as disabled_count
+                   SUM(CASE WHEN status IN ('suspended','disabled') THEN 1 ELSE 0 END) as disabled_count
             FROM wisp_vouchers
             GROUP BY batch_id
         ) st ON b.id = st.batch_id
@@ -216,8 +216,17 @@ def get_batches(search=None, package_id=None, reseller_id=None):
     '''
     params = []
     if search:
-        query += ' AND (b.name LIKE ? OR b.batch_number LIKE ?)'
-        params.extend([f'%{search}%', f'%{search}%'])
+        search_pattern = f'%{search}%'
+        query += ''' AND (
+            b.name LIKE ? 
+            OR b.batch_number LIKE ? 
+            OR EXISTS (
+                SELECT 1 FROM wisp_vouchers v 
+                WHERE v.batch_id = b.id 
+                  AND (v.username LIKE ? OR v.serial_number LIKE ? OR v.pin_code LIKE ? OR v.password LIKE ?)
+            )
+        )'''
+        params.extend([search_pattern, search_pattern, search_pattern, search_pattern, search_pattern, search_pattern])
     if package_id:
         try:
             query += ' AND b.package_id = ?'
@@ -241,7 +250,7 @@ def get_voucher_summary_counts():
             (SELECT COUNT(*) FROM wisp_vouchers WHERE status = 'unused') as unused_cards,
             (SELECT COUNT(*) FROM wisp_vouchers WHERE status = 'active') as active_cards,
             (SELECT COUNT(*) FROM wisp_vouchers WHERE status = 'expired') as expired_cards,
-            (SELECT COUNT(*) FROM wisp_vouchers WHERE status IN ('recharged', 'disabled')) as recharged_cards
+            (SELECT COUNT(*) FROM wisp_vouchers WHERE status = 'recharged') as recharged_cards
     ''')
     if not row:
         return {'total_batches': 0, 'total_cards': 0, 'unused_cards': 0, 'active_cards': 0, 'expired_cards': 0, 'recharged_cards': 0}
@@ -268,9 +277,9 @@ def get_vouchers(batch_id=None, status=None, search=None, limit=100):
         query += ' AND v.status = ?'
         params.append(status)
     if search:
-        query += ' AND (v.username LIKE ? OR v.serial_number LIKE ? OR v.pin_code LIKE ?)'
+        query += ' AND (v.username LIKE ? OR v.serial_number LIKE ? OR v.pin_code LIKE ? OR v.password LIKE ?)'
         like_str = f'%{search}%'
-        params.extend([like_str, like_str, like_str])
+        params.extend([like_str, like_str, like_str, like_str])
         
     query += ' ORDER BY v.id DESC LIMIT ?'
     params.append(limit)
@@ -348,6 +357,8 @@ def update_voucher_batch(batch_id, name, package_id, admin_username='admin'):
         raise ValueError('الباقة المحددة غير موجودة.')
 
     old_package_id = batch['package_id']
+    if not name:
+        name = batch['name']
     execute_write('UPDATE wisp_voucher_batches SET name = ?, package_id = ? WHERE id = ?', (name.strip(), package_id, batch_id))
 
     if int(package_id) != int(old_package_id):

@@ -71,7 +71,7 @@ def _resolve_nas_credentials(nas_ip=None):
 
     return nas_ip, secret, coa_port, api_port, api_user, api_pass
 
-def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None):
+def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None, require_accounting_stop=False):
     """Executes disconnect on a single session and updates radacct ONLY for that session if successful."""
     resolved_ip, secret, coa_port, api_port, api_user, api_pass = _resolve_nas_credentials(nas_ip)
     target_nas_ip = resolved_ip or nas_ip or '127.0.0.1'
@@ -132,7 +132,7 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
                 ros.close()
 
     # Cleanly update radacct session ONLY if CoA / API disconnect succeeded for THIS session
-    if res.get('success'):
+    if res.get('success') and not require_accounting_stop:
         try:
             if radacctid:
                 execute_write("""
@@ -183,7 +183,8 @@ def _process_coa_task(task):
                 framed_ip, mac_address = sess.get('framedipaddress'), sess.get('callingstationid')
             if radacctid or session_id:
                 # Disconnecting a specific identified session
-                res = _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid)
+                res = _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid,
+                    require_accounting_stop=bool(task.get('require_accounting_stop')))
             else:
                 # Disconnecting the user entirely: process each active session independently
                 from database.db import query_all
@@ -208,7 +209,8 @@ def _process_coa_task(task):
                             session_id=sess.get('acctsessionid'),
                             framed_ip=sess.get('framedipaddress'),
                             mac_address=sess.get('callingstationid'),
-                            radacctid=sess.get('radacctid')
+                            radacctid=sess.get('radacctid'),
+                            require_accounting_stop=bool(task.get('require_accounting_stop'))
                         )
                         all_success = all_success and bool(s_res.get('success'))
                         last_res = s_res
@@ -219,7 +221,8 @@ def _process_coa_task(task):
                         res['message'] = 'لم ينجح فصل جميع الجلسات المطلوبة'
                 else:
                     # No active sessions in radacct; send probe to default NAS
-                    res = _disconnect_single_session(username, nas_ip, None, framed_ip, mac_address, None)
+                    res = _disconnect_single_session(username, nas_ip, None, framed_ip, mac_address, None,
+                        require_accounting_stop=bool(task.get('require_accounting_stop')))
 
         elif action == 'speed_change' and rate_limit:
             resolved_ip, secret, coa_port, api_port, api_user, api_pass = _resolve_nas_credentials(nas_ip)
@@ -319,7 +322,7 @@ def start_coa_worker():
         _worker_thread = _WORKERS[0]
 
 
-def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, mac_address=None, radacctid=None, reason=None, admin_username='admin', lifecycle_kind=None, lifecycle_id=None, lifecycle_cycle=None):
+def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, mac_address=None, radacctid=None, reason=None, admin_username='admin', lifecycle_kind=None, lifecycle_id=None, lifecycle_cycle=None, require_accounting_stop=False):
     """
     Non-blocking enqueue of a Disconnect-Request (RFC 5176).
     Returns immediately (< 1ms).
@@ -331,6 +334,7 @@ def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, m
     start_coa_worker()
     task = {
         'action': 'disconnect',
+        'require_accounting_stop': bool(require_accounting_stop),
         'username': username,
         'nas_ip': nas_ip,
         'framed_ip': framed_ip,

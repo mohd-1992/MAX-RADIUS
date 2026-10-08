@@ -693,6 +693,7 @@ CREATE TABLE `wisp_resellers` (
   `commission_percent` decimal(5,2) DEFAULT 10.00,
   `allowed_packages` text DEFAULT NULL,
   `status` varchar(20) DEFAULT 'active',
+  `pause_reason` varchar(255) NOT NULL DEFAULT '',
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -903,6 +904,7 @@ CREATE TABLE `wisp_vouchers` (
   `password` varchar(64) NOT NULL,
   `pin_code` varchar(32) NOT NULL,
   `status` varchar(20) DEFAULT 'unused',
+  `pause_reason` varchar(255) NOT NULL DEFAULT '',
   `first_used_at` datetime DEFAULT NULL,
   `expires_at` datetime DEFAULT NULL,
   `last_renewed_at` datetime DEFAULT NULL,
@@ -1108,3 +1110,10 @@ CREATE TABLE IF NOT EXISTS wisp_loyalty_transactions (
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS=1;
+
+CREATE TABLE IF NOT EXISTS wisp_renewal_guards (
+ username VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci PRIMARY KEY,
+ token CHAR(32) NOT NULL, expires_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS wisp_username_write_lock(id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT IGNORE INTO wisp_username_write_lock(id) VALUES(1);

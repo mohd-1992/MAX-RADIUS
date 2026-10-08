@@ -276,7 +276,7 @@ def _collect_db_metrics_internal():
     available_vouchers = avail_q['c'] if avail_q else 0
 
     # Disabled & Recharged Vouchers
-    dis_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE status = 'disabled'")
+    dis_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE status IN ('suspended','disabled')")
     disabled_vouchers = dis_q['c'] if dis_q else 0
 
     rech_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE status = 'recharged'")
@@ -861,5 +861,4 @@ def get_latest_system_operations(limit=5):
             pass
 
     return ops[:limit]
-
 

@@ -80,6 +80,8 @@ services:
       - mariadb
       - freeradius
     environment:
+      - RADIUS_HOST=freeradius
+      - RADIUS_HEALTH_SECRET=${RADIUS_HEALTH_SECRET:-max123}
       - APP_NAME=MAX_RADIUS
       - MASTER_LICENSE_SERVER_URL=https://license.max-net.net
       - DB_TYPE=mysql
@@ -137,6 +139,14 @@ services:
     image: mohd777/max-radius-l2tp:latest
     container_name: max_radius_l2tp
     restart: unless-stopped
+    labels:
+      - "autoheal=true"
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -x xl2tpd >/dev/null && ss -H -lun | grep -q ':1701 '"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     privileged: true
     cap_add:
       - NET_ADMIN

@@ -22,8 +22,10 @@ import datetime
 from database.db import query_all, query_one, execute_write, execute_update, get_connection
 from core.watchdog import (
     run_watchdog_cycle, get_system_alerts, resolve_system_alert,
-    clear_all_resolved_alerts, log_system_alert, _watchdog_thread
+    clear_all_resolved_alerts, log_system_alert
 )
+
+import core.watchdog as watchdog
 
 DOCKER_SOCKET_PATH = '/var/run/docker.sock'
 MONITORED_CONTAINER_NAMES = [
@@ -60,6 +62,14 @@ def docker_api_request(method, path, body=None, timeout=6.0):
         res = conn.getresponse()
         raw_data = res.read()
         conn.close()
+        if '/logs?' in path and res.status < 400:
+            chunks = []
+            offset = 0
+            while offset + 8 <= len(raw_data) and raw_data[offset] in (1, 2) and raw_data[offset+1:offset+4] == bytes(3):
+                length = int.from_bytes(raw_data[offset+4:offset+8], 'big')
+                chunks.append(raw_data[offset+8:offset+8+length])
+                offset += 8 + length
+            return (b''.join(chunks) if chunks else raw_data).decode('utf-8', errors='replace'), None
         
         # Check HTTP status
         if res.status >= 400:
@@ -91,6 +101,20 @@ def get_container_fleet_status():
             containers_map[clean_name] = c
 
     fleet = []
+    current = next((c for c in raw_list if c.get('Id', '').startswith(os.environ.get('HOSTNAME', '!'))), None)
+    project = (current or {}).get('Labels', {}).get('com.docker.compose.project')
+    if not project:
+        details, _ = docker_api_request('GET', '/containers/' + os.environ.get('HOSTNAME', 'unknown') + '/json')
+        project = ((details or {}).get('Config', {}).get('Labels', {}) if isinstance(details, dict) else {}).get('com.docker.compose.project')
+    if not project:
+        return _get_fallback_container_fleet('تعذر تحديد منظومة الحاويات؛ لن يتم التحكم بحاويات أخرى')
+    if project:
+        by_service = {c.get('Labels', {}).get('com.docker.compose.service'): c for c in raw_list if c.get('Labels', {}).get('com.docker.compose.project') == project}
+        for default, role in zip(MONITORED_CONTAINER_NAMES, ('autoheal', 'freeradius', 'wisp-web', 'mariadb', 'l2tp')):
+            aliases = {'freeradius': 'radius_core', 'wisp-web': 'web', 'mariadb': 'db'}
+            match = by_service.get(role) or by_service.get(aliases.get(role))
+            containers_map[default] = match
+        containers_map = {key: value for key, value in containers_map.items() if value and value.get('Labels', {}).get('com.docker.compose.project') == project}
     
     meta_info = {
         'max_radius_autoheal': {
@@ -141,14 +165,16 @@ def get_container_fleet_status():
         })
         
         if c_raw:
+            target_name = c_raw.get('Names', ['/' + target_name])[0].lstrip('/')
             c_id = c_raw.get('Id', '')[:12]
             state = c_raw.get('State', 'unknown').lower()
             status_text = c_raw.get('Status', '')
             image = c_raw.get('Image', '')
             created_ts = c_raw.get('Created', 0)
             
-            is_healthy = True if 'healthy' in status_text.lower() or state == 'running' else False
-            health_label = 'سليم وصحي (Healthy)' if 'healthy' in status_text.lower() else ('يعمل (Running)' if state == 'running' else 'متوقف (Stopped)')
+            health = 'unhealthy' if '(unhealthy)' in status_text.lower() else ('healthy' if '(healthy)' in status_text.lower() else ('starting' if 'health: starting' in status_text.lower() else 'unknown'))
+            is_healthy = state == 'running' and health == 'healthy'
+            health_label = {'healthy': 'سليم وصحي (Healthy)', 'unhealthy': 'غير سليم (Unhealthy)', 'starting': 'الفحص قيد التشغيل'}.get(health, 'يعمل؛ الصحة غير متحققة' if state == 'running' else 'متوقف')
             
             fleet.append({
                 'name': target_name,
@@ -195,18 +221,23 @@ def _get_fallback_container_fleet(err_msg):
             'role': 'autoheal',
             'icon': 'fa-solid fa-heart-pulse',
             'color': 'emerald',
-            'state': 'running',
-            'status': f'يعمل (المراقب الداخلي نشط) [{err_msg or "OK"}]',
-            'health_label': 'سليم وصحي (Healthy)',
-            'is_healthy': True,
+            'state': 'unknown',
+            'status': f'تعذر التحقق من Docker [{err_msg or "OK"}]',
+            'health_label': 'غير متحقق',
+            'is_healthy': False,
             'image': 'willfarrell/autoheal',
             'created': '-'
         }
     ]
 
+def _allowed_container(name):
+    return name in {c['name'] for c in get_container_fleet_status() if c['id'] not in ('N/A', 'internal')}
+
 def inspect_container_details(container_name):
     """Fetches full inspect payload for a specific container."""
     container_name = container_name.strip()
+    if not _allowed_container(container_name):
+        return None, 'الحاوية ليست ضمن هذه المنظومة'
     data, err = docker_api_request('GET', f'/containers/{container_name}/json')
     if err:
         return None, err
@@ -215,6 +246,8 @@ def inspect_container_details(container_name):
 def get_live_container_logs(container_name, lines=60):
     """Fetches real-time stdout/stderr log chunk for a container."""
     container_name = container_name.strip()
+    if not _allowed_container(container_name):
+        return 'تعذر استخراج السجلات: الحاوية ليست ضمن هذه المنظومة'
     lines = min(max(10, int(lines or 60)), 300)
     raw_logs, err = docker_api_request('GET', f'/containers/{container_name}/logs?stdout=1&stderr=1&tail={lines}&timestamps=1')
     if err:
@@ -235,20 +268,16 @@ def restart_system_container(container_name):
     Safely triggers container restart via Docker API.
     """
     container_name = container_name.strip()
-    if container_name not in MONITORED_CONTAINER_NAMES:
+    if not _allowed_container(container_name):
         return False, f"الحاوية '{container_name}' غير مصرح بإعادة تشغيلها من هذه اللوحة."
     
+    log_system_alert('CONTAINER_RESTART_PENDING', 'info', f'جارٍ إعادة تشغيل [{container_name}]', source='container:' + container_name)
     res, err = docker_api_request('POST', f'/containers/{container_name}/restart?t=5', timeout=15.0)
     if err:
-        return False, f"فشل أمر إعادة التشغيل: {err}"
-    
-    log_system_alert(
-        alert_type='CONTAINER_MANUAL_RESTART',
-        severity='info',
-        source='autoheal_ui',
-        message=f"قام المسؤول بإعادة تشغيل الحاوية [{container_name}] بنجاح عبر لوحة التعافي التلقائي."
-    )
-    return True, f"تم إرسال أمر إعادة التشغيل للحاوية [{container_name}] بنجاح."
+        execute_update("UPDATE wisp_system_alerts SET alert_type='CONTAINER_RESTART_FAILED', severity='danger', message=? WHERE source=? AND alert_type='CONTAINER_RESTART_PENDING' AND is_resolved=0", (f'فشلت إعادة تشغيل [{container_name}]: {err}', 'container:' + container_name))
+        return False, f'فشل أمر إعادة التشغيل: {err}'
+    return True, f'تم قبول إعادة تشغيل [{container_name}]؛ تكتمل العملية في السجل بعد إثبات الصحة.'
+
 
 def probe_all_network_ports():
     """
@@ -280,75 +309,13 @@ def probe_all_network_ports():
         'status_str': f'استجابة سريعة ({db_lat} ms)' if db_ok else 'فشل الاتصال بقاعدة البيانات'
     })
 
-    # 2. FreeRADIUS Auth (UDP 1812)
-    t0 = time.time()
-    radius_host = os.environ.get('RADIUS_HOST', 'max_radius_core')
-    auth_port = int(os.environ.get('RADIUS_AUTH_PORT', 1812))
-    if auth_port == 18120:
-        auth_port = 1812
-    rad_auth_ok = False
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(1.5)
-        sock.sendto(b'\x01\x01\x00\x14\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', (radius_host, auth_port))
-        sock.close()
-        rad_auth_ok = True
-    except Exception:
-        rad_auth_ok = False
-    rad_auth_lat = round((time.time() - t0) * 1000, 2)
-    results.append({
-        'name': 'منفذ المصادقة FreeRADIUS (Authentication)',
-        'target': f'{radius_host}:{auth_port}/UDP',
-        'type': 'UDP Probe',
-        'is_ok': rad_auth_ok,
-        'latency_ms': rad_auth_lat,
-        'status_str': f'المنفذ مفتوح ومستجيب ({rad_auth_lat} ms)' if rad_auth_ok else 'المنفذ مغلق أو لا يستجيب'
-    })
-
-    # 3. FreeRADIUS Accounting (UDP 1813)
-    t0 = time.time()
-    acct_port = int(os.environ.get('RADIUS_ACCT_PORT', 1813))
-    rad_acct_ok = False
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(1.5)
-        sock.sendto(b'\x04\x01\x00\x14\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', (radius_host, acct_port))
-        sock.close()
-        rad_acct_ok = True
-    except Exception:
-        rad_acct_ok = False
-    rad_acct_lat = round((time.time() - t0) * 1000, 2)
-    results.append({
-        'name': 'منفذ المحاسبة FreeRADIUS (Accounting)',
-        'target': f'{radius_host}:{acct_port}/UDP',
-        'type': 'UDP Probe',
-        'is_ok': rad_acct_ok,
-        'latency_ms': rad_acct_lat,
-        'status_str': f'المنفذ مفتوح ومستجيب ({rad_acct_lat} ms)' if rad_acct_ok else 'المنفذ مغلق أو لا يستجيب'
-    })
-
-    # 4. L2TP Server (Port 1701 UDP)
-    t0 = time.time()
-    l2tp_host = os.environ.get('L2TP_HOST', 'max_radius_l2tp')
-    l2tp_port = 1701
-    l2tp_ok = False
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(1.5)
-        sock.sendto(b'\xc8\x02\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x00', (l2tp_host, l2tp_port))
-        sock.close()
-        l2tp_ok = True
-    except Exception:
-        l2tp_ok = False
-    l2tp_lat = round((time.time() - t0) * 1000, 2)
-    results.append({
-        'name': 'منفذ خادم الأنفاق L2TP/PPP (Port 1701 UDP)',
-        'target': f'{l2tp_host}:{l2tp_port}/UDP',
-        'type': 'UDP Probe',
-        'is_ok': l2tp_ok,
-        'latency_ms': l2tp_lat,
-        'status_str': f'المنفذ مفتوح ومستجيب ({l2tp_lat} ms)' if l2tp_ok else 'المنفذ مغلق أو لا يستجيب'
-    })
+    from services.health_probe_service import radius_probe
+    for name, port in [('منفذ المصادقة FreeRADIUS (Authentication)', int(os.environ.get('RADIUS_AUTH_PORT', 1812))), ('منفذ المحاسبة FreeRADIUS (Accounting)', int(os.environ.get('RADIUS_ACCT_PORT', 1813)))]:
+        t0 = time.monotonic()
+        ok, message = radius_probe(port)
+        results.append({'name': name, 'target': f"{os.environ.get('RADIUS_HOST') or os.environ.get('RADIUS_SERVER_IP') or 'radius_core'}:{port}/UDP", 'type': 'Authenticated Status-Server', 'is_ok': ok, 'latency_ms': round((time.monotonic()-t0)*1000, 2), 'status_str': message})
+    vpn = next((c for c in get_container_fleet_status() if c['role'] == 'vpn' and c['id'] != 'N/A'), None)
+    results.append({'name': 'خادم الأنفاق L2TP/PPP', 'target': vpn['name'] if vpn else 'خدمة خارجية أو غير متاحة', 'type': 'Docker process and listener healthcheck', 'is_ok': vpn['is_healthy'] if vpn else None, 'latency_ms': None, 'status_str': vpn['health_label'] if vpn else 'لم يتم التحقق من خدمة الأنفاق الخارجية'})
 
     # 5. Docker Engine Socket (/var/run/docker.sock)
     t0 = time.time()
@@ -395,7 +362,7 @@ def run_deep_system_diagnostic():
         findings.append({
             'type': 'danger',
             'title': f'حاويات متوقفة أو غير مستقرة ({len(unhealthy_names)} حاوية)',
-            'desc': f"تم اكتشاف عدم استقرار في الحاويات التالية: {', '.join(unhealthy_names)}. يتولى محرك التعافي Auto-Heal محاولة إعادة تشغيلها تلقائياً.",
+            'desc': f"حاويات متوقفة أو لم تثبت صحتها: {', '.join(unhealthy_names)}. التعافي التلقائي يشمل الحاويات الموسومة التي تفشل في فحص الصحة فقط.",
             'action': 'إعادة تشغيل الحاويات'
         })
     else:
@@ -408,6 +375,10 @@ def run_deep_system_diagnostic():
 
     # 2. Check Database Latency & Pool
     ports = probe_all_network_ports()
+    for probe in ports[1:]:
+        if probe['is_ok'] is not True:
+            score -= 10
+            findings.append({'type': 'warning', 'title': probe['name'], 'desc': probe['status_str'], 'action': 'التحقق من الخدمة وإعداد الفحص'})
     db_probe = next((p for p in ports if 'MariaDB' in p['name']), None)
     if not db_probe or not db_probe['is_ok']:
         score -= 30
@@ -428,7 +399,7 @@ def run_deep_system_diagnostic():
 
     # 3. Check Disk Space
     try:
-        target_path = '/app' if os.path.exists('/app') else '.'
+        target_path = str(__import__('core.config', fromlist=['STORAGE_DIR']).STORAGE_DIR)
         total_b, used_b, free_b = shutil.disk_usage(target_path)
         free_pct = (free_b / total_b) * 100.0 if total_b > 0 else 100.0
         free_gb = round(free_b / (1024 ** 3), 2)
@@ -451,8 +422,10 @@ def run_deep_system_diagnostic():
                 'action': 'مراجعة التخزين'
             })
     except Exception as e:
-        free_pct = 100.0
+        free_pct = 0.0
         free_gb = 0.0
+        score -= 10
+        findings.append({'type': 'warning', 'title': 'تعذر قياس التخزين', 'desc': str(e), 'action': 'التحقق من التخزين'})
 
     # 4. Check Stale Zombie Sessions in Accounting
     try:
@@ -477,17 +450,19 @@ def run_deep_system_diagnostic():
                 'desc': f'جلسات اتصال في radacct لم ترسل تحديثات Interim-Update لأكثر من {z_timeout} دقيقة.',
                 'action': 'تفريغ الجلسات العالقة'
             })
-    except Exception:
-        z_count = 0
+    except Exception as exc:
+        z_count = None
+        score -= 10
+        findings.append({'type':'warning','title':'تعذر قراءة الجلسات','desc':str(exc),'action':'التحقق من قاعدة البيانات'})
 
     # 5. Check Watchdog Daemon State
-    is_watchdog_alive = bool(_watchdog_thread and _watchdog_thread.is_alive())
+    is_watchdog_alive = bool(watchdog._watchdog_thread and watchdog._watchdog_thread.is_alive())
     if not is_watchdog_alive:
         score -= 10
         findings.append({
             'type': 'warning',
             'title': 'المراقب الآلي الداخلي (Watchdog Daemon) متوقف',
-            'desc': 'خيط المراقبة الخلفي غير نشط حالياً. سيتم تفعيله تلقائياً مع الدورة القادمة.',
+            'desc': 'خيط المراقبة الخلفي غير نشط حالياً. يلزم إعادة تشغيل خدمة الويب لاستعادته.',
             'action': 'تفعيل المراقب'
         })
 
@@ -535,7 +510,7 @@ def set_zombie_session_timeout(timeout_mins):
 def purge_stale_zombie_sessions(timeout_minutes=None):
     """
     Cleans up orphaned sessions where users disconnected without sending Acct-Stop.
-    Uses UTC timestamp string matching FreeRADIUS radacct time standard.
+    Uses the configured database storage clock for accounting timestamps.
     """
     if timeout_minutes is None:
         timeout_minutes = get_zombie_session_timeout()
@@ -558,7 +533,7 @@ def purge_stale_zombie_sessions(timeout_minutes=None):
         count = int(affected['cnt'] or 0) if affected else 0
 
         if count > 0:
-            execute_update("""
+            count = execute_update("""
                 UPDATE radacct
                 SET acctstoptime = COALESCE(acctupdatetime, acctstarttime),
                     acctterminatecause = 'Watchdog-Autoheal-Timeout'
@@ -573,25 +548,29 @@ def purge_stale_zombie_sessions(timeout_minutes=None):
                 alert_type='ZOMBIE_SESSIONS_PURGED',
                 severity='info',
                 source='watchdog_purge',
+                resolved=True,
                 message=f"تم إغلاق وتنظيف {count} جلسة معلقة (Zombie Sessions) تجاوزت مدة انقطاع التحديثات {timeout_minutes} دقيقة."
             )
             return True, f"تم تنظيف وإغلاق {count} جلسة معلقة بنجاح."
-        return True, "لا توجد أي جلسات معلقة حالياً، جدول المحاسبة نظيف 100%."
+        return True, "لا توجد جلسات تجاوزت مهلة التنظيف المحددة."
     except Exception as e:
         return False, f"خطأ أثناء تفريغ الجلسات: {e}"
 
-def get_autoheal_dashboard_full():
+def get_autoheal_dashboard_full(alert_filter=None):
     """
     Consolidates all metrics, container fleet status, ports, alerts, and watchdog metadata.
     """
     fleet = get_container_fleet_status()
     ports = probe_all_network_ports()
-    alerts = get_system_alerts(limit=25, unresolved_only=False)
-    unresolved_alerts_count = sum(1 for a in alerts if not a.get('is_resolved'))
+    alerts = get_system_alerts(limit=200, unresolved_only=False, state=alert_filter)
+    unresolved_row = query_one('SELECT COUNT(*) AS cnt FROM wisp_system_alerts WHERE is_resolved = 0')
+    unresolved_alerts_count = int((unresolved_row or {}).get('cnt') or 0)
     
-    autoheal_c = next((c for c in fleet if c['name'] == 'max_radius_autoheal'), None)
+    failed_row = query_one("SELECT COUNT(*) AS cnt FROM wisp_system_alerts WHERE is_resolved=0 AND alert_type LIKE ?", ('%FAILED',))
+    failed_count = int((failed_row or {}).get('cnt') or 0)
+    autoheal_c = next((c for c in fleet if c['role'] == 'autoheal'), None)
     
-    target_path = '/app' if os.path.exists('/app') else '.'
+    target_path = str(__import__('core.config', fromlist=['STORAGE_DIR']).STORAGE_DIR)
     total_b, used_b, free_b = shutil.disk_usage(target_path)
     free_pct = round((free_b / total_b) * 100.0 if total_b > 0 else 100.0, 1)
     used_pct = round(100.0 - free_pct, 1)
@@ -606,8 +585,10 @@ def get_autoheal_dashboard_full():
         'ports': ports,
         'alerts': alerts,
         'unresolved_alerts_count': unresolved_alerts_count,
+        'ongoing_alerts_count': unresolved_alerts_count - failed_count,
+        'failed_alerts_count': failed_count,
         'autoheal_container': autoheal_c,
-        'watchdog_active': bool(_watchdog_thread and _watchdog_thread.is_alive()),
+        'watchdog_active': bool(watchdog._watchdog_thread and watchdog._watchdog_thread.is_alive()),
         'zombie_timeout': zombie_timeout,
         'disk': {
             'total_gb': total_gb,

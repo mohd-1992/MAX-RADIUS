@@ -117,7 +117,8 @@ class RadiusCoaClient:
 
         t_start = time.time()
         try:
-            sock.sendto(packet, (self.nas_ip, self.port))
+            target_ip = socket.gethostbyname(self.nas_ip)
+            sock.sendto(packet, (target_ip, self.port))
             data, addr = sock.recvfrom(4096)
             latency_ms = max(0.5, round((time.time() - t_start) * 1000, 1))
             
@@ -138,6 +139,10 @@ class RadiusCoaClient:
             expected_auth = hashlib.md5(expected_auth_preimage).digest()
             is_valid_auth = (expected_auth == resp_authenticator)
 
+            if (resp_id != identifier or not 20 <= resp_len <= len(data) or
+                    not is_valid_auth or addr != (target_ip, self.port)):
+                return {'success': False, 'status': 'invalid_response', 'verified': False,
+                        'message': 'Invalid or unauthenticated disconnect response'}
             if resp_code == CODE_DISCONNECT_ACK:
                 return {
                     'success': True,

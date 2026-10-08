@@ -14,6 +14,7 @@ from core.rate_limit import format_bytes, format_duration
 from core.radius_sync import sync_subscriber_to_radius, delete_user_from_radius
 from services.subscriber_service import disconnect_subscriber_session, clean_stale_sessions, get_heartbeat_cutoff_str, dispatch_async_disconnect
 from services.quota_service import calculate_cycle_usage_and_rollover, record_session_baselines
+from services.renewal_settlement_service import settle_cycle_operation
 
 def format_remaining_time(expires_at_val):
     """
@@ -696,6 +697,7 @@ def _sync_recharge_radius(cursor, conn, username, sub, card, target_type, new_fr
             run("INSERT INTO radreply (username, attribute, op, value) VALUES (?, 'Mikrotik-Group', ':=', ?)", (username, group))
 
 
+@settle_cycle_operation
 def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
     """
     Recharges user balance or directly tops up package data and validity duration using an unused voucher card.
@@ -1007,8 +1009,7 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         rollover_msg = f" (تم ترحيل {format_mb_or_gb(rem_data_mb)} من رصيدك السابق)" if is_rollover and rem_data_mb > 0 else ""
 
         if recharge_type == 'package':
-            dispatch_async_disconnect(username)
-
+            # Sessions were finalized before billing; do not queue another disconnect.
             # Trigger Telegram alert for recharge if enabled
             try:
                 from services.bot_notifications_service import trigger_recharge_notification
@@ -1211,6 +1212,7 @@ def request_data_loan(username):
     return True, f"تم تفعيل سلفة البيانات بنجاح بقيمة {loan_str} وتمديد الصلاحية 24 ساعة."
 
 
+@settle_cycle_operation
 def renew_or_change_package(username, new_pkg_id):
     """
     Renews current package or upgrades to another package from subscriber's balance
@@ -1231,6 +1233,8 @@ def renew_or_change_package(username, new_pkg_id):
             return False, "المشترك غير موجود في سجلات الاشتراكات"
         if not isinstance(sub, dict):
             sub = dict(sub)
+        if sub.get('status') in ('suspended', 'disabled'):
+            return False, 'الحساب موقوف؛ تواصل مع الإدارة قبل تجديده أو تغيير باقته'
 
         cursor.execute(adapt_query("SELECT * FROM wisp_packages WHERE id = ? AND is_active = 1", conn), (new_pkg_id,))
         pkg = cursor.fetchone()
@@ -1363,10 +1367,7 @@ def renew_or_change_package(username, new_pkg_id):
                                'pkg_mikrotik_group': pkg.get('mikrotik_group')},
                               'subscriber', new_fr_exp)
 
-    try:
-        dispatch_async_disconnect(sub['username'])
-    except Exception:
-        pass
+    # Sessions were finalized before billing; no delayed disconnect can hit a new login.
 
     # 6. منح نقاط الولاء إن كانت الباقة تدعم النقاط
     points_awarded = 0
@@ -1583,4 +1584,3 @@ def change_portal_password(username, old_password, new_password, confirm_passwor
 
     log_user_audit('subscriber', sub['id'], sub['username'], 'UserPortal', 'CHANGE_PASSWORD', 'تعديل كلمة المرور عبر بوابة المشترك')
     return True, "تم تغيير كلمة المرور بنجاح."
-

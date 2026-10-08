@@ -14,7 +14,7 @@ COPY web/ ./web/
 COPY database/db.py database/schema_healer.py database/schema_mysql.sql ./database/
 COPY database/freeradius_standard.sql database/wisp_extensions.sql database/seed_data.sql ./database/
 COPY database/license_capacity.py database/maintenance_jobs.py ./database/
-COPY database/loyalty_schema.py ./database/
+COPY database/loyalty_schema.py database/cycle_safety.py ./database/
 COPY database/migrations/ ./database/migrations/
 COPY storage/keys/master_public_key.pem ./storage/keys/master_public_key.pem
 RUN python -c "from setuptools import setup, Extension; from Cython.Build import cythonize; names=['services.license_guard_service','core.licensing','core.hardware_fingerprint','core.license_protocol','core.license_security','database.license_capacity']; setup(name='SecurityCore', ext_modules=cythonize([Extension(n, [n.replace('.','/')+'.py']) for n in names], compiler_directives={'language_level':'3'}), script_args=['build_ext','--inplace'])" && \

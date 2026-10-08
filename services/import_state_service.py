@@ -80,7 +80,7 @@ def imported_state(row, plan, now, preserve_history):
                     or (uptime_limit > 0 and seconds >= uptime_limit * 60)):
         status = 'expired'
     if row.get('disabled'):
-        status = 'disabled'
+        status = 'suspended'
     return dict(status=status, first_used_at=first, expires_at=expiry,
                 last_renewed_at=first, history=history,
                 upload_bytes=up_bytes, download_bytes=down_bytes, uptime_seconds=seconds)

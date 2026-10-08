@@ -15,7 +15,7 @@ import threading
 import subprocess
 import json
 
-from database.db import get_connection, query_all, query_one, execute_write
+from database.db import get_connection, query_all, query_one, execute_write, execute_update
 
 WATCHDOG_INTERVAL_SECONDS = 60  # Run every 1 minute for proactive health and session reaping
 _watchdog_thread = None
@@ -27,12 +27,12 @@ _last_radius_state = True
 _last_disk_alert_time = 0
 _last_auto_cleanup_time = 0
 
-def log_system_alert(alert_type, severity, message, source='watchdog'):
+def log_system_alert(alert_type, severity, message, source='watchdog', resolved=False):
     """Insert an alert event into wisp_system_alerts."""
     try:
         execute_write(
-            "INSERT INTO wisp_system_alerts (alert_type, severity, source, message) VALUES (?, ?, ?, ?)",
-            (alert_type, severity, source, message)
+            "INSERT INTO wisp_system_alerts (alert_type, severity, source, message, is_resolved, resolved_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (alert_type, severity, source, message, int(resolved), datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') if resolved else None)
         )
         print(f"  [Watchdog Alert] [{severity.upper()}] {alert_type}: {message}")
     except Exception as e:
@@ -64,7 +64,7 @@ def check_database_health():
             message='فقدت الواجهة الخلفية الاتصال بقاعدة البيانات MariaDB. جارٍ محاولة إعادة التهيئة والتعافي التلقائي...'
         )
         _last_db_state = False
-    elif is_healthy and not _last_db_state:
+    elif is_healthy:
         # DB recovered
         now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
@@ -74,10 +74,11 @@ def check_database_health():
             )
         except Exception:
             pass
-        log_system_alert(
-            alert_type='DB_RECOVERY',
-            severity='info',
-            message='تمت استعادة الاتصال بقاعدة البيانات MariaDB بنجاح وعادت كافة العمليات للعمل الطبيعي.'
+        if not _last_db_state:
+            log_system_alert(
+                alert_type='DB_RECOVERY', resolved=True,
+                severity='info',
+                message='تمت استعادة الاتصال بقاعدة البيانات MariaDB بنجاح وعادت كافة العمليات للعمل الطبيعي.'
         )
         _last_db_state = True
 
@@ -90,7 +91,7 @@ def check_disk_space():
     now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     
     try:
-        target_path = '/app' if os.path.exists('/app') else '.'
+        target_path = str(__import__('core.config', fromlist=['STORAGE_DIR']).STORAGE_DIR)
         total, used, free = shutil.disk_usage(target_path)
         free_pct = (free / total) * 100.0 if total > 0 else 100.0
         free_gb = free / (1024 ** 3)
@@ -116,51 +117,25 @@ def check_disk_space():
                 pass
             return True, free_pct
     except Exception as e:
-        return True, 100.0
+        return False, 0.0
 
 def check_radius_engine_health():
     """Probe FreeRADIUS UDP port to verify responsiveness."""
     global _last_radius_state
-    # Smart candidate resolution for standalone and multi-tenant environments
-    candidates = [
-        os.environ.get('RADIUS_HOST'),
-        'radius_core',
-        'max_radius_core',
-        '127.0.0.1'
-    ]
-    resolved_host = None
-    for cand in candidates:
-        if not cand:
-            continue
-        try:
-            socket.gethostbyname(cand)
-            resolved_host = cand
-            break
-        except Exception:
-            continue
-    host = resolved_host or os.environ.get('RADIUS_HOST', 'radius_core')
+    from services.health_probe_service import radius_probe
+    host = os.environ.get('RADIUS_HOST') or os.environ.get('RADIUS_SERVER_IP') or 'radius_core'
     port = int(os.environ.get('RADIUS_AUTH_PORT', 1812))
-    if port == 18120:
-        port = 1812
-    is_responsive = False
-
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(2.0)
-        sock.sendto(b'\x01\x01\x00\x14\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', (host, port))
-        sock.close()
-        is_responsive = True
-    except Exception:
-        is_responsive = False
+    is_responsive, _ = radius_probe(port)
+    is_responsive = is_responsive is True
 
     if not is_responsive and _last_radius_state:
         log_system_alert(
             alert_type='RADIUS_UNRESPONSIVE',
             severity='danger',
-            message=f'محرك FreeRADIUS على {host}:{port} لا يستجيب لطلبات الفحص. يتولى محرك التعافي Autoheal محاولة إعادة التشغيل التلقائية.'
+            message=f'محرك FreeRADIUS على {host}:{port} لا يستجيب لطلبات الفحص. يجب التحقق من المسار وإعدادات الفحص وحالة الحاوية؛ لا يثبت ذلك وحده توقف المحرك.'
         )
         _last_radius_state = False
-    elif is_responsive and not _last_radius_state:
+    elif is_responsive:
         now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         try:
             execute_write(
@@ -169,10 +144,11 @@ def check_radius_engine_health():
             )
         except Exception:
             pass
-        log_system_alert(
-            alert_type='RADIUS_RECOVERY',
-            severity='info',
-            message='عادت استجابة محرك FreeRADIUS للعمل الطبيعي بنجاح بعد التعافي التلقائي.'
+        if not _last_radius_state:
+            log_system_alert(
+                alert_type='RADIUS_RECOVERY', resolved=True,
+                severity='info',
+                message='عادت استجابة محرك FreeRADIUS للعمل الطبيعي بنجاح بعد التعافي التلقائي.'
         )
         _last_radius_state = True
 
@@ -205,6 +181,12 @@ def enforce_license_compliance_hook():
         from services.coa_queue_service import enqueue_disconnect
 
         lic = get_active_license_status()
+        if lic and lic.get('valid'):
+            now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            changed = execute_update("UPDATE wisp_system_alerts SET is_resolved=1, resolved_at=? WHERE alert_type='LICENSE_NON_COMPLIANT_POD' AND is_resolved=0", (now_str,))
+            if changed:
+                log_system_alert('LICENSE_RECOVERY', 'info', 'الترخيص صالح وموثق مجددًا؛ تم إغلاق تنبيه عدم الامتثال السابق.', source='watchdog_license', resolved=True)
+            return
         if not lic or not lic.get('valid'):
             status_name = lic.get('status', 'invalid') if lic else 'unlicensed'
             msg = lic.get('message', 'License invalid') if lic else 'No active license found'
@@ -244,6 +226,22 @@ def enforce_license_compliance_hook():
     except Exception as e:
         print(f"  [Watchdog] Error in license compliance enforcement hook: {e}")
 
+def reconcile_container_alerts():
+    from services.autoheal_service import get_container_fleet_status
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # Historical completion events were incorrectly inserted as ongoing incidents.
+    execute_write("UPDATE wisp_system_alerts SET is_resolved=1, resolved_at=COALESCE(resolved_at, created_at) WHERE is_resolved=0 AND alert_type IN ('DB_RECOVERY','RADIUS_RECOVERY','ZOMBIE_SESSIONS_PURGED','CONTAINER_MANUAL_RESTART')")
+    for container in get_container_fleet_status():
+        if container['id'] in ('N/A', 'internal'):
+            continue
+        source = 'container:' + container['name']
+        if container['is_healthy']:
+            execute_write("UPDATE wisp_system_alerts SET is_resolved=1, resolved_at=? WHERE source=? AND is_resolved=0 AND alert_type IN ('CONTAINER_HEALTH_FAILURE','CONTAINER_RESTART_PENDING')", (now, source))
+        elif container['state'] != 'running' or 'unhealthy' in container['status'].lower():
+            existing = query_one("SELECT id FROM wisp_system_alerts WHERE source=? AND is_resolved=0 AND alert_type='CONTAINER_HEALTH_FAILURE' LIMIT 1", (source,))
+            if not existing:
+                log_system_alert('CONTAINER_HEALTH_FAILURE', 'danger', container['name'] + ': ' + container['health_label'], source=source)
+
 def run_watchdog_cycle():
     """Execute one full watchdog cycle with auto-healing and auto-resolution."""
     from services.factory_reset_service import factory_reset_active
@@ -255,6 +253,7 @@ def run_watchdog_cycle():
         db_ok = check_database_health()
         disk_ok, free_pct = check_disk_space()
         radius_ok = check_radius_engine_health()
+        reconcile_container_alerts()
         check_auto_database_cleanup()
 
         # Auto-heal zombie sessions in background (reap sessions based on dynamic setting, default 15m)
@@ -315,9 +314,15 @@ def start_watchdog_thread():
         _watchdog_thread = threading.Thread(target=_watchdog_loop, name='WatchdogDaemon', daemon=True)
         _watchdog_thread.start()
 
-def get_system_alerts(limit=30, unresolved_only=False):
+def get_system_alerts(limit=30, unresolved_only=False, state=None):
     """Retrieve system alerts from wisp_system_alerts table."""
     try:
+        if state == 'resolved':
+            return query_all('SELECT * FROM wisp_system_alerts WHERE is_resolved = 1 ORDER BY id DESC LIMIT ?', (limit,))
+        if state == 'failed':
+            return query_all("SELECT * FROM wisp_system_alerts WHERE is_resolved=0 AND alert_type LIKE ? ORDER BY id DESC LIMIT ?", ('%FAILED', limit))
+        if state == 'unresolved':
+            return query_all("SELECT * FROM wisp_system_alerts WHERE is_resolved=0 AND alert_type NOT LIKE ? ORDER BY id DESC LIMIT ?", ('%FAILED', limit))
         if unresolved_only:
             return query_all("SELECT * FROM wisp_system_alerts WHERE is_resolved = 0 ORDER BY id DESC LIMIT ?", (limit,))
         return query_all("SELECT * FROM wisp_system_alerts ORDER BY id DESC LIMIT ?", (limit,))
@@ -328,7 +333,9 @@ def resolve_system_alert(alert_id):
     """Mark an alert as resolved."""
     try:
         now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        execute_write("UPDATE wisp_system_alerts SET is_resolved = 1, resolved_at = ? WHERE id = ?", (now_str, alert_id))
+        changed = execute_update("UPDATE wisp_system_alerts SET is_resolved = 1, resolved_at = ?, source = CONCAT(COALESCE(source, 'watchdog'), ':manual') WHERE id = ? AND is_resolved=0", (now_str, alert_id))
+        if not changed:
+            return False, "التنبيه غير موجود أو محلول بالفعل."
         return True, "تم تمييز التنبيه كمحلول بنجاح."
     except Exception as e:
         return False, str(e)

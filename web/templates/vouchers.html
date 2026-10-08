@@ -1,6 +1,43 @@
 {% extends "base.html" %}
 
-{% block title %}إدارة حزم الكروت{% endblock %}
+{% block extra_head %}
+<style>
+    /* Bulk Action Bar (Light & Dark Compatible) */
+    .bulk-action-bar-container {
+        background: linear-gradient(135deg, rgba(30, 58, 138, 0.45) 0%, #0b0f19 50%, #070b14 100%);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+    }
+    .bulk-selected-badge {
+        background-color: rgba(59, 130, 246, 0.2);
+        color: #93c5fd;
+        border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+    .bulk-clear-btn {
+        color: #94a3b8;
+    }
+    .bulk-clear-btn:hover {
+        color: #f43f5e;
+    }
+    html.theme-light .bulk-action-bar-container {
+        background: #ffffff !important;
+        border: 1px solid #bfdbfe !important;
+        box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.12), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+    }
+    html.theme-light .bulk-selected-badge {
+        background-color: #eff6ff !important;
+        color: #1d4ed8 !important;
+        border: 1px solid #bfdbfe !important;
+        font-weight: 700 !important;
+    }
+    html.theme-light .bulk-clear-btn {
+        color: #64748b !important;
+        font-weight: 600 !important;
+    }
+    html.theme-light .bulk-clear-btn:hover {
+        color: #e11d48 !important;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -114,6 +151,70 @@
         </div>
     </div>
 
+    <!-- Top Bulk Action Bar for Batches (Visible when 1 or more checkboxes are checked) -->
+    <div id="bulkBatchesBar" class="bulk-action-bar bulk-action-bar-container hidden p-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-4 transition-all duration-300">
+        <!-- Count Badge & Clear Selection -->
+        <div class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bulk-selected-badge shadow-sm">
+                <i class="fa-solid fa-check-double text-blue-500"></i>
+                <span id="selectedBatchesCountBadge">تم تحديد 0 حزمة</span>
+            </span>
+            <button type="button" onclick="clearBatchSelection()" class="text-xs bulk-clear-btn transition flex items-center gap-1 cursor-pointer">
+                <i class="fa-solid fa-xmark text-xs"></i>
+                <span>إلغاء التحديد</span>
+            </button>
+        </div>
+
+        <!-- Actions Menu Dropdown -->
+        <div class="relative">
+            <button type="button" id="bulkBatchesDropdownBtn" onclick="toggleBulkBatchesDropdown(event)" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-bolt-lightning text-amber-300"></i>
+                <span>الإجراءات الجماعية</span>
+                <i class="fa-solid fa-chevron-down text-[10px] transition-transform duration-200" id="bulkBatchesChevron"></i>
+            </button>
+
+            <!-- Floating Menu -->
+            <div id="bulkBatchesDropdownMenu" class="bulk-dropdown-menu action-dropdown-menu hidden absolute left-0 top-full mt-2 z-[9999] w-64 bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-2xl py-2 text-xs divide-y divide-[#1c2840]">
+                <div class="px-3.5 py-2 text-[11px] font-bold text-slate-400 bg-[#070b14]/60 border-b border-[#1c2840] flex items-center justify-between">
+                    <span>قائمة الإجراءات المجمعة</span>
+                    <span id="bulkBatchesMenuCount" class="text-blue-400 font-mono font-bold">0 حزمة</span>
+                </div>
+                
+                <!-- إجراء 1: الحذف (Delete) -->
+                <div class="py-1">
+                    <button type="button" onclick="openBulkDeleteBatchesModal()" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
+                        <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
+                        <span>حذف الحزم المحددة (Delete)</span>
+                    </button>
+                </div>
+
+                <!-- إجراء 2: تغيير الباقة (Change Package) -->
+                <div class="py-1">
+                    <button type="button" onclick="openBulkChangePackageModal()" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                        <i class="fa-solid fa-layer-group text-blue-400 w-4 text-center"></i>
+                        <span>تغيير باقة الحزم المحددة</span>
+                    </button>
+                </div>
+
+                <!-- إجراء 3: تعيين الموزع (Assign Reseller) -->
+                <div class="py-1">
+                    <button type="button" onclick="openBulkAssignResellerModal()" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                        <i class="fa-solid fa-user-tag text-purple-400 w-4 text-center"></i>
+                        <span>تعيين / نقل لموزع</span>
+                    </button>
+                </div>
+
+                <!-- إجراء 4: تصدير كروت الحزم المحددة (Export Vouchers) -->
+                <div class="py-1">
+                    <button type="button" onclick="bulkExportBatches()" class="w-full text-right px-3.5 py-2 text-emerald-400 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
+                        <i class="fa-solid fa-file-excel text-emerald-500 w-4 text-center"></i>
+                        <span>تصدير كروت الحزم المحددة (CSV)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Batches Table (جدول الحزم الرئيسية) -->
     <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
         <div class="p-4 sm:p-5 border-b border-[#1c2840] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -127,6 +228,9 @@
             <table class="w-full text-right text-sm">
                 <thead class="bg-[#070b14] text-slate-400 text-xs uppercase font-semibold border-b border-[#1c2840]">
                     <tr>
+                        <th class="py-3.5 px-4 w-10 text-center" onclick="event.stopPropagation()">
+                            <input type="checkbox" id="selectAllBatches" onchange="toggleSelectAllBatches(this)" class="w-4 h-4 rounded border-slate-700 bg-[#070b14] text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer">
+                        </th>
                         <th class="py-3.5 px-5">اسم الحزمة ورقمها</th>
                         <th class="py-3.5 px-5 hidden sm:table-cell">الباقة المخصصة</th>
                         <th class="py-3.5 px-5 hidden md:table-cell">الموزع</th>
@@ -138,10 +242,14 @@
                 </thead>
                 <tbody class="divide-y divide-[#1c2840]">
                     {% for b in batches %}
-                    <tr class="hover:bg-[#11192b] transition cursor-pointer" onclick="window.location.href='{{ url_for('view_batch_details', batch_id=b.id) }}'">
+                    <tr class="hover:bg-[#11192b] transition cursor-pointer" onclick="window.location.href='{{ url_for('view_batch_details', batch_id=b.id, q=q) if q else url_for('view_batch_details', batch_id=b.id) }}'">
+                        <!-- خانة التحديد الجماعي -->
+                        <td class="py-3.5 px-4 text-center" onclick="event.stopPropagation()">
+                            <input type="checkbox" value="{{ b.id }}" onchange="handleBatchSelect()" class="batch-checkbox w-4 h-4 rounded border-slate-700 bg-[#070b14] text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer">
+                        </td>
                         <!-- اسم الحزمة (رابط الانتقال للصفحة الجديدة) -->
                         <td class="py-3.5 px-5">
-                            <a href="{{ url_for('view_batch_details', batch_id=b.id) }}" class="font-bold text-white hover:text-blue-400 transition flex items-center gap-2" onclick="event.stopPropagation()">
+                            <a href="{{ url_for('view_batch_details', batch_id=b.id, q=q) if q else url_for('view_batch_details', batch_id=b.id) }}" class="font-bold text-white hover:text-blue-400 transition flex items-center gap-2" onclick="event.stopPropagation()">
                                 <i class="fa-solid fa-folder text-blue-400"></i>
                                 <span>{{ b.name }}</span>
                             </a>
@@ -199,7 +307,7 @@
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="7" class="py-12 text-center text-slate-500">
+                        <td colspan="8" class="py-12 text-center text-slate-500">
                             <i class="fa-solid fa-ticket text-3xl mb-2 block text-slate-600"></i>
                             لم يتم العثور على أي حزم كروت مطابقة. اضغط على زر "توليد حزمة جديدة".
                         </td>
@@ -256,19 +364,31 @@
             </h3>
             <button type="button" onclick="closeModal('generateModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-base"></i></button>
         </div>
-        <form method="POST" action="{{ url_for('generate_vouchers_action') }}" onsubmit="const b=this.querySelector('button[type=submit]'); b.disabled=true; b.innerHTML='<i class=\'fa-solid fa-spinner fa-spin mr-1\'></i> جارٍ التوليد والتصدير...';" class="space-y-3 text-xs">
+        <form id="generateBatchForm" method="POST" action="{{ url_for('generate_vouchers_action') }}" class="space-y-3 text-xs">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                    <label class="block text-slate-300 font-semibold mb-1">الباقة المخصصة</label>
-                    <select name="package_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    <label class="block text-slate-300 font-semibold mb-1">الباقة المخصصة <span class="text-rose-400 font-bold">*</span></label>
+                    <select id="batch_package_id" name="package_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none transition">
                         {% for p in packages %}
                         <option value="{{ p.id }}">{{ p.name }} ({{ p.price }} {{ currency_symbol }})</option>
                         {% endfor %}
                     </select>
+                    <div id="batch_package_id_error" class="hidden mt-1.5 flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-lg">
+                        <i class="fa-solid fa-circle-exclamation text-rose-400 text-xs shrink-0"></i>
+                        <span class="error-text font-medium"></span>
+                    </div>
                 </div>
                 <div>
-                    <label class="block text-slate-300 font-semibold mb-1">عدد الكروت المراد توليدها</label>
-                    <input type="number" name="count" min="1" max="1000" value="50" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    <label class="block text-slate-300 font-semibold mb-1">
+                        <span>عدد الكروت المراد توليدها</span>
+                        <span class="text-rose-400 font-bold">*</span>
+                        <span class="text-[10px] text-slate-400 font-normal mr-1">(الحد الأقصى: 3,000)</span>
+                    </label>
+                    <input type="number" id="batch_count" name="count" min="1" max="3000" value="50" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none transition">
+                    <div id="batch_count_error" class="hidden mt-1.5 flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-lg">
+                        <i class="fa-solid fa-circle-exclamation text-rose-400 text-xs shrink-0"></i>
+                        <span class="error-text font-medium"></span>
+                    </div>
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -298,11 +418,19 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-slate-300 font-semibold mb-1" id="code_length_label">طول اسم المستخدم</label>
-                    <input type="number" name="code_length" id="code_length" min="4" max="16" value="8" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    <input type="number" name="code_length" id="code_length" min="4" max="16" value="8" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none transition">
+                    <div id="code_length_error" class="hidden mt-1.5 flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-lg">
+                        <i class="fa-solid fa-circle-exclamation text-rose-400 text-xs shrink-0"></i>
+                        <span class="error-text font-medium"></span>
+                    </div>
                 </div>
                 <div id="pass_length_container">
                     <label class="block text-slate-300 font-semibold mb-1">طول كلمة المرور</label>
-                    <input type="number" name="pass_length" id="pass_length" min="4" max="16" value="8" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    <input type="number" name="pass_length" id="pass_length" min="4" max="16" value="8" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none transition">
+                    <div id="pass_length_error" class="hidden mt-1.5 flex items-center gap-1.5 text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-lg">
+                        <i class="fa-solid fa-circle-exclamation text-rose-400 text-xs shrink-0"></i>
+                        <span class="error-text font-medium"></span>
+                    </div>
                 </div>
                 <div class="sm:col-span-2">
                     <label class="block text-slate-300 font-semibold mb-1">بادئة اختيارية (Prefix)</label>
@@ -402,6 +530,9 @@
 {% block scripts %}
 <script>
     function openGenerateModal() {
+        if (window.clearBatchModalValidationErrors) {
+            window.clearBatchModalValidationErrors();
+        }
         document.getElementById('generateModal').classList.remove('hidden');
         handleFormatTypeChange();
     }
@@ -449,7 +580,149 @@
         document.getElementById('editBatchModal').classList.remove('hidden');
     }
 
-    function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function closeModal(id) { 
+        if (id === 'generateModal' && window.clearBatchModalValidationErrors) {
+            window.clearBatchModalValidationErrors();
+        }
+        document.getElementById(id).classList.add('hidden'); 
+    }
+
+    // ==============================================================
+    // In-UI Arabic Form Validation for Generate Batch Modal
+    // ==============================================================
+    (function initBatchFormValidation() {
+        const form = document.getElementById('generateBatchForm');
+        if (!form) return;
+
+        function getArabicErrorMessage(field) {
+            const v = field.validity;
+            const val = field.value;
+
+            if (field.name === 'count') {
+                if (v.valueMissing || !val) {
+                    return 'هذا الحقل إلزامي، يرجى كتابة عدد الكروت المراد توليدها.';
+                }
+                if (v.rangeOverflow) {
+                    return `يجب أن تكون القيمة أقل من أو تساوي 3,000 كرت (المدخل: ${Number(val).toLocaleString('ar-EG')}).`;
+                }
+                if (v.rangeUnderflow) {
+                    return 'يجب أن يكون عدد الكروت 1 على الأقل.';
+                }
+                if (v.stepMismatch || v.badInput) {
+                    return 'يرجى إدخال رقم صحيح لعدد الكروت.';
+                }
+            }
+
+            if (field.name === 'code_length') {
+                if (v.rangeOverflow) return 'الحد الأقصى لطول اسم المستخدم هو 16 خانة.';
+                if (v.rangeUnderflow) return 'الحد الأدنى لطول اسم المستخدم هو 4 خانات.';
+                if (v.badInput) return 'يرجى إدخال رقم صحيح لطول اسم المستخدم.';
+            }
+
+            if (field.name === 'pass_length') {
+                if (v.rangeOverflow) return 'الحد الأقصى لطول كلمة المرور هو 16 خانة.';
+                if (v.rangeUnderflow) return 'الحد الأدنى لطول كلمة المرور هو 4 خانات.';
+                if (v.badInput) return 'يرجى إدخال رقم صحيح لطول كلمة المرور.';
+            }
+
+            if (field.name === 'package_id' && (v.valueMissing || !val)) {
+                return 'يرجى اختيار الباقة المخصصة للحزمة.';
+            }
+
+            if (v.valueMissing) return 'يرجى تعبئة هذا الحقل الإلزامي.';
+            if (v.rangeOverflow) return `يجب ألا تزيد القيمة عن ${field.max}.`;
+            if (v.rangeUnderflow) return `يجب ألا تقل القيمة عن ${field.min}.`;
+            return 'القيمة المدخلة غير صالحة، يرجى التحقق منها.';
+        }
+
+        function showFieldError(field, customMsg) {
+            const errorContainer = document.getElementById(field.id + '_error') || 
+                                   document.getElementById(field.name + '_error');
+            const msg = customMsg || getArabicErrorMessage(field);
+
+            // Highlight input field
+            field.classList.remove('border-slate-700', 'focus:border-blue-500');
+            field.classList.add('border-rose-500', 'focus:border-rose-500', 'ring-1', 'ring-rose-500/40');
+
+            if (errorContainer) {
+                const span = errorContainer.querySelector('.error-text') || errorContainer;
+                span.textContent = msg;
+                errorContainer.classList.remove('hidden');
+            }
+        }
+
+        function clearFieldError(field) {
+            field.classList.remove('border-rose-500', 'focus:border-rose-500', 'ring-1', 'ring-rose-500/40');
+            field.classList.add('border-slate-700', 'focus:border-blue-500');
+
+            const errorContainer = document.getElementById(field.id + '_error') || 
+                                   document.getElementById(field.name + '_error');
+            if (errorContainer) {
+                errorContainer.classList.add('hidden');
+            }
+        }
+
+        // Capture 'invalid' event to suppress the browser's default English balloon
+        form.addEventListener('invalid', function(e) {
+            e.preventDefault(); // SUPPRESSES native browser tooltip completely!
+            const field = e.target;
+            showFieldError(field);
+
+            // Shift focus to the first invalid field
+            if (!form.dataset.invalidFocused) {
+                form.dataset.invalidFocused = 'true';
+                setTimeout(() => {
+                    field.focus();
+                    form.removeAttribute('data-invalid-focused');
+                }, 30);
+            }
+        }, true);
+
+        // Live validation clearing when user edits the input
+        ['batch_count', 'code_length', 'pass_length', 'batch_package_id'].forEach(id => {
+            const input = document.getElementById(id);
+            if (input) {
+                input.addEventListener('input', function() {
+                    if (input.checkValidity()) {
+                        clearFieldError(input);
+                    } else {
+                        showFieldError(input);
+                    }
+                });
+                input.addEventListener('change', function() {
+                    if (input.checkValidity()) {
+                        clearFieldError(input);
+                    }
+                });
+            }
+        });
+
+        // Handle Form Submit
+        form.addEventListener('submit', function(e) {
+            form.removeAttribute('data-invalid-focused');
+
+            if (!form.checkValidity()) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+
+            // Form is 100% valid, proceed with submission and show spinner
+            const btn = form.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin ml-1.5"></i> جارٍ التوليد والتصدير...';
+            }
+        });
+
+        // Clear all errors helper
+        window.clearBatchModalValidationErrors = function() {
+            ['batch_count', 'code_length', 'pass_length', 'batch_package_id'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) clearFieldError(input);
+            });
+        };
+    })();
 
     // Print Template Modal State & Handlers
     let currentBatchIdToPrint = null;
@@ -522,5 +795,289 @@
             }
         });
     }
+
+    // --- Bulk Batches Actions Logic ---
+    function getSelectedBatchIds() {
+        return Array.from(document.querySelectorAll('.batch-checkbox:checked')).map(cb => cb.value);
+    }
+
+    function handleBatchSelect() {
+        const selected = getSelectedBatchIds();
+        const bar = document.getElementById('bulkBatchesBar');
+        const badge = document.getElementById('selectedBatchesCountBadge');
+        const menuCount = document.getElementById('bulkBatchesMenuCount');
+        const master = document.getElementById('selectAllBatches');
+        const all = document.querySelectorAll('.batch-checkbox');
+
+        if (selected.length > 0) {
+            bar.classList.remove('hidden');
+            badge.innerText = `تم تحديد ${selected.length} حزمة`;
+            if (menuCount) menuCount.innerText = `${selected.length} حزمة مختارة`;
+        } else {
+            bar.classList.add('hidden');
+            closeBulkBatchesDropdown();
+        }
+
+        if (master) {
+            master.checked = (selected.length > 0 && selected.length === all.length);
+            master.indeterminate = (selected.length > 0 && selected.length < all.length);
+        }
+    }
+
+    function toggleSelectAllBatches(master) {
+        document.querySelectorAll('.batch-checkbox').forEach(cb => {
+            cb.checked = master.checked;
+        });
+        handleBatchSelect();
+    }
+
+    function clearBatchSelection() {
+        document.querySelectorAll('.batch-checkbox').forEach(cb => {
+            cb.checked = false;
+        });
+        const master = document.getElementById('selectAllBatches');
+        if (master) {
+            master.checked = false;
+            master.indeterminate = false;
+        }
+        handleBatchSelect();
+    }
+
+    function toggleBulkBatchesDropdown(e) {
+        e.stopPropagation();
+        const menu = document.getElementById('bulkBatchesDropdownMenu');
+        const chevron = document.getElementById('bulkBatchesChevron');
+        if (menu) {
+            menu.classList.toggle('hidden');
+            if (chevron) {
+                chevron.classList.toggle('rotate-180');
+            }
+        }
+    }
+
+    function closeBulkBatchesDropdown() {
+        const menu = document.getElementById('bulkBatchesDropdownMenu');
+        const chevron = document.getElementById('bulkBatchesChevron');
+        if (menu) menu.classList.add('hidden');
+        if (chevron) chevron.classList.remove('rotate-180');
+    }
+
+    document.addEventListener('click', function(e) {
+        const bar = document.getElementById('bulkBatchesBar');
+        if (bar && !bar.contains(e.target)) {
+            closeBulkBatchesDropdown();
+        }
+    });
+
+    function openBulkDeleteBatchesModal() {
+        const ids = getSelectedBatchIds();
+        if (!ids.length) return;
+        
+        closeBulkBatchesDropdown();
+        Swal.fire({
+            title: 'حذف الحزم المحددة جماعياً',
+            text: `هل أنت متأكد من حذف عدد (${ids.length}) حزمة محددة وجميع كروتها نهائياً من FreeRADIUS ومسح بياناتها؟ لا يمكن التراجع عن هذا الإجراء!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e11d48',
+            cancelButtonColor: '#475569',
+            confirmButtonText: `نعم، احذف (${ids.length}) حزمة`,
+            cancelButtonText: 'إلغاء'
+        }).then(res => {
+            if (res.isConfirmed) {
+                Swal.fire({
+                    title: 'جارٍ الحذف...',
+                    text: 'يرجى الانتظار بينما يتم تصفية الحزم من السيرفر',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+                fetch('/vouchers/batches/bulk-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'delete', batch_ids: ids })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire('تم بنجاح', data.message, 'success').then(() => location.reload());
+                    } else {
+                        Swal.fire('خطأ', data.message || 'فشلت عملية الحذف', 'error');
+                    }
+                })
+                .catch(() => {
+                    Swal.fire('خطأ', 'حدث خطأ في الاتصال بالخادم', 'error');
+                });
+            }
+        });
+    }
+
+    function openBulkChangePackageModal() {
+        closeBulkBatchesDropdown();
+        const ids = getSelectedBatchIds();
+        if (!ids.length) return;
+        document.getElementById('bulkPkgBatchCount').innerText = ids.length;
+        document.getElementById('bulkChangePackageModal').classList.remove('hidden');
+    }
+
+    function submitBulkChangePackage() {
+        const ids = getSelectedBatchIds();
+        const pkgId = document.getElementById('bulk_new_package_id').value;
+        const btn = document.getElementById('submitBulkPkgBtn');
+        if (!ids.length || !pkgId) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> جارٍ التحديث...';
+
+        fetch('/vouchers/batches/bulk-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'change_package', batch_ids: ids, package_id: pkgId })
+        })
+        .then(r => r.json())
+        .then(data => {
+            closeModal('bulkChangePackageModal');
+            if (data.success) {
+                Swal.fire('تم بنجاح', data.message, 'success').then(() => location.reload());
+            } else {
+                Swal.fire('خطأ', data.message || 'فشلت العملية', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> تطبيق وتحديث FreeRADIUS';
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> تطبيق وتحديث FreeRADIUS';
+            Swal.fire('خطأ', 'حدث خطأ في الاتصال بالخادم', 'error');
+        });
+    }
+
+    function openBulkAssignResellerModal() {
+        closeBulkBatchesDropdown();
+        const ids = getSelectedBatchIds();
+        if (!ids.length) return;
+        document.getElementById('bulkResellerBatchCount').innerText = ids.length;
+        document.getElementById('bulkAssignResellerModal').classList.remove('hidden');
+    }
+
+    function submitBulkAssignReseller() {
+        const ids = getSelectedBatchIds();
+        const resellerId = document.getElementById('bulk_new_reseller_id').value;
+        const btn = document.getElementById('submitBulkResellerBtn');
+        if (!ids.length) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> جارٍ النقل...';
+
+        fetch('/vouchers/batches/bulk-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'assign_reseller', batch_ids: ids, reseller_id: resellerId })
+        })
+        .then(r => r.json())
+        .then(data => {
+            closeModal('bulkAssignResellerModal');
+            if (data.success) {
+                Swal.fire('تم بنجاح', data.message, 'success').then(() => location.reload());
+            } else {
+                Swal.fire('خطأ', data.message || 'فشلت العملية', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> حفظ ونقل الحزم';
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> حفظ ونقل الحزم';
+            Swal.fire('خطأ', 'حدث خطأ في الاتصال بالخادم', 'error');
+        });
+    }
+
+    function bulkExportBatches() {
+        closeBulkBatchesDropdown();
+        const selected = getSelectedBatchIds();
+        if (!selected.length) return;
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/vouchers/batches/bulk-action';
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = 'export';
+        form.appendChild(actionInput);
+        const idsInput = document.createElement('input');
+        idsInput.type = 'hidden';
+        idsInput.name = 'batch_ids';
+        idsInput.value = JSON.stringify(selected);
+        form.appendChild(idsInput);
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    }
 </script>
+
+<!-- Modal: تغيير باقة الحزم المحددة جماعياً -->
+<div id="bulkChangePackageModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="fa-solid fa-layer-group text-blue-400"></i>
+                <span>تغيير باقة الحزم المحددة</span>
+            </h3>
+            <button type="button" onclick="closeModal('bulkChangePackageModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-base"></i></button>
+        </div>
+        <div class="space-y-4 text-xs">
+            <p class="text-slate-300">
+                سيتم تطبيق الباقة الجديدة على عدد <strong id="bulkPkgBatchCount" class="text-blue-400 font-mono">0</strong> حزمة محددة وتحديث جدول FreeRADIUS (<code class="font-mono bg-blue-900/40 px-1 rounded text-cyan-300">radusergroup</code>) لجميع كروتها فوراً:
+            </p>
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">اختر الباقة الجديدة</label>
+                <select id="bulk_new_package_id" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    {% for p in packages %}
+                    <option value="{{ p.id }}">{{ p.name }} ({{ p.price }} {{ currency_symbol }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('bulkChangePackageModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+                <button type="button" onclick="submitBulkChangePackage()" id="submitBulkPkgBtn" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
+                    <i class="fa-solid fa-check"></i>
+                    <span>تطبيق وتحديث FreeRADIUS</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: تعيين موزع للحزم المحددة جماعياً -->
+<div id="bulkAssignResellerModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <h3 class="font-bold text-base text-white flex items-center gap-2">
+                <i class="fa-solid fa-user-tag text-purple-400"></i>
+                <span>تعيين موزع للحزم المحددة</span>
+            </h3>
+            <button type="button" onclick="closeModal('bulkAssignResellerModal')" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark text-base"></i></button>
+        </div>
+        <div class="space-y-4 text-xs">
+            <p class="text-slate-300">
+                سيتم نقل ملكية عدد <strong id="bulkResellerBatchCount" class="text-purple-400 font-mono">0</strong> حزمة محددة إلى الموزع المختار:
+            </p>
+            <div>
+                <label class="block text-slate-300 font-semibold mb-1">اختر الموزع الجديد</label>
+                <select id="bulk_new_reseller_id" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                    <option value="">إدارة النظام (بدون موزع)</option>
+                    {% for r in resellers %}
+                    <option value="{{ r.id }}">{{ r.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
+                <button type="button" onclick="closeModal('bulkAssignResellerModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
+                <button type="button" onclick="submitBulkAssignReseller()" id="submitBulkResellerBtn" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
+                    <i class="fa-solid fa-check"></i>
+                    <span>حفظ ونقل الحزم</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

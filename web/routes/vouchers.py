@@ -164,8 +164,9 @@ def generate_vouchers_action():
 
 
 @vouchers_bp.route('/vouchers/batch/<int:batch_id>', endpoint="view_batch_details")
-
 def view_batch_details(batch_id):
+    search = request.args.get('q', '').strip()
+    status = request.args.get('status', '').strip()
     batch = query_one('''
         SELECT b.*, p.name as package_name, 
                COALESCE(p.price, b.price) as package_price, 
@@ -174,19 +175,21 @@ def view_batch_details(batch_id):
                COALESCE(p.volume_quota_mb, b.volume_quota_mb) as volume_quota_mb,
                COALESCE(p.validity_value, b.validity_value) as validity_value,
                COALESCE(p.validity_unit, b.validity_unit) as validity_unit,
+               (SELECT COUNT(*) FROM wisp_vouchers WHERE batch_id = b.id) as total_cards,
                (SELECT COUNT(*) FROM wisp_vouchers WHERE batch_id = b.id AND status = 'unused') as unused_count,
                (SELECT COUNT(*) FROM wisp_vouchers WHERE batch_id = b.id AND status = 'active') as active_count,
+               (SELECT COUNT(*) FROM wisp_vouchers WHERE batch_id = b.id AND status = 'recharged') as recharged_count,
                (SELECT COUNT(*) FROM wisp_vouchers WHERE batch_id = b.id AND status = 'expired') as expired_count
         FROM wisp_voucher_batches b
-        JOIN wisp_packages p ON b.package_id = p.id
+        LEFT JOIN wisp_packages p ON b.package_id = p.id
         WHERE b.id = ?
     ''', (batch_id,))
     if not batch:
         flash('الدفعة المطلوبة غير موجودة.', 'danger')
         return redirect(url_for('vouchers'))
-    cards = get_vouchers(batch_id=batch_id, limit=2000)
+    cards = get_vouchers(batch_id=batch_id, limit=5000)
     packages = query_all("SELECT id, name, price FROM wisp_packages WHERE service_type IN ('hotspot', 'both')")
-    return render_template('batch_details.html', batch=batch, cards=cards, packages=packages)
+    return render_template('batch_details.html', batch=batch, cards=cards, packages=packages, q=search, status=status)
 
 
 @vouchers_bp.route('/vouchers/batch/edit/<int:batch_id>', methods=['POST'], endpoint="edit_batch_action")
@@ -203,6 +206,100 @@ def edit_batch_action(batch_id):
     if request.form.get('return_to_batch'):
         return redirect(url_for('view_batch_details', batch_id=batch_id))
     return redirect(url_for('vouchers'))
+
+
+@vouchers_bp.route('/vouchers/batches/bulk-action', methods=['POST'], endpoint="batches_bulk_action")
+def batches_bulk_action():
+    try:
+        data = request.get_json(silent=True) or request.form
+        action = data.get('action', '').strip()
+        raw_ids = data.get('batch_ids', [])
+        if isinstance(raw_ids, str):
+            try:
+                raw_ids = json.loads(raw_ids)
+            except Exception:
+                raw_ids = [int(x.strip()) for x in raw_ids.split(',') if x.strip().isdigit()]
+
+        batch_ids = [int(i) for i in raw_ids if str(i).isdigit()]
+        if not batch_ids:
+            return jsonify({'success': False, 'message': 'يرجى تحديد حزمة واحدة على الأقل.'}), 400
+
+        count = len(batch_ids)
+        admin_username = session.get('admin_username', 'admin')
+
+        if action == 'delete':
+            deleted_count = 0
+            for bid in batch_ids:
+                try:
+                    if delete_batch(bid, admin_username=admin_username):
+                        deleted_count += 1
+                except Exception as e:
+                    logger.error(f"Error deleting batch {bid}: {e}")
+            log_audit(session.get('admin_id', 1), admin_username, 'BULK_DELETE_BATCHES', 'vouchers', f'Bulk deleted {deleted_count} batches')
+            return jsonify({'success': True, 'message': f'تم حذف {deleted_count} حزمة مع كروتها واسترداد الأرصدة بنجاح.'})
+
+        elif action == 'change_package':
+            new_pkg_id = data.get('package_id')
+            if not new_pkg_id:
+                return jsonify({'success': False, 'message': 'يرجى اختيار الباقة الجديدة.'}), 400
+            new_pkg = query_one('SELECT id, name FROM wisp_packages WHERE id = ?', (int(new_pkg_id),))
+            if not new_pkg:
+                return jsonify({'success': False, 'message': 'الباقة المختارة غير صالحة.'}), 400
+
+            updated_count = 0
+            for bid in batch_ids:
+                try:
+                    update_voucher_batch(bid, name=None, package_id=int(new_pkg_id), admin_username=admin_username)
+                    updated_count += 1
+                except Exception as e:
+                    logger.error(f"Error updating package for batch {bid}: {e}")
+            log_audit(session.get('admin_id', 1), admin_username, 'BULK_UPDATE_BATCH_PKG', 'vouchers', f'Updated package to [{new_pkg["name"]}] for {updated_count} batches')
+            return jsonify({'success': True, 'message': f'تم تغيير الباقة إلى [{new_pkg["name"]}] ومزامنة FreeRADIUS لـ {updated_count} حزمة بنجاح.'})
+
+        elif action == 'assign_reseller':
+            new_reseller_id = data.get('reseller_id')
+            rid = int(new_reseller_id) if (new_reseller_id and str(new_reseller_id).isdigit()) else None
+            placeholders = ','.join(['?'] * count)
+            execute_write(f"UPDATE wisp_voucher_batches SET reseller_id = ? WHERE id IN ({placeholders})", (rid, *batch_ids))
+            execute_write(f"UPDATE wisp_vouchers SET reseller_id = ? WHERE batch_id IN ({placeholders})", (rid, *batch_ids))
+            reseller_label = 'إدارة النظام'
+            if rid:
+                r = query_one('SELECT COALESCE(NULLIF(full_name, ""), username) as name FROM wisp_managers WHERE id = ?', (rid,))
+                if r:
+                    reseller_label = r['name']
+            log_audit(session.get('admin_id', 1), admin_username, 'BULK_ASSIGN_RESELLER', 'vouchers', f'Assigned {count} batches to reseller [{reseller_label}]')
+            return jsonify({'success': True, 'message': f'تم تعيين {count} حزمة محددة للموزع [{reseller_label}] بنجاح.'})
+
+        elif action == 'export':
+            placeholders = ','.join(['?'] * count)
+            cards = query_all(f'''
+                SELECT v.serial_number, v.username, v.password, v.pin_code, v.status, 
+                       b.name as batch_name, p.name as package_name
+                FROM wisp_vouchers v
+                JOIN wisp_voucher_batches b ON v.batch_id = b.id
+                LEFT JOIN wisp_packages p ON v.package_id = p.id
+                WHERE v.batch_id IN ({placeholders})
+                ORDER BY v.batch_id DESC, v.id ASC
+            ''', tuple(batch_ids))
+            import csv
+            import io
+            si = io.StringIO()
+            cw = csv.writer(si)
+            cw.writerow(['الحزمة (Batch)', 'الباقة (Package)', 'الرقم التسلسلي (Serial)', 'اسم المستخدم (Username)', 'كلمة المرور (Password)', 'الحالة (Status)'])
+            for c in cards:
+                cw.writerow([c.get('batch_name'), c.get('package_name'), c.get('serial_number'), c.get('username'), c.get('password'), c.get('status')])
+            output = si.getvalue()
+            return Response(
+                "\ufeff" + output,
+                mimetype="text/csv; charset=utf-8",
+                headers={"Content-Disposition": "attachment;filename=selected_batches_vouchers.csv"}
+            )
+
+        return jsonify({'success': False, 'message': 'إجراء غير معروف.'}), 400
+
+    except Exception as e:
+        logger.error(f"Error in batches_bulk_action: {e}")
+        return jsonify({'success': False, 'message': f'حدث خطأ: {str(e)}'}), 500
 
 
 @vouchers_bp.route('/vouchers/card/edit/<int:card_id>', methods=['POST'], endpoint="edit_card_action")
@@ -237,6 +334,8 @@ def active_card_users():
         status_filter = 'active'
     else:
         status_filter = raw_status.strip()
+    if status_filter == 'disabled':
+        status_filter = 'suspended'
     
     try:
         page = max(1, int(request.args.get('page', 1)))
@@ -245,7 +344,7 @@ def active_card_users():
     per_page = 50
     offset = (page - 1) * per_page
     
-    base_where = ["v.status IN ('active', 'used', 'expired', 'recharged', 'disabled')"]
+    base_where = ["v.status IN ('active', 'used', 'expired', 'recharged', 'suspended', 'disabled')"]
     base_params = []
     
     if search:
@@ -276,8 +375,9 @@ def active_card_users():
         SELECT 
             COUNT(*) as total_all,
             COALESCE(SUM(CASE WHEN v.status IN ('active', 'used') AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP) THEN 1 ELSE 0 END), 0) as total_active,
-            COALESCE(SUM(CASE WHEN (v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled') THEN 1 ELSE 0 END), 0) as total_expired,
-            COALESCE(SUM(CASE WHEN v.status IN ('recharged', 'disabled') THEN 1 ELSE 0 END), 0) as total_recharged,
+            COALESCE(SUM(CASE WHEN (v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled', 'suspended') THEN 1 ELSE 0 END), 0) as total_expired,
+            COALESCE(SUM(CASE WHEN v.status = 'recharged' THEN 1 ELSE 0 END), 0) as total_recharged,
+            COALESCE(SUM(CASE WHEN v.status IN ('suspended','disabled') THEN 1 ELSE 0 END), 0) as total_suspended,
             COALESCE(SUM(CASE WHEN v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR acctstarttime >= ?)) THEN 1 ELSE 0 END), 0) as total_online
         FROM wisp_vouchers v
         WHERE {base_sql}
@@ -288,7 +388,8 @@ def active_card_users():
         'active': int(status_row.get('total_active') or 0),
         'online': int(status_row.get('total_online') or 0),
         'expired': int(status_row.get('total_expired') or 0),
-        'recharged': int(status_row.get('total_recharged') or 0)
+        'recharged': int(status_row.get('total_recharged') or 0),
+        'suspended': int(status_row.get('total_suspended') or 0)
     }
 
     where_clauses = list(base_where)
@@ -300,9 +401,11 @@ def active_card_users():
         where_clauses.append("v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR acctstarttime >= ?))")
         params.extend([cutoff_s, cutoff_s])
     elif status_filter == 'expired':
-        where_clauses.append("(v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled')")
+        where_clauses.append("(v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled', 'suspended')")
     elif status_filter == 'recharged':
-        where_clauses.append("v.status IN ('recharged', 'disabled')")
+        where_clauses.append("v.status = 'recharged'")
+    elif status_filter == 'suspended':
+        where_clauses.append("v.status IN ('suspended','disabled')")
     elif status_filter == 'all':
         # All statuses already in base_where
         pass
@@ -714,6 +817,8 @@ def edit_active_card_action(card_id):
         new_pkg_id = int(f.get('package_id', 1))
         bound_mac = f.get('bound_mac', '').strip()
         status = f.get('status', 'active')
+        if status == 'disabled':
+            status = 'suspended'
         expires_at = f.get('expires_at') or None
         admin_user = session.get('user', {}).get('username', 'admin')
 
@@ -795,6 +900,8 @@ def update_card_action():
         card_id = int(request.form['card_id'])
         mac = request.form.get('bound_mac', '').strip()
         status = request.form.get('status', 'active')
+        if status == 'disabled':
+            status = 'suspended'
         execute_write('UPDATE wisp_vouchers SET bound_mac = ?, status = ? WHERE id = ?', (mac, status, card_id))
         flash('تم تعديل بيانات الكرت بنجاح.', 'success')
     except Exception as e:

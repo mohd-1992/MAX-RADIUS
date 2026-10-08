@@ -720,6 +720,51 @@
             background-color: #ffe4e6 !important;
             color: #9f1239 !important;
         }
+        /* Disable Account button styling in light theme */
+        html.theme-light .action-dropdown-menu button[data-action="disable-account"],
+        html.theme-light .bulk-dropdown-menu button[data-action="disable-account"] {
+            color: #d97706 !important;
+        }
+        html.theme-light .action-dropdown-menu button[data-action="disable-account"]:hover,
+        html.theme-light .bulk-dropdown-menu button[data-action="disable-account"]:hover {
+            background-color: #fef3c7 !important;
+            color: #b45309 !important;
+        }
+        html.theme-light .action-dropdown-menu button[data-action="disable-account"] span.badge-pending,
+        html.theme-light .bulk-dropdown-menu button[data-action="disable-account"] span.badge-pending {
+            background-color: #fef3c7 !important;
+            color: #b45309 !important;
+            border-color: #fde68a !important;
+        }
+
+        /* Action Dropdown Menu Scrollbar and Smooth Overflow Handling */
+        .action-dropdown-menu {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+            overscroll-behavior: contain;
+        }
+        .action-dropdown-menu::-webkit-scrollbar {
+            width: 5px;
+        }
+        .action-dropdown-menu::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .action-dropdown-menu::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.3);
+            border-radius: 9999px;
+        }
+        .action-dropdown-menu::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+        html.theme-light .action-dropdown-menu {
+            scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+        }
+        html.theme-light .action-dropdown-menu::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.3);
+        }
+        html.theme-light .action-dropdown-menu::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
         html.theme-light input[type="checkbox"] {
             background-color: #ffffff !important;
             border-color: #94a3b8 !important;
@@ -2738,6 +2783,122 @@
         window.alert = function(msg) {
             window.showToast(msg, 'info', 'إشعار');
         };
+
+        // =========================================================================
+        // Unified In-UI Arabic Form Validation System (No Native English Balloons)
+        // =========================================================================
+        (function initGlobalFormValidation() {
+            function getFieldLabelText(field) {
+                // 1. Check aria-label or placeholder
+                if (field.getAttribute('aria-label')) return field.getAttribute('aria-label').trim();
+                // 2. Check closest label or label with for="id"
+                if (field.id) {
+                    const label = document.querySelector(`label[for="${field.id}"]`);
+                    if (label) {
+                        return label.textContent.replace(/[\*\:\(\)]/g, ' ').replace(/\s+/g, ' ').trim();
+                    }
+                }
+                const parentLabel = field.closest('label');
+                if (parentLabel) {
+                    return parentLabel.textContent.replace(/[\*\:\(\)]/g, ' ').replace(/\s+/g, ' ').trim();
+                }
+                const prevLabel = field.parentElement?.querySelector('label');
+                if (prevLabel) {
+                    return prevLabel.textContent.replace(/[\*\:\(\)]/g, ' ').replace(/\s+/g, ' ').trim();
+                }
+                return field.getAttribute('placeholder') || 'هذا الحقل';
+            }
+
+            function getArabicErrorMessage(field) {
+                const v = field.validity;
+                const val = field.value;
+                const label = getFieldLabelText(field);
+
+                if (v.valueMissing || (!val && field.required)) {
+                    if (field.tagName === 'SELECT') {
+                        return `يرجى اختيار قيمة من القائمة (${label}).`;
+                    }
+                    return `هذا الحقل إلزامي، يرجى ملء (${label}).`;
+                }
+
+                if (v.rangeOverflow) {
+                    const maxVal = field.getAttribute('max');
+                    const numFormatted = Number(maxVal).toLocaleString('ar-EG');
+                    return `القيمة المدخلة في (${label}) أكبر من الحد الأقصى المسموح به (${numFormatted}).`;
+                }
+
+                if (v.rangeUnderflow) {
+                    const minVal = field.getAttribute('min');
+                    const numFormatted = Number(minVal).toLocaleString('ar-EG');
+                    return `القيمة المدخلة في (${label}) أقل من الحد الأدنى المسموح به (${numFormatted}).`;
+                }
+
+                if (v.stepMismatch) {
+                    return `يرجى إدخال قيمة رقمية صحيحة في (${label}).`;
+                }
+
+                if (v.typeMismatch) {
+                    if (field.type === 'email') return 'يرجى إدخال بريد إلكتروني صالح (مثال: user@example.com).';
+                    if (field.type === 'url') return 'يرجى إدخال رابط إنترنت صالح يبدأ بـ http:// أو https://.';
+                    return `صيغة البيانات في (${label}) غير صحيحة.`;
+                }
+
+                if (v.patternMismatch) {
+                    return `البيانات المدخلة في (${label}) لا تتطابق مع التنسيق المطلوب.`;
+                }
+
+                if (v.tooShort) {
+                    const minLen = field.getAttribute('minlength');
+                    return `النص قصير جداً، يجب ألا يقل عن ${minLen} أحرف.`;
+                }
+
+                if (v.tooLong) {
+                    const maxLen = field.getAttribute('maxlength');
+                    return `النص طويل جداً، يجب ألا يتجاوز ${maxLen} أحرف.`;
+                }
+
+                if (v.badInput) {
+                    return `يرجى إدخال قيمة صحيحة في (${label}).`;
+                }
+
+                return `يرجى التحقق من صحة القيمة المدخلة في (${label}).`;
+            }
+
+            // Prevent native browser validation balloons and trigger in-UI Arabic alerts directly on invalid event
+            let lastInvalidNoticeTime = 0;
+            document.addEventListener('invalid', function(e) {
+                // Prevent native browser balloon
+                e.preventDefault();
+
+                const field = e.target;
+                if (!field) return;
+
+                const now = Date.now();
+                // Prevent spamming multiple toasts when a form has 5+ required fields, notify on the first invalid field
+                if (now - lastInvalidNoticeTime > 400) {
+                    lastInvalidNoticeTime = now;
+                    const message = getArabicErrorMessage(field);
+
+                    if (window.toast && typeof window.toast.warning === 'function') {
+                        window.toast.warning(message, 'يرجى استكمال البيانات');
+                    } else if (typeof window.showToast === 'function') {
+                        window.showToast(message, 'warning', 'يرجى استكمال البيانات');
+                    }
+                }
+
+                // Visual highlight on field
+                field.classList.add('ring-2', 'ring-rose-500', 'border-rose-500');
+                field.focus();
+
+                const removeHighlight = function() {
+                    field.classList.remove('ring-2', 'ring-rose-500', 'border-rose-500');
+                    field.removeEventListener('input', removeHighlight);
+                    field.removeEventListener('change', removeHighlight);
+                };
+                field.addEventListener('input', removeHighlight);
+                field.addEventListener('change', removeHighlight);
+            }, true);
+        })();
     })();
     </script>
 </body>

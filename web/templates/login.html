@@ -294,6 +294,55 @@
             const isLight = document.documentElement.classList.contains('theme-light');
             updateThemeControls(isLight);
         });
+
+        // ==============================================================
+        // In-UI Arabic Form Validation for Login (No English Balloons)
+        // ==============================================================
+        (function() {
+            let lastInvalidTime = 0;
+            document.addEventListener('invalid', function(e) {
+                // Prevent native browser balloon
+                e.preventDefault();
+
+                const invalidEl = e.target;
+                if (!invalidEl) return;
+
+                const form = invalidEl.closest('form');
+                if (!form) return;
+
+                const now = Date.now();
+                if (now - lastInvalidTime > 300) {
+                    lastInvalidTime = now;
+
+                    let msg = 'يرجى إكمال البيانات المطلوبة.';
+                    if (invalidEl.name === 'username') msg = 'يرجى إدخال اسم المستخدم أو الحساب.';
+                    else if (invalidEl.name === 'password') msg = 'يرجى إدخال كلمة المرور.';
+
+                    let alertBox = document.getElementById('loginValidationError');
+                    if (!alertBox) {
+                        alertBox = document.createElement('div');
+                        alertBox.id = 'loginValidationError';
+                        alertBox.className = 'p-3.5 mb-4 rounded-2xl border text-xs font-semibold flex items-center gap-2.5 shadow-sm bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/50 dark:border-rose-500/40 dark:text-rose-300 transition-all';
+                        form.parentNode.insertBefore(alertBox, form);
+                    }
+                    alertBox.innerHTML = `
+                        <i class="fa-solid fa-triangle-exclamation text-rose-500 text-base shrink-0"></i>
+                        <span>${msg}</span>
+                    `;
+                }
+
+                invalidEl.classList.add('ring-2', 'ring-rose-500', 'border-rose-500');
+                invalidEl.focus();
+
+                const clearErr = function() {
+                    invalidEl.classList.remove('ring-2', 'ring-rose-500', 'border-rose-500');
+                    const alertBox = document.getElementById('loginValidationError');
+                    if (alertBox) alertBox.remove();
+                    invalidEl.removeEventListener('input', clearErr);
+                };
+                invalidEl.addEventListener('input', clearErr);
+            }, true);
+        })();
     </script>
 </body>
 </html>

@@ -159,10 +159,15 @@
                 <button type="submit" name="status" value="recharged" 
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'recharged' %}bg-amber-600 text-white shadow-md shadow-amber-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                    <span>مشحون / معطل</span>
+                    <span>مشحون</span>
                     <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'recharged' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
                         {{ status_counts.recharged if status_counts else 0 }}
                     </span>
+                </button>
+
+                <button type="submit" name="status" value="suspended" class="sales-pill-inactive px-3.5 py-1.5 rounded-xl text-xs font-bold border border-[#1c2840] {% if status == 'suspended' %}bg-amber-600 text-white{% else %}bg-[#11192b] text-slate-300{% endif %}">
+                    <i class="fa-solid fa-user-slash"></i> موقوف
+                    <span class="font-mono">{{ status_counts.suspended or 0 }}</span>
                 </button>
 
                 <!-- 5. All (Blue) -->
@@ -385,6 +390,19 @@
                                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
                                         <span>تمديد الصلاحية (Extend Time)</span>
                                     </button>
+                                    <button type="button" 
+                                            data-action="disable-account" 
+                                            data-id="{{ c.id }}" 
+                                            data-type="card" 
+                                            data-username="{{ c.username }}" 
+                                            onclick="disableAccount(event, this)" 
+                                            class="w-full text-right px-3.5 py-2 text-amber-400 hover:bg-amber-500/10 flex items-center justify-between gap-2 transition cursor-pointer group" 
+                                            title="إيقاف الحساب مع حفظ الرصيد والصلاحية">
+                                        <div class="flex items-center gap-2.5">
+                                            <i class="fa-solid fa-user-slash text-amber-400 w-4 text-center group-hover:scale-110 transition-transform"></i>
+                                            <span>إيقاف الحساب (Disable)</span>
+                                        </div>
+                                    </button>
                                     <button onclick="confirmTerminate('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
                                         <span>إنهاء الاشتراك (Terminate)</span>
@@ -443,7 +461,9 @@
 
                         <!-- 3. الأيام المتبقية والحالة -->
                         <td class="py-3.5 px-4 text-center col-days whitespace-nowrap min-w-[110px]">
-                            {% if c.status in ('recharged', 'disabled') %}
+                            {% if c.status in ('suspended', 'disabled') %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30" title="{{ c.pause_reason or 'موقوف؛ الرصيد والصلاحية محفوظان' }}">موقوف</span>
+                            {% elif c.status == 'recharged' %}
                                 <div>
                                     <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm" title="{{ c.expire_reason or 'تم استهلاك الكرت في الشحن' }}">
                                         <i class="fa-solid fa-bolt text-amber-400 ml-1.5 text-[11px]"></i>مشحون
@@ -479,7 +499,7 @@
                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1.5 animate-pulse"></span>متصل الآن
                                 </span>
-                            {% elif c.status in ('recharged', 'disabled') and c.first_used_at_str != '-' %}
+                            {% elif c.status in ('recharged', 'suspended', 'disabled') and c.first_used_at_str != '-' %}
                                 <span class="font-mono text-amber-300/90 text-xs inline-flex items-center gap-1.5" title="تاريخ ووقت عملية الشحن">
                                     <i class="fa-solid fa-receipt text-amber-400 text-[11px]"></i>
                                     {{ c.first_used_at_str }}
@@ -1124,32 +1144,102 @@
         applyColumnVisibility();
     });
 
+    // Global tracking of active action dropdown
+    let activeActionDropdown = null;
+
     // Global helper to close all action dropdown menus
     function closeAllActionDropdowns() {
-        document.querySelectorAll('.action-dropdown-menu').forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll('.action-dropdown-menu').forEach(m => {
+            m.classList.add('hidden');
+            m.style.visibility = 'visible';
+        });
+        activeActionDropdown = null;
         const bulkMenu = document.getElementById('bulkDropdownMenu');
         const chevron = document.getElementById('bulkChevron');
         if (bulkMenu) bulkMenu.classList.add('hidden');
         if (chevron) chevron.style.transform = 'rotate(0deg)';
     }
 
-    // Dynamic Dropdown Menu Positioner (Single Row)
+    // Dynamic Viewport-Aware Dropdown Positioner (Boundary safe, upward/downward flip, scroll-tethered)
+    function positionActionDropdown(menu, btn) {
+        if (!menu || !btn) return;
+        const rect = btn.getBoundingClientRect();
+        const width = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+        const height = window.innerHeight;
+        const margin = 8;
+        if (rect.bottom <= 0 || rect.top >= height || rect.right <= 0 || rect.left >= width) {
+            closeAllActionDropdowns(); return;
+        }
+        for (let parent = btn.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+            const style = getComputedStyle(parent), bounds = parent.getBoundingClientRect();
+            if ((/(auto|scroll|hidden|clip)/.test(style.overflowX) && (rect.right <= bounds.left || rect.left >= bounds.right)) ||
+                (/(auto|scroll|hidden|clip)/.test(style.overflowY) && (rect.bottom <= bounds.top || rect.top >= bounds.bottom))) {
+                closeAllActionDropdowns(); return;
+            }
+        }
+        // Escape clipping and transformed containing blocks of the table.
+        if (menu.parentElement !== document.body) document.body.appendChild(menu);
+        menu.style.visibility = 'hidden';
+        menu.classList.remove('hidden');
+        menu.style.maxWidth = Math.max(1, width - margin * 2) + 'px';
+        menu.style.maxHeight = '';
+        menu.style.overflowY = 'visible';
+        const below = Math.max(0, height - rect.bottom - margin - 4);
+        const above = Math.max(0, rect.top - margin - 4);
+        const up = menu.offsetHeight > below && above > below;
+        menu.style.maxHeight = Math.max(1, Math.min(up ? above : below, height - margin * 2)) + 'px';
+        menu.style.overflowY = 'auto';
+        const top = up ? rect.top - menu.offsetHeight - 4 : rect.bottom + 4;
+        menu.style.top = Math.max(margin, Math.min(top, height - margin - menu.offsetHeight)) + 'px';
+        menu.style.right = Math.max(margin, Math.min(width - rect.right, width - margin - menu.offsetWidth)) + 'px';
+        menu.style.left = 'auto'; menu.style.bottom = 'auto';
+        menu.style.visibility = 'visible';
+    }
+
+    // Toggle Action Dropdown (Single Row)
     function toggleActionDropdown(e, menuId) {
-        e.stopPropagation();
+        if (e) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
         const btn = e.currentTarget;
         const menu = document.getElementById(menuId);
         if (!menu) return;
-        
-        const isHidden = menu.classList.contains('hidden');
+
+        const isCurrentlyOpen = activeActionDropdown && activeActionDropdown.menu === menu && !menu.classList.contains('hidden');
         closeAllActionDropdowns();
-        
-        if (isHidden) {
-            menu.classList.remove('hidden');
-            const rect = btn.getBoundingClientRect();
-            menu.style.top = (rect.bottom + 6) + 'px';
-            menu.style.right = (window.innerWidth - rect.right) + 'px';
+
+        if (!isCurrentlyOpen) {
+            activeActionDropdown = { menu: menu, btn: btn };
+            positionActionDropdown(menu, btn);
         }
     }
+
+    // Reposition active dropdown during page or table container scrolling to keep it tethered
+    function handleActionDropdownScroll(e) {
+        if (!activeActionDropdown) return;
+        // Do not reposition if scrolling inside the dropdown itself
+        if (e && e.target && (e.target === activeActionDropdown.menu || activeActionDropdown.menu.contains(e.target))) {
+            return;
+        }
+        const { menu, btn } = activeActionDropdown;
+        if (!menu || !btn || menu.classList.contains('hidden')) {
+            activeActionDropdown = null;
+            return;
+        }
+        positionActionDropdown(menu, btn);
+    }
+
+    // Passive capture scroll listener to detect window scroll as well as table horizontal/vertical scrolling
+    document.addEventListener('scroll', handleActionDropdownScroll, { capture: true, passive: true });
+    window.addEventListener('resize', handleActionDropdownScroll, { passive: true });
+
+    // Keyboard support: Escape closes any open dropdown
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            closeAllActionDropdowns();
+        }
+    });
 
     // Toggle Bulk Actions Floating Dropdown
     function toggleBulkDropdown(e) {
@@ -1167,9 +1257,15 @@
         }
     }
 
+    // Close on click outside (but not when clicking inside active menu)
     document.addEventListener('click', (e) => {
+        if (activeActionDropdown && activeActionDropdown.menu && activeActionDropdown.menu.contains(e.target)) {
+            return;
+        }
         closeAllActionDropdowns();
     });
+
+    {% include '_account_disable_script.html' %}
 
     // ==============================================================
     // Bulk Selection Helpers

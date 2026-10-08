@@ -14,7 +14,7 @@ Single Source of Truth for:
 
 import datetime
 from core.time_service import get_db_storage_now
-from database.db import query_one, query_all, execute_write, get_connection, adapt_query
+from database.db import query_one, query_all, execute_write, get_connection, adapt_query, is_mysql_conn
 
 GIGAWORD_MULTIPLIER = 4294967296  # 2^32 bytes (RFC 2869 / RFC 5176)
 BYTES_PER_MB = 1048576             # 1024 * 1024
@@ -23,10 +23,13 @@ class AccountingReadError(Exception):
     """Raised when accounting records or session baselines cannot be queried from the database."""
     pass
 
+class IncompleteCycleAccountingError(AccountingReadError):
+    """Lifetime counters exist but the previous cycle boundary cannot be reconstructed."""
+
 def record_session_baselines(username, renewed_at=None, conn=None):
     """
     Snapshots counters for open sessions and recoverable inactivity-cleanup sessions
-    at cycle renewal. Genuine Stops and confirmed administrative disconnects are excluded.
+    at cycle renewal. Closed sessions at the same-second boundary also need a baseline.
     This guarantees that sessions that span across renewals will NOT charge
     pre-renewal traffic to the new cycle, nor lose post-renewal traffic.
     Retains prior renewal baselines for cycle tracking and extended sessions.
@@ -60,14 +63,14 @@ def record_session_baselines(username, renewed_at=None, conn=None):
                     COALESCE(acctsessiontime, 0) as baseline_seconds,
                     %s as renewed_at
                 FROM radacct
-                WHERE LOWER(username) = LOWER(%s) AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed'))
+                WHERE username = %s AND (acctstoptime IS NULL OR acctstarttime >= %s OR acctstoptime >= %s OR acctterminatecause IN ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed'))
                 ON DUPLICATE KEY UPDATE
                     baseline_input_bytes = VALUES(baseline_input_bytes),
                     baseline_output_bytes = VALUES(baseline_output_bytes),
                     baseline_bytes = VALUES(baseline_bytes),
                     baseline_seconds = VALUES(baseline_seconds)
             """
-            cur.execute(ins_q, (renewed_dt, username))
+            cur.execute(ins_q, (renewed_dt, username, renewed_dt, renewed_dt))
         else:
             ins_q = adapt_query("""
                 INSERT OR REPLACE INTO wisp_session_baselines 
@@ -81,9 +84,9 @@ def record_session_baselines(username, renewed_at=None, conn=None):
                     COALESCE(acctsessiontime, 0) as baseline_seconds,
                     ? as renewed_at
                 FROM radacct
-                WHERE LOWER(username) = LOWER(?) AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed'))
+                WHERE LOWER(username) = LOWER(?) AND (acctstoptime IS NULL OR acctstarttime >= ? OR acctstoptime >= ? OR acctterminatecause IN ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed'))
             """, conn)
-            cur.execute(ins_q, (renewed_dt, username))
+            cur.execute(ins_q, (renewed_dt, username, renewed_dt, renewed_dt))
 
         if close_conn and hasattr(conn, 'commit'):
             conn.commit()
@@ -101,7 +104,7 @@ def record_session_baselines(username, renewed_at=None, conn=None):
             conn.close()
 
 
-def get_accounting_totals(username, since_timestamp=None, conn=None):
+def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_update=False):
     """
     Calculates exact upload, download, total bytes and uptime seconds from radacct.
     When since_timestamp is provided, uses cycle baselines to calculate net traffic
@@ -123,6 +126,16 @@ def get_accounting_totals(username, since_timestamp=None, conn=None):
     try:
         cur = conn.cursor()
         if since_timestamp:
+            # A pre-existing late session can cross an old cycle without a baseline.
+            # Stop gives its lifetime counters, not the missing counters at that boundary.
+            check_sql = adapt_query("""SELECT a.radacctid FROM radacct a
+                LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at=?
+                WHERE a.username=? AND a.acctstarttime<?
+                AND (a.acctstoptime IS NULL OR a.acctstoptime>?)
+                AND b.radacctid IS NULL LIMIT 1""", conn)
+            cur.execute(check_sql, (str(since_timestamp), username, str(since_timestamp), str(since_timestamp)))
+            if cur.fetchone():
+                raise IncompleteCycleAccountingError('توجد جلسة تعبر حدود الدورة دون خط أساس؛ يلزم تسوية المحاسبة قبل حساب المتبقي أو الترحيل.')
             sql = adapt_query("""
                 SELECT 
                     COUNT(DISTINCT a.acctsessionid) as sessions_count,
@@ -166,9 +179,14 @@ def get_accounting_totals(username, since_timestamp=None, conn=None):
                 LEFT JOIN wisp_session_baselines b 
                        ON a.radacctid = b.radacctid 
                       AND b.renewed_at = ?
-                WHERE LOWER(a.username) = LOWER(?)
+                WHERE a.username = ?
                   AND (a.acctstarttime >= ? OR b.radacctid IS NOT NULL)
             """, conn)
+            if not is_mysql_conn(conn):
+                sql = sql.replace('WHERE a.username = ?', 'WHERE LOWER(a.username) = LOWER(?)')
+            if lock_for_update and not close_conn:
+                if is_mysql_conn(conn):
+                    sql += ' FOR UPDATE'
             cur.execute(sql, (str(since_timestamp), str(since_timestamp), str(since_timestamp), str(since_timestamp), str(since_timestamp), username, str(since_timestamp)))
         else:
             sql = adapt_query("""
@@ -179,8 +197,13 @@ def get_accounting_totals(username, since_timestamp=None, conn=None):
                     COALESCE(SUM(COALESCE(a.acctinputoctets, 0) + COALESCE(a.acctoutputoctets, 0)), 0) as total_bytes,
                     COALESCE(SUM(COALESCE(a.acctsessiontime, 0)), 0) as uptime_secs
                 FROM radacct a
-                WHERE LOWER(a.username) = LOWER(?)
+                WHERE a.username = ?
             """, conn)
+            if not is_mysql_conn(conn):
+                sql = sql.replace('WHERE a.username = ?', 'WHERE LOWER(a.username) = LOWER(?)')
+            if lock_for_update and not close_conn:
+                if is_mysql_conn(conn):
+                    sql += ' FOR UPDATE'
             cur.execute(sql, (username,))
 
         row = cur.fetchone()
@@ -207,6 +230,8 @@ def get_accounting_totals(username, since_timestamp=None, conn=None):
             'uptime_secs': upt,
             'sessions_count': cnt
         }
+    except AccountingReadError:
+        raise
     except Exception as e:
         print(f"[Accounting Error] Error calculating totals for {username}: {e}")
         raise AccountingReadError(f"Failed to calculate accounting totals for {username}: {e}") from e
@@ -262,9 +287,16 @@ def calculate_cycle_usage_and_rollover(entity, package, is_rollover_enabled=Fals
     cycle_start = entity.get('last_renewed_at') or entity.get('first_used_at') or entity.get('created_at')
     username = entity['username']
     
-    usage = get_accounting_totals(username, since_timestamp=cycle_start, conn=conn)
+    try:
+        usage = get_accounting_totals(username, since_timestamp=cycle_start, conn=conn, lock_for_update=True)
+    except IncompleteCycleAccountingError:
+        if is_rollover_enabled and not is_unlimited_quota:
+            raise
+        # A fresh paid cycle without data rollover does not require the lost old split.
+        # Keep unknown consumption distinct from zero in the returned diagnostic fields.
+        usage = {'total_bytes': None, 'uptime_secs': None}
     used_bytes = usage['total_bytes']
-    used_mb = round(used_bytes / BYTES_PER_MB, 2)
+    used_mb = round(used_bytes / BYTES_PER_MB, 2) if used_bytes is not None else None
     used_uptime_secs = usage['uptime_secs']
 
     # 3. Rollover Data Calculation

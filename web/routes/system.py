@@ -102,6 +102,23 @@ def api_terminate():
     return jsonify({'success': success, 'message': msg})
 
 
+@system_bp.route('/api/actions/disable', methods=['POST'])
+@login_required
+def api_disable_account():
+    data = request.get_json(silent=True) if request.is_json else request.form
+    data = data or {}
+    kind = {'subscriber': 'subscriber', 'card': 'voucher', 'voucher': 'voucher'}.get(data.get('target_type'))
+    target_id = str(data.get('target_id') or '')
+    if not kind or not target_id.isascii() or not target_id.isdigit() or int(target_id) <= 0:
+        return jsonify(success=False, message='حدد نوع الحساب ورقمه الصحيح'), 400
+    permission = 'subscribers.edit' if kind == 'subscriber' else 'vouchers.actions'
+    manager = get_current_manager()
+    if not has_permission(permission, manager):
+        return jsonify(success=False, message='لا تملك صلاحية تعطيل هذا الحساب'), 403
+    success, message = action_disable_account(kind, int(target_id), admin_username=manager.get('username') or 'admin')
+    return jsonify(success=success, message=message)
+
+
 @system_bp.route('/api/actions/renew', methods=['POST'], endpoint="api_renew")
 
 def api_renew():
@@ -817,35 +834,54 @@ def api_clear_resolved_alerts():
     return jsonify({'success': success, 'message': msg})
 
 
+def _autoheal_input_guard(func):
+    from functools import wraps
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': 'قيم الطلب غير صحيحة'}), 400
+    return wrapped
+
 @system_bp.route('/tools/autoheal', endpoint="autoheal_page")
 @login_required
 @require_feature('autoheal')
+@require_permission('settings_manage')
 def autoheal_page():
     from services.autoheal_service import get_autoheal_dashboard_full
-    data = get_autoheal_dashboard_full()
+    data = get_autoheal_dashboard_full(alert_filter=request.args.get('alert_state'))
     return render_template('autoheal.html', data=data)
 
 
 @system_bp.route('/api/tools/autoheal/status', endpoint="api_autoheal_status")
 @login_required
 @require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_status():
     from services.autoheal_service import get_autoheal_dashboard_full
-    data = get_autoheal_dashboard_full()
+    data = get_autoheal_dashboard_full(alert_filter=request.args.get('alert_state'))
     return jsonify({'success': True, 'data': data})
 
 
 @system_bp.route('/api/tools/autoheal/diagnostic', methods=['POST'], endpoint="api_autoheal_diagnostic")
-
+@login_required
+@require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_diagnostic():
     from services.autoheal_service import run_deep_system_diagnostic
     diagnostic = run_deep_system_diagnostic()
-    log_audit(1, 'admin', 'AUTOHEAL_DIAGNOSTIC_RUN', 'tools', f'Deep diagnostic ran. Health score: {diagnostic.get("score")}%')
+    log_audit((get_current_manager() or {}).get('id'), (get_current_manager() or {}).get('username'), 'AUTOHEAL_DIAGNOSTIC_RUN', 'tools', f'Deep diagnostic ran. Health score: {diagnostic.get("score")}%')
     return jsonify({'success': True, 'diagnostic': diagnostic})
 
 
 @system_bp.route('/api/tools/autoheal/probe-ports', methods=['POST'], endpoint="api_autoheal_probe_ports")
-
+@login_required
+@require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_probe_ports():
     from services.autoheal_service import probe_all_network_ports
     ports = probe_all_network_ports()
@@ -853,51 +889,68 @@ def api_autoheal_probe_ports():
 
 
 @system_bp.route('/api/tools/autoheal/restart', methods=['POST'], endpoint="api_autoheal_restart")
-
+@login_required
+@require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_restart():
     req_data = request.json if request.is_json else request.form.to_dict()
     container_name = req_data.get('container', '').strip()
     from services.autoheal_service import restart_system_container
     success, msg = restart_system_container(container_name)
     if success:
-        log_audit(1, 'admin', 'CONTAINER_RESTART', 'tools', f'Restarted container: {container_name}')
+        log_audit((get_current_manager() or {}).get('id'), (get_current_manager() or {}).get('username'), 'CONTAINER_RESTART', 'tools', f'Restarted container: {container_name}')
     return jsonify({'success': success, 'message': msg})
 
 
 @system_bp.route('/api/tools/autoheal/logs', endpoint="api_autoheal_logs")
-
+@login_required
+@require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_logs():
     container_name = request.args.get('container', 'max_radius_autoheal').strip()
     lines = int(request.args.get('lines', 80))
     from services.autoheal_service import get_live_container_logs
     logs = get_live_container_logs(container_name, lines=lines)
-    return jsonify({'success': True, 'logs': logs})
+    return jsonify({'success': not logs.startswith('تعذر استخراج السجلات:'), 'logs': logs, 'message': logs if logs.startswith('تعذر استخراج السجلات:') else ''})
 
 
 @system_bp.route('/api/tools/autoheal/purge-zombies', methods=['POST'], endpoint="api_autoheal_purge_zombies")
+@login_required
+@require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_purge_zombies():
     req_data = request.json if request.is_json else request.form.to_dict()
     timeout = int(req_data.get('timeout_minutes', 15))
     from services.autoheal_service import purge_stale_zombie_sessions
     success, msg = purge_stale_zombie_sessions(timeout_minutes=timeout)
     if success:
-        log_audit(1, 'admin', 'ZOMBIE_PURGE', 'tools', f'Purged stale sessions older than {timeout}m')
+        log_audit((get_current_manager() or {}).get('id'), (get_current_manager() or {}).get('username'), 'ZOMBIE_PURGE', 'tools', f'Purged stale sessions older than {timeout}m')
     return jsonify({'success': success, 'message': msg})
 
 
 @system_bp.route('/api/tools/autoheal/save-settings', methods=['POST'], endpoint="api_autoheal_save_settings")
+@login_required
+@require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_save_settings():
     req_data = request.json if request.is_json else request.form.to_dict()
     timeout = int(req_data.get('timeout_minutes', 15))
     from services.autoheal_service import set_zombie_session_timeout
     success, msg = set_zombie_session_timeout(timeout)
     if success:
-        log_audit(1, 'admin', 'AUTOHEAL_SETTINGS_UPDATE', 'tools', f'Updated zombie timeout to {timeout}m')
+        log_audit((get_current_manager() or {}).get('id'), (get_current_manager() or {}).get('username'), 'AUTOHEAL_SETTINGS_UPDATE', 'tools', f'Updated zombie timeout to {timeout}m')
     return jsonify({'success': success, 'message': msg})
 
 
 @system_bp.route('/api/tools/autoheal/alerts/resolve', methods=['POST'], endpoint="api_autoheal_resolve_alert")
-
+@login_required
+@require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_resolve_alert():
     req_data = request.json if request.is_json else request.form.to_dict()
     alert_id = int(req_data.get('alert_id', 0))
@@ -907,7 +960,10 @@ def api_autoheal_resolve_alert():
 
 
 @system_bp.route('/api/tools/autoheal/alerts/clear-resolved', methods=['POST'], endpoint="api_autoheal_clear_resolved_alerts")
-
+@login_required
+@require_feature('autoheal')
+@require_permission('settings_manage')
+@_autoheal_input_guard
 def api_autoheal_clear_resolved_alerts():
     from core.watchdog import clear_all_resolved_alerts
     success, msg = clear_all_resolved_alerts()
@@ -1720,5 +1776,4 @@ def api_system_update_apply():
 def api_system_update_progress():
     res = get_update_progress()
     return jsonify(res)
-
 

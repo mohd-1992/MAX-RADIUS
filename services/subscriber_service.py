@@ -117,8 +117,8 @@ def get_subscriber_status_counts(search=None, service_type=None, package_id=None
             SELECT 
                 COUNT(*) as count_all,
                 SUM(CASE WHEN s.status = 'active' AND (s.expires_at IS NULL OR s.expires_at > CURRENT_TIMESTAMP) THEN 1 ELSE 0 END) as count_active,
-                SUM(CASE WHEN s.status = 'expired' OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP) THEN 1 ELSE 0 END) as count_expired,
-                SUM(CASE WHEN s.status = 'suspended' THEN 1 ELSE 0 END) as count_suspended
+                SUM(CASE WHEN s.status NOT IN ('suspended','disabled') AND (s.status = 'expired' OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP)) THEN 1 ELSE 0 END) as count_expired,
+                SUM(CASE WHEN s.status IN ('suspended','disabled') THEN 1 ELSE 0 END) as count_suspended
             FROM wisp_subscribers s
             {base_where}
         '''
@@ -191,11 +191,10 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
         )'''
         params.extend([cutoff_str, cutoff_str])
     elif status == 'expired':
-        query += ' AND (s.status = ? OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP))'
+        query += " AND s.status NOT IN ('suspended','disabled') AND (s.status = ? OR (s.expires_at IS NOT NULL AND s.expires_at <= CURRENT_TIMESTAMP))"
         params.append('expired')
-    elif status == 'suspended':
-        query += ' AND s.status = ?'
-        params.append('suspended')
+    elif status in ('suspended', 'disabled'):
+        query += " AND s.status IN ('suspended','disabled')"
     elif status in (None, '', 'all'):
         pass
     else:
@@ -394,6 +393,9 @@ def create_subscriber(data, admin_username='admin'):
     if lic_st.get('status') == 'revoked':
         raise ValueError("الترخيص محظور من قِبل المطور. لا يمكن إضافة مشتركين جدد.")
 
+    username = str(data.get('username') or '').strip()
+    if query_one('SELECT id FROM wisp_vouchers WHERE username=?', (username,)):
+        raise ValueError('اسم المستخدم مستخدم بالفعل لكرت؛ اختر اسمًا مختلفًا.')
     exp_iso = data.get('expires_at') or None
     validity_mode = data.get('validity_mode', 'package')
     
@@ -407,9 +409,14 @@ def create_subscriber(data, admin_username='admin'):
         pkg = query_one('SELECT validity_value, validity_unit, validity_days FROM wisp_packages WHERE id = ?', (int(data['package_id']),))
         if pkg:
             now_dt = get_db_storage_now().replace(tzinfo=None)
-            val = int(pkg.get('validity_value') or pkg.get('validity_days') or 30)
+            raw_val = pkg.get('validity_value')
+            if raw_val is None:
+                raw_val = pkg.get('validity_days')
+            val = int(raw_val if raw_val is not None else 30)
             unit = (pkg.get('validity_unit') or 'days').lower()
-            if unit == 'minutes':
+            if val <= 0:
+                exp_dt = None
+            elif unit == 'minutes':
                 exp_dt = now_dt + datetime.timedelta(minutes=val)
             elif unit == 'hours':
                 exp_dt = now_dt + datetime.timedelta(hours=val)
@@ -417,7 +424,7 @@ def create_subscriber(data, admin_username='admin'):
                 exp_dt = now_dt + datetime.timedelta(days=val * 30)
             else:
                 exp_dt = now_dt + datetime.timedelta(days=val)
-            exp_iso = exp_dt.strftime('%Y-%m-%d %H:%M:%S')
+            exp_iso = exp_dt.strftime('%Y-%m-%d %H:%M:%S') if exp_dt else None
 
     initial_balance = float(data.get('balance') or 0.0)
     extra_quota = int(data.get('extra_quota_mb') or 0)
@@ -441,7 +448,7 @@ def create_subscriber(data, admin_username='admin'):
         int(data['package_id']),
         data.get('mac_binding', '').strip(),
         data.get('static_ip', '').strip(),
-        data.get('status', 'active'),
+        'suspended' if data.get('status') == 'disabled' else data.get('status', 'active'),
         initial_balance,
         extra_quota,
         exp_iso,
@@ -472,6 +479,8 @@ def update_subscriber(sub_id, data, admin_username='admin'):
     new_mac = data.get('mac_binding', '').strip()
     new_ip = data.get('static_ip', '').strip()
     new_status = data.get('status', 'active')
+    if new_status == 'disabled':
+        new_status = 'suspended'
     new_expires_at = data.get('expires_at') or None
     new_notes = data.get('notes', '')
 
