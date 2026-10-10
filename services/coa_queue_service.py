@@ -16,6 +16,7 @@ import time
 import queue
 import threading
 import datetime
+from contextlib import contextmanager
 from collections import deque
 
 from core.coa import RadiusCoaClient
@@ -129,12 +130,11 @@ def _select_nas_session(inventory, session_id, framed_ip, mac_address):
     return matches
 
 
-def _counter_verified_disconnect(username, radacctid, nas_ip, session_id, framed_ip, mac_address):
-    """Serialize with renewal, block fresh logins, then seal only the target."""
+@contextmanager
+def _disconnect_account_guard(username):
+    """Keep the existing login barrier for the entire account operation."""
     import hashlib,uuid
     from database.db import get_connection
-    from services.online_policy_service import checkpoint
-    from services.nas_session_settlement import freeze_and_disconnect
     conn=get_connection();token=uuid.uuid4().hex
     lock='max-cycle:'+hashlib.sha256(username.casefold().encode()).hexdigest()[:48]
     locked=False;guarded=False
@@ -146,8 +146,25 @@ def _counter_verified_disconnect(username, radacctid, nas_ip, session_id, framed
             cur.execute('UPDATE wisp_license_runtime_state SET id=id WHERE id=1')
             cur.execute('INSERT INTO wisp_renewal_guards(username,token,expires_at) VALUES(%s,%s,NOW()+INTERVAL 5 MINUTE) ON DUPLICATE KEY UPDATE token=VALUES(token),expires_at=VALUES(expires_at)',(username,token))
         conn.commit();guarded=True
-        if query_one('SELECT 1 AS pending FROM wisp_session_reservations WHERE username=%s AND radacctid IS NULL AND expires_at>NOW() LIMIT 1',(username,)):
-            raise RuntimeError('Accounting-Start still pending')
+        deadline=time.monotonic()+12
+        while query_one('SELECT 1 AS pending FROM wisp_session_reservations WHERE username=%s AND radacctid IS NULL AND expires_at>NOW() LIMIT 1',(username,)):
+            if time.monotonic()>=deadline:raise RuntimeError('Accounting-Start still pending')
+            time.sleep(.15)
+        yield
+    finally:
+        try:
+            with conn.cursor() as cur:
+                if guarded:cur.execute('DELETE FROM wisp_renewal_guards WHERE username=%s AND token=%s',(username,token))
+                if locked:cur.execute('SELECT RELEASE_LOCK(%s)',(lock,))
+            conn.commit()
+        finally:conn.close()
+
+
+def _counter_verified_disconnect(username, radacctid, nas_ip, session_id, framed_ip, mac_address):
+    """Serialize with renewal, block fresh logins, then seal only the target."""
+    from services.online_policy_service import checkpoint
+    from services.nas_session_settlement import freeze_and_disconnect
+    with _disconnect_account_guard(username):
         snapshot=checkpoint(username)
         target={rid:row for rid,row in snapshot.items() if (radacctid is None or int(rid)==int(radacctid))
             and row['row']['nasipaddress']==nas_ip
@@ -157,13 +174,27 @@ def _counter_verified_disconnect(username, radacctid, nas_ip, session_id, framed
         if len(target)!=1:raise RuntimeError('No unique accounting target for final counters')
         freeze_and_disconnect(target,include_ppp=True)
         if target:raise RuntimeError('Target settlement incomplete')
-    finally:
-        try:
-            with conn.cursor() as cur:
-                if guarded:cur.execute('DELETE FROM wisp_renewal_guards WHERE username=%s AND token=%s',(username,token))
-                if locked:cur.execute('SELECT RELEASE_LOCK(%s)',(lock,))
-            conn.commit()
-        finally:conn.close()
+
+
+def _disconnect_account_sessions(username, nas_ip=None):
+    """One guard and one snapshot for all target generations, with one retry."""
+    from services.online_policy_service import checkpoint
+    from services.nas_session_settlement import freeze_and_disconnect
+    from services.renewal_settlement_service import SettlementPending
+    with _disconnect_account_guard(username):
+        for attempt in range(2):
+            try:
+                snapshot=checkpoint(username)
+                target={rid:s for rid,s in snapshot.items() if not nas_ip or s['row']['nasipaddress']==nas_ip}
+                ids=list(target)
+                freeze_and_disconnect(target,include_ppp=True)
+                if target:raise RuntimeError('Account settlement incomplete')
+                return {'success':True,'status':'nas_confirmed_disconnected',
+                        'target_sessions':len(ids),'accounting_final':True,
+                        'message':'تأكد فصل جميع الجلسات المستهدفة وتسوية محاسبتها.'}
+            except SettlementPending:
+                if attempt:raise
+                time.sleep(.2)
 
 
 def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None, require_accounting_stop=False):
@@ -271,25 +302,7 @@ def _process_coa_task(task):
                 active_sessions = query_all(session_sql, params)
 
                 if active_sessions:
-                    last_res = None
-                    all_success = True
-                    for sess in active_sessions:
-                        s_res = _disconnect_single_session(
-                            username=username,
-                            nas_ip=sess.get('nasipaddress'),
-                            session_id=sess.get('acctsessionid'),
-                            framed_ip=sess.get('framedipaddress'),
-                            mac_address=sess.get('callingstationid'),
-                            radacctid=sess.get('radacctid'),
-                            require_accounting_stop=bool(task.get('require_accounting_stop'))
-                        )
-                        all_success = all_success and bool(s_res.get('success'))
-                        last_res = s_res
-                    res = last_res or {'success': False, 'status': 'no_sessions', 'message': 'لا توجد جلسات مفتوحة'}
-                    res['success'] = all_success
-                    if not all_success:
-                        res['status'] = 'incomplete'
-                        res['message'] = 'لم ينجح فصل جميع الجلسات المطلوبة'
+                    res = _disconnect_account_sessions(username,nas_ip)
                 else:
                     # No active sessions in radacct; send probe to default NAS
                     res = _disconnect_single_session(username, nas_ip, None, framed_ip, mac_address, None,

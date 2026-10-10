@@ -4,6 +4,7 @@ No RADIUS packet is fabricated. NAS-Verified-Closed is an administrative closure
 with persisted evidence; the seal makes delayed packets unable to rebill it.
 """
 import datetime
+import logging
 import ipaddress
 import hashlib
 import json
@@ -13,6 +14,15 @@ import time
 import uuid
 
 from database.db import get_connection, query_all, query_one
+
+NON_FINAL_CAUSES = (None, '', 'Admin-Reset-CoA', 'Stale-Session-Timeout',
+                    'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed',
+                    'NAS-Verified-Closed', 'NAS-Reboot')
+
+
+def actual_stop(row):
+    return bool(row and row.get('acctstoptime') and
+                row.get('acctterminatecause') not in NON_FINAL_CAUSES)
 
 
 def journal_path(username, token):
@@ -45,8 +55,9 @@ def journal(snapshot, phase):
 
 def command(api, path, words=None):
     result = api.execute_command(path, words)
-    if any('!trap' in row for row in result):
-        raise RuntimeError('NAS rejected settlement command: ' + path)
+    traps = [row.get('message', 'rejected') for row in result if '!trap' in row]
+    if traps:
+        raise RuntimeError('NAS rejected settlement command: ' + path + ': ' + '; '.join(traps))
     return result
 
 
@@ -98,6 +109,13 @@ def seal_rows(snapshot):
                     raise RuntimeError('Accounting identity changed before sealing')
                 if row.get('acctuniqueid')!=original.get('acctuniqueid') or str(row['acctstarttime'])!=str(original['acctstarttime']):
                     raise RuntimeError('Accounting generation changed before sealing')
+                # Teardown/control packets can advance either service's counters
+                # after the NAS read. A genuine Stop for this exact generation is
+                # authoritative; merge monotonically before the idempotency check.
+                if actual_stop(row):
+                    session = dict(session, input=max(session['input'],int(row['acctinputoctets'] or 0)),
+                                   output=max(session['output'],int(row['acctoutputoctets'] or 0)),
+                                   seconds=max(session['seconds'],int(row['acctsessiontime'] or 0)))
                 cur.execute('SELECT * FROM wisp_nas_session_seals WHERE radacctid=%s',(rid,))
                 existing=cur.fetchone()
                 if existing:
@@ -108,7 +126,7 @@ def seal_rows(snapshot):
                     # PPP teardown can add control bytes after interface counters
                     # stabilize. Only an actual final accounting packet can
                     # authorize using those larger counters; never discard it.
-                    if not row.get('acctstoptime') or row.get('acctterminatecause') in (None,'','Admin-Reset-CoA','Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed','NAS-Verified-Closed'):
+                    if not actual_stop(row):
                         raise RuntimeError('PPP final counters are not yet verified')
                     session = dict(session, input=max(session['input'],int(row['acctinputoctets'] or 0)),
                                    output=max(session['output'],int(row['acctoutputoctets'] or 0)))
@@ -144,7 +162,11 @@ def recover_journals(username):
             raise RuntimeError('Invalid settlement journal owner')
         sessions={int(rid):s for rid,s in payload['sessions'].items()}
         if payload['phase']=='frozen':
-            for ip in {s['row']['nasipaddress'] for s in sessions.values()}:
+            # A verified Stop can settle an interrupted removal even after its
+            # temporary firewall lease has expired. seal_rows verifies identity.
+            pending={rid:s for rid,s in sessions.items() if not actual_stop(query_one(
+                'SELECT acctstoptime,acctterminatecause FROM radacct WHERE radacctid=%s',(rid,)))}
+            for ip in {s['row']['nasipaddress'] for s in pending.values()}:
                 n=query_one('SELECT * FROM wisp_nas_devices WHERE ip_address=%s',(ip,))
                 if not n:raise RuntimeError('Recovery NAS unavailable')
                 api=RouterOSApiProtocol(ip,port=n['api_port'],timeout=5)
@@ -153,8 +175,8 @@ def recover_journals(username):
                     if not api.login(n['api_username'],n['api_password']):raise RuntimeError('Recovery NAS login failed')
                     comment='MAX-SETTLEMENT:'+payload['token']
                     rules=command(api,'/ip/firewall/raw/print',['?comment='+comment])
-                    live_by_kind={kind:live_view(api,next(s for s in sessions.values() if s['row']['nasipaddress']==ip and s.get('kind','hotspot')==kind)) for kind in {s.get('kind','hotspot') for s in sessions.values() if s['row']['nasipaddress']==ip}}
-                    for s in sessions.values():
+                    live_by_kind={kind:live_view(api,next(s for s in pending.values() if s['row']['nasipaddress']==ip and s.get('kind','hotspot')==kind)) for kind in {s.get('kind','hotspot') for s in pending.values() if s['row']['nasipaddress']==ip}}
+                    for s in pending.values():
                         if s['row']['nasipaddress']!=ip:continue
                         address=s['row']['framedipaddress']+'/32'
                         if not all(any(r.get('action')=='drop' and r.get('chain')=='prerouting' and r.get(field)==address for r in rules) for field in ('src-address','dst-address')):
@@ -166,7 +188,7 @@ def recover_journals(username):
                             from services.online_policy_service import seconds
                             s['seconds']=max(s['seconds'],seconds(old[0]['uptime']))
                             command(api,active_menu(s)+'/remove',{'numbers':s['nas_live_id']})
-                    if any(r.get('.id')==s['nas_live_id'] for s in sessions.values() if s['row']['nasipaddress']==ip for r in live_view(api,s)):
+                    if any(r.get('.id')==s['nas_live_id'] for s in pending.values() if s['row']['nasipaddress']==ip for r in live_view(api,s)):
                         raise RuntimeError('Interrupted disconnect not verified')
                 finally:api.close()
         elif payload['phase']!='detached':
@@ -232,29 +254,35 @@ def freeze_and_disconnect(snapshot, include_ppp=False):
             command(api, '/system/scheduler/add', {'name':name,'start-date':expires.strftime('%Y-%m-%d'),
                 'start-time':expires.strftime('%H:%M:%S'),'interval':'0s','on-event':event,'policy':'read,write,test'})
             schedulers.append((api,name))
+            current = command(api, '/ip/firewall/raw/print')
+            # Other settlements remove their owned rules concurrently. Never
+            # use those ephemeral IDs as an insertion anchor. Owned rules only
+            # drop traffic, so appending behind them cannot bypass this freeze.
+            anchor = next((r for r in current if not str(r.get('comment','')).startswith('MAX-SETTLEMENT:')), None)
             for rid,s in sorted(hot.items()):
                 if s['row']['nasipaddress'] != ip:
                     continue
                 address = str(ipaddress.IPv4Address(s['row']['framedipaddress']))
                 for field in ('src-address','dst-address'):
-                    current = command(api, '/ip/firewall/raw/print')
                     words = {'chain':'prerouting','action':'drop',field:address+'/32','comment':comment}
-                    if current:
-                        words['place-before'] = current[0]['.id']
+                    if anchor:
+                        words['place-before'] = anchor['.id']
                     command(api, '/ip/firewall/raw/add', words)
                     installed.append((api,comment))
         # Require two identical counter observations after packet queues drain.
         previous = None
         stable = 0
-        deadline = time.monotonic()+5
+        deadline = time.monotonic()+12
         while time.monotonic()<deadline:
             observed = {}
             for ip,api in apis.items():
-                user = next(s['row']['username'] for s in hot.values() if s['row']['nasipaddress']==ip)
+                # One NAS read per service, not one full read for every session.
+                views={kind:live_view(api,next(s for s in hot.values() if s['row']['nasipaddress']==ip and s.get('kind','hotspot')==kind))
+                       for kind in {s.get('kind','hotspot') for s in hot.values() if s['row']['nasipaddress']==ip}}
                 for rid,s in hot.items():
                     if s['row']['nasipaddress'] != ip:
                         continue
-                    live=live_view(api,s)
+                    live=views[s.get('kind','hotspot')]
                     match=[r for r in live if identity(r)==original_identity(s) and r.get('.id')==s['live']['.id']]
                     if s.get('kind')=='pppoe' and match:
                         sid=lambda v:str(v).lower().removeprefix('0x')
@@ -276,10 +304,20 @@ def freeze_and_disconnect(snapshot, include_ppp=False):
         for rid,s in completed.items():
             removing=True
             command(apis[s['row']['nasipaddress']],active_menu(s)+'/remove',{'numbers':s['live']['.id']})
-        for s in completed.values():
-            if any(identity(r)==original_identity(s) for r in live_view(apis[s['row']['nasipaddress']],s)):
-                raise RuntimeError('NAS still has target sessions after disconnect')
+        for ip,api in apis.items():
+            views={kind:live_view(api,next(s for s in completed.values() if s['row']['nasipaddress']==ip and s.get('kind','hotspot')==kind))
+                   for kind in {s.get('kind','hotspot') for s in completed.values() if s['row']['nasipaddress']==ip}}
+            for s in completed.values():
+                if s['row']['nasipaddress']==ip and any(identity(r)==original_identity(s) for r in views[s.get('kind','hotspot')]):
+                    raise RuntimeError('NAS still has target sessions after disconnect')
         journal(completed,'detached')
+        # Give already-emitted final packets a bounded chance to arrive. Hotspot
+        # retains its verified NAS-counter fallback; no indefinite Stop barrier.
+        stop_deadline=time.monotonic()+3
+        while time.monotonic()<stop_deadline:
+            if all(actual_stop(query_one('SELECT acctstoptime,acctterminatecause FROM radacct WHERE radacctid=%s',(rid,))) for rid in completed):
+                break
+            time.sleep(.1)
         seal_rows(completed)
         sealed=True
         proof.unlink()
@@ -287,6 +325,7 @@ def freeze_and_disconnect(snapshot, include_ppp=False):
         for rid in completed:
             snapshot.pop(rid,None)
     except Exception as exc:
+        logging.getLogger(__name__).warning('NAS settlement failed for %d sessions: %s: %s', len(hot), type(exc).__name__, str(exc))
         raise SettlementPending('تعذر تثبيت عدادات الجلسات وتأكيد فصلها؛ لم تُنفذ العملية ولم يُخصم الرصيد.') from exc
     finally:
         if proof is not None and not removing and proof.exists():

@@ -81,6 +81,37 @@ class FreezeTests(unittest.TestCase):
         def seal(rows):
             self.assertEqual(api.live,[]);self.assertEqual(len(api.rules),4);self.assertEqual(len(rows),2)
         data=self.run_case(api,seal);self.assertEqual(data,{});self.assertEqual(api.rules,[]);self.assertEqual(api.scheduled,[])
+    def test_concurrent_cleanup_cannot_remove_insertion_anchor(self):
+        api=API();api.rules=[{'.id':'*other','comment':'MAX-SETTLEMENT:other','action':'drop'}]
+        original=api.execute_command;insertions=[]
+        def command(path,words=None):
+            if path=='/ip/firewall/raw/add':
+                insertions.append(dict(words))
+                api.rules[:]=[r for r in api.rules if r['.id']!='*other']
+                if words.get('place-before')=='*other':return [{'!trap':'true','message':'no such item'}]
+            return original(path,words)
+        api.execute_command=command
+        self.run_case(api,lambda _:None)
+        self.assertEqual(len(insertions),4)
+        self.assertTrue(all('place-before' not in r for r in insertions))
+    def test_permanent_rule_still_precedes_owned_freezes(self):
+        api=API();api.rules=[{'.id':'*other','comment':'MAX-SETTLEMENT:other','action':'drop'},
+                             {'.id':'*permanent','comment':'admin','action':'accept'}]
+        original=api.execute_command;insertions=[]
+        def command(path,words=None):
+            if path=='/ip/firewall/raw/add':insertions.append(dict(words))
+            return original(path,words)
+        api.execute_command=command
+        self.run_case(api,lambda _:None)
+        self.assertTrue(all(r.get('place-before')=='*permanent' for r in insertions))
+    def test_slow_nas_reads_still_require_three_identical_observations(self):
+        api=API();clock=[0]
+        def monotonic():
+            clock[0]+=2
+            return clock[0]
+        with patch.object(ns['time'],'monotonic',side_effect=monotonic),patch.object(ns['time'],'sleep',return_value=None):
+            self.run_case(api,lambda _:None)
+        self.assertEqual(api.live,[])
     def test_fasttrack_prevents_billing_and_disconnect(self):
         api=API();api.fasttrack=True
         with self.assertRaises(Pending):self.run_case(api,lambda _:self.fail('must not seal'))

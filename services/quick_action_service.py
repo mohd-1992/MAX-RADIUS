@@ -162,7 +162,7 @@ def action_activate_subscriber(entity_id, admin_username='admin'):
             license_status = get_active_license_status()
             if not license_status.get('valid') or license_status.get('status') == 'revoked':
                 raise ValueError('لا يمكن تنشيط المشترك: الترخيص غير صالح')
-        sql(conn, f"UPDATE {table} SET status=?,pause_reason=NULL WHERE id=?", (status, entity_id))
+        sql(conn, f"UPDATE {table} SET status=?,pause_reason='' WHERE id=?", (status, entity_id))
         if not sync_subscriber_to_radius(entity_id, conn=conn):
             raise RuntimeError('تعذر تحديث صلاحيات المشترك في الراديوس')
         return dict(status=status, reason=reason, username=row['username'])
