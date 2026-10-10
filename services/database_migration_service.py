@@ -456,6 +456,18 @@ def analyze_backup_file(file_input):
     }
 
 
+def verify_migration_license(db):
+    """Refresh the signed lease after schema installation, before touching imported data."""
+    from services.license_guard_service import publish_radius_license_state
+    publish_radius_license_state()
+    with db.cursor() as cursor:
+        cursor.execute("SELECT fn_check_license_auth('', '', '') AS error")
+        row = cursor.fetchone()
+        error = row['error'] if isinstance(row, dict) else row[0]
+        if error:
+            raise RuntimeError('تعذر التحقق من الترخيص قبل الاستيراد؛ لم يتم مسح البيانات. تحقق من صلاحية الترخيص ثم أعد المحاولة.')
+
+
 def execute_database_migration(file_input, options=None):
     """
     High-Performance Database Migration Engine.
@@ -597,6 +609,8 @@ def execute_database_migration(file_input, options=None):
                         cur.execute("SET SESSION transaction_isolation = 'READ-COMMITTED';")
                     except Exception:
                         pass
+
+                verify_migration_license(db)
 
                 cur.execute("SET unique_checks = 0;")
                 cur.execute("SET foreign_key_checks = 0;")

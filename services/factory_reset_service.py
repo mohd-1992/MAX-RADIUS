@@ -70,7 +70,7 @@ def _owns_core(info):
     own=_docker('GET','/containers/'+os.environ.get('HOSTNAME','unknown')+'/json')
     own_labels=own.get('Config',{}).get('Labels',{})
     project=own_labels.get('com.docker.compose.project')
-    return bool(project and own_labels.get('com.docker.compose.service')=='web'
+    return bool(project and own_labels.get('com.docker.compose.service') in ('web','wisp-web')
                 and labels.get('com.docker.compose.project')==project)
 
 
