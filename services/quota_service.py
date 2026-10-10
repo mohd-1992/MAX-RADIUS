@@ -683,3 +683,16 @@ def apply_midflight_topup(username_or_id, extra_mb=0, extra_days=0, admin_userna
     # Re-evaluate new quota state
     new_quota = calculate_account_quota(username, entity_type=entity_type)
     return True, f"تمت إضافة {extra_mb} MB و {extra_days} يوم بنجاح للمستخدم [{username}].", new_quota
+
+
+# Tenant max live-preview adapters. Canonical accounting rows remain untouched.
+_original_totals = get_accounting_totals
+_original_baselines = record_session_baselines
+
+def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_update=False):
+    from services.online_policy_service import overlay_totals
+    return overlay_totals(_original_totals, username, since_timestamp, conn, lock_for_update)
+
+def record_session_baselines(username, renewed_at=None, conn=None):
+    from services.online_policy_service import overlay_baselines
+    return overlay_baselines(_original_baselines, username, renewed_at, conn)

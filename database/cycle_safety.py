@@ -53,3 +53,5 @@ def install_cycle_safety(conn):
             cur.execute(f"UPDATE {table} SET status='suspended' WHERE status='disabled'")
             cur.execute(f"UPDATE {table} SET pause_reason='إيقاف سابق أو مستورد' WHERE status='suspended' AND pause_reason=''")
     conn.commit()
+    from database.nas_session_safety import install_nas_session_safety
+    install_nas_session_safety(conn)

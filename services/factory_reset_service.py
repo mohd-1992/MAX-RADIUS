@@ -55,11 +55,28 @@ def _docker(method, path):
     return data
 
 
-def _inspect(container_id):
+def _owns_core(info):
+    """Verify ownership even when the tenant Docker proxy redacts Env."""
+    import os
     from core.config import DB_NAME
-    info = _docker('GET',f'/containers/{container_id}/json')
-    env = dict(v.split('=',1) for v in info['Config'].get('Env',[]) if '=' in v)
-    if env.get('DB_NAME') != DB_NAME:raise RuntimeError('حاوية الراديوس لا تخص قاعدة هذه المنظومة.')
+    config=info.get('Config',{})
+    env=dict(v.split('=',1) for v in config.get('Env',[]) if '=' in v)
+    labels=config.get('Labels',{})
+    if 'DB_NAME' in env:
+        if env['DB_NAME']!=DB_NAME:return False
+        # Legacy local installs expose Env and may not use Compose labels.
+        if not labels.get('com.docker.compose.project'):return True
+    if labels.get('com.docker.compose.service') not in ('radius_core','core','freeradius'):return False
+    own=_docker('GET','/containers/'+os.environ.get('HOSTNAME','unknown')+'/json')
+    own_labels=own.get('Config',{}).get('Labels',{})
+    project=own_labels.get('com.docker.compose.project')
+    return bool(project and own_labels.get('com.docker.compose.service')=='web'
+                and labels.get('com.docker.compose.project')==project)
+
+
+def _inspect(container_id):
+    info=_docker('GET',f'/containers/{container_id}/json')
+    if not _owns_core(info):raise RuntimeError('حاوية الراديوس لا تخص هذه المنظومة.')
     return info
 
 
@@ -67,10 +84,8 @@ def _cores():
     matches=[]
     for item in _docker('GET','/containers/json?all=1'):
         if not any('core' in n or 'freeradius' in n for n in item.get('Names',[])):continue
-        from core.config import DB_NAME
         info=_docker('GET',f"/containers/{item['Id']}/json")
-        env=dict(v.split('=',1) for v in info['Config'].get('Env',[]) if '=' in v)
-        if env.get('DB_NAME')==DB_NAME:
+        if _owns_core(info):
             matches.append(dict(id=item['Id'],was_running=bool(info['State']['Running'])))
     if not matches:raise RuntimeError('تعذر تحديد حاوية الراديوس لهذه القاعدة؛ لم ينفذ المسح.')
     return matches
@@ -117,8 +132,9 @@ def _close_sessions(progress, timeout=600):
 def _worker(job_id, parameters, created_by):
     result=dict(success=False,message='جارٍ التحضير',stage='preparing',percent=5,cores=[],data_reset=False)
     try:
-        with job_lock('factory-reset') as acquired, job_lock('expired-card-delete') as idle, job_lock('expiry-sweep') as expiry_idle:
-            if not acquired or not idle or not expiry_idle:raise RuntimeError('توجد عملية أرشفة أو حذف أو إعادة مصنع؛ أعد المحاولة بعد اكتمالها.')
+        with job_lock('factory-reset') as acquired, job_lock('expired-card-delete') as idle, job_lock('expiry-sweep', timeout=60) as expiry_idle:
+            if not acquired or not idle:raise RuntimeError('توجد عملية حذف أو إعادة مصنع قيد التنفيذ؛ أعد المحاولة بعد اكتمالها.')
+            if not expiry_idle:raise RuntimeError('لم تتوقف دورة فحص الانتهاء خلال المهلة المحددة؛ لم يُنفذ المسح.')
             if execute_update("UPDATE wisp_maintenance_jobs SET state='running' WHERE job_id=? AND state='queued'",(job_id,))!=1:return
             try:
                 _drain_operational_requests()

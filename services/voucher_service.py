@@ -348,30 +348,63 @@ def delete_batch(batch_id, admin_username='admin'):
     return ok
 
 def update_voucher_batch(batch_id, name, package_id, admin_username='admin'):
-    batch = query_one('SELECT * FROM wisp_voucher_batches WHERE id = ?', (batch_id,))
-    if not batch:
-        raise ValueError('الدفعة غير موجودة.')
-
-    new_pkg = query_one('SELECT * FROM wisp_packages WHERE id = ?', (package_id,))
-    if not new_pkg:
-        raise ValueError('الباقة المحددة غير موجودة.')
-
-    old_package_id = batch['package_id']
-    if not name:
-        name = batch['name']
-    execute_write('UPDATE wisp_voucher_batches SET name = ?, package_id = ? WHERE id = ?', (name.strip(), package_id, batch_id))
-
-    if int(package_id) != int(old_package_id):
-        execute_write('UPDATE wisp_vouchers SET package_id = ? WHERE batch_id = ?', (package_id, batch_id))
-        cards = query_all('SELECT username FROM wisp_vouchers WHERE batch_id = ?', (batch_id,))
-        new_groupname = new_pkg['name']
-        for c in cards:
-            u = c['username']
-            exists = query_one('SELECT 1 FROM radusergroup WHERE username = ?', (u,))
-            if exists:
-                execute_write('UPDATE radusergroup SET groupname = ? WHERE username = ?', (new_groupname, u))
-            else:
-                execute_write('INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)', (u, new_groupname))
+    from database.db import db_session, adapt_query, is_mysql_conn
+    with db_session() as conn:
+        cur = conn.cursor()
+        lock = ' FOR UPDATE' if is_mysql_conn(conn) else ''
+        def run(sql, args=()):
+            cur.execute(adapt_query(sql, conn), args)
+        run('SELECT * FROM wisp_voucher_batches WHERE id = ?' + lock, (batch_id,))
+        batch = cur.fetchone()
+        if not batch:
+            raise ValueError('الدفعة غير موجودة.')
+        run('SELECT * FROM wisp_packages WHERE id = ?', (package_id,))
+        new_pkg = cur.fetchone()
+        if not new_pkg:
+            raise ValueError('الباقة المحددة غير موجودة.')
+        name = (name or batch['name']).strip()
+        if int(package_id) != int(batch['package_id']):
+            run('SELECT * FROM wisp_vouchers WHERE batch_id = ? ORDER BY id' + lock, (batch_id,))
+            cards = cur.fetchall()
+            # Batch reassignment is an issued-contract change, not a renewal.
+            # Used cards must go through the individual settlement-aware path.
+            if any(c['status'] != 'unused' or c.get('first_used_at') for c in cards):
+                raise ValueError('تحتوي الدفعة كروتًا مستخدمة؛ غيّر باقتها من عمليات الكرت لتسوية الاستهلاك. لم تُعدّل الدفعة.')
+            run('''SELECT 1 FROM radacct a JOIN wisp_vouchers v ON v.username=a.username
+                WHERE v.batch_id=? LIMIT 1''', (batch_id,))
+            if cur.fetchone():
+                raise ValueError('توجد محاسبة لكرت في الدفعة؛ استخدم تغيير الباقة الفردي.')
+            run('''SELECT 1 FROM wisp_session_reservations r JOIN wisp_vouchers v ON v.username=r.username
+                WHERE v.batch_id=? AND r.expires_at>NOW() LIMIT 1''', (batch_id,))
+            if cur.fetchone():
+                raise ValueError('يوجد تسجيل دخول جارٍ لكرت في الدفعة؛ أعد المحاولة بعد اكتماله.')
+            rate = build_mikrotik_rate_limit(
+                download=new_pkg.get('rate_download') or '0', upload=new_pkg.get('rate_upload') or '0',
+                burst_down=new_pkg.get('burst_download'), burst_up=new_pkg.get('burst_upload'),
+                threshold_down=new_pkg.get('burst_threshold_down'), threshold_up=new_pkg.get('burst_threshold_up'),
+                burst_time=new_pkg.get('burst_time') or 16, priority=new_pkg.get('priority') or 8,
+                min_down=new_pkg.get('min_download'), min_up=new_pkg.get('min_upload'))
+            fields = ('price', 'cost', 'volume_quota_mb', 'uptime_limit_mins',
+                      'validity_value', 'validity_unit', 'validity_days',
+                      'rate_download', 'rate_upload', 'rate_limit_str',
+                      'simultaneous_sessions', 'mikrotik_group')
+            policy = dict(new_pkg)
+            policy['rate_limit_str'] = rate
+            if policy.get('validity_value') is None:
+                policy['validity_value'] = policy.get('validity_days') if policy.get('validity_days') is not None else 30
+            policy['validity_unit'] = policy.get('validity_unit') or 'days'
+            values = tuple(policy.get(f) for f in fields)
+            run('UPDATE wisp_vouchers SET package_id=?, ' + ','.join('snap_'+f+'=?' for f in fields)
+                + ' WHERE batch_id=?', (package_id,) + values + (batch_id,))
+            run('UPDATE wisp_voucher_batches SET ' + ','.join(f+'=?' for f in fields)
+                + ' WHERE id=?', values + (batch_id,))
+            for card in cards:
+                run('DELETE FROM radusergroup WHERE username=?', (card['username'],))
+                run('INSERT INTO radusergroup(username,groupname,priority) VALUES(?,?,1)',
+                    (card['username'], new_pkg['name']))
+                # Remove only package overrides, leaving identity/MAC checks intact.
+                run("DELETE FROM radreply WHERE username=? AND attribute IN ('Mikrotik-Rate-Limit','Mikrotik-Group','Session-Timeout','Mikrotik-Total-Limit','Mikrotik-Total-Limit-Gigawords')", (card['username'],))
+        run('UPDATE wisp_voucher_batches SET name=?,package_id=? WHERE id=?', (name,package_id,batch_id))
 
     log_audit(1, admin_username, 'UPDATE_BATCH', 'vouchers', f'Updated batch {batch_id} to name "{name}" and package "{new_pkg["name"]}"')
     return True

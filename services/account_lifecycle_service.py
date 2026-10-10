@@ -36,13 +36,13 @@ def sql(conn, statement, params=(), fetch=None):
 
 
 @contextmanager
-def job_lock(name):
+def job_lock(name, timeout=0):
     conn = get_connection()
     acquired = False
     try:
         if not is_mysql_conn(conn):
             raise RuntimeError('Lifecycle maintenance requires MySQL/MariaDB')
-        row = sql(conn, 'SELECT GET_LOCK(CONCAT(DATABASE(), ?), 0) AS acquired', (':' + name,), 'one')
+        row = sql(conn, 'SELECT GET_LOCK(CONCAT(DATABASE(), ?), ?) AS acquired', (':' + name, timeout), 'one')
         acquired = bool(row and row['acquired'] == 1)
         conn.commit()
         yield acquired
@@ -98,14 +98,23 @@ def expiry_reason(conn, kind, row):
 def sweep_expired_accounts():
     from database.db import query_all
     from services.coa_queue_service import enqueue_disconnect
+    from services.factory_reset_service import factory_reset_active
+    if factory_reset_active():
+        return False
     with job_lock('expiry-sweep') as acquired:
-        if not acquired:
+        if not acquired or factory_reset_active():
             return False
         for kind, table in [('voucher','wisp_vouchers'), ('subscriber','wisp_subscribers')]:
+            if factory_reset_active():
+                return False
             # Read-only shortlist: only per-account transactions hold row locks.
             states = "('expired','disabled','suspended','recharged')" if kind=='voucher' else "('expired','disabled','suspended')"
             rows = query_all(f"SELECT id FROM {table} t WHERE status IN ('active','used') OR (status IN {states} AND (EXISTS (SELECT 1 FROM radcheck c WHERE c.username=t.username AND c.attribute='Cleartext-Password') OR EXISTS (SELECT 1 FROM radacct a WHERE a.username=t.username AND a.acctstoptime IS NULL))) ORDER BY id")
             for candidate in rows:
+                # Finish the previous account transaction and its disconnect
+                # enqueue before yielding to the accepted reset request.
+                if factory_reset_active():
+                    return False
                 def process(conn):
                     _, row = lock_account(conn, kind, candidate['id'])
                     if not row:

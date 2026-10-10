@@ -1,3 +1,4 @@
+from services.renewal_settlement_service import settle_cycle_operation
 """
 services/loyalty_rewards_service.py
 -----------------------------------
@@ -237,6 +238,7 @@ def award_loyalty_points(username, points, reason='Recharge Bonus'):
         db.close()
 
 
+@settle_cycle_operation
 def redeem_reward(username, reward_id):
     """
     Redeem a reward for subscriber.
@@ -422,7 +424,7 @@ def redeem_reward(username, reward_id):
             # 7. Disconnect active session if any so Mikrotik reloads the newly granted quotas/validity
             try:
                 from services.quick_action_service import action_disconnect_user
-                action_disconnect_user(username)
+                pass  # Financial rewards need no disconnect; other rewards use CoA.
             except Exception as d_err:
                 logger.debug("CoA disconnect after redemption notice: %s", d_err)
 

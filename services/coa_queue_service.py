@@ -71,86 +71,152 @@ def _resolve_nas_credentials(nas_ip=None):
 
     return nas_ip, secret, coa_port, api_port, api_user, api_pass
 
+def _ppp_session_id(value):
+    """Router API uses 0x/uppercase; RADIUS retains its own wire format."""
+    import re
+    value = str(value or '').strip().lower()
+    if value.startswith('0x'):
+        value = value[2:]
+    return value if re.fullmatch(r'[0-9a-f]+', value) else None
+
+
+def _mac(value):
+    return str(value or '').replace('-', ':').upper()
+
+
+def _nas_inventory(ros, username):
+    inventory = []
+    for path, key in (('/ip/hotspot/active', 'user'), ('/ppp/active', 'name')):
+        replies = ros.talk_raw([path + '/print'])
+        kinds = [kind for kind, _ in replies]
+        if '!done' not in kinds or any(k in kinds for k in ('!trap', '!fatal')):
+            raise RuntimeError('NAS inventory unavailable')
+        for kind, row in replies:
+            if kind == '!re' and str(row.get(key, '')).casefold() == username.casefold():
+                if not row.get('.id'):
+                    raise RuntimeError('NAS inventory lacks identity')
+                inventory.append((path, row))
+    return inventory
+
+
+def _select_nas_session(inventory, session_id, framed_ip, mac_address):
+    matches = []
+    for path, row in inventory:
+        if framed_ip and str(row.get('address', '')) != str(framed_ip):
+            continue
+        if mac_address and _mac(row.get('mac-address') or row.get('caller-id')) != _mac(mac_address):
+            continue
+        if path == '/ppp/active' and session_id:
+            wanted, actual = _ppp_session_id(session_id), _ppp_session_id(row.get('session-id'))
+            if wanted is None or actual is None:
+                raise RuntimeError('Unverifiable PPP session identity')
+            if wanted != actual:
+                # Same IP/MAC with a different generation is not proof of absence.
+                if framed_ip or mac_address:
+                    raise RuntimeError('PPP identity conflicts with accounting')
+                continue
+        elif path == '/ip/hotspot/active':
+            actual = row.get('acct-session-id') or row.get('session-id')
+            if actual and session_id and str(actual) != str(session_id):
+                raise RuntimeError('Hotspot identity conflicts with accounting')
+            if not framed_ip or not mac_address:
+                raise RuntimeError('Hotspot requires IP and MAC identity')
+        elif not framed_ip or not mac_address:
+            raise RuntimeError('NAS session identity is incomplete')
+        matches.append((path, row))
+    if len(matches) > 1:
+        raise RuntimeError('NAS identity is ambiguous')
+    return matches
+
+
+def _counter_verified_disconnect(username, radacctid, nas_ip, session_id, framed_ip, mac_address):
+    """Serialize with renewal, block fresh logins, then seal only the target."""
+    import hashlib,uuid
+    from database.db import get_connection
+    from services.online_policy_service import checkpoint
+    from services.nas_session_settlement import freeze_and_disconnect
+    conn=get_connection();token=uuid.uuid4().hex
+    lock='max-cycle:'+hashlib.sha256(username.casefold().encode()).hexdigest()[:48]
+    locked=False;guarded=False
+    try:
+        with conn.cursor() as cur:
+            cur.execute('SELECT GET_LOCK(%s,0) AS acquired',(lock,))
+            locked=cur.fetchone()['acquired']==1
+            if not locked:raise RuntimeError('Account operation already running')
+            cur.execute('UPDATE wisp_license_runtime_state SET id=id WHERE id=1')
+            cur.execute('INSERT INTO wisp_renewal_guards(username,token,expires_at) VALUES(%s,%s,NOW()+INTERVAL 5 MINUTE) ON DUPLICATE KEY UPDATE token=VALUES(token),expires_at=VALUES(expires_at)',(username,token))
+        conn.commit();guarded=True
+        if query_one('SELECT 1 AS pending FROM wisp_session_reservations WHERE username=%s AND radacctid IS NULL AND expires_at>NOW() LIMIT 1',(username,)):
+            raise RuntimeError('Accounting-Start still pending')
+        snapshot=checkpoint(username)
+        target={rid:row for rid,row in snapshot.items() if (radacctid is None or int(rid)==int(radacctid))
+            and row['row']['nasipaddress']==nas_ip
+            and (not framed_ip or row['row']['framedipaddress']==framed_ip)
+            and (not mac_address or _mac(row['row']['callingstationid'])==_mac(mac_address))
+            and (not session_id or (row['kind']=='pppoe' and _ppp_session_id(row['row']['acctsessionid'])==_ppp_session_id(session_id)) or (row['kind']=='hotspot' and row['row']['acctsessionid']==session_id))}
+        if len(target)!=1:raise RuntimeError('No unique accounting target for final counters')
+        freeze_and_disconnect(target,include_ppp=True)
+        if target:raise RuntimeError('Target settlement incomplete')
+    finally:
+        try:
+            with conn.cursor() as cur:
+                if guarded:cur.execute('DELETE FROM wisp_renewal_guards WHERE username=%s AND token=%s',(username,token))
+                if locked:cur.execute('SELECT RELEASE_LOCK(%s)',(lock,))
+            conn.commit()
+        finally:conn.close()
+
+
 def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None, require_accounting_stop=False):
-    """Executes disconnect on a single session and updates radacct ONLY for that session if successful."""
+    """ACK requests removal; verified NAS absence confirms it. Never invent Stop."""
     resolved_ip, secret, coa_port, api_port, api_user, api_pass = _resolve_nas_credentials(nas_ip)
     target_nas_ip = resolved_ip or nas_ip or '127.0.0.1'
-    client = RadiusCoaClient(nas_ip=target_nas_ip, secret=secret, port=coa_port, timeout=1.8)
-
-    res = client.disconnect_user(
-        username=username,
-        framed_ip=framed_ip,
-        session_id=session_id,
-        mac_address=mac_address
-    )
-
-    # MikroTik API fallback if UDP CoA failed
-    if not res.get('success') and api_port and api_user and (session_id or framed_ip or mac_address):
-        ros = None
-        try:
-            from core.mikrotik_api import RouterOSApiProtocol
-            ros = RouterOSApiProtocol(target_nas_ip, port=int(api_port), timeout=2.5)
-            ros.connect()
-            if ros.login(api_user, api_pass):
-                u_lower = username.lower()
-                candidates = []
-                for path, user_key in (('/ip/hotspot/active', 'user'), ('/ppp/active', 'name')):
-                    replies = ros.talk_raw([path + '/print'])
-                    kinds = [kind for kind, _ in replies]
-                    if '!done' not in kinds or any(kind in kinds for kind in ('!trap', '!fatal')):
-                        raise RuntimeError('Router session inventory could not be verified')
-                    for kind, item in replies:
-                        if kind != '!re':
-                            continue
-                        if str(item.get(user_key, '')).lower() != u_lower or not item.get('.id'):
-                            continue
-                        api_sid = item.get('session-id') or item.get('acct-session-id')
-                        if session_id and api_sid:
-                            matches = str(api_sid) == str(session_id)
-                        elif framed_ip:
-                            matches = str(item.get('address', '')) == str(framed_ip)
-                        elif mac_address:
-                            actual_mac = item.get('mac-address') or item.get('caller-id') or ''
-                            matches = str(actual_mac).replace('-', ':').lower() == str(mac_address).replace('-', ':').lower()
-                        else:
-                            matches = False
-                        if matches:
-                            candidates.append((path, item['.id']))
-                if not candidates:
-                    res.update(success=True,status='api_confirmed_absent',message='أكدت قراءة قوائم الراوتر أن الجلسة المطلوبة غير موجودة.')
-                # Ambiguous identities must not disconnect an unrelated session.
-                if len(candidates) == 1:
-                    path, item_id = candidates[0]
-                    replies = ros.talk_raw([path + '/remove', f'=.id={item_id}'])
-                    reply_types = [kind for kind, _ in replies]
-                    if '!done' in reply_types and not any(kind in reply_types for kind in ('!trap', '!fatal')):
-                        res.update(success=True, status='api_ack', message=f'تم فصل الجلسة عبر MikroTik API ({target_nas_ip}).')
-        except Exception:
-            pass
-        finally:
-            if ros is not None:
-                ros.close()
-
-    # Cleanly update radacct session ONLY if CoA / API disconnect succeeded for THIS session
-    if res.get('success') and not require_accounting_stop:
-        try:
-            if radacctid:
-                execute_write("""
-                    UPDATE radacct 
-                    SET acctstoptime = COALESCE(acctstoptime, CURRENT_TIMESTAMP),
-                        acctterminatecause = 'Admin-Reset-CoA'
-                    WHERE radacctid = %s AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed'))
-                """, (radacctid,))
-            elif target_nas_ip and session_id:
-                execute_write("""
-                    UPDATE radacct 
-                    SET acctstoptime = COALESCE(acctstoptime, CURRENT_TIMESTAMP),
-                        acctterminatecause = 'Admin-Reset-CoA'
-                    WHERE username = %s AND nasipaddress = %s AND acctsessionid = %s AND acctstoptime IS NULL
-                """, (username, target_nas_ip, session_id))
-        except Exception:
-            pass
-
+    res = {'success': False, 'status': 'disconnect_unverified',
+           'message': 'لم يتم تأكيد اختفاء الجلسة من الراوتر.'}
+    ros = None
+    try:
+        if not api_port or not api_user:
+            raise RuntimeError('NAS verification unavailable')
+        from core.mikrotik_api import RouterOSApiProtocol
+        ros = RouterOSApiProtocol(target_nas_ip, port=int(api_port), timeout=2.5)
+        ros.connect()
+        if not ros.login(api_user, api_pass):
+            raise RuntimeError('NAS verification login failed')
+        before = _nas_inventory(ros, username)
+        matches = _select_nas_session(before, session_id, framed_ip, mac_address)
+        if not matches:
+            # Inventory with other account sessions cannot prove a missing target
+            # when its identity was not supplied or understood.
+            if before and not (session_id and framed_ip and mac_address):
+                raise RuntimeError('Target absence cannot be verified')
+            res.update(success=True, status='nas_confirmed_absent')
+        else:
+            path, original = matches[0]
+            _counter_verified_disconnect(username, radacctid, target_nas_ip, session_id, framed_ip, mac_address)
+            for attempt in range(3):
+                after = _nas_inventory(ros, username)
+                remaining = _select_nas_session(after, session_id, framed_ip, mac_address)
+                if not remaining:
+                    res.update(success=True, status='nas_confirmed_disconnected')
+                    break
+                time.sleep(.1)
+            if not res['success']:
+                raise RuntimeError('NAS still has the target session')
+        res['message'] = 'تأكد اختفاء الجلسة المطلوبة من الراوتر.'
+        # Final usage belongs to Accounting-Stop (or a separate verified-counter
+        # settlement). ACK/API done never closes radacct or fabricates counters.
+        stopped = query_one('SELECT acctstoptime,acctterminatecause FROM radacct WHERE radacctid=%s AND username=%s',
+                            (radacctid, username)) if radacctid else None
+        synthetic = ('Admin-Reset-CoA','Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')
+        final = bool(stopped and stopped.get('acctstoptime') and stopped.get('acctterminatecause') not in synthetic)
+        res['accounting_final'] = final
+        if not final:
+            res['message'] += ' المحاسبة النهائية قيد الاستلام؛ لم يُغلق سجلها افتراضياً.'
+    except Exception as exc:
+        res.update(success=False, status='disconnect_unverified', error=type(exc).__name__,
+                   message='تعذر تأكيد فصل الجلسة؛ لم يُغلق سجل المحاسبة افتراضياً.')
+    finally:
+        if ros is not None:
+            ros.close()
     return res
 
 

@@ -218,6 +218,7 @@ def action_bulk_execute(action_fn, entity_type, target_ids, **kwargs):
         
     return is_success, summary
 
+@settle_cycle_operation
 def action_extend_time(entity_type, entity_id, days, admin_username='admin'):
     """1. تمديد الصلاحية"""
     entity, etype = get_target_entity(entity_type, entity_id)
@@ -504,7 +505,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
         res_msg = f"تم التجديد بنجاح! تم ترحيل {rollover_text} إلى رصيدك الجديد{loan_text}."
         audit_change = f"تم تجديد الباقة مع ترحيل الرصيد ({rollover_text}){loan_text}"
     else:
-        res_msg = f"تم تجديد باقة ({pkg['name']}) بنجاح للمشترك{loan_text} وفصل الجلسة لتطبيق الإعدادات الجديدة."
+        res_msg = f"تم تجديد باقة ({pkg['name']}) بنجاح للمشترك{loan_text}."
         audit_change = f"تجديد باقة {pkg['name']}{loan_text}"
 
     log_user_audit(etype, entity['id'], username, admin_username, 'RENEW_PACKAGE', audit_change)
@@ -775,6 +776,7 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
     log_audit(1, admin_username, 'CHANGE_PACKAGE', etype, f'Changed package to {new_pkg["name"]} for {username}: {audit_note}')
     return True, res_msg
 
+@settle_cycle_operation
 def action_add_quota(entity_type, entity_id, quota_amount, quota_unit='GB', admin_username='admin'):
     """5. إضافة رصيد تحميل (Data Quota)"""
     entity, etype = get_target_entity(entity_type, entity_id)
@@ -812,7 +814,7 @@ def action_add_quota(entity_type, entity_id, quota_amount, quota_unit='GB', admi
     execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (entity['username'], user_pwd))
     
     # Disconnect active session so router fetches new quota limit immediately
-    action_disconnect_user(entity_type, entity_id, admin_username=admin_username)
+    # Live preview refresh is performed by the per-account decorator.
         
     log_audit(1, admin_username, 'ADD_DATA_QUOTA', etype, f'Added {val} {quota_unit} ({mb_val} MB) quota to {entity["username"]}')
     return True, f"تمت إضافة رصيد تحميل بمقدار {val} {quota_unit} ({mb_val} MB) بنجاح وتحديث جلسة المستخدم."

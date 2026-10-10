@@ -1049,6 +1049,7 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         return False, f"فشل تنفيذ عملية الشحن: {str(ex)}"
 
 
+@settle_cycle_operation
 def request_data_loan(username):
     """
     Handles Data Loan (السلفة) for subscribers dynamically based on system settings:
@@ -1198,7 +1199,7 @@ def request_data_loan(username):
 
     # Outside transaction: Disconnect session and Log audit
     try:
-        disconnect_subscriber_session(username)
+        pass  # Online policy decorator refreshes the live session.
     except Exception:
         pass
 
