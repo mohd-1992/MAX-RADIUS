@@ -119,6 +119,24 @@ def api_disable_account():
     return jsonify(success=success, message=message)
 
 
+@system_bp.route('/api/actions/activate-subscriber', methods=['POST'])
+@login_required
+def api_activate_subscriber():
+    data = request.get_json(silent=True) if request.is_json else request.form
+    data = data or {}
+    target_id = str(data.get('target_id') or '')
+    if data.get('target_type') != 'subscriber' or not target_id.isascii() or not target_id.isdigit() or int(target_id) <= 0:
+        return jsonify(success=False, message='حدد رقم المشترك الصحيح'), 400
+    manager = get_current_manager()
+    if not has_permission('subscribers.edit', manager):
+        return jsonify(success=False, message='لا تملك صلاحية تنشيط هذا المشترك'), 403
+    try:
+        success, message, status = action_activate_subscriber(int(target_id), admin_username=manager.get('username') or 'admin')
+        return jsonify(success=success, message=message, status=status)
+    except ValueError as error:
+        return jsonify(success=False, message=str(error)), 400
+
+
 @system_bp.route('/api/actions/renew', methods=['POST'], endpoint="api_renew")
 
 def api_renew():

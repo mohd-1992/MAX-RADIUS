@@ -108,16 +108,16 @@
     <!-- Advanced Filter & Search Panel (Sales Style Design) -->
     <div class="sales-panel bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm space-y-4">
         <form method="GET" action="{{ url_for('subscribers') }}" id="subscribersFilterForm" class="space-y-4">
-            
+
             <!-- Quick Status Pills Bar -->
             <div class="flex items-center gap-2 flex-wrap pb-3 border-b border-[#1c2840]/70">
                 <span class="sales-text-muted text-xs font-bold text-slate-400 flex items-center gap-1.5 ml-1">
                     <i class="fa-solid fa-users text-blue-400"></i>
                     حالة المشترك:
                 </span>
-                
+
                 <!-- 1. Active (Emerald) -->
-                <button type="submit" name="status" value="active" 
+                <button type="submit" name="status" value="active"
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'active' or not status %}bg-emerald-600 text-white shadow-md shadow-emerald-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
                     <span>المشتركين النشطين</span>
@@ -127,7 +127,7 @@
                 </button>
 
                 <!-- 2. Online (Cyan with pulse) -->
-                <button type="submit" name="status" value="online" 
+                <button type="submit" name="status" value="online"
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'online' %}bg-cyan-600 text-white shadow-md shadow-cyan-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     <span class="relative flex h-2 w-2">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
@@ -140,7 +140,7 @@
                 </button>
 
                 <!-- 3. Expired (Rose) -->
-                <button type="submit" name="status" value="expired" 
+                <button type="submit" name="status" value="expired"
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'expired' %}bg-rose-600 text-white shadow-md shadow-rose-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     <span class="w-2 h-2 rounded-full bg-rose-400"></span>
                     <span>المنتهين</span>
@@ -150,7 +150,7 @@
                 </button>
 
                 <!-- 4. Suspended (Amber) -->
-                <button type="submit" name="status" value="suspended" 
+                <button type="submit" name="status" value="suspended"
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'suspended' %}bg-amber-600 text-white shadow-md shadow-amber-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     <span class="w-2 h-2 rounded-full bg-amber-400"></span>
                     <span>موقوف</span>
@@ -160,7 +160,7 @@
                 </button>
 
                 <!-- 5. All (Blue) -->
-                <button type="submit" name="status" value="all" 
+                <button type="submit" name="status" value="all"
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'all' %}bg-blue-600 text-white shadow-md shadow-blue-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     <i class="fa-solid fa-layer-group text-[11px]"></i>
                     <span>الكل</span>
@@ -241,7 +241,7 @@
                     <span>قائمة الإجراءات المجمعة</span>
                     <span id="bulkMenuCount" class="text-blue-400 font-mono font-bold">0 مشترك</span>
                 </div>
-                
+
                 <!-- المجموعة 1: الحذف (الأول) -->
                 <div class="py-1">
                     <button type="button" onclick="bulkAction('delete')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
@@ -319,7 +319,7 @@
                         <th class="py-3.5 px-4 col-package whitespace-nowrap min-w-[130px]">الباقة</th>
                         <th class="py-3.5 px-4 col-accesspoint whitespace-nowrap min-w-[130px]">نقطة الاتصال</th>
                         <th class="py-3.5 px-4 col-consumption min-w-[220px] whitespace-nowrap">الاستهلاك والكوتا</th>
-                        
+
                         <!-- الأعمدة الإضافية الافتراضية مخفية -->
                         <th class="py-3.5 px-4 col-expires hidden whitespace-nowrap min-w-[140px]">تاريخ الانتهاء</th>
                         <th class="py-3.5 px-4 col-ip hidden whitespace-nowrap min-w-[125px]">عنوان IP</th>
@@ -347,7 +347,7 @@
                                 <span>#{{ s.seq_id }}</span>
                                 <i class="fa-solid fa-chevron-down text-[9px]"></i>
                             </button>
-                            
+
                             <!-- القائمة المنسدلة للإجراءات الـ 10 -->
                             <div id="sub-dd-{{ s.id }}" class="action-dropdown-menu hidden fixed z-[9999] w-60 bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-2xl py-2 text-xs divide-y divide-[#1c2840]">
                                 <div class="px-3 py-1.5 text-[11px] font-bold text-slate-400 bg-[#070b14]/60 border-b border-[#1c2840] flex items-center justify-between">
@@ -367,17 +367,17 @@
                                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
                                         <span>تمديد الصلاحية</span>
                                     </button>
-                                    <button type="button" 
-                                            data-action="disable-account" 
-                                            data-id="{{ s.id }}" 
-                                            data-type="subscriber" 
-                                            data-username="{{ s.username }}" 
-                                            onclick="disableAccount(event, this)" 
-                                            class="w-full text-right px-3.5 py-2 text-amber-400 hover:bg-amber-500/10 flex items-center justify-between gap-2 transition cursor-pointer group" 
-                                            title="إيقاف الحساب مع حفظ الرصيد والصلاحية">
+                                    <button type="button"
+                                            data-action="{{ 'activate-account' if s.status in ('suspended', 'disabled') else 'disable-account' }}"
+                                            data-id="{{ s.id }}"
+                                            data-type="subscriber"
+                                            data-username="{{ s.username }}"
+                                            onclick="disableAccount(event, this)"
+                                            class="w-full text-right px-3.5 py-2 {{ 'text-emerald-400 hover:bg-emerald-500/10' if s.status in ('suspended', 'disabled') else 'text-amber-400 hover:bg-amber-500/10' }} flex items-center justify-between gap-2 transition cursor-pointer group"
+                                            title="{{ 'تنشيط الحساب حسب الرصيد والصلاحية' if s.status in ('suspended', 'disabled') else 'إيقاف الحساب مع حفظ الرصيد والصلاحية' }}">
                                         <div class="flex items-center gap-2.5">
-                                            <i class="fa-solid fa-user-slash text-amber-400 w-4 text-center group-hover:scale-110 transition-transform"></i>
-                                            <span>إيقاف الحساب</span>
+                                            <i class="fa-solid {{ 'fa-user-check' if s.status in ('suspended', 'disabled') else 'fa-user-slash' }} {{ 'text-emerald-400' if s.status in ('suspended', 'disabled') else 'text-amber-400' }} w-4 text-center group-hover:scale-110 transition-transform"></i>
+                                            <span>{{ 'تنشيط الحساب' if s.status in ('suspended', 'disabled') else 'إيقاف الحساب' }}</span>
                                         </div>
                                     </button>
                                     <button onclick="confirmTerminate('subscriber', '{{ s.id }}', '{{ s.username }}')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
@@ -779,7 +779,7 @@
             </h3>
             <button onclick="closeModal('modalUsageHistory')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        
+
         <!-- Summary Cards -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div class="bg-[#070b14] p-3 rounded-xl border border-slate-800">
@@ -1029,13 +1029,13 @@
 
 {% block scripts %}
 <script>
-    function openAddModal() { 
+    function openAddModal() {
         const el = document.getElementById('addModal');
-        if (el) el.classList.remove('hidden'); 
+        if (el) el.classList.remove('hidden');
     }
-    function closeModal(id) { 
+    function closeModal(id) {
         const el = document.getElementById(id);
-        if (el) el.classList.add('hidden'); 
+        if (el) el.classList.add('hidden');
     }
 
     const DEFAULT_VISIBLE_COLUMNS = ['id', 'fullname', 'username', 'days', 'lastseen', 'package', 'accesspoint', 'consumption', 'service'];
@@ -1107,7 +1107,7 @@
         }
         applyColumnVisibility(selected);
         closeModal('modalColumnCustomizer');
-        
+
         // Quick Toast feedback
         const Toast = Swal.mixin({
             toast: true,
@@ -1232,10 +1232,10 @@
         const menu = document.getElementById('bulkDropdownMenu');
         const chevron = document.getElementById('bulkChevron');
         if (!menu) return;
-        
+
         const isHidden = menu.classList.contains('hidden');
         closeAllActionDropdowns();
-        
+
         if (isHidden) {
             menu.classList.remove('hidden');
             if (chevron) chevron.style.transform = 'rotate(180deg)';
@@ -1266,7 +1266,7 @@
         const menuCount = document.getElementById('bulkMenuCount');
         const master = document.getElementById('selectAllCheckbox');
         const allCheckboxes = document.querySelectorAll('.row-checkbox');
-        
+
         if (selected.length > 0) {
             bar.classList.remove('hidden');
             badge.innerText = `تم تحديد ${selected.length} مشترك`;
@@ -1276,7 +1276,7 @@
             const bulkMenu = document.getElementById('bulkDropdownMenu');
             if (bulkMenu) bulkMenu.classList.add('hidden');
         }
-        
+
         if (master) {
             master.checked = (selected.length > 0 && selected.length === allCheckboxes.length);
             master.indeterminate = (selected.length > 0 && selected.length < allCheckboxes.length);
@@ -1306,7 +1306,7 @@
             return;
         }
         const count = selected.length;
-        
+
         if (actionName === 'delete') {
             confirmDelete('subscriber', selected, `${count} مشترك محدد`);
         } else if (actionName === 'extend') {
@@ -1349,7 +1349,7 @@
         const isBulk = Array.isArray(idOrIds);
         const count = isBulk ? idOrIds.length : 1;
         const title = isBulk ? `حذف ${count} مشترك نهائياً` : `حذف المشترك [${label}] نهائياً`;
-        const text = isBulk 
+        const text = isBulk
             ? `هل أنت متأكد من حذف ${count} مشترك محدد نهائياً من النظام ومسح بياناتهم من FreeRADIUS وطرد جلساتهم من الميكروتيك؟ لا يمكن التراجع عن هذا الإجراء!`
             : `هل أنت متأكد من حذف المشترك [${label}] نهائياً من النظام ومسح بياناته من FreeRADIUS وطرد جلسته؟`;
 
@@ -1437,7 +1437,7 @@
         const count = isBulk ? idOrIds.length : 1;
         Swal.fire({
             title: 'تأكيد إنهاء الاشتراك',
-            text: isBulk 
+            text: isBulk
                 ? `هل أنت متأكد من إنهاء اشتراك ${count} مشترك محدد فوراً وتصفير رصيد الكوتا وفصلهم من الميكروتيك؟`
                 : `هل أنت متأكد من إنهاء اشتراك [${label}] فوراً وتصفير رصيد الكوتا وفصله من الميكروتيك؟`,
             icon: 'warning',
@@ -1483,7 +1483,7 @@
         const count = isBulk ? idOrIds.length : 1;
         Swal.fire({
             title: 'تجديد الباقة',
-            text: isBulk 
+            text: isBulk
                 ? `هل تريد تجديد الباقة لـ ${count} مشترك محدد وإعادة تعيين الصلاحية والكوتا؟`
                 : `هل تريد تجديد باقة [${pkgName}] للمشترك [${label}] وإعادة تعيين الصلاحية والكوتا؟`,
             icon: 'question',
@@ -1605,7 +1605,7 @@
                     document.getElementById('uh_total_up').innerText = d.total_upload;
                     document.getElementById('uh_total_traffic').innerText = d.total_traffic;
                     document.getElementById('uh_total_sessions').innerText = `${d.total_sessions} جلسة (${d.total_duration})`;
-                    
+
                     const tbody = document.getElementById('uh_sessions_tbody');
                     tbody.innerHTML = '';
                     if (!d.sessions || d.sessions.length === 0) {
@@ -1710,7 +1710,7 @@
         const count = isBulk ? idOrIds.length : 1;
         Swal.fire({
             title: 'قطع الاتصال الفوري (CoA)',
-            text: isBulk 
+            text: isBulk
                 ? `هل تريد إرسال Disconnect-Request لـ ${count} مشترك محدد لطردهم فوراً من المتصلين؟`
                 : `هل تريد إرسال Disconnect-Request للمشترك [${label}] لطرده فوراً من المتصلين؟`,
             icon: 'warning',

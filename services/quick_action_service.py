@@ -137,6 +137,43 @@ def action_disable_account(entity_type, entity_id, admin_username='admin'):
     return True, 'تم إيقاف الحساب مع حفظ الرصيد والصلاحية، وطُلب فصل جميع جلساته؛ قبول الطلب لا يؤكد اكتمال الفصل.'
 
 
+def action_activate_subscriber(entity_id, admin_username='admin'):
+    """Remove a manual suspension without renewing or adding entitlement."""
+    from services.account_lifecycle_service import run_transaction, lock_account, sql, expiry_reason, ACCOUNTING_UNCERTAIN_REASON
+    from services.license_guard_service import get_active_license_status
+    from core.radius_sync import sync_subscriber_to_radius
+
+    def activate(conn):
+        table, row = lock_account(conn, 'subscriber', entity_id)
+        if not row:
+            raise ValueError('المشترك غير موجود')
+        if row['status'] not in ('suspended', 'disabled'):
+            raise ValueError('المشترك غير موقوف حاليًا؛ حدّث الصفحة')
+        if row.get('pause_reason') == 'إيقاف لحين إكمال حذف الحساب':
+            raise ValueError('المشترك ينتظر إكمال الحذف؛ لا يمكن تنشيطه بهذه العملية')
+        if not sql(conn, 'SELECT id FROM wisp_packages WHERE id=? FOR UPDATE', (row['package_id'],), 'one'):
+            raise ValueError('تعذر العثور على باقة المشترك')
+        candidate = dict(row, status='active')
+        reason = expiry_reason(conn, 'subscriber', candidate)
+        if reason == ACCOUNTING_UNCERTAIN_REASON:
+            raise ValueError('تعذر تنشيط المشترك قبل تسوية محاسبة الدورة الحالية')
+        status = 'expired' if reason else 'active'
+        if status == 'active':
+            license_status = get_active_license_status()
+            if not license_status.get('valid') or license_status.get('status') == 'revoked':
+                raise ValueError('لا يمكن تنشيط المشترك: الترخيص غير صالح')
+        sql(conn, f"UPDATE {table} SET status=?,pause_reason=NULL WHERE id=?", (status, entity_id))
+        if not sync_subscriber_to_radius(entity_id, conn=conn):
+            raise RuntimeError('تعذر تحديث صلاحيات المشترك في الراديوس')
+        return dict(status=status, reason=reason, username=row['username'])
+
+    result = run_transaction(activate)
+    log_user_audit('subscriber', entity_id, result['username'], admin_username,
+                   'ACTIVATE_ACCOUNT', 'إلغاء الإيقاف: '+result['status'])
+    message = 'تم تنشيط الحساب ونقله إلى تبويب النشط' if result['status']=='active' else 'أُلغي الإيقاف ونُقل الحساب إلى المنتهي: '+result['reason']
+    return True, message, result['status']
+
+
 def action_delete_entity(entity_type, entity_id, admin_username='admin'):
     from services.account_lifecycle_service import delete_account
     entity, kind = get_target_entity(entity_type, entity_id)

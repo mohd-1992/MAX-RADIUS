@@ -2,33 +2,38 @@ async function disableAccount(event, button) {
     event.preventDefault();
     event.stopPropagation();
     const { id, type, username } = button.dataset;
+    const activate = button.dataset.action === 'activate-account';
     closeAllActionDropdowns();
     if (button.dataset.busy === '1') return;
     button.dataset.busy = '1';
     const isDark = !document.documentElement.classList.contains('theme-light');
     try {
         const confirmation = await Swal.fire({
-            icon: 'warning', title: 'تأكيد إيقاف الحساب',
-            text: `هل تريد إيقاف ${username || 'هذا الحساب'}؟ سيُمنع الدخول وتُطلب مغادرة جميع جلساته مع حفظ الرصيد والصلاحية. مدة الصلاحية تستمر ولا تُجمّد.`,
-            showCancelButton: true, confirmButtonText: 'إيقاف الحساب', cancelButtonText: 'إلغاء',
+            icon: 'warning', title: activate ? 'تأكيد تنشيط الحساب' : 'تأكيد إيقاف الحساب',
+            text: activate ? 'سيُلغى الإيقاف ويُقيّم الرصيد والصلاحية، ثم ينتقل الحساب إلى النشط أو المنتهي دون تجديد أو إضافة رصيد.' : `هل تريد إيقاف ${username || 'هذا الحساب'}؟ سيُمنع الدخول وتُطلب مغادرة جميع جلساته مع حفظ الرصيد والصلاحية. مدة الصلاحية تستمر ولا تُجمّد.`,
+            showCancelButton: true, confirmButtonText: activate ? 'تنشيط الحساب' : 'إيقاف الحساب', cancelButtonText: 'إلغاء',
             confirmButtonColor: '#d97706', background: isDark ? '#0b0f19' : '#ffffff',
             color: isDark ? '#f8fafc' : '#0f172a',
             customClass: { popup: 'rounded-2xl text-right font-sans', confirmButton: 'rounded-xl', cancelButton: 'rounded-xl' }
         });
         if (!confirmation.isConfirmed) return;
         button.disabled = true;
-        const response = await fetch('/api/actions/disable', {
+        const response = await fetch(activate ? '/api/actions/activate-subscriber' : '/api/actions/disable', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ target_type: type, target_id: id })
         });
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.message || 'تعذر إيقاف الحساب');
-        await Swal.fire({ icon: 'success', title: 'تم إيقاف الحساب', text: result.message,
+        await Swal.fire({ icon: 'success', title: activate ? 'تم إلغاء الإيقاف' : 'تم إيقاف الحساب', text: result.message,
             confirmButtonText: 'حسنًا', background: isDark ? '#0b0f19' : '#ffffff',
             color: isDark ? '#f8fafc' : '#0f172a' });
-        window.location.reload();
+        if (activate) {
+            const destination = new URL(window.location.href);
+            destination.searchParams.set('status', result.status);
+            window.location.assign(destination.href);
+        } else window.location.reload();
     } catch (error) {
-        await Swal.fire({ icon: 'error', title: 'تعذر تأكيد الإيقاف',
+        await Swal.fire({ icon: 'error', title: activate ? 'تعذر تنشيط الحساب' : 'تعذر تأكيد الإيقاف',
             text: error.message || 'تحقق من حالة الحساب واتصال الشبكة قبل إعادة المحاولة', confirmButtonText: 'حسنًا' });
     } finally {
         button.dataset.busy = '0';
