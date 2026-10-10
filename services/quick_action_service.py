@@ -846,8 +846,8 @@ def action_get_usage_history(entity_type, entity_id):
                COALESCE(SUM(max_time), 0) as total_time_sec
         FROM (
             SELECT nasipaddress, acctsessionid,
-                   MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as max_down,
-                   MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as max_up,
+                   MAX(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as max_down,
+                   MAX(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as max_up,
                    MAX(acctsessiontime) as max_time
             FROM radacct
             WHERE LOWER(username) = LOWER(?)

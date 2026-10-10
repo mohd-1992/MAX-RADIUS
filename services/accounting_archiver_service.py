@@ -128,8 +128,7 @@ def get_archiver_status():
                 SELECT
                     COUNT(*) as archive_count,
                     MIN(archived_at) as oldest_archive,
-                    COALESCE(SUM((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) + CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED)) * 4294967296 +
-                                 CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_archived_bytes
+                    COALESCE(SUM(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_archived_bytes
                 FROM radacct_archive
             """)
             arch_stats = cur.fetchone() or {}

@@ -511,8 +511,8 @@ def get_portal_user_data(username):
         user_info['nas_ip'] = active_session.get('nasipaddress') or '-'
         sess_time = int(active_session.get('acctsessiontime') or 0)
         user_info['uptime_str'] = format_duration(sess_time) if sess_time > 0 else 'أقل من دقيقة'
-        bytes_out = (int(active_session.get('acctoutputgigawords') or 0) * 4294967296) + int(active_session.get('acctoutputoctets') or 0)
-        bytes_in = (int(active_session.get('acctinputgigawords') or 0) * 4294967296) + int(active_session.get('acctinputoctets') or 0)
+        bytes_out = int(active_session.get('acctoutputoctets') or 0)
+        bytes_in = int(active_session.get('acctinputoctets') or 0)
         user_info['bytes_out_str'] = format_bytes(bytes_out)
         user_info['bytes_in_str'] = format_bytes(bytes_in)
     else:

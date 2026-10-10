@@ -494,16 +494,16 @@ def query_voucher_status(search_term):
     v_cycle = v.get('last_renewed_at') or v.get('first_used_at')
     if v_cycle:
         acct = query_one(
-            """SELECT COALESCE(SUM((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) as total_in,
-                      COALESCE(SUM((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_out,
+            """SELECT COALESCE(SUM(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) as total_in,
+                      COALESCE(SUM(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_out,
                       COALESCE(SUM(acctsessiontime), 0) as total_time
                FROM radacct WHERE username = ? AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?""",
             (v['username'], str(v_cycle))
         )
     else:
         acct = query_one(
-            """SELECT COALESCE(SUM((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) as total_in,
-                      COALESCE(SUM((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_out,
+            """SELECT COALESCE(SUM(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) as total_in,
+                      COALESCE(SUM(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_out,
                       COALESCE(SUM(acctsessiontime), 0) as total_time
                FROM radacct WHERE username = ?""",
             (v['username'],)
@@ -544,15 +544,15 @@ def query_subscriber_status(search_term):
     s_cycle = s.get('last_renewed_at') or s.get('created_at')
     if s_cycle:
         acct = query_one(
-            """SELECT COALESCE(SUM((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) +
-                      COALESCE(SUM((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_bytes
+            """SELECT COALESCE(SUM(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) +
+                      COALESCE(SUM(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_bytes
                FROM radacct WHERE username = ? AND COALESCE(acctstarttime, acctupdatetime, CURRENT_TIMESTAMP) >= ?""",
             (s['username'], str(s_cycle))
         )
     else:
         acct = query_one(
-            """SELECT COALESCE(SUM((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) +
-                      COALESCE(SUM((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_bytes
+            """SELECT COALESCE(SUM(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) +
+                      COALESCE(SUM(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as total_bytes
                FROM radacct WHERE username = ?""",
             (s['username'],)
         )

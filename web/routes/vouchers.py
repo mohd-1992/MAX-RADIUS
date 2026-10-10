@@ -465,8 +465,8 @@ def active_card_users():
             FROM wisp_vouchers v
             LEFT JOIN (
                 SELECT username, nasipaddress, acctsessionid,
-                       MAX((CAST(COALESCE(acctoutputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as max_down,
-                       MAX((CAST(COALESCE(acctinputgigawords, 0) AS UNSIGNED) * 4294967296) + CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as max_up,
+                       MAX(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as max_down,
+                       MAX(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as max_up,
                        MAX(acctsessiontime) as max_time,
                        MIN(COALESCE(acctstarttime, acctupdatetime)) as sess_start
                 FROM radacct
