@@ -204,6 +204,7 @@ CREATE TABLE IF NOT EXISTS wisp_invoices (
 CREATE TABLE IF NOT EXISTS wisp_voucher_sales (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     voucher_id INTEGER NOT NULL,
+    first_activation_voucher_id INTEGER UNIQUE,
     batch_id INTEGER NOT NULL,
     batch_name VARCHAR(100),
     username VARCHAR(64) NOT NULL,

@@ -295,6 +295,7 @@ CREATE TABLE IF NOT EXISTS `wisp_vouchers` (
 CREATE TABLE IF NOT EXISTS `wisp_voucher_sales` (
     `id` INT(11) NOT NULL AUTO_INCREMENT,
     `voucher_id` INT(11) NOT NULL,
+    `first_activation_voucher_id` BIGINT NULL,
     `batch_id` INT(11) NOT NULL,
     `batch_name` VARCHAR(100) DEFAULT '',
     `username` VARCHAR(64) NOT NULL,
@@ -306,6 +307,7 @@ CREATE TABLE IF NOT EXISTS `wisp_voucher_sales` (
     `activated_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uq_voucher_first_activation` (`first_activation_voucher_id`),
     KEY `idx_sales_voucher` (`voucher_id`),
     KEY `idx_sales_batch` (`batch_id`),
     KEY `idx_sales_activated` (`activated_at`)
@@ -659,12 +661,12 @@ BEGIN
         WHERE id = v_id;
         
         INSERT INTO wisp_voucher_sales (
-            voucher_id, batch_id, batch_name, username, serial_number,
+            first_activation_voucher_id, voucher_id, batch_id, batch_name, username, serial_number,
             package_name, price, cost, reseller_id, activated_at
         ) VALUES (
-            v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
+            v_id, v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
             v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id, CURRENT_TIMESTAMP
-        );
+        ) ON DUPLICATE KEY UPDATE first_activation_voucher_id=first_activation_voucher_id;
         
         DELETE FROM radcheck WHERE LOWER(username) = LOWER(NEW.username) AND attribute = 'Expiration';
         INSERT INTO radcheck (username, attribute, op, value)

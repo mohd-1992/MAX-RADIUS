@@ -232,16 +232,14 @@ BEGIN
             snap_mikrotik_group = COALESCE(NULLIF(snap_mikrotik_group, ''), v_mgroup)
         WHERE id = v_id;
         
-        IF NOT EXISTS (SELECT 1 FROM wisp_voucher_sales WHERE voucher_id = v_id) THEN
-            INSERT INTO wisp_voucher_sales (
-                voucher_id, batch_id, batch_name, username, serial_number,
-                package_name, price, cost, reseller_id, activated_at
-            ) VALUES (
-                v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
-                v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id, CURRENT_TIMESTAMP
-            );
-        END IF;
-        
+        INSERT INTO wisp_voucher_sales (
+            first_activation_voucher_id, voucher_id, batch_id, batch_name, username, serial_number,
+            package_name, price, cost, reseller_id, activated_at
+        ) VALUES (
+            v_id, v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
+            v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id, CURRENT_TIMESTAMP
+        ) ON DUPLICATE KEY UPDATE first_activation_voucher_id=first_activation_voucher_id;
+
         DELETE FROM radcheck WHERE LOWER(username) = LOWER(NEW.username) AND attribute = 'Expiration';
         IF v_rad_exp IS NOT NULL THEN
             INSERT INTO radcheck (username, attribute, op, value)
@@ -875,6 +873,7 @@ CREATE TABLE `wisp_voucher_batches` (
 CREATE TABLE `wisp_voucher_sales` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `voucher_id` int(11) NOT NULL,
+  `first_activation_voucher_id` bigint(20) DEFAULT NULL,
   `batch_id` int(11) NOT NULL,
   `batch_name` varchar(100) DEFAULT '',
   `username` varchar(64) NOT NULL,
@@ -886,6 +885,7 @@ CREATE TABLE `wisp_voucher_sales` (
   `activated_at` datetime DEFAULT current_timestamp(),
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_voucher_first_activation` (`first_activation_voucher_id`),
   KEY `idx_sales_voucher` (`voucher_id`),
   KEY `idx_sales_batch` (`batch_id`),
   KEY `idx_sales_activated` (`activated_at`)

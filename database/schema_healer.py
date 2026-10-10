@@ -92,6 +92,7 @@ REQUIRED_TABLES = {
         CREATE TABLE IF NOT EXISTS wisp_voucher_sales (
             id INT AUTO_INCREMENT PRIMARY KEY,
             voucher_id INT NOT NULL,
+            first_activation_voucher_id BIGINT NULL,
             batch_id INT NULL,
             batch_name VARCHAR(100) NULL,
             username VARCHAR(100) NOT NULL,
@@ -101,6 +102,7 @@ REQUIRED_TABLES = {
             cost DECIMAL(10,2) DEFAULT 0.00,
             reseller_id INT NULL,
             activated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_voucher_first_activation (first_activation_voucher_id),
             INDEX idx_voucher (voucher_id),
             INDEX idx_user (username)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -349,15 +351,13 @@ BEGIN
             snap_mikrotik_group = COALESCE(NULLIF(snap_mikrotik_group, ''), v_mgroup)
         WHERE id = v_id;
         
-        IF NOT EXISTS (SELECT 1 FROM wisp_voucher_sales WHERE voucher_id = v_id) THEN
-            INSERT INTO wisp_voucher_sales (
-                voucher_id, batch_id, batch_name, username, serial_number,
-                package_name, price, cost, reseller_id, activated_at
-            ) VALUES (
-                v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
-                v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id, CURRENT_TIMESTAMP
-            );
-        END IF;
+        INSERT INTO wisp_voucher_sales (
+            first_activation_voucher_id, voucher_id, batch_id, batch_name, username, serial_number,
+            package_name, price, cost, reseller_id, activated_at
+        ) VALUES (
+            v_id, v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
+            v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id, CURRENT_TIMESTAMP
+        ) ON DUPLICATE KEY UPDATE first_activation_voucher_id=first_activation_voucher_id;
         
         DELETE FROM radcheck WHERE LOWER(username) = LOWER(NEW.username) AND attribute = 'Expiration';
         IF v_rad_exp IS NOT NULL THEN
@@ -376,6 +376,8 @@ def install_accounting_triggers(conn):
     import re
     if not is_mysql_conn(conn):
         return
+    from database.voucher_sales_schema import ensure_activation_sale_key
+    ensure_activation_sale_key(conn)
     install_capacity_schema(conn)
     with conn.cursor() as cur:
         cur.execute('SELECT VERSION() AS version')
