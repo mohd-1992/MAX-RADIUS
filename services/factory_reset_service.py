@@ -145,15 +145,20 @@ def _worker(job_id, parameters, created_by):
                 from services.backup_service import create_backup
                 ok,msg,backup=create_backup(admin_username=created_by,notes='قبل إعادة ضبط المصنع',dispatch_notifications=False)
                 if not ok:raise RuntimeError(msg)
-                result.update(backup=backup,stage='stopping',percent=30,message='إيقاف استقبال المصادقات الجديدة مؤقتًا')
+                result.update(backup=backup,stage='disconnecting',percent=40,message='منع المصادقات الجديدة مع استمرار استقبال المحاسبة')
                 _save(job_id,result)
-                for core in cores:
-                    if core['was_running']:_docker('POST',f"/containers/{core['id']}/stop?t=10")
-                    if _inspect(core['id'])['State']['Running']:raise RuntimeError('تعذر إيقاف الراديوس؛ لم ينفذ المسح.')
                 def progress(remaining,total):
                     result.update(stage='disconnecting',percent=45,message=f'فصل الجلسات والتحقق من إغلاقها: متبقي {remaining}',remaining_sessions=remaining,total_sessions=total)
                     _save(job_id,result)
                 _close_sessions(progress)
+                result.update(stage='stopping',percent=55,message='إيقاف الراديوس بعد إغلاق الجلسات')
+                _save(job_id,result)
+                for core in cores:
+                    if core['was_running']:_docker('POST',f"/containers/{core['id']}/stop?t=10")
+                    if _inspect(core['id'])['State']['Running']:raise RuntimeError('تعذر إيقاف الراديوس؛ لم ينفذ المسح.')
+                # A request already in flight may have created a session during shutdown.
+                if query_one('SELECT COUNT(*) n FROM radacct WHERE acctstoptime IS NULL')['n']:
+                    raise RuntimeError('ظهرت جلسة أثناء الإيقاف؛ لم ينفذ المسح. أُعيد الراديوس لاستقبال المحاسبة.')
                 result.update(stage='wiping',percent=65,message='مسح البيانات التشغيلية في معاملة واحدة')
                 _save(job_id,result)
                 from services.db_maintenance_service import _wipe_factory_database
