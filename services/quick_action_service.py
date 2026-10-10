@@ -776,48 +776,52 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
     log_audit(1, admin_username, 'CHANGE_PACKAGE', etype, f'Changed package to {new_pkg["name"]} for {username}: {audit_note}')
     return True, res_msg
 
+def parse_quota_adjustment(quota_amount, quota_unit='GB'):
+    import math
+    val = float(quota_amount)
+    unit = str(quota_unit).upper()
+    if not math.isfinite(val) or val == 0 or unit not in ('MB', 'GB'):
+        raise ValueError('invalid quota adjustment')
+    mb_val = round(val * 1024.0, 2) if unit == 'GB' else round(val, 2)
+    if not math.isfinite(mb_val) or mb_val == 0 or abs(mb_val) >= 2**63:
+        raise ValueError('invalid quota adjustment')
+    return val, mb_val, unit
+
+
 @settle_cycle_operation
 def action_add_quota(entity_type, entity_id, quota_amount, quota_unit='GB', admin_username='admin'):
-    """5. إضافة رصيد تحميل (Data Quota)"""
+    """Apply a signed quota adjustment without renewing the subscription cycle."""
+    try:
+        val, mb_val, unit = parse_quota_adjustment(quota_amount, quota_unit)
+    except (ValueError, TypeError, OverflowError):
+        return False, "يرجى إدخال قيمة بيانات صالحة غير صفرية؛ الموجب للإضافة والسالب للخصم."
     entity, etype = get_target_entity(entity_type, entity_id)
     if not entity:
         return False, "الحساب أو الكرت غير موجود"
-        
-    try:
-        val = float(quota_amount)
-        if val <= 0:
-            return False, "يرجى إدخال سعة بيانات صحيحة أكبر من 0"
-    except (ValueError, TypeError):
-        return False, "قيمة السعة المدخلة غير صحيحة"
-        
-    mb_val = round(val * 1024.0, 2) if str(quota_unit).upper() == 'GB' else round(val, 2)
-    
-    if etype == 'subscriber':
-        execute_write("""
-            UPDATE wisp_subscribers
-            SET extra_quota_mb = COALESCE(extra_quota_mb, 0) + ?,
-                status = CASE WHEN status = 'expired' THEN 'active' ELSE status END
-            WHERE id = ?
-        """, (mb_val, entity['id']))
-    else:
-        execute_write("""
-            UPDATE wisp_vouchers
-            SET extra_quota_mb = COALESCE(extra_quota_mb, 0) + ?,
-                status = CASE WHEN status = 'expired' THEN 'active' ELSE status END,
-                expire_reason = ''
-            WHERE id = ?
-        """, (mb_val, entity['id']))
-        
-    # Ensure active password in radcheck
-    user_pwd = entity.get('password') or entity.get('pin_code') or entity['username']
-    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Cleartext-Password'", (entity['username'],))
-    execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (entity['username'], user_pwd))
-    
-    # Disconnect active session so router fetches new quota limit immediately
-    # Live preview refresh is performed by the per-account decorator.
-        
-    log_audit(1, admin_username, 'ADD_DATA_QUOTA', etype, f'Added {val} {quota_unit} ({mb_val} MB) quota to {entity["username"]}')
-    return True, f"تمت إضافة رصيد تحميل بمقدار {val} {quota_unit} ({mb_val} MB) بنجاح وتحديث جلسة المستخدم."
+    table = 'wisp_subscribers' if etype == 'subscriber' else 'wisp_vouchers'
+    with db_session() as conn:
+        cursor = conn.cursor()
+        try:
+            # Keep the quota adjustment and credential synchronization atomic.
+            # A deduction must preserve inactive/expired/disabled account state.
+            state_sql = ''
+            if mb_val > 0:
+                state_sql = ", status = CASE WHEN status = 'expired' THEN 'active' ELSE status END"
+                if etype != 'subscriber':
+                    state_sql += ", expire_reason = ''"
+            cursor.execute(adapt_query(f"UPDATE {table} SET extra_quota_mb = COALESCE(extra_quota_mb, 0) + ?{state_sql} WHERE id = ?", conn), (mb_val, entity['id']))
+            if mb_val > 0:
+                user_pwd = entity.get('password') or entity.get('pin_code') or entity['username']
+                cursor.execute(adapt_query("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Cleartext-Password'", conn), (entity['username'],))
+                cursor.execute(adapt_query("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", conn), (entity['username'], user_pwd))
+        finally:
+            cursor.close()
+    deduct = mb_val < 0
+    action = 'DEDUCT_DATA_QUOTA' if deduct else 'ADD_DATA_QUOTA'
+    verb = 'خصم' if deduct else 'إضافة'
+    log_audit(1, admin_username, action, etype, f'Quota adjustment {val} {unit} ({mb_val} MB) for {entity["username"]}')
+    return True, f"تم {verb} رصيد تحميل بمقدار {abs(val)} {unit} ({abs(mb_val)} MB) بنجاح."
+
 
 def action_get_usage_history(entity_type, entity_id):
     """6. استعراض سجل الاستهلاك والجلسات"""

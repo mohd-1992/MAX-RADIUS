@@ -156,6 +156,12 @@ def settle_cycle_operation(fn):
         args_map = signature.bind(*args, **kwargs)
         args_map.apply_defaults()
         values = args_map.arguments
+        if fn.__name__ == 'action_add_quota':
+            from services.quick_action_service import parse_quota_adjustment
+            try:
+                parse_quota_adjustment(values['quota_amount'], values['quota_unit'])
+            except (ValueError, TypeError, OverflowError):
+                return False, 'يرجى إدخال قيمة بيانات صالحة غير صفرية؛ الموجب للإضافة والسالب للخصم.'
         if fn.__name__ == 'recharge_user_wallet_by_card' and str(values['recharge_type']).strip().lower() != 'package':
             return fn(*args, **kwargs)
         if 'entity_type' in values:
