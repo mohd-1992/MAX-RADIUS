@@ -222,6 +222,11 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
 
 def _process_coa_task(task):
     """Executes a single CoA or Disconnect action with failover and audit logging."""
+    if task.get('factory_reset_job_id'):
+        from services.factory_reset_service import _check_cancel, FactoryResetCancelled
+        try:_check_cancel(task['factory_reset_job_id'])
+        except FactoryResetCancelled:
+            return {'success':True,'status':'cancelled','message':'ألغيت مهمة الفصل التابعة لإعادة المصنع'}
     from services.account_lifecycle_service import lifecycle_disconnect_still_required
     if not lifecycle_disconnect_still_required(task):
         return {'success': True, 'status': 'cancelled_after_state_change', 'message': 'ألغيت المهمة بعد تغير حالة الحساب أو دورته'}
@@ -388,7 +393,7 @@ def start_coa_worker():
         _worker_thread = _WORKERS[0]
 
 
-def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, mac_address=None, radacctid=None, reason=None, admin_username='admin', lifecycle_kind=None, lifecycle_id=None, lifecycle_cycle=None, require_accounting_stop=False):
+def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, mac_address=None, radacctid=None, reason=None, admin_username='admin', lifecycle_kind=None, lifecycle_id=None, lifecycle_cycle=None, require_accounting_stop=False, factory_reset_job_id=None):
     """
     Non-blocking enqueue of a Disconnect-Request (RFC 5176).
     Returns immediately (< 1ms).
@@ -400,6 +405,7 @@ def enqueue_disconnect(username, nas_ip=None, framed_ip=None, session_id=None, m
     start_coa_worker()
     task = {
         'action': 'disconnect',
+        'factory_reset_job_id': factory_reset_job_id,
         'require_accounting_stop': bool(require_accounting_stop),
         'username': username,
         'nas_ip': nas_ip,

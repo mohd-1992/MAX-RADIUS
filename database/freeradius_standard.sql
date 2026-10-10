@@ -97,3 +97,7 @@ CREATE TABLE IF NOT EXISTS radpostauth (
     authdate DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     class VARCHAR(64) DEFAULT NULL
 );
+
+-- Display-only imported history: excluded from RADIUS accounting and quota.
+CREATE TABLE IF NOT EXISTS wisp_imported_session_history AS SELECT * FROM radacct WHERE 0;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_imported_history_unique ON wisp_imported_session_history(acctuniqueid);

@@ -568,6 +568,8 @@ def execute_database_migration(file_input, options=None):
 
     processed_units = 0
 
+    if import_sessions and session_mode == "full":
+        execute_write("CREATE TABLE IF NOT EXISTS wisp_imported_session_history LIKE radacct")
     db = get_connection()
     cur = db.cursor()
     set_import_maintenance_active(True)
@@ -642,7 +644,7 @@ def execute_database_migration(file_input, options=None):
                 cur.execute("SET unique_checks = 0;")
                 cur.execute("SET foreign_key_checks = 0;")
                 # Keep trigger definitions installed; suppress activation only on this import connection.
-                cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('wisp_vouchers','wisp_subscribers','wisp_voucher_batches','radacct','radcheck','radreply','radusergroup','wisp_packages','wisp_managers','wisp_global_sequence') AND engine <> 'InnoDB'")
+                cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('wisp_vouchers','wisp_subscribers','wisp_voucher_batches','radacct','wisp_imported_session_history','radcheck','radreply','radusergroup','wisp_packages','wisp_managers','wisp_global_sequence') AND engine <> 'InnoDB'")
                 if cur.fetchone():
                     raise RuntimeError('Database migration requires transactional InnoDB tables.')
                 cur.execute("SET @max_radius_import = 1")
@@ -650,6 +652,7 @@ def execute_database_migration(file_input, options=None):
                 cur.execute("DELETE FROM wisp_subscribers;")
                 cur.execute("DELETE FROM wisp_voucher_batches;")
                 cur.execute("DELETE FROM radacct;")
+                cur.execute("DELETE FROM wisp_imported_session_history;")
                 cur.execute("DELETE FROM radcheck WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
                 cur.execute("DELETE FROM radusergroup WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
                 cur.execute("DELETE FROM radreply WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
@@ -883,6 +886,7 @@ def execute_database_migration(file_input, options=None):
         radcheck_bulk = []
         radgroup_bulk = []
         radacct_bulk = []
+        history_bulk = []
         user_sessions_agg = {}
         subscriber_quotas = {name: user_quotas[uid] for uid, name in user_id_to_subscriber.items() if uid in user_quotas}
         authoritative_usage_usernames = set(subscriber_quotas) if import_sessions and import_subscribers else set()
@@ -898,7 +902,7 @@ def execute_database_migration(file_input, options=None):
                                                uptime=uq['uptime'], first_start=uq.get('start_date'),
                                                last_stop=None, framedip='', count=1)
 
-        def _flush_radacct(bulk):
+        def _flush_radacct(bulk, history=False):
             if not bulk:
                 return
             sample_len = len(bulk[0]) if bulk else 0
@@ -923,8 +927,13 @@ def execute_database_migration(file_input, options=None):
                         acctterminatecause, servicetype, framedprotocol, framedipaddress
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, db)
+            if history:
+                sql = sql.replace("INTO radacct (", "INTO wisp_imported_session_history (")
             cur.executemany(sql, bulk)
-            stats['sessions_imported'] += len(bulk)
+            inserted = max(0, cur.rowcount)
+            stats['sessions_imported'] += inserted
+            if history:
+                stats['historical_sessions_imported'] = stats.get('historical_sessions_imported', 0) + inserted
             bulk.clear()
 
         now_dt = import_now(cur)
@@ -1282,7 +1291,7 @@ def execute_database_migration(file_input, options=None):
                                 continue
                             if card_consumption_mode == 'fresh_unused' and s_user in card_usernames_set:
                                 continue
-                            if s_user in authoritative_usage_usernames:
+                            if s_user in authoritative_usage_usernames and session_mode != "full":
                                 continue
                             
                             up_b = int(vals[22]) if vals[22] and str(vals[22]).isdigit() else 0
@@ -1316,7 +1325,8 @@ def execute_database_migration(file_input, options=None):
                                     if framed_ip:
                                         agg['framedip'] = framed_ip
                             else:
-                                radacct_bulk.append((
+                                target_bulk = history_bulk if s_user in authoritative_usage_usernames else radacct_bulk
+                                target_bulk.append((
                                     vals[1], # acctsessionid
                                     vals[2] or f"{vals[1]}_{vals[0]}", # acctuniqueid
                                     s_user, # username
@@ -1342,8 +1352,8 @@ def execute_database_migration(file_input, options=None):
                                     framed_ip # framedipaddress
                                 ))
 
-                                if len(radacct_bulk) >= 6000:
-                                    _flush_radacct(radacct_bulk)
+                                if len(target_bulk) >= 6000:
+                                    _flush_radacct(target_bulk, history=target_bulk is history_bulk)
 
 
                             processed_units += 1
@@ -1425,6 +1435,8 @@ def execute_database_migration(file_input, options=None):
                 """, db)
                 cur.executemany(rg_sql, radgroup_bulk)
                 radgroup_bulk = []
+
+            _flush_radacct(history_bulk, history=True)
 
             # Flush any remaining detailed radacct sessions from the stream
             if radacct_bulk:
@@ -1515,7 +1527,7 @@ def execute_database_migration(file_input, options=None):
         db.commit()
 
         try:
-            log_audit(1, 'admin', 'MIGRATION_EXECUTED', 'system', f"Migrated {stats['subscribers_imported']} subscribers, {stats['cards_imported']} cards, {stats['sessions_imported']} sessions.")
+            log_audit(1, 'admin', 'MIGRATION_EXECUTED', 'system', f"Migrated {stats['subscribers_imported']} subscribers, {stats['cards_imported']} cards, {stats['sessions_imported']} sessions; session_mode={session_mode}; historical_sessions={stats.get('historical_sessions_imported',0)}.")
         except Exception as audit_error:
             print(f"[Migration Audit Warning] {audit_error}")
 

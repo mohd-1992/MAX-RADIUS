@@ -76,7 +76,7 @@ def create_app(config=None):
     def enforce_maintenance_mode():
         import os
         if request.method in ('POST','PUT','PATCH','DELETE') and request.path not in (
-            '/api/tools/database-maintenance/factory-reset', '/login', '/logout'):
+            '/api/tools/database-maintenance/factory-reset', '/api/tools/database-maintenance/factory-reset/cancel', '/login', '/logout'):
             try:
                 from services.factory_reset_service import begin_operational_request
                 if not begin_operational_request():

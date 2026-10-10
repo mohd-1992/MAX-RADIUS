@@ -311,7 +311,7 @@ def _optimize_database_tables_locked(tables=None, progress_callback=None):
     import re
     if not tables:
         tables = [
-            'radacct', 'radacct_archive', 'radpostauth', 'radcheck', 'radusergroup', 
+            'radacct', 'radacct_archive','wisp_imported_session_history', 'radpostauth', 'radcheck', 'radusergroup',
             'wisp_vouchers', 'wisp_voucher_sales', 'wisp_subscribers', 'wisp_audit_logs'
         ]
         
@@ -709,7 +709,7 @@ def fix_all_audit_issues():
                     message=f'لم تكتمل المعالجة: {exc}',duration_seconds=round(time.time()-started,2))
 
 
-FACTORY_RESET_TABLES = ('radcheck','radreply','radusergroup','radacct','radacct_archive','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
+FACTORY_RESET_TABLES = ('radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
 
 
 def _wipe_factory_database(keep_packages=True, keep_resellers=False):

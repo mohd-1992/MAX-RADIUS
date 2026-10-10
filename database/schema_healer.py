@@ -15,6 +15,7 @@ from database.maintenance_jobs import MAINTENANCE_JOBS_DDL
 
 REQUIRED_TABLES = {
     'wisp_maintenance_jobs': MAINTENANCE_JOBS_DDL,
+    'wisp_imported_session_history': 'CREATE TABLE IF NOT EXISTS wisp_imported_session_history LIKE radacct',
     'wisp_whatsapp_settings': """
         CREATE TABLE IF NOT EXISTS wisp_whatsapp_settings (
             id INT AUTO_INCREMENT PRIMARY KEY,

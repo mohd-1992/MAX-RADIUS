@@ -42,11 +42,18 @@ def get_user_usage_analytics(username, days=30):
                 COALESCE(SUM(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)), 0) as up_bytes,
                 COALESCE(SUM(acctsessiontime), 0) as duration_sec,
                 COUNT(*) as session_count
-            FROM radacct
-            WHERE LOWER(username) = LOWER(?)
+            FROM (
+                SELECT acctstarttime,acctoutputoctets,acctinputoctets,acctsessiontime
+                FROM radacct r WHERE LOWER(username)=LOWER(?)
+                  AND (COALESCE(acctterminatecause,'')<>'Consolidated-Historical-Import'
+                    OR NOT EXISTS (SELECT 1 FROM wisp_imported_session_history h WHERE h.username=r.username))
+                UNION ALL
+                SELECT acctstarttime,acctoutputoctets,acctinputoctets,acctsessiontime
+                FROM wisp_imported_session_history WHERE LOWER(username)=LOWER(?)
+            ) history
             GROUP BY DATE(acctstarttime)
             ORDER BY usage_date ASC
-        ''', (username,))
+        ''', (username,username))
     except Exception as e:
         print(f"Error querying usage analytics: {e}")
         stats = []
@@ -548,15 +555,20 @@ def delete_subscriber(sub_id, admin_username='admin'):
 
 def get_subscriber_sessions(username, limit=15):
     cutoff_str = get_heartbeat_cutoff_str(5)
-    sessions = query_all('''
-        SELECT *, CASE WHEN acctstoptime IS NULL
-            AND COALESCE(acctupdatetime, acctstarttime) >= ?
-            THEN 1 ELSE 0 END AS is_active
-        FROM radacct
-        WHERE LOWER(username) = LOWER(?)
-        ORDER BY radacctid DESC
-        LIMIT ?
-    ''', (cutoff_str, username, limit))
+    # Imported details are display-only; quota/authentication read radacct exclusively.
+    columns = 'radacctid,acctsessionid,acctuniqueid,username,nasipaddress,acctstarttime,acctupdatetime,acctstoptime,acctsessiontime,acctinputoctets,acctoutputoctets,acctterminatecause,framedipaddress,callingstationid'
+    sessions = query_all(f"""
+        SELECT * FROM (
+          SELECT {columns}, CASE WHEN acctstoptime IS NULL
+            AND COALESCE(acctupdatetime,acctstarttime)>=? THEN 1 ELSE 0 END is_active,
+            0 imported_history FROM radacct r WHERE LOWER(username)=LOWER(?)
+            AND (COALESCE(acctterminatecause,'')<>'Consolidated-Historical-Import'
+              OR NOT EXISTS (SELECT 1 FROM wisp_imported_session_history h WHERE h.username=r.username))
+          UNION ALL
+          SELECT {columns},0 is_active,1 imported_history
+            FROM wisp_imported_session_history WHERE LOWER(username)=LOWER(?)
+        ) history ORDER BY acctstarttime DESC,radacctid DESC LIMIT ?
+    """, (cutoff_str,username,username,limit))
     
     for s in sessions:
         down_bytes = float(int(s.get('acctoutputoctets') or 0))

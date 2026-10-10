@@ -1141,6 +1141,19 @@ def api_factory_reset_database():
         return jsonify(success=False,message=str(exc)),409
 
 
+@system_bp.route('/api/tools/database-maintenance/factory-reset/cancel', methods=['POST'], endpoint='api_factory_reset_cancel')
+@require_permission('settings_manage')
+def api_factory_reset_cancel():
+    data=request.get_json(silent=True) or {}
+    if not isinstance(data,dict):return jsonify(success=False,message='طلب غير صالح.'),400
+    try:
+        from services.factory_reset_service import cancel_factory_reset
+        job=cancel_factory_reset(str(data.get('job_id','')))
+        return jsonify(success=True,job=job),202
+    except ValueError as exc:
+        return jsonify(success=False,message=str(exc)),409
+
+
 @system_bp.route('/api/tools/database-maintenance/factory-reset/status', methods=['GET'], endpoint='api_factory_reset_status')
 @require_permission('settings_manage')
 def api_factory_reset_status():

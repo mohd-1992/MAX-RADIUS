@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 import uuid
-from database.db import query_one, query_all, execute_write, execute_update, log_audit
+from database.db import query_one, query_all, execute_write, execute_update, log_audit, db_session, adapt_query
 from services.account_lifecycle_service import job_lock
 from services.maintenance_job_service import ensure_job_table, _public
 
@@ -28,10 +28,11 @@ def end_operational_request():
         _REQUESTS.notify_all()
 
 
-def _drain_operational_requests(timeout=120):
+def _drain_operational_requests(timeout=120, check_cancel=lambda: None):
     deadline=time.monotonic()+timeout
     with _REQUESTS:
         while _IN_FLIGHT:
+            check_cancel()
             remaining=deadline-time.monotonic()
             if remaining<=0:raise RuntimeError('لم تكتمل العمليات السابقة؛ لم ينفذ المسح.')
             _REQUESTS.wait(min(remaining,1))
@@ -46,6 +47,48 @@ def factory_reset_active():
 def _save(job_id, result, state='running', terminal=False):
     execute_update("""UPDATE wisp_maintenance_jobs SET state=?,progress=?,updated_at=NOW(6),active_key=?
         WHERE job_id=?""", (state,json.dumps(result,ensure_ascii=False),None if terminal else 'factory-reset',job_id))
+
+
+class FactoryResetCancelled(Exception):
+    pass
+
+
+def _check_cancel(job_id):
+    row=query_one('SELECT parameters FROM wisp_maintenance_jobs WHERE job_id=?',(job_id,))
+    if not row:raise RuntimeError('سجل إعادة المصنع غير موجود؛ لم ينفذ المسح.')
+    if json.loads(row['parameters']).get('cancel_requested'):
+        raise FactoryResetCancelled('ألغيت إعادة المصنع قبل المسح. لم تُمسح البيانات؛ قد تكون بعض الجلسات فُصلت أثناء التحضير.')
+
+
+def cancel_factory_reset(job_id):
+    """Durable cancellation, serialized with the irreversible wipe boundary."""
+    with db_session() as conn:
+        cur=conn.cursor()
+        cur.execute(adapt_query('SELECT * FROM wisp_maintenance_jobs WHERE job_id=? FOR UPDATE',conn),(job_id,))
+        row=cur.fetchone()
+        if not row:raise ValueError('سجل المهمة غير موجود.')
+        parameters=json.loads(row['parameters'])
+        if parameters.get('job_kind')!='factory-reset':raise ValueError('المهمة ليست إعادة مصنع.')
+        if row['state']=='cancelled':return get_factory_reset(job_id)
+        if row['state'] not in ('queued','running') or parameters.get('wipe_started'):
+            raise ValueError('لا يمكن الإلغاء بعد بدء المسح أو انتهاء المهمة.')
+        parameters['cancel_requested']=True
+        cur.execute(adapt_query('UPDATE wisp_maintenance_jobs SET parameters=?,updated_at=NOW(6) WHERE job_id=?',conn),
+                    (json.dumps(parameters),job_id))
+    return get_factory_reset(job_id)
+
+
+def _claim_wipe(job_id, result):
+    with db_session() as conn:
+        cur=conn.cursor()
+        cur.execute(adapt_query('SELECT parameters FROM wisp_maintenance_jobs WHERE job_id=? FOR UPDATE',conn),(job_id,))
+        row=cur.fetchone()
+        if not row:raise RuntimeError('سجل المهمة غير موجود؛ لم ينفذ المسح.')
+        parameters=json.loads(row['parameters'])
+        if parameters.get('cancel_requested'):raise FactoryResetCancelled('ألغيت إعادة المصنع؛ لم تُمسح البيانات.')
+        parameters['wipe_started']=True
+        cur.execute(adapt_query('UPDATE wisp_maintenance_jobs SET parameters=?,progress=?,updated_at=NOW(6) WHERE job_id=?',conn),
+                    (json.dumps(parameters),json.dumps(result,ensure_ascii=False),job_id))
 
 
 def _docker(method, path):
@@ -110,17 +153,19 @@ def _restore(cores):
     return errors
 
 
-def _close_sessions(progress, timeout=600):
+def _close_sessions(progress, timeout=600, job_id=None):
     from services.coa_queue_service import enqueue_disconnect, _COA_TASK_QUEUE
     rows=query_all('SELECT radacctid,username,nasipaddress,acctsessionid,framedipaddress,callingstationid FROM radacct WHERE acctstoptime IS NULL')
     for row in rows:
+        if job_id:_check_cancel(job_id)
         ok,msg=enqueue_disconnect(row['username'],nas_ip=row['nasipaddress'],session_id=row['acctsessionid'],
-            framed_ip=row['framedipaddress'],mac_address=row['callingstationid'],radacctid=row['radacctid'],reason='Factory reset')
+            framed_ip=row['framedipaddress'],mac_address=row['callingstationid'],radacctid=row['radacctid'],reason='Factory reset',factory_reset_job_id=job_id)
         if not ok and 'already' not in str(msg).lower():
             # Duplicate work may still finish; final SQL/queue checks are authoritative.
             log.warning('Factory reset disconnect enqueue: %s',msg)
     deadline=time.monotonic()+timeout
     while True:
+        if job_id:_check_cancel(job_id)
         remaining=query_one('SELECT COUNT(*) n FROM radacct WHERE acctstoptime IS NULL')['n']
         progress(remaining,len(rows))
         if remaining==0 and _COA_TASK_QUEUE.unfinished_tasks==0:return
@@ -137,7 +182,9 @@ def _worker(job_id, parameters, created_by):
             if not expiry_idle:raise RuntimeError('لم تتوقف دورة فحص الانتهاء خلال المهلة المحددة؛ لم يُنفذ المسح.')
             if execute_update("UPDATE wisp_maintenance_jobs SET state='running' WHERE job_id=? AND state='queued'",(job_id,))!=1:return
             try:
-                _drain_operational_requests()
+                _check_cancel(job_id)
+                _drain_operational_requests(check_cancel=lambda: _check_cancel(job_id))
+                _check_cancel(job_id)
                 cores=_cores()
                 # Journal original state BEFORE any stop; crash recovery only restores these containers.
                 result.update(cores=cores,stage='backup',percent=10,message='إنشاء نسخة احتياطية استرجاعية')
@@ -145,22 +192,25 @@ def _worker(job_id, parameters, created_by):
                 from services.backup_service import create_backup
                 ok,msg,backup=create_backup(admin_username=created_by,notes='قبل إعادة ضبط المصنع',dispatch_notifications=False)
                 if not ok:raise RuntimeError(msg)
+                _check_cancel(job_id)
                 result.update(backup=backup,stage='disconnecting',percent=40,message='منع المصادقات الجديدة مع استمرار استقبال المحاسبة')
                 _save(job_id,result)
                 def progress(remaining,total):
                     result.update(stage='disconnecting',percent=45,message=f'فصل الجلسات والتحقق من إغلاقها: متبقي {remaining}',remaining_sessions=remaining,total_sessions=total)
                     _save(job_id,result)
-                _close_sessions(progress)
+                _close_sessions(progress,job_id=job_id)
+                _check_cancel(job_id)
                 result.update(stage='stopping',percent=55,message='إيقاف الراديوس بعد إغلاق الجلسات')
                 _save(job_id,result)
                 for core in cores:
+                    _check_cancel(job_id)
                     if core['was_running']:_docker('POST',f"/containers/{core['id']}/stop?t=10")
                     if _inspect(core['id'])['State']['Running']:raise RuntimeError('تعذر إيقاف الراديوس؛ لم ينفذ المسح.')
                 # A request already in flight may have created a session during shutdown.
                 if query_one('SELECT COUNT(*) n FROM radacct WHERE acctstoptime IS NULL')['n']:
                     raise RuntimeError('ظهرت جلسة أثناء الإيقاف؛ لم ينفذ المسح. أُعيد الراديوس لاستقبال المحاسبة.')
                 result.update(stage='wiping',percent=65,message='مسح البيانات التشغيلية في معاملة واحدة')
-                _save(job_id,result)
+                _claim_wipe(job_id,result)
                 from services.db_maintenance_service import _wipe_factory_database
                 result['tables_reset']=_wipe_factory_database(parameters['keep_packages'],parameters['keep_resellers'])
                 result.update(data_reset=True,percent=75,message='تم المسح؛ جارٍ تحسين الجداول واستعادة المساحة',stage='reclaiming')
@@ -180,6 +230,8 @@ def _worker(job_id, parameters, created_by):
                 result.update(percent=95,message='جارٍ إعادة الراديوس إلى حالته السابقة',stage='restarting')
                 _save(job_id,result)
                 result['success']=True
+            except FactoryResetCancelled as exc:
+                result.update(success=False,cancelled=True,stage='cancelled',message=str(exc))
             except Exception as exc:
                 result.update(success=False,message=str(exc))
             finally:
@@ -191,7 +243,7 @@ def _worker(job_id, parameters, created_by):
                 result.update(percent=100,stage='completed',message='اكتملت إعادة المصنع وحُفظت الإعدادات والترخيص والنسخة الاحتياطية، وأُعيد الراديوس إلى حالته السابقة.')
             if result.get('warnings'):
                 result['message']+=' '+ '؛ '.join(result['warnings'])
-            _save(job_id,result,'completed' if result['success'] else 'failed',terminal=not result['restart_errors'])
+            _save(job_id,result,'completed' if result['success'] else ('cancelled' if result.get('cancelled') else 'failed'),terminal=not result['restart_errors'])
             try:log_audit(1,created_by,'DB_FACTORY_RESET','tools',result['message'])
             except Exception:log.exception('Unable to write factory reset audit; persisted job outcome is unchanged')
     except Exception as exc:
@@ -232,7 +284,10 @@ def get_factory_reset(job_id=None):
     ensure_job_table()
     condition="JSON_UNQUOTE(JSON_EXTRACT(parameters,'$.job_kind'))='factory-reset'"
     row=query_one('SELECT * FROM wisp_maintenance_jobs WHERE '+condition+(' AND job_id=?' if job_id else ' ORDER BY (active_key IS NOT NULL) DESC,created_at DESC LIMIT 1'),(job_id,) if job_id else ())
-    return _public(row)
+    job=_public(row)
+    if job:
+        job['can_cancel']=job['state'] in ('queued','running') and not job['parameters'].get('wipe_started') and not job['parameters'].get('cancel_requested')
+    return job
 
 
 def start_factory_reset(keep_packages=True, keep_resellers=False, created_by='admin'):

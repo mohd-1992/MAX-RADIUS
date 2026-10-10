@@ -841,7 +841,7 @@ function confirmFactoryReset() {
 }
 
 
-function factoryResetProgressHtml(message, percent) {
+function factoryResetProgressHtml(message, percent, job) {
     const escaped = String(message).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     return `<div class="factory-reset-progress" dir="rtl">
         <p role="status" aria-live="polite">${escaped}</p>
@@ -849,7 +849,8 @@ function factoryResetProgressHtml(message, percent) {
         <div class="factory-reset-progress-track" role="progressbar" aria-label="تقدم إعادة المصنع" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}">
             <div class="factory-reset-progress-fill" style="width:${percent}%"></div>
         </div>
-        <small>يرجى الانتظار حتى انتهاء العملية؛ تُحدّث هذه النافذة تلقائيًا.</small>
+        <small>${job.parameters?.cancel_requested ? 'تم طلب الإلغاء؛ جارٍ إيقاف التحضير واستعادة الخدمة.' : 'تُحدّث هذه النافذة تلقائيًا.'}</small>
+        ${job.can_cancel ? '<button type="button" id="cancelFactoryReset" class="mt-4 px-5 py-2 rounded-xl bg-rose-600 text-white">إلغاء إعادة المصنع</button>' : ''}
     </div>`;
 }
 let factoryResetTimer = null;
@@ -862,13 +863,28 @@ function trackFactoryReset(job, notify) {
         const numericPercent = Number(outcome.percent);
         const percent = Number.isFinite(numericPercent) ? Math.min(100, Math.max(0, Math.round(numericPercent))) : 0;
         const display = {asModal: true, title: 'إعادة المصنع قيد التنفيذ',
-            html: factoryResetProgressHtml(outcome.message || 'جارٍ التحضير', percent),
+            html: factoryResetProgressHtml(outcome.message || 'جارٍ التحضير', percent, job),
             allowOutsideClick: false, allowEscapeKey: false, showCloseButton: false, showConfirmButton: false};
         if (factoryResetModalOpen && Swal.isVisible()) Swal.update(display);
         else {
             factoryResetModalOpen = true;
             Swal.fire(display);
         }
+        const cancelButton=document.getElementById('cancelFactoryReset');
+        if (cancelButton) cancelButton.onclick=async () => {
+            cancelButton.disabled=true;
+            cancelButton.textContent='جارٍ طلب الإلغاء…';
+            try {
+                const response=await fetch('{{ url_for("api_factory_reset_cancel") }}', {
+                    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({job_id:job.job_id})});
+                const data=await response.json();
+                if (!data.success) throw new Error(data.message || 'تعذر طلب الإلغاء');
+                trackFactoryReset(data.job,true);
+            } catch(error) {
+                cancelButton.textContent=error.message;
+                cancelButton.disabled=false;
+            }
+        };
         clearTimeout(factoryResetTimer);
         factoryResetTimer = setTimeout(() => {
             fetch('{{ url_for("api_factory_reset_status") }}?job_id=' + encodeURIComponent(job.job_id))
@@ -885,9 +901,9 @@ function trackFactoryReset(job, notify) {
         if (notify && !sessionStorage.getItem(key)) {
             sessionStorage.setItem(key, '1');
             Swal.fire({asModal: true,
-                title: job.state === 'completed' ? 'اكتملت إعادة المصنع بنجاح' : 'لم تكتمل إعادة المصنع',
+                title: job.state === 'completed' ? 'اكتملت إعادة المصنع بنجاح' : (job.state === 'cancelled' ? 'ألغيت إعادة المصنع' : 'لم تكتمل إعادة المصنع'),
                 text: outcome.message || 'انقطعت المهمة؛ لم يُستأنف المسح تلقائيًا.',
-                icon: job.state === 'completed' ? 'success' : 'error',
+                icon: job.state === 'completed' ? 'success' : (job.state === 'cancelled' ? 'info' : 'error'),
                 confirmButtonText: 'حسنًا', showConfirmButton: true});
             refreshStats();
         }
