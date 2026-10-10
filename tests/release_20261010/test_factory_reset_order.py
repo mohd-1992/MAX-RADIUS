@@ -4,6 +4,11 @@ from contextlib import contextmanager
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2]
 class Tests(unittest.TestCase):
+ def test_authorize_query_fits_freeradius_parser(self):
+  text=(ROOT/'docker/freeradius/queries.conf').read_text(encoding='utf8')
+  query=text.split('\nauthorize_check_query =',1)[1].split('\nauthorize_reply_query =',1)[0]
+  self.assertLess(len(query.replace('\\\n','').encode('utf8')),8192)
+  self.assertIn("active_key='factory-reset'",query)
  def run_worker(self,close_error=False,late_session=False):
   events=[]; saved=[]; running={'value':True}
   @contextmanager
