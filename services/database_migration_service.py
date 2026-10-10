@@ -456,6 +456,33 @@ def analyze_backup_file(file_input):
     }
 
 
+def imported_extra_quota_mb(source_quota, base_mb):
+    """Source total_traffic is the effective cycle ceiling in bytes, not consumed bytes."""
+    total = int(source_quota.get('total_traffic') or 0)
+    base = int(base_mb or 0)
+    # Preserve unlimited plans; a missing/zero source ceiling supplies no finite limit.
+    if total <= 0 or base <= 0:
+        return 0
+    # Storage uses whole MB. Round the ceiling up so migration never removes a byte.
+    return (total + 1048575) // 1048576 - base
+
+
+def apply_import_quota_allowances(db, source_quotas):
+    if not source_quotas:
+        return
+    cursor = db.cursor()
+    try:
+        for table, column in [('wisp_subscribers', 'p.volume_quota_mb'),
+                              ('wisp_vouchers', 'COALESCE(a.snap_volume_quota_mb,p.volume_quota_mb)')]:
+            cursor.execute(f"SELECT a.id,a.username,{column} AS base_mb FROM {table} a LEFT JOIN wisp_packages p ON p.id=a.package_id")
+            updates = [(imported_extra_quota_mb(source_quotas[r['username']], r['base_mb']), r['id'])
+                       for r in cursor.fetchall() if r['username'] in source_quotas]
+            if updates:
+                cursor.executemany(adapt_query(f"UPDATE {table} SET extra_quota_mb=? WHERE id=?", db), updates)
+    finally:
+        cursor.close()
+
+
 def verify_migration_license(db):
     """Refresh the signed lease after schema installation, before touching imported data."""
     from services.license_guard_service import publish_radius_license_state
@@ -775,6 +802,7 @@ def execute_database_migration(file_input, options=None):
         user_id_to_exp = {}
         user_id_to_state = {}
         subscriber_usernames_set = set()
+        user_id_to_subscriber = {}
 
         try:
             pre_stream = _open_backup_stream(file_input)
@@ -829,6 +857,7 @@ def execute_database_migration(file_input, options=None):
                                             user_id_to_exp[u_id] = u_exp
                                     else:
                                         subscriber_usernames_set.add(u_name)
+                                        user_id_to_subscriber[u_id] = u_name
             pre_stream.close()
 
             # Cross-link all card users with accurate expiration dates and states
@@ -843,7 +872,7 @@ def execute_database_migration(file_input, options=None):
             card_usernames_set = set(user_id_to_card_user.values())
 
         except Exception as e:
-            print(f"[WARN] Pre-stream scan error: {e}")
+            raise RuntimeError("Failed to read authoritative source cycle quotas before importing sessions.") from e
 
         stream = _open_backup_stream(file_input)
         created_batches_cache = {}
@@ -855,7 +884,12 @@ def execute_database_migration(file_input, options=None):
         radgroup_bulk = []
         radacct_bulk = []
         user_sessions_agg = {}
-        authoritative_usage_usernames = set()
+        subscriber_quotas = {name: user_quotas[uid] for uid, name in user_id_to_subscriber.items() if uid in user_quotas}
+        authoritative_usage_usernames = set(subscriber_quotas) if import_sessions and import_subscribers else set()
+        if import_sessions and import_subscribers:
+            for name, uq in subscriber_quotas.items():
+                user_sessions_agg[name] = dict(upload=uq['upload'], download=uq['download'],
+                    uptime=uq['uptime'], first_start=uq.get('start_date'), last_stop=None, framedip='', count=1)
         card_quotas = {name: user_quotas[uid] for uid, name in user_id_to_card_user.items() if uid in user_quotas}
         if import_sessions and card_consumption_mode != 'fresh_unused':
             for name, uq in card_quotas.items():
@@ -1427,6 +1461,12 @@ def execute_database_migration(file_input, options=None):
 
         finally:
             stream.close()
+
+        # Preserve effective cycle allowance, including carried credit, in this transaction.
+        effective_quotas = dict(subscriber_quotas) if import_subscribers else {}
+        if import_cards and card_consumption_mode != 'fresh_unused':
+            effective_quotas.update(card_quotas)
+        apply_import_quota_allowances(db, effective_quotas)
 
         update_migration_progress(
             percent=95,
