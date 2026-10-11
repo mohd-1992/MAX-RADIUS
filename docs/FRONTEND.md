@@ -1,0 +1,10 @@
+# الواجهة والتعريب
+القوالب في `web/templates`، والموارد المحلية في `web/static`. [base.html](../web/templates/base.html) يحمل الهوية والثيمات والموارد المشتركة. الصفحات ترثه وتحتوي أجزاء من JavaScript المضمن؛ تغيير خدمة قد يتطلب مراجعة معالج الرد في القالب أيضًا.
+
+ابدأ بقالب الميزة وroute render_template المقابل. استخدم المكونات القائمة وSweetAlert والأيقونات والموارد المحلية. لا تعدّل vendor minified أو تنسخ مكتبة جديدة لمجرد تغيير سلوك صفحة.
+
+تحقق من RTL والثيم الفاتح والداكن والجوال، ومن تموضع قائمة العمليات داخل الجداول ذات overflow. ميز خطأ native validation من خطأ الخدمة؛ التعريب لا يغير قواعد الحدود أو إشارات الأرقام.
+
+إيقاف/تنشيط الحساب يرتبط بحالة الخادم، لا باسم التبويب فقط. رسائل النجاح لا تظهر قبل النتيجة الفعلية. لا تعرض تفاصيل البنية أو raw exception للمستخدم النهائي. حافظ على escaping عند إدخال اسم حساب في HTML أو JavaScript.
+
+المراجع: [subscribers.html](../web/templates/subscribers.html)، [active_card_users.html](../web/templates/active_card_users.html)، [user_portal](../web/templates/user_portal)، [components](../web/templates/components). بيانات الاختبار في الصور والتقارير لا تتضمن كلمات مرور أو معلومات عملاء غير لازمة.

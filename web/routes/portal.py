@@ -269,8 +269,6 @@ def api_portal_login_session():
 def api_user_change_speed():
     username = session.get('portal_user')
     data = request.json if request.is_json else request.form.to_dict()
-    if not username:
-        username = (data.get('username') or '').strip()
 
     if not username:
         return jsonify({'success': False, 'message': 'يرجى تسجيل الدخول أولاً'}), 401
@@ -304,8 +302,6 @@ def api_user_change_speed():
 
     is_open = selected_speed.get('is_open') or str(selected_speed['rate_down']).strip() in ['0', '0M', '0K', '']
 
-    # 1. Update FreeRADIUS radreply
-    execute_write("DELETE FROM radreply WHERE LOWER(username) = LOWER(?) AND attribute = 'MikroTik-Rate-Limit'", (username,))
 
     if is_open:
         rate_formatted = "0/0"
@@ -319,33 +315,14 @@ def api_user_change_speed():
             sp_up = f"{sp_up}M"
         rate_formatted = f"{sp_up}/{sp_down}" if '/' not in sp_down else sp_down
         display_speed = f"{sp_down}bps"
-        execute_write("INSERT INTO radreply (username, attribute, op, value) VALUES (?, 'MikroTik-Rate-Limit', ':=', ?)", (username, rate_formatted))
 
-    # 2. Live CoA update to Router
-    active_session = query_one("""
-        SELECT * FROM radacct 
-        WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL
-        ORDER BY radacctid DESC LIMIT 1
-    """, (username,))
-
-    coa_result = None
-    if active_session and active_session.get('nasipaddress'):
-        nas_ip = active_session['nasipaddress']
-        nas_row = query_one("SELECT secret, ports FROM nas WHERE nasname = ? OR nasname = '0.0.0.0/0' ORDER BY id ASC LIMIT 1", (nas_ip,))
-        nas_secret = nas_row['secret'] if nas_row else 'max123'
-        
-        try:
-            from core.coa import RadiusCoaClient
-            coa_client = RadiusCoaClient(nas_ip, nas_secret, port=3799, timeout=2.5)
-            coa_result = coa_client.modify_rate_limit(
-                username=active_session['username'],
-                framed_ip=active_session.get('framedipaddress'),
-                session_id=active_session.get('acctsessionid'),
-                mac_address=active_session.get('callingstationid'),
-                rate_limit=rate_formatted if not is_open else "0/0"
-            )
-        except Exception as e:
-            logger.warning(f"CoA speed change exception for {username}: {e}")
+    coa_result = apply_portal_speed(username, rate_formatted)
+    if coa_result['live_status'] == 'acknowledged':
+        message = 'تم حفظ السرعة، وأكد الراوتر قبول تحديث جميع الجلسات الحالية.'
+    elif coa_result['live_status'] == 'partial':
+        message = 'تم حفظ السرعة؛ قبل الراوتر تحديث بعض الجلسات فقط. الجلسات الأخرى تستخدم السرعة المحفوظة عند الدخول القادم.'
+    else:
+        message = 'تم حفظ السرعة للدخول القادم؛ لم يؤكد الراوتر تحديث جلسات حالية.'
 
     return jsonify({
         'success': True,
@@ -354,7 +331,7 @@ def api_user_change_speed():
         'rate_formatted': rate_formatted,
         'is_open': is_open,
         'coa': coa_result,
-        'message': f'تم تفعيل {selected_speed["name"]} بنجاح وتحديثها لحظياً!'
+        'message': message
     })
 
 

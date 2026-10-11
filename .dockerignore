@@ -68,3 +68,7 @@ storage/keys/*
 **/test_*.py
 **/*.sqlite*
 **/*.db*
+
+# Repository instructions and skills are host development references.
+AGENTS.md
+.agents/

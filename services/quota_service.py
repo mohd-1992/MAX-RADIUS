@@ -405,6 +405,7 @@ def calculate_account_quota(username_or_id, entity_type=None):
         used_uptime_secs = usage['uptime_secs']
         used_uptime_mins = round(used_uptime_secs / 60, 1)
     except Exception as e:
+        usage = None  # Partial/missing accounting is unknown, never zero usage.
         used_bytes = None
         used_mb = None
         used_uptime_secs = None
@@ -540,7 +541,7 @@ def calculate_account_quota(username_or_id, entity_type=None):
         
         # Time Expiry
         'is_time_expired': is_time_expired,
-        'sessions_count': usage['sessions_count']
+        'sessions_count': usage['sessions_count'] if usage is not None else None
     }
 
 def calculate_batch_quotas(usernames, entity_type='voucher'):

@@ -371,7 +371,7 @@ def authenticate_portal_user(username, password):
 
     # 3. Check wisp_vouchers
     v = query_one("SELECT * FROM wisp_vouchers WHERE (LOWER(username) = LOWER(?) OR pin_code = ?)", (username, username))
-    if v and (v['password'] == password or v['pin_code'] == password or v['username'] == password):
+    if v and (v.get('password') or v.get('pin_code') or v['username']) == password:
         return {'username': v['username'], 'type': 'voucher', 'id': v['id']}, None
 
     return None, "اسم المستخدم أو كلمة المرور غير صحيحة"
@@ -1213,10 +1213,61 @@ def request_data_loan(username):
     return True, f"تم تفعيل سلفة البيانات بنجاح بقيمة {loan_str} وتمديد الصلاحية 24 ساعة."
 
 
+def apply_portal_speed(username, rate_formatted):
+    """Save policy; Hotspot applies next login, PPPoE requests every open session."""
+    with db_session() as conn:
+        cursor = conn.cursor()
+        cursor.execute(adapt_query("DELETE FROM radreply WHERE LOWER(username)=LOWER(?) AND attribute='MikroTik-Rate-Limit'", conn), (username,))
+        cursor.execute(adapt_query("INSERT INTO radreply(username,attribute,op,value) VALUES (?,'MikroTik-Rate-Limit',':=',?)", conn), (username, rate_formatted))
+    sessions = query_all("SELECT * FROM radacct WHERE LOWER(username)=LOWER(?) AND acctstoptime IS NULL ORDER BY radacctid", (username,))
+    account = query_one("SELECT service_type FROM wisp_subscribers WHERE LOWER(username)=LOWER(?) LIMIT 1", (username,))
+    if not account:
+        account = query_one("SELECT p.service_type FROM wisp_vouchers v LEFT JOIN wisp_packages p ON p.id=v.package_id WHERE LOWER(v.username)=LOWER(?) LIMIT 1", (username,))
+    # No CoA or disconnect for Hotspot; an unknown type is deferred safely too.
+    if not account or str(account.get('service_type') or '').lower() != 'pppoe':
+        return {'saved': True, 'sessions_total': len(sessions), 'sessions_acknowledged': 0,
+                'live_status': 'next_login',
+                'results': [{'success': False, 'status': 'deferred_next_login'} for _ in sessions]}
+    outcomes = []
+    from core.coa import RadiusCoaClient
+    for row in sessions:
+        nas_ip = row.get('nasipaddress')
+        nas = query_one("SELECT secret FROM nas WHERE nasname=? OR nasname='0.0.0.0/0' ORDER BY CASE WHEN nasname=? THEN 0 ELSE 1 END, id LIMIT 1", (nas_ip, nas_ip)) if nas_ip else None
+        if not nas or not nas.get('secret'):
+            outcomes.append({'success': False, 'status': 'nas_unavailable'})
+            continue
+        try:
+            outcome = RadiusCoaClient(nas_ip, nas['secret'], port=3799, timeout=2.5).modify_rate_limit(
+                username=row['username'], framed_ip=row.get('framedipaddress'),
+                session_id=row.get('acctsessionid'), mac_address=row.get('callingstationid'),
+                rate_limit=rate_formatted)
+            outcomes.append({'success': bool(outcome.get('success')), 'status': outcome.get('status'), 'code': outcome.get('code')})
+        except Exception:
+            outcomes.append({'success': False, 'status': 'nas_unavailable'})
+    accepted = sum(result['success'] for result in outcomes)
+    return {'saved': True, 'sessions_total': len(sessions), 'sessions_acknowledged': accepted,
+            'live_status': 'acknowledged' if sessions and accepted == len(sessions) else
+                           ('partial' if accepted else 'next_login'),
+            'results': outcomes}
+
+
+def _lock_portal_account(cursor, conn, username):
+    """Resolve the same subscriber-first identity used by portal authentication."""
+    lock = 'FOR UPDATE' if is_mysql_conn(conn) else ''
+    for kind, table in (('subscriber', 'wisp_subscribers'), ('voucher', 'wisp_vouchers')):
+        cursor.execute(adapt_query(
+            f'SELECT * FROM {table} WHERE LOWER(username)=LOWER(?) LIMIT 1 {lock}', conn),
+            (username,))
+        row = cursor.fetchone()
+        if row:
+            return dict(row), kind, table
+    return None, None, None
+
+
 @settle_cycle_operation
 def renew_or_change_package(username, new_pkg_id):
     """
-    Renews current package or upgrades to another package from subscriber's balance
+    Renews current package or upgrades to another package from the account wallet
     with Data & Time Rollover support inside an atomic transaction.
     """
     username = (username or '').strip()
@@ -1225,15 +1276,13 @@ def renew_or_change_package(username, new_pkg_id):
 
     with db_session() as conn:
         cursor = conn.cursor()
-        lock_clause = "FOR UPDATE" if is_mysql_conn(conn) else ""
-
-        sql_sub = adapt_query(f"SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?) LIMIT 1 {lock_clause}", conn)
-        cursor.execute(sql_sub, (username,))
-        sub = cursor.fetchone()
+        sub, account_type, _ = _lock_portal_account(cursor, conn, username)
         if not sub:
-            return False, "المشترك غير موجود في سجلات الاشتراكات"
+            return False, "الحساب أو الكرت غير موجود"
         if not isinstance(sub, dict):
             sub = dict(sub)
+        if sub.get('status') == 'recharged':
+            return False, 'هذا الكرت مستهلك للشحن ولا يمكن تجديده أو تغيير باقته'
         if sub.get('status') in ('suspended', 'disabled'):
             return False, 'الحساب موقوف؛ تواصل مع الإدارة قبل تجديده أو تغيير باقته'
 
@@ -1289,7 +1338,8 @@ def renew_or_change_package(username, new_pkg_id):
         # 3. Defect 7: Full loan settlement
         loan_mb = int(sub.get('loan_balance_mb') or 0)
         has_active_loan = (int(sub.get('loan_status') or 0) == 1 or loan_mb > 0)
-        new_base_quota_mb = int(pkg.get('volume_quota_mb') or 0)
+        same_voucher_package = account_type == 'voucher' and str(sub['package_id']) == str(pkg['id'])
+        new_base_quota_mb = int(sub['snap_volume_quota_mb'] if same_voucher_package and sub.get('snap_volume_quota_mb') is not None else (pkg.get('volume_quota_mb') or 0))
         is_unlimited_quota = (new_base_quota_mb == 0)
 
         if is_rollover_enabled:
@@ -1301,7 +1351,7 @@ def renew_or_change_package(username, new_pkg_id):
         new_loan_status = 0
         deducted_loan_mb = 0
 
-        if has_active_loan:
+        if has_active_loan and account_type == 'subscriber':
             if is_unlimited_quota:
                 deducted_loan_mb = loan_mb
                 new_loan_balance_mb = 0
@@ -1357,16 +1407,42 @@ def renew_or_change_package(username, new_pkg_id):
                 loan_status = ?
             WHERE id = ? AND balance >= ?
         """, conn)
-        cursor.execute(upd_sql, (pkg_price, pkg['id'], db_now_str, new_extra_mb, new_expiry, new_loan_balance_mb, new_loan_status, sub['id'], pkg_price))
+        if account_type == 'subscriber':
+            cursor.execute(upd_sql, (pkg_price, pkg['id'], db_now_str, new_extra_mb, new_expiry, new_loan_balance_mb, new_loan_status, sub['id'], pkg_price))
+        else:
+            from core.rate_limit import build_mikrotik_rate_limit
+            rate = pkg.get('rate_limit_str') or build_mikrotik_rate_limit(pkg.get('rate_download'), pkg.get('rate_upload')) or '0/0'
+            uptime = sub.get('snap_uptime_limit_mins') if same_voucher_package and sub.get('snap_uptime_limit_mins') is not None else (pkg.get('uptime_limit_mins') or 0)
+            cursor.execute(adapt_query("""UPDATE wisp_vouchers SET
+                balance=COALESCE(balance,0)-?, package_id=?, status='active',
+                last_renewed_at=?, extra_quota_mb=?, expires_at=?, expire_reason='',
+                snap_volume_quota_mb=?, snap_uptime_limit_mins=?,
+                snap_validity_value=?, snap_validity_unit=?, snap_validity_days=?,
+                snap_price=?, snap_cost=?, snap_rate_download=?, snap_rate_upload=?,
+                snap_rate_limit_str=?, snap_simultaneous_sessions=?, snap_mikrotik_group=?
+                WHERE id=? AND COALESCE(balance,0)>=?""", conn),
+                (pkg_price, pkg['id'], db_now_str, new_extra_mb, new_expiry,
+                 new_base_quota_mb, uptime, val, unit, pkg.get('validity_days') or 0,
+                 pkg_price, pkg.get('cost') or 0, pkg.get('rate_download') or '',
+                 pkg.get('rate_upload') or '', rate, pkg.get('simultaneous_sessions') or 1,
+                 pkg.get('mikrotik_group') or '', sub['id'], pkg_price))
         if cursor.rowcount == 0:
             conn.rollback()
             return False, "فشلت العملية: رصيد الحساب غير كافٍ أو حدث تعارض في المعالجة."
 
         # Authentication and wallet changes must commit or roll back together.
+        if account_type == 'voucher':
+            cursor.execute(adapt_query("""INSERT INTO wisp_voucher_sales
+                (voucher_id,batch_id,batch_name,username,serial_number,package_name,price,cost,reseller_id,activated_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?)""", conn),
+                (sub['id'], sub.get('batch_id'), 'UserPortal', sub['username'],
+                 sub.get('serial_number') or '', pkg['name'], pkg_price,
+                 pkg.get('cost') or 0, sub.get('reseller_id'), db_now_str))
         _sync_recharge_radius(cursor, conn, sub['username'], sub,
                               {'package_name': pkg['name'],
+                               'policy_rate_limit_str': rate if account_type == 'voucher' else None,
                                'pkg_mikrotik_group': pkg.get('mikrotik_group')},
-                              'subscriber', new_fr_exp)
+                              account_type, new_fr_exp)
 
     # Sessions were finalized before billing; no delayed disconnect can hit a new login.
 
@@ -1402,7 +1478,7 @@ def renew_or_change_package(username, new_pkg_id):
         audit_change = f"تجديد الباقة عبر بوابة المشترك [{pkg['name']}]"
 
     from database.db import log_user_audit
-    log_user_audit('subscriber', sub['id'], sub['username'], 'UserPortal', 'RENEW_PACKAGE', audit_change)
+    log_user_audit(account_type, sub['id'], sub['username'], 'UserPortal', 'RENEW_PACKAGE', audit_change)
 
     return True, ret_msg
 
@@ -1559,7 +1635,7 @@ def register_portal_subscriber(form_data):
     return True, "تم إنشاء حسابك بنجاح، يمكنك الآن تسجيل الدخول وشحن رصيدك"
 
 def change_portal_password(username, old_password, new_password, confirm_password):
-    """Change portal and RADIUS credentials atomically under the subscriber lock."""
+    """Change portal and RADIUS credentials atomically under the account lock."""
     username = (username or '').strip()
     if not new_password or len(new_password) < 4:
         return False, "كلمة المرور الجديدة يجب أن تتكون من 4 خانات على الأقل."
@@ -1567,21 +1643,20 @@ def change_portal_password(username, old_password, new_password, confirm_passwor
         return False, "كلمة المرور الجديدة وتأكيدها غير متطابقين."
     with db_session() as conn:
         cursor = conn.cursor()
-        lock = 'FOR UPDATE' if is_mysql_conn(conn) else ''
-        cursor.execute(adapt_query(f"SELECT * FROM wisp_subscribers WHERE LOWER(username)=LOWER(?) LIMIT 1 {lock}", conn), (username,))
-        sub = cursor.fetchone()
+        sub, account_type, account_table = _lock_portal_account(cursor, conn, username)
         if not sub:
             return False, "حساب المشترك غير مسجل في قائمة المشتركين."
         sub = dict(sub)
-        if sub['password'] != old_password:
+        if (sub.get('password') or sub.get('pin_code') or sub['username']) != old_password:
             return False, "كلمة المرور الحالية غير صحيحة."
-        cursor.execute(adapt_query("UPDATE wisp_subscribers SET password=? WHERE id=?", conn), (new_password, sub['id']))
+        cursor.execute(adapt_query(f"UPDATE {account_table} SET password=? WHERE id=?", conn), (new_password, sub['id']))
+        cursor.execute(adapt_query("DELETE FROM radcheck WHERE LOWER(username)=LOWER(?) AND attribute='MD5-Password'", conn), (sub['username'],))
         cursor.execute(adapt_query("UPDATE radcheck SET value=? WHERE LOWER(username)=LOWER(?) AND attribute IN ('Cleartext-Password','User-Password')", conn), (new_password, sub['username']))
         # A missing credential must not turn a successful password change into an unusable account.
-        if sub['status'] == 'active':
+        if sub['status'] in ('active', 'unused'):
             cursor.execute(adapt_query("SELECT 1 FROM radcheck WHERE LOWER(username)=LOWER(?) AND attribute IN ('Cleartext-Password','User-Password') LIMIT 1", conn), (sub['username'],))
             if not cursor.fetchone():
                 cursor.execute(adapt_query("INSERT INTO radcheck(username,attribute,op,value) VALUES (?,'Cleartext-Password',':=',?)", conn), (sub['username'], new_password))
 
-    log_user_audit('subscriber', sub['id'], sub['username'], 'UserPortal', 'CHANGE_PASSWORD', 'تعديل كلمة المرور عبر بوابة المشترك')
+    log_user_audit(account_type, sub['id'], sub['username'], 'UserPortal', 'CHANGE_PASSWORD', 'تعديل كلمة المرور عبر بوابة المشترك')
     return True, "تم تغيير كلمة المرور بنجاح."

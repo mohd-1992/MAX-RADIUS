@@ -186,7 +186,7 @@ def settle_cycle_operation(fn):
             profile.get('status') in ('suspended', 'disabled', 'recharged', 'unused'))
         if protected_profile_change and query_one('SELECT 1 AS live FROM radacct WHERE username=%s AND acctstoptime IS NULL LIMIT 1',(entity['username'],)):
             return False, '\u0644\u0627 \u064a\u0645\u0643\u0646 \u062a\u063a\u064a\u064a\u0631 \u0647\u0648\u064a\u0629 \u062d\u0633\u0627\u0628 \u0628\u062c\u0644\u0633\u0629 \u0645\u0641\u062a\u0648\u062d\u0629.'
-        if fn.__name__ == 'renew_or_change_package' and entity.get('status') in ('disabled', 'suspended'):
+        if fn.__name__ == 'renew_or_change_package' and entity.get('status') in ('disabled', 'suspended', 'recharged'):
             return fn(*args, **kwargs)
         if fn.__name__ == 'recharge_user_wallet_by_card':
             code = str(values['card_code'] or '').strip()

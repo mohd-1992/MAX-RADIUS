@@ -1,3 +1,12 @@
+# دليل المطور ومرجع المشروع
+ابدأ بـ [خريطة المشروع](docs/PROJECT_MAP.md)، [إعداد التطوير](docs/DEVELOPMENT.md)، و[تعليمات العملاء البرمجيين](AGENTS.md).
+مرجع البنية والقواعد والبيانات والواجهة والنشر والفحوص مرتبط بالخريطة. [الحالة المسجلة](docs/CURRENT_STATE.md) توضح آخر نتائج مؤكدة وحدودها.
+
+الأداة المحلية: `python scripts/project_tools.py doctor` ثم `python scripts/project_tools.py index` و`python scripts/project_tools.py find <feature>`.
+المهارات المتخصصة في `.agents/skills/`. لا يلزم تحميل جميع الوثائق في كل مهمة.
+
+---
+
 # MAX RADIUS - Next-Generation FreeRADIUS & MikroTik WISP ISP Platform 🚀
 
 [![Website](https://img.shields.io/badge/Official%20Website-Live%20Demo-cyan.svg?style=flat&logo=google-chrome)](https://mohd-1992.github.io/MAX-RADIUS/)

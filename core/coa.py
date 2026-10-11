@@ -7,6 +7,7 @@ Enables immediate disconnection and rate-limit modification of active Hotspot an
 import socket
 import struct
 import hashlib
+import hmac
 import os
 import time
 
@@ -285,6 +286,13 @@ class RadiusCoaClient:
                 }
 
             resp_code, resp_id, resp_len = struct.unpack('!BBH', data[:4])
+            expected_auth = hashlib.md5(data[:4] + authenticator + data[20:] + self.secret).digest()
+            if (resp_id != identifier or resp_len != len(data) or
+                    resp_code not in (CODE_COA_ACK, CODE_COA_NAK) or
+                    not hmac.compare_digest(data[4:20], expected_auth) or
+                    addr[0] != socket.gethostbyname(self.nas_ip) or addr[1] != self.port):
+                return {'success': False, 'status': 'invalid_response', 'code': None,
+                        'message': 'تعذر التحقق من رد الراوتر؛ لم يتأكد تطبيق السرعة.'}
             if resp_code == CODE_COA_ACK:
                 return {
                     'success': True,

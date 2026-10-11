@@ -79,3 +79,14 @@ storage/secrets/
 storage/*_report*.md
 pre_*_unstaged.patch
 tests/
+
+# Developer reference examples and reviewed scenarios (no runtime reports).
+!.env.example
+!tests/
+tests/*
+!tests/scenarios/
+!tests/scenarios/*.md
+!tests/test_portal_card_operations.py
+!tests/test_import_quota_regression.py
+!tests/portal_card_mariadb_regression.py
+reports/

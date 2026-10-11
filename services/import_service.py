@@ -57,35 +57,44 @@ COLUMN_ALIASES = {
 import re
 
 def normalize_header(header_val):
-    """Normalize header text to standard field name."""
+    """Match complete aliases only; short aliases must never match substrings."""
     if not header_val:
         return ''
     raw_str = str(header_val).strip()
     
-    # 1. Check parenthesized hints e.g. (username)* or (package)
-    paren_match = re.search(r'\(([^)]+)\)', raw_str)
-    if paren_match:
-        hint = paren_match.group(1).strip().lower()
-        hint_clean = re.sub(r'[^a-z0-9_]', '', hint)
-        for std_name in COLUMN_ALIASES.keys():
-            if hint_clean == std_name or std_name in hint_clean:
-                return std_name
+    def key(value):
+        return re.sub(r'[\s_*()/:\\-]+', '', value.strip().lower())
 
-    cleaned = raw_str.lower().replace('_', ' ').replace('-', ' ')
-    # Remove asterisks and special chars for matching
-    cleaned_clean = re.sub(r'[*()\/:\\]', ' ', cleaned).strip()
-    cleaned_no_spaces = re.sub(r'\s+', '', cleaned_clean)
-    
-    for standard_name, aliases in COLUMN_ALIASES.items():
-        if standard_name == cleaned_no_spaces:
-            return standard_name
-        for alias in aliases:
-            a_clean = alias.strip().lower().replace('_', ' ').replace('-', ' ')
-            a_no_spaces = re.sub(r'\s+', '', a_clean)
-            if cleaned_clean == a_clean or cleaned_no_spaces == a_no_spaces or a_clean in cleaned_clean:
-                return standard_name
+    aliases = {key(alias): name for name, values in COLUMN_ALIASES.items()
+               for alias in [name, *values]}
+    exact = aliases.get(key(raw_str))
+    if exact:
+        return exact
+    # Generated templates contain exact field hints in parentheses. Units such
+    # as (MB) are ignored, but conflicting known hints must not pick a field.
+    candidates = re.findall(r'\(([^)]+)\)', raw_str)
+    candidates.append(re.sub(r'\([^)]*\)', '', raw_str))
+    matches = {aliases[key(value)] for value in candidates if key(value) in aliases}
+    if len(matches) > 1:
+        raise ValueError(f"ترويسة عمود ملتبسة: {raw_str}")
+    return next(iter(matches), raw_str)
 
-    return str(header_val).strip()
+
+def _excel_header_map(headers):
+    """Reject duplicate known fields before any row or database is processed."""
+    result = {}
+    seen = {}
+    for column, value in headers:
+        if value is None or not str(value).strip():
+            continue
+        field = normalize_header(value)
+        if field in COLUMN_ALIASES and field in seen:
+            raise ValueError(f"عمود مكرر للحقل {field}: العمودان {seen[field]} و{column}")
+        seen[field] = column
+        result[column] = field
+    if not result:
+        raise ValueError("الملف فارغ أو لا يحتوي على صف ترويسة صالح في السطر الأول.")
+    return result
 
 
 # -----------------------------------------------------------------------------
@@ -252,15 +261,9 @@ def parse_excel_file(file_storage):
         wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
         ws = wb.active
         
-        header_map = {}
-        for col_idx in range(1, ws.max_column + 1):
-            val = ws.cell(row=1, column=col_idx).value
-            if val is not None and str(val).strip():
-                std_key = normalize_header(val)
-                header_map[col_idx] = std_key
-                
-        if not header_map:
-            raise ValueError("الملف فارغ أو لا يحتوي على صف ترويسة صالح في السطر الأول.")
+        header_map = _excel_header_map(
+            (col_idx, ws.cell(row=1, column=col_idx).value)
+            for col_idx in range(1, ws.max_column + 1))
 
         for row_idx in range(2, ws.max_row + 1):
             row_dict = {}
@@ -288,12 +291,8 @@ def parse_excel_file(file_storage):
         if sheet.nrows < 1:
             raise ValueError("الملف فارغ أو لا يحتوي على صف ترويسة.")
             
-        header_map = {}
-        for col_idx in range(sheet.ncols):
-            val = sheet.cell_value(0, col_idx)
-            if val is not None and str(val).strip():
-                std_key = normalize_header(val)
-                header_map[col_idx] = std_key
+        header_map = _excel_header_map(
+            (col_idx, sheet.cell_value(0, col_idx)) for col_idx in range(sheet.ncols))
                 
         for row_idx in range(1, sheet.nrows):
             row_dict = {}
