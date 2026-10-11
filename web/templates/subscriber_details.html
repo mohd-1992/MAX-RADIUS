@@ -83,17 +83,19 @@
         </div>
 
         <div class="flex items-center gap-2 self-end md:self-center">
-            {% if subscriber.is_online %}
-            <button onclick="disconnectUser('{{ subscriber.username }}')" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            {% if subscriber.is_online and has_permission('subscribers.disconnect') %}
+            <button onclick="disconnectUser({{ subscriber.username|string|tojson|forceescape }})" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-power-off"></i>فصل الجلسة (CoA)
             </button>
             {% endif %}
             <a href="{{ url_for('subscribers') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
                 رجوع
             </a>
-            <button onclick="document.getElementById('editSubForm').submit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-1.5">
+            {% if has_permission('subscribers.edit') %}
+            <button type="submit" form="editSubForm" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-1.5">
                 <i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات
             </button>
+            {% endif %}
         </div>
     </div>
 
@@ -104,20 +106,24 @@
                 <i class="fa-solid fa-id-card-clip text-sm"></i>
                 <span>البيانات العامة</span>
             </button>
+            {% if has_permission('subscribers.edit') %}
             <button onclick="switchTab('edit')" id="tab-btn-edit" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-user-pen text-sm"></i>
                 <span>تعديل البيانات</span>
             </button>
+            {% endif %}
             <button onclick="switchTab('sessions')" id="tab-btn-sessions" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-clock-rotate-left text-sm"></i>
                 <span>سجل الجلسات</span>
                 <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ sessions|length }}</span>
             </button>
+            {% if has_permission('invoices.view') %}
             <button onclick="switchTab('invoices')" id="tab-btn-invoices" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-file-invoice-dollar text-sm"></i>
                 <span>سجل الفواتير</span>
                 <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ invoices|length }}</span>
             </button>
+            {% endif %}
             <button onclick="switchTab('audit')" id="tab-btn-audit" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-shield-halved text-sm"></i>
                 <span>سجل التعديلات</span>
@@ -154,10 +160,10 @@
                         <span class="text-slate-400 font-medium">كلمة المرور في RADIUS:</span>
                         <div class="flex items-center gap-1.5">
                             <span id="pwdDisplay" class="font-mono text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">••••••••</span>
-                            <button onclick="togglePasswordVisibility('{{ subscriber.password }}')" class="text-slate-400 hover:text-white p-1" title="إظهار / إخفاء">
+                            <button onclick="togglePasswordVisibility({{ subscriber.password|string|tojson|forceescape }})" class="text-slate-400 hover:text-white p-1" title="إظهار / إخفاء">
                                 <i id="pwdEyeIcon" class="fa-solid fa-eye text-xs"></i>
                             </button>
-                            <button onclick="copyToClipboard('{{ subscriber.password }}')" class="text-slate-400 hover:text-blue-400 p-1" title="نسخ">
+                            <button onclick="copyToClipboard({{ subscriber.password|string|tojson|forceescape }})" class="text-slate-400 hover:text-blue-400 p-1" title="نسخ">
                                 <i class="fa-solid fa-copy text-xs"></i>
                             </button>
                         </div>
@@ -234,7 +240,8 @@
                     </div>
                     <div class="flex items-center justify-between">
                         <span class="text-slate-400 font-medium">المدة والصلاحية للباقة:</span>
-                        <strong class="text-slate-300">{{ subscriber.validity_value or '30' }} {{ subscriber.validity_unit or 'يوم' }}</strong>
+                        {% set validity = subscriber.get('validity_value') if subscriber.get('validity_value') is not none else subscriber.get('validity_days') %}
+                        <strong class="text-slate-300">{% if validity is none %}غير محددة{% elif validity|int == 0 %}غير محدودة{% else %}{{ validity }} {{ {'days': 'يوم', 'hours': 'ساعة', 'minutes': 'دقيقة', 'months': 'شهر'}.get(subscriber.validity_unit if subscriber.get('validity_value') is not none else 'days', 'يوم') }}{% endif %}</strong>
                     </div>
                     <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 text-[11px] text-slate-300 flex items-center gap-2">
                         <i class="fa-solid fa-hourglass-half text-amber-400 text-sm"></i>
@@ -326,6 +333,7 @@
     </div>
 
     <!-- TAB 2: EDIT PROFILE (تعديل البيانات) -->
+    {% if has_permission('subscribers.edit') %}
     <div id="tab-pane-edit" class="tab-pane hidden space-y-6">
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-xl space-y-5">
             <div class="flex items-center justify-between border-b border-[#1c2840] pb-4">
@@ -333,7 +341,7 @@
                     <h3 class="font-bold text-white text-base flex items-center gap-2">
                         <i class="fa-solid fa-user-pen text-blue-400"></i>تعديل بيانات المشترك والاشتراك
                     </h3>
-                    <p class="text-xs text-slate-400 mt-1">قم بتعديل بيانات الحساب، الباقة، والقيود وسيقوم النظام بتحديث جداول RADIUS وتسجيل التعديلات تلقائياً في سجل الرقابة.</p>
+                <p class="text-xs text-slate-400 mt-1">عدّل البيانات الشخصية وكلمة المرور وقيود الاتصال. تغيير الباقة والتجديد والإيقاف والتنشيط يتم من قائمة العمليات للحفاظ على الرصيد وتسوية الجلسات.</p>
                 </div>
             </div>
 
@@ -354,35 +362,22 @@
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-slate-300 font-semibold mb-1">الباقة المخصصة والسرعة</label>
-                        <select name="package_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
-                            {% for p in packages %}
-                            <option value="{{ p.id }}" {% if subscriber.package_id == p.id %}selected{% endif %}>
-                                {{ p.name }} ({{ p.price }} {{ currency_symbol }}) - {{ p.rate_download }}/{{ p.rate_upload }}
-                            </option>
-                            {% endfor %}
-                        </select>
+                        <p class="text-sm text-slate-300 py-2.5">{{ subscriber.package_name }}</p>
                     </div>
                     <div>
                         <label class="block text-slate-300 font-semibold mb-1">نوع الخدمة والربط</label>
-                        <select name="service_type" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
-                            <option value="pppoe" {% if subscriber.service_type == 'pppoe' %}selected{% endif %}>PPPoE (منزلي / ألياف ضوئية / وايرلس)</option>
-                            <option value="hotspot" {% if subscriber.service_type == 'hotspot' %}selected{% endif %}>Hotspot (وايفاي وكروت)</option>
-                        </select>
+                        <p class="text-sm text-slate-300 py-2.5">{{ subscriber.service_type|upper }}</p>
                     </div>
                     <div>
                         <label class="block text-slate-300 font-semibold mb-1">حالة الحساب</label>
-                        <select name="status" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
-                            <option value="active" {% if subscriber.status == 'active' %}selected{% endif %}>نشط (Active)</option>
-                            <option value="suspended" {% if subscriber.status in ('suspended', 'disabled') %}selected{% endif %}>موقوف</option>
-                            <option value="expired" {% if subscriber.status == 'expired' %}selected{% endif %}>منتهي (Expired)</option>
-                        </select>
+                        <p class="text-sm text-slate-300 py-2.5">{{ 'موقوف' if subscriber.status in ('suspended', 'disabled') else 'منتهي' if subscriber.status == 'expired' else 'نشط' }}</p>
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                         <label class="block text-slate-300 font-semibold mb-1">تاريخ الانتهاء (Expiration Date)</label>
-                        <input type="datetime-local" name="expires_at" value="{{ (subscriber.expires_at|string)[:16].replace(' ', 'T') if subscriber.expires_at else '' }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                        <p class="text-sm text-slate-300 py-2.5">{{ subscriber.expires_at or 'غير محدد' }}</p>
                     </div>
                     <div>
                         <label class="block text-slate-300 font-semibold mb-1">تقييد الماك (MAC Binding)</label>
@@ -424,6 +419,7 @@
         </div>
     </div>
 
+    {% endif %}
     <!-- TAB 3: SESSIONS LOG (سجل الجلسات) -->
     <div id="tab-pane-sessions" class="tab-pane hidden space-y-6">
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">

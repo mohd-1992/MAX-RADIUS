@@ -47,21 +47,27 @@ def build_mikrotik_rate_limit(download, upload, burst_down=None, burst_up=None,
     # MikroTik strict requirement: burst-limit MUST be strictly greater than max-limit
     # If burst is <= max-limit, MikroTik rejects queue creation with:
     # "failed to add queue: download-burst-limit less than download-max-limit"
-    if b_down_bps > down_bps and b_up_bps > up_bps:
+    has_burst = b_down_bps > down_bps and b_up_bps > up_bps
+    has_minimum = parse_rate_to_bps(min_down) > 0 or parse_rate_to_bps(min_up) > 0
+    prio = str(priority or 8)
+    if has_burst:
         b_down = str(burst_down).strip()
         b_up = str(burst_up).strip()
         t_down = str(threshold_down).strip() if threshold_down and not is_zero_or_empty_rate(threshold_down) else download
         t_up = str(threshold_up).strip() if threshold_up and not is_zero_or_empty_rate(threshold_up) else upload
         b_time = f"{burst_time}/{burst_time}" if isinstance(burst_time, (int, str)) and '/' not in str(burst_time) else str(burst_time)
-        prio = str(priority or 8)
         
         rate_str += f" {b_up}/{b_down} {t_up}/{t_down} {b_time} {prio}"
         
-        m_down_bps = parse_rate_to_bps(min_down)
-        m_up_bps = parse_rate_to_bps(min_up)
-        if m_down_bps > 0 and m_up_bps > 0:
-            rate_str += f" {min_up}/{min_down}"
-            
+    elif has_minimum or prio != '8':
+        # Preserve positional fields while disabling burst. Later fields must
+        # not be silently lost just because burst is not configured.
+        rate_str += f" 0/0 0/0 0/0 {prio}"
+    if has_minimum:
+        # RouterOS defaults an omitted minimum to the corresponding base rate.
+        effective_up = str(min_up).strip() if parse_rate_to_bps(min_up) > 0 else upload
+        effective_down = str(min_down).strip() if parse_rate_to_bps(min_down) > 0 else download
+        rate_str += f" {effective_up}/{effective_down}"
     return rate_str
 
 from core.helpers import format_bytes, format_duration

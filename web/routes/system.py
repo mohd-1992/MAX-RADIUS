@@ -58,6 +58,33 @@ logger = logging.getLogger('system_bp')
 
 system_bp = Blueprint('system_bp', __name__)
 
+@system_bp.before_request
+def guard_account_action_permissions():
+    if not request.path.startswith('/api/actions/'):
+        return None
+    action = request.path.rsplit('/', 1)[-1]
+    manager = get_current_manager()
+    if not manager:
+        return jsonify(success=False, message='يرجى تسجيل الدخول أولًا.'), 401
+    data = (request.get_json(silent=True) or {}) if request.is_json else request.values
+    kind = data.get('target_type', 'subscriber')
+    if kind not in ('subscriber', 'voucher', 'card'):
+        return jsonify(success=False, message='نوع الحساب غير صالح.'), 400
+    if action in ('add-wallet', 'deduct-wallet'):
+        permission = 'wallets.manage'
+    elif action == 'usage-history':
+        permission = 'subscribers.view' if kind == 'subscriber' else 'vouchers.view'
+    elif kind != 'subscriber':
+        permission = 'vouchers.delete' if action == 'delete' else 'vouchers.actions'
+    else:
+        permission = {'delete': 'subscribers.delete', 'extend-time': 'subscribers.renew',
+            'renew': 'subscribers.renew', 'disconnect': 'subscribers.disconnect',
+            'terminate': 'subscribers.edit', 'disable': 'subscribers.edit',
+            'activate-subscriber': 'subscribers.edit', 'change-package': 'subscribers.edit',
+            'add-quota': 'subscribers.edit'}.get(action)
+    if not permission or not has_permission(permission, manager):
+        return jsonify(success=False, message='لا تملك صلاحية هذا الإجراء.'), 403
+
 
 def _get_target_params():
     """Extracts target_type and target_ids from form-data, query string, or JSON payload."""
@@ -81,7 +108,7 @@ def _get_target_params():
 
 def api_delete_entity():
     target_type, ids = _get_target_params()
-    success, msg = action_bulk_execute(action_delete_entity, target_type, ids)
+    success, msg = action_bulk_execute(action_delete_entity, target_type, ids, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -90,7 +117,7 @@ def api_delete_entity():
 def api_extend_time():
     target_type, ids = _get_target_params()
     days = request.form.get('days', 30)
-    success, msg = action_bulk_execute(action_extend_time, target_type, ids, days=days)
+    success, msg = action_bulk_execute(action_extend_time, target_type, ids, days=days, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -98,7 +125,7 @@ def api_extend_time():
 
 def api_terminate():
     target_type, ids = _get_target_params()
-    success, msg = action_bulk_execute(action_terminate_subscription, target_type, ids)
+    success, msg = action_bulk_execute(action_terminate_subscription, target_type, ids, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -141,7 +168,7 @@ def api_activate_subscriber():
 
 def api_renew():
     target_type, ids = _get_target_params()
-    success, msg = action_bulk_execute(action_renew_package, target_type, ids)
+    success, msg = action_bulk_execute(action_renew_package, target_type, ids, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -151,7 +178,7 @@ def api_change_package():
     new_package_id = request.form.get('new_package_id')
     raw_ro = request.form.get('enable_rollover')
     enable_rollover = raw_ro in ('1', 'true', 'on', True, 1)
-    success, msg = action_bulk_execute(action_change_package, target_type, ids, new_package_id=new_package_id, enable_rollover=enable_rollover)
+    success, msg = action_bulk_execute(action_change_package, target_type, ids, new_package_id=new_package_id, enable_rollover=enable_rollover, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -161,7 +188,7 @@ def api_add_quota():
     target_type, ids = _get_target_params()
     quota_amount = request.form.get('quota_amount', 0)
     quota_unit = request.form.get('quota_unit', 'GB')
-    success, msg = action_bulk_execute(action_add_quota, target_type, ids, quota_amount=quota_amount, quota_unit=quota_unit)
+    success, msg = action_bulk_execute(action_add_quota, target_type, ids, quota_amount=quota_amount, quota_unit=quota_unit, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -180,7 +207,7 @@ def api_add_wallet():
     target_type, ids = _get_target_params()
     amount = request.form.get('amount', 0)
     notes = request.form.get('notes', '')
-    success, msg = action_bulk_execute(action_add_wallet_balance, target_type, ids, amount=amount, notes=notes)
+    success, msg = action_bulk_execute(action_add_wallet_balance, target_type, ids, amount=amount, notes=notes, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -190,7 +217,7 @@ def api_deduct_wallet():
     target_type, ids = _get_target_params()
     amount = request.form.get('amount', 0)
     notes = request.form.get('notes', '')
-    success, msg = action_bulk_execute(action_deduct_wallet_balance, target_type, ids, amount=amount, notes=notes)
+    success, msg = action_bulk_execute(action_deduct_wallet_balance, target_type, ids, amount=amount, notes=notes, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -198,7 +225,7 @@ def api_deduct_wallet():
 
 def api_disconnect():
     target_type, ids = _get_target_params()
-    success, msg = action_bulk_execute(action_disconnect_user, target_type, ids)
+    success, msg = action_bulk_execute(action_disconnect_user, target_type, ids, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 

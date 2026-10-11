@@ -107,6 +107,18 @@ def adapt_query(query, conn):
         return query.replace('?', '%s')
     return query
 
+def execute_in_transaction(conn, query, params=(), fetch=None):
+    """Execute on the caller's transaction without committing or opening a connection."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(adapt_query(query, conn), params)
+        if fetch == 'one':
+            row = cursor.fetchone()
+            return dict(row) if row is not None else None
+        return cursor.lastrowid
+    finally:
+        cursor.close()
+
 _IMPORT_OR_MAINTENANCE_ACTIVE = False
 
 def set_import_maintenance_active(active: bool):

@@ -30,6 +30,11 @@ def persistent_secret(storage, env_name='SECRET_KEY'):
     raise RuntimeError('Installation session secret is incomplete')
 
 
+def protects_admin_account_request(req):
+    return (req.path in ('/settings/license/activate', '/settings/license/sync-heartbeat')
+            or req.path.startswith(('/packages', '/subscribers', '/api/subscribers/', '/api/actions/', '/vouchers', '/api/vouchers/', '/card-designer'))
+            or req.path.startswith('/invoices'))
+
 def install_csrf(app, protected):
     from flask import request, session, abort
     def token():

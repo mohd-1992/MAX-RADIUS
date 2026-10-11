@@ -85,7 +85,7 @@
 
         <div class="flex items-center gap-2 self-end md:self-center">
             {% if card.is_online %}
-            <button onclick="disconnectVoucher('{{ card.username }}')" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            <button onclick="disconnectVoucher({{ card.username|tojson|forceescape }})" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-power-off"></i>فصل الجلسة (CoA)
             </button>
             {% endif %}
@@ -151,10 +151,10 @@
                         <span class="text-slate-400 font-medium">كلمة المرور في RADIUS:</span>
                         <div class="flex items-center gap-1.5">
                             <span id="pwdDisplay" class="font-mono text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">••••••••</span>
-                            <button onclick="togglePasswordVisibility('{{ card.password }}')" class="text-slate-400 hover:text-white p-1" title="إظهار / إخفاء">
+                            <button onclick="togglePasswordVisibility({{ card.password|tojson|forceescape }})" class="text-slate-400 hover:text-white p-1" title="إظهار / إخفاء">
                                 <i id="pwdEyeIcon" class="fa-solid fa-eye text-xs"></i>
                             </button>
-                            <button onclick="copyToClipboard('{{ card.password }}')" class="text-slate-400 hover:text-blue-400 p-1" title="نسخ">
+                            <button onclick="copyToClipboard({{ card.password|tojson|forceescape }})" class="text-slate-400 hover:text-blue-400 p-1" title="نسخ">
                                 <i class="fa-solid fa-copy text-xs"></i>
                             </button>
                         </div>
@@ -355,16 +355,11 @@
                     </div>
                     <div>
                         <label class="block text-slate-300 font-semibold mb-1">تاريخ الانتهاء الفعلي (Expires At)</label>
-                        <input type="datetime-local" name="expires_at" value="{{ (card.expires_at|string)[:16].replace(' ', 'T') if card.expires_at else '' }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                        <input type="datetime-local" name="expires_at" value="{{ (card.expires_at|string)[:16].replace(' ', 'T') if card.expires_at else '' }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500" readonly>
                     </div>
                     <div>
                         <label class="block text-slate-300 font-semibold mb-1">حالة الكرت</label>
-                        <select name="status" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
-                            <option value="active" {% if card.status == 'active' %}selected{% endif %}>مفعل (Active)</option>
-                            <option value="expired" {% if card.status == 'expired' %}selected{% endif %}>منتهي (Expired)</option>
-                            <option value="suspended" {% if card.status in ('suspended', 'disabled') %}selected{% endif %}>موقوف</option>
-                            <option value="unused" {% if card.status == 'unused' %}selected{% endif %}>غير مستخدم (Unused)</option>
-                        </select>
+                        <input type="hidden" name="status" value="{{ card.status }}"><p class="py-2">{{ {'active':'نشط','unused':'غير مستخدم','expired':'منتهي','suspended':'موقوف','disabled':'موقوف','recharged':'مستخدم للشحن'}.get(card.status,card.status) }}</p><p class="text-xs text-slate-400">تغيير الحالة من قائمة العمليات</p>
                     </div>
                 </div>
 

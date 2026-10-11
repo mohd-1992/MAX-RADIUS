@@ -155,13 +155,13 @@
                                 </a>
 
                                 <!-- تكرار -->
-                                <button type="button" onclick="duplicateDesign({{ d.id }}, '{{ d.name|e }}')" class="p-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs transition border border-slate-800 cursor-pointer" title="تكرار وإنشاء نسخة">
+                                <button type="button" onclick="duplicateDesign({{ d.id }}, {{ d.name|tojson|forceescape }})" class="p-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs transition border border-slate-800 cursor-pointer" title="تكرار وإنشاء نسخة">
                                     <i class="fa-solid fa-copy"></i>
                                 </button>
 
                                 <!-- حذف -->
                                 {% if designs|length > 1 %}
-                                <button type="button" onclick="confirmDeleteDesign({{ d.id }}, '{{ d.name|e }}')" class="p-1.5 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-xl text-xs transition border border-slate-800 cursor-pointer" title="حذف التصميم">
+                                <button type="button" onclick="confirmDeleteDesign({{ d.id }}, {{ d.name|tojson|forceescape }})" class="p-1.5 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-xl text-xs transition border border-slate-800 cursor-pointer" title="حذف التصميم">
                                     <i class="fa-solid fa-trash"></i>
                                 </button>
                                 {% endif %}

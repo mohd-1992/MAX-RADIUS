@@ -201,7 +201,7 @@ def sync_voucher_to_radius(voucher_id, conn=None):
     execute_write('DELETE FROM radreply WHERE username = ?', (username,))
     execute_write('DELETE FROM radusergroup WHERE username = ?', (username,))
     
-    if v['status'] in ['expired', 'disabled', 'used', 'suspended']:
+    if v['status'] in ['expired', 'disabled', 'used', 'suspended', 'recharged']:
         return True
         
     # 1. Password (Simultaneous-Use is handled in radgroupcheck for the package group)

@@ -177,8 +177,8 @@
                                 data-price="{{ p.price }}" 
                                 data-type="{{ p.service_type }}"
                                 data-quota="{{ p.volume_quota_mb }}"
-                                data-val="{{ p.validity_value or p.validity_days or 30 }}"
-                                data-unit="{{ p.validity_unit or 'days' }}"
+                                data-val="{{ p.validity_value if p.validity_value is not none else (p.validity_days if p.validity_days is not none else 0) }}"
+                                data-unit="{{ (p.validity_unit or 'days') if p.validity_value is not none else 'days' }}"
                                 data-down="{{ p.rate_download }}"
                                 data-up="{{ p.rate_upload }}">
                             {{ p.name }} — السعر: {{ p.price }} {{ currency_symbol }} [نوع الخدمة: {{ p.service_type|upper }}]
@@ -192,7 +192,7 @@
                     <div class="flex items-center justify-between">
                         <span id="pkgCardName" class="font-black text-sm text-white flex items-center gap-2">
                             <i class="fa-solid fa-layer-group text-purple-400"></i>
-                            <span>-</span>
+                            <span id="pkgCardNameText">-</span>
                         </span>
                         <span id="pkgCardPrice" class="font-bold text-emerald-400 font-mono text-sm">-</span>
                     </div>
@@ -308,7 +308,7 @@
         const card = document.getElementById('pkgLiveCard');
         card.classList.remove('hidden');
 
-        document.getElementById('pkgCardName').innerHTML = `<i class="fa-solid fa-layer-group text-purple-400"></i> <span>${opt.text}</span>`;
+        document.getElementById('pkgCardNameText').textContent = opt.text;
         document.getElementById('pkgCardPrice').innerText = `${opt.getAttribute('data-price')} {{ currency_symbol }}`;
         
         const down = opt.getAttribute('data-down');
@@ -327,9 +327,9 @@
             document.getElementById('pkgCardQuota').innerText = 'غير محدود';
         }
 
-        const val = opt.getAttribute('data-val') || '30';
-        const unit = opt.getAttribute('data-unit') || 'يوم';
-        document.getElementById('pkgCardValidity').innerText = `${val} ${unit}`;
+        const val = Number(opt.getAttribute('data-val') || 0);
+        const unit = {days: 'يوم', hours: 'ساعة', minutes: 'دقيقة', months: 'شهر'}[opt.getAttribute('data-unit')] || 'يوم';
+        document.getElementById('pkgCardValidity').innerText = val === 0 ? 'غير محدودة' : `${val} ${unit}`;
     }
 </script>
 {% endblock %}

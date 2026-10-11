@@ -7,11 +7,13 @@ accounting history, and instant Disconnect (CoA).
 import datetime
 from core.time_service import get_db_storage_now
 import concurrent.futures
-from database.db import query_all, query_one, execute_write, execute_update, log_audit, log_user_audit
+from database.db import (query_all, query_one, execute_write, execute_update, log_audit,
+                         log_user_audit, db_session, execute_in_transaction, is_mysql_conn)
 
 _COA_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="coa_bg_worker")
 from core.radius_sync import sync_subscriber_to_radius, delete_user_from_radius
 from core.coa import RadiusCoaClient
+from services.quota_service import get_subscriber_accounting_totals_batch, AccountingReadError
 from core.rate_limit import format_bytes, format_duration
 from core.time_service import get_system_now, get_configured_timezone_name, get_utc_cutoff_str
 
@@ -249,27 +251,10 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
         ''', tuple(usernames))
         last_sessions = {r['username'].lower(): r for r in (last_sessions_list or [])}
 
-        # radacct octets already include Gigawords; adding them again doubles high counters.
-        # 3. Total data usage per subscriber in current cycle (Download + Upload) (scoped to loaded subscribers)
-        usage_list = query_all(f'''
-            SELECT s.id, LOWER(s.username) as username,
-                   COALESCE(SUM(t.max_in), 0) as total_in,
-                   COALESCE(SUM(t.max_out), 0) as total_out
-            FROM wisp_subscribers s
-            LEFT JOIN (
-                SELECT username, nasipaddress, acctsessionid,
-                       MAX(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as max_in,
-                       MAX(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as max_out,
-                       MIN(COALESCE(acctstarttime, acctupdatetime)) as sess_start
-                FROM radacct
-                WHERE username IN ({placeholders})
-                GROUP BY username, nasipaddress, acctsessionid
-            ) t ON LOWER(s.username) = LOWER(t.username)
-               AND (s.last_renewed_at IS NULL OR t.sess_start >= s.last_renewed_at)
-            WHERE s.username IN ({placeholders})
-            GROUP BY s.id, s.username
-        ''', tuple(usernames) + tuple(usernames))
-        usage_map = {r['username'].lower(): r for r in (usage_list or [])}
+        try:
+            usage_map = get_subscriber_accounting_totals_batch([s['id'] for s in subs])
+        except AccountingReadError:
+            usage_map = {}  # Unavailable is not an empty accounting history.
 
     now = get_db_storage_now().replace(tzinfo=None)
 
@@ -277,7 +262,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
         u_key = (sub['username'] or '').lower()
         active_session = active_sessions.get(u_key)
         last_session = last_sessions.get(u_key)
-        usage_data = usage_map.get(u_key, {})
+        usage_data = usage_map.get(u_key)
 
         # 1. Status & Online state
         if active_session:
@@ -351,24 +336,25 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
             sub['is_expired'] = False
 
         # 3. Consumption & Quota Progress Bar
-        total_in_bytes = float(usage_data.get('total_in') or 0)
-        total_out_bytes = float(usage_data.get('total_out') or 0)
-        used_bytes = total_in_bytes + total_out_bytes
-        sub['bytes_in'] = format_bytes(total_in_bytes)
-        sub['bytes_out'] = format_bytes(total_out_bytes)
-        sub['used_bytes_str'] = format_bytes(used_bytes)
+        sub['accounting_available'] = usage_data is not None
+        total_in_bytes = int(usage_data['up_bytes']) if usage_data is not None else None
+        total_out_bytes = int(usage_data['down_bytes']) if usage_data is not None else None
+        used_bytes = total_in_bytes + total_out_bytes if usage_data is not None else None
+        sub['bytes_in'] = format_bytes(total_in_bytes) if usage_data is not None else 'غير متاح'
+        sub['bytes_out'] = format_bytes(total_out_bytes) if usage_data is not None else 'غير متاح'
+        sub['used_bytes_str'] = format_bytes(used_bytes) if usage_data is not None else 'غير متاح'
 
-        base_quota_mb = float(sub.get('volume_quota_mb') or 0)
-        extra_quota_mb = float(sub.get('extra_quota_mb') or 0)
+        base_quota_mb = int(sub.get('volume_quota_mb') or 0)
+        extra_quota_mb = int(sub.get('extra_quota_mb') or 0)
         is_limited_package = (base_quota_mb > 0)
         pkg_quota_mb = max(0.0, base_quota_mb + extra_quota_mb)
 
-        if is_limited_package or extra_quota_mb > 0:
+        if is_limited_package:
             quota_bytes = pkg_quota_mb * 1024 * 1024
             sub['quota_bytes_str'] = format_bytes(quota_bytes)
-            percent = 100.0 if quota_bytes == 0 else min(100.0, round((used_bytes / quota_bytes) * 100.0, 1))
-            remaining_bytes = max(0, quota_bytes - used_bytes)
-            sub['remaining_bytes_str'] = format_bytes(remaining_bytes)
+            percent = None if used_bytes is None else (100.0 if quota_bytes == 0 else min(100.0, round((used_bytes / quota_bytes) * 100.0, 1)))
+            remaining_bytes = max(0, quota_bytes - used_bytes) if used_bytes is not None else None
+            sub['remaining_bytes_str'] = format_bytes(remaining_bytes) if remaining_bytes is not None else 'غير متاح'
             sub['has_quota'] = True
             sub['consumption_percent'] = percent
         else:
@@ -393,7 +379,12 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
 
     return subs
 
-def create_subscriber(data, admin_username='admin'):
+def create_subscriber(data, admin_username='admin', conn=None):
+    if conn is None:
+        with db_session() as connection:
+            return create_subscriber(data, admin_username=admin_username, conn=connection)
+    query_one = lambda sql, params=(): execute_in_transaction(conn, sql, params, fetch='one')
+    execute_write = lambda sql, params=(): execute_in_transaction(conn, sql, params)
     from services.license_guard_service import get_active_license_status
     lic_st = get_active_license_status()
     if not lic_st.get('valid'):
@@ -463,47 +454,54 @@ def create_subscriber(data, admin_username='admin'):
         data.get('notes', '')
     ))
     
-    sync_subscriber_to_radius(sub_id)
-    log_audit(1, admin_username, 'CREATE_SUBSCRIBER', 'subscribers', f'Created subscriber {data["username"]}')
+    if not sync_subscriber_to_radius(sub_id, conn=conn):
+        raise ValueError('تعذرت مزامنة المشترك؛ لم تُحفظ الإضافة.')
+    execute_write('''INSERT INTO wisp_audit_logs (admin_id, username, action, module, details)
+        VALUES (1, ?, 'CREATE_SUBSCRIBER', 'subscribers', ?)''',
+        (admin_username, f'Created subscriber {data["username"]}'))
     return sub_id
 
-def update_subscriber(sub_id, data, admin_username='admin'):
+def update_subscriber(sub_id, data, admin_username='admin', conn=None):
+    if conn is None:
+        with db_session() as connection:
+            return update_subscriber(sub_id, data, admin_username=admin_username, conn=connection)
+    query_one = lambda sql, params=(): execute_in_transaction(conn, sql, params, fetch='one')
+    execute_write = lambda sql, params=(): execute_in_transaction(conn, sql, params)
     old_sub = query_one('''
         SELECT s.*, p.name as package_name 
         FROM wisp_subscribers s 
         LEFT JOIN wisp_packages p ON s.package_id = p.id 
         WHERE s.id = ?
-    ''', (sub_id,))
+    ''' + (' FOR UPDATE' if is_mysql_conn(conn) else ''), (sub_id,))
     if not old_sub:
         raise ValueError('المشترك غير موجود.')
 
-    new_pwd = data['password'].strip()
+    # Subscription operations own cycle settlement. Legacy forms may submit
+    # unchanged fields, but must never use profile editing to alter a contract.
+    for key in ('package_id', 'service_type', 'status', 'expires_at'):
+        if key not in data:
+            continue
+        old = str(old_sub.get(key) or '')
+        new = str(data.get(key) or '')
+        if key == 'expires_at':
+            old, new = old.replace('T', ' '), new.replace('T', ' ')
+            if len(new) == 16 and old[:16] == new:
+                continue
+        elif key == 'status':
+            old = 'suspended' if old == 'disabled' else old
+            new = 'suspended' if new == 'disabled' else new
+        if new != old:
+            raise ValueError('تغيير الباقة أو الحالة أو الصلاحية أو نوع الخدمة يتم من العمليات المخصصة، وليس تعديل البيانات.')
+    new_pwd = str(data.get('password', old_sub.get('password')) or '').strip()
+    if not new_pwd:
+        raise ValueError('كلمة المرور مطلوبة.')
     new_fullname = (data.get('full_name') or data.get('fullname') or '').strip()
     new_phone = data.get('phone', '').strip()
     new_national_id = data.get('national_id', '').strip()
     new_address = data.get('address', '').strip()
-    new_service_type = data.get('service_type', 'pppoe')
-    new_pkg_id = int(data['package_id'])
     new_mac = data.get('mac_binding', '').strip()
     new_ip = data.get('static_ip', '').strip()
-    new_status = data.get('status', 'active')
-    if new_status == 'disabled':
-        new_status = 'suspended'
-    new_expires_at = data.get('expires_at') or None
     new_notes = data.get('notes', '')
-
-    # License Check: If transitioning to active from suspended/expired
-    old_status = str(old_sub.get('status') or '').lower()
-    if old_status != 'active' and str(new_status).lower() == 'active':
-        from services.license_guard_service import get_active_license_status
-        lic_st = get_active_license_status()
-        if not lic_st.get('valid'):
-            raise ValueError(f"لا يمكن تنشيط المشترك: {lic_st.get('message', 'النظام غير مرخص')}")
-        if lic_st.get('status') == 'revoked':
-            raise ValueError("لا يمكن تنشيط المشترك: الترخيص محظور من قِبل المطور.")
-
-    new_pkg = query_one('SELECT name FROM wisp_packages WHERE id = ?', (new_pkg_id,))
-    new_pkg_name = new_pkg['name'] if new_pkg else str(new_pkg_id)
 
     # Track changes for detailed audit log
     changes = []
@@ -511,14 +509,6 @@ def update_subscriber(sub_id, data, admin_username='admin'):
         changes.append(f"تعديل الاسم من '{old_sub.get('full_name')}' إلى '{new_fullname}'")
     if old_sub.get('password') != new_pwd:
         changes.append("تعديل كلمة المرور في RADIUS")
-    if old_sub.get('package_id') != new_pkg_id:
-        changes.append(f"تغيير الباقة من '{old_sub.get('package_name')}' إلى '{new_pkg_name}'")
-    if str(old_sub.get('service_type')) != str(new_service_type):
-        changes.append(f"تغيير نوع الربط إلى '{new_service_type}'")
-    if str(old_sub.get('status')) != str(new_status):
-        changes.append(f"تغيير حالة الحساب من '{old_sub.get('status')}' إلى '{new_status}'")
-    if str(old_sub.get('expires_at') or '') != str(new_expires_at or ''):
-        changes.append(f"تعديل تاريخ الانتهاء إلى '{new_expires_at or 'غير محدد'}'")
     if str(old_sub.get('mac_binding') or '') != str(new_mac or ''):
         changes.append(f"تعديل تقييد الماك إلى '{new_mac or 'إلغاء التقييد'}'")
     if str(old_sub.get('static_ip') or '') != str(new_ip or ''):
@@ -526,22 +516,25 @@ def update_subscriber(sub_id, data, admin_username='admin'):
 
     execute_write('''
         UPDATE wisp_subscribers SET
-            snap_volume_quota_mb = CASE WHEN package_id = ? THEN snap_volume_quota_mb ELSE NULL END,
             password = ?, full_name = ?, phone = ?, national_id = ?, address = ?,
-            service_type = ?, package_id = ?, mac_binding = ?, static_ip = ?,
-            status = ?, expires_at = ?, notes = ?
+            mac_binding = ?, static_ip = ?, notes = ?
         WHERE id = ?
     ''', (
-        new_pkg_id, new_pwd, new_fullname, new_phone, new_national_id, new_address,
-        new_service_type, new_pkg_id, new_mac, new_ip,
-        new_status, new_expires_at, new_notes,
+        new_pwd, new_fullname, new_phone, new_national_id, new_address,
+        new_mac, new_ip, new_notes,
         sub_id
     ))
-    sync_subscriber_to_radius(sub_id)
+    if not sync_subscriber_to_radius(sub_id, conn=conn):
+        raise ValueError('تعذرت مزامنة المشترك؛ لم يُحفظ التعديل.')
     
     change_summary = "، ".join(changes) if changes else "تحديث عام لبيانات المشترك"
-    log_user_audit('subscriber', sub_id, old_sub['username'], admin_username, 'UPDATE_PROFILE', change_summary)
-    log_audit(1, admin_username, 'UPDATE_SUBSCRIBER', 'subscribers', f'Updated subscriber {old_sub["username"]}: {change_summary}')
+    execute_write('''INSERT INTO user_audit_logs
+        (user_type, user_id, username, admin_name, action, change_details)
+        VALUES ('subscriber', ?, ?, ?, 'UPDATE_PROFILE', ?)''',
+        (sub_id, old_sub['username'], admin_username, change_summary))
+    execute_write('''INSERT INTO wisp_audit_logs (admin_id, username, action, module, details)
+        VALUES (1, ?, 'UPDATE_SUBSCRIBER', 'subscribers', ?)''',
+        (admin_username, f'Updated subscriber {old_sub["username"]}: {change_summary}'))
     return True
 
 def delete_subscriber(sub_id, admin_username='admin'):

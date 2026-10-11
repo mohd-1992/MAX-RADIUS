@@ -65,7 +65,7 @@
                 <div>
                     <div class="flex items-center gap-2">
                         <h3 class="text-xl font-black font-mono text-white select-all">{{ card.username }}</h3>
-                        <button onclick="copyToClipboard('{{ card.username }}')" class="text-slate-400 hover:text-sky-400 text-xs transition" title="نسخ اسم المستخدم">
+                        <button onclick="copyToClipboard({{ card.username|tojson|forceescape }})" class="text-slate-400 hover:text-sky-400 text-xs transition" title="نسخ اسم المستخدم">
                             <i class="fa-regular fa-copy"></i>
                         </button>
                     </div>
@@ -188,7 +188,7 @@
                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
                     <h4 class="text-sm font-bold text-white">تفاصيل الجلسة المتصلة الآن في السيرفر</h4>
                 </div>
-                <button type="button" onclick="disconnectUser('{{ card.username }}')" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-rose-600/20">
+                <button type="button" onclick="disconnectUser({{ card.username|tojson|forceescape }})" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-rose-600/20">
                     <i class="fa-solid fa-power-off"></i>
                     <span>فصل الجلسة الحالية (CoA Disconnect)</span>
                 </button>
@@ -235,7 +235,7 @@
                         <span class="text-slate-400">رمز الـ PIN:</span>
                         <div class="flex items-center gap-1.5">
                             <span class="font-mono text-amber-400 font-bold select-all">{{ card.pin_code or '-' }}</span>
-                            <button onclick="copyToClipboard('{{ card.pin_code }}')" class="text-slate-500 hover:text-amber-400 transition" title="نسخ PIN">
+                            <button onclick="copyToClipboard({{ card.pin_code|tojson|forceescape }})" class="text-slate-500 hover:text-amber-400 transition" title="نسخ PIN">
                                 <i class="fa-regular fa-copy text-[11px]"></i>
                             </button>
                         </div>
@@ -259,7 +259,7 @@
                                 {{ card.bound_mac or 'غير مقيد' }}
                             </span>
                             {% if card.bound_mac %}
-                            <button type="button" onclick="confirmResetMac('{{ card.username }}')" class="text-rose-400 hover:text-rose-300 transition text-[11px] underline" title="فك الماك">
+                            <button type="button" onclick="confirmResetMac({{ card.username|tojson|forceescape }})" class="text-rose-400 hover:text-rose-300 transition text-[11px] underline" title="فك الماك">
                                 فك
                             </button>
                             {% endif %}
@@ -278,19 +278,19 @@
                 <!-- Quick Action Buttons -->
                 <div class="pt-3 border-t border-[#1c2840] space-y-2">
                     {% if card.bound_mac %}
-                    <button type="button" onclick="confirmResetMac('{{ card.username }}')" class="w-full py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
+                    <button type="button" onclick="confirmResetMac({{ card.username|tojson|forceescape }})" class="w-full py-2 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
                         <i class="fa-solid fa-unlock-keyhole"></i>
                         <span>فك قيد الماك (Reset MAC)</span>
                     </button>
                     {% endif %}
 
-                    <button type="button" onclick="openExtendModal('{{ card.username }}')" class="w-full py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] hover:border-sky-500/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm">
+                    <button type="button" onclick="openExtendModal({{ card.username|tojson|forceescape }})" class="w-full py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] hover:border-sky-500/40 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm">
                         <i class="fa-solid fa-calendar-plus text-sky-400"></i>
                         <span>تمديد صلاحية / إضافة سعة إضافية</span>
                     </button>
 
                     {% if is_online %}
-                    <button type="button" onclick="disconnectUser('{{ card.username }}')" class="w-full py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
+                    <button type="button" onclick="disconnectUser({{ card.username|tojson|forceescape }})" class="w-full py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
                         <i class="fa-solid fa-power-off"></i>
                         <span>فصل الجلسة الحالية (CoA)</span>
                     </button>
@@ -440,7 +440,7 @@
         }).then((result) => {
             if (result.isConfirmed) {
                 Swal.fire({ title: 'جارٍ إرسال حزمة الفصل...', didOpen: () => Swal.showLoading() });
-                fetch('/api/subscribers/disconnect', {
+                fetch('/api/vouchers/disconnect', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username: username})

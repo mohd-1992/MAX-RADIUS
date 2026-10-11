@@ -104,6 +104,61 @@ def record_session_baselines(username, renewed_at=None, conn=None):
             conn.close()
 
 
+def get_accounting_totals_batch(subscriber_ids, entity_type="subscriber"):
+    """Read-only list equivalent of get_accounting_totals, including cycle baselines.
+
+    Missing boundaries stay unknown for that account; a failed query never yields zero.
+    Chunking bounds placeholders and avoids an accounting query per displayed row.
+    """
+    if entity_type not in ("subscriber", "voucher"):
+        raise ValueError("نوع الحساب غير صالح")
+    table = "wisp_subscribers" if entity_type == "subscriber" else "wisp_vouchers"
+    result = {}
+    ids = list(dict.fromkeys(subscriber_ids))
+    cycle = 'COALESCE(s.last_renewed_at, s.first_used_at, s.created_at)'
+    boundary = f'b.radacctid IS NULL AND ({cycle} IS NULL OR a.acctstarttime >= {cycle})'
+    def delta(column, baseline):
+        return f'''CASE WHEN {boundary} THEN COALESCE(a.{column}, 0)
+            WHEN b.radacctid IS NOT NULL AND COALESCE(a.{column}, 0) > COALESCE(b.{baseline}, 0)
+                THEN COALESCE(a.{column}, 0) - COALESCE(b.{baseline}, 0) ELSE 0 END'''
+    up = delta('acctinputoctets', 'baseline_input_bytes')
+    down = delta('acctoutputoctets', 'baseline_output_bytes')
+    uptime = delta('acctsessiontime', 'baseline_seconds')
+    try:
+        for offset in range(0, len(ids), 400):
+            chunk = ids[offset:offset + 400]
+            placeholders = ','.join('?' for _ in chunk)
+            rows = query_all(f'''SELECT LOWER(s.username) AS username,
+                SUM({up}) AS up_bytes, SUM({down}) AS down_bytes,
+                SUM({uptime}) AS uptime_secs,
+                MAX(CASE WHEN a.acctstarttime < {cycle}
+                    AND (a.acctstoptime IS NULL OR a.acctstoptime > {cycle})
+                    AND b.radacctid IS NULL THEN 1 ELSE 0 END) AS incomplete
+                FROM {table} s
+                LEFT JOIN radacct a ON LOWER(a.username) = LOWER(s.username)
+                LEFT JOIN wisp_session_baselines b ON b.radacctid = a.radacctid
+                    AND b.renewed_at = {cycle}
+                WHERE s.id IN ({placeholders}) GROUP BY s.id, s.username''', tuple(chunk))
+            for row in rows:
+                if row['incomplete']:
+                    result[row['username']] = None
+                else:
+                    up_bytes, down_bytes = int(row['up_bytes'] or 0), int(row['down_bytes'] or 0)
+                    result[row['username']] = dict(up_bytes=up_bytes, down_bytes=down_bytes,
+                        total_bytes=up_bytes + down_bytes, uptime_secs=int(row['uptime_secs'] or 0))
+    except Exception as exc:
+        raise AccountingReadError('تعذرت قراءة محاسبة قائمة المشتركين.') from exc
+    return result
+
+
+def get_subscriber_accounting_totals_batch(subscriber_ids):
+    return get_accounting_totals_batch(subscriber_ids, 'subscriber')
+
+
+def get_voucher_accounting_totals_batch(voucher_ids):
+    return get_accounting_totals_batch(voucher_ids, 'voucher')
+
+
 def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_update=False):
     """
     Calculates exact upload, download, total bytes and uptime seconds from radacct.

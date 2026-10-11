@@ -358,7 +358,7 @@
                 </thead>
                 <tbody class="divide-y divide-[#1c2840]">
                     {% for c in active_cards %}
-                    <tr class="hover:bg-[#11192b] transition cursor-pointer" onclick="window.location.href='{{ url_for('active_card_user_details', card_id=c.id) }}'">
+                    <tr class="hover:bg-[#11192b] transition cursor-pointer" onclick="window.location.href={{ url_for('active_card_user_details', card_id=c.id)|tojson|forceescape }}">
                         <!-- 0. مربع التحديد الجماعي -->
                         <td class="py-3.5 px-3 text-center" onclick="event.stopPropagation()">
                             <input type="checkbox" class="row-checkbox w-4 h-4 rounded border-slate-700 bg-[#070b14] text-emerald-600 focus:ring-0 cursor-pointer" value="{{ c.id }}" data-username="{{ c.username }}" onchange="handleRowSelect()">
@@ -379,14 +379,14 @@
                                 </div>
                                 <!-- الخيار الأول: الحذف الكامل -->
                                 <div class="py-1">
-                                    <button onclick="confirmDelete('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
+                                    <button onclick="confirmDelete('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
                                         <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
                                         <span>حذف الكرت (Delete)</span>
                                     </button>
                                 </div>
                                 <!-- مجموعة 1: الصلاحية والباقة -->
                                 <div class="py-1">
-                                    <button onclick="openExtendModal('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.expires_at }}')" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="openExtendModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.expires_at|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
                                         <span>تمديد الصلاحية (Extend Time)</span>
                                     </button>
@@ -395,52 +395,52 @@
                                             data-id="{{ c.id }}" 
                                             data-type="card" 
                                             data-username="{{ c.username }}" 
-                                            onclick="disableAccount(event, this)" 
+                                            onclick="{% if c.status in ('suspended','disabled') %}event.stopPropagation();activateVoucher({{ c.id }}, {{ c.username|tojson|forceescape }}){% else %}disableAccount(event,this){% endif %}"
                                             class="w-full text-right px-3.5 py-2 text-amber-400 hover:bg-amber-500/10 flex items-center justify-between gap-2 transition cursor-pointer group" 
-                                            title="إيقاف الحساب مع حفظ الرصيد والصلاحية">
+                                            title="{% if c.status in ('suspended','disabled') %}إلغاء الإيقاف حسب الرصيد والصلاحية{% else %}إيقاف الحساب مع حفظ الرصيد والصلاحية{% endif %}">
                                         <div class="flex items-center gap-2.5">
-                                            <i class="fa-solid fa-user-slash text-amber-400 w-4 text-center group-hover:scale-110 transition-transform"></i>
-                                            <span>إيقاف الحساب (Disable)</span>
+                                            <i class="fa-solid {% if c.status in ('suspended','disabled') %}fa-user-check{% else %}fa-user-slash{% endif %} text-amber-400 w-4 text-center group-hover:scale-110 transition-transform"></i>
+                                            <span>{% if c.status in ('suspended','disabled') %}تنشيط الحساب{% else %}إيقاف الحساب (Disable){% endif %}</span>
                                         </div>
                                     </button>
-                                    <button onclick="confirmTerminate('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="confirmTerminate('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
                                         <span>إنهاء الاشتراك (Terminate)</span>
                                     </button>
-                                    <button onclick="confirmRenew('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.package_name }}')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="confirmRenew('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.package_name|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-arrows-rotate text-emerald-400 w-4 text-center"></i>
                                         <span>تجديد الباقة (Renew Package)</span>
                                     </button>
-                                    <button onclick="openChangePackageModal('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.package_id }}')" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="openChangePackageModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.package_id|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-layer-group text-indigo-400 w-4 text-center"></i>
                                         <span>تغيير الباقة (Change Package)</span>
                                     </button>
                                 </div>
                                 <!-- مجموعة 2: الكوتا وسجل الاستهلاك -->
                                 <div class="py-1">
-                                    <button onclick="openAddQuotaModal('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="openAddQuotaModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-database text-sky-400 w-4 text-center"></i>
                                         <span>إضافة رصيد تحميل (Add Quota)</span>
                                     </button>
-                                    <button onclick="openUsageHistoryModal('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="openUsageHistoryModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-chart-line text-purple-400 w-4 text-center"></i>
                                         <span>سجل الاستهلاك (Usage History)</span>
                                     </button>
                                 </div>
                                 <!-- مجموعة 3: المحفظة المالية -->
                                 <div class="py-1">
-                                    <button onclick="openAddWalletModal('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.balance or 0 }}')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="openAddWalletModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.balance or 0|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-wallet text-emerald-400 w-4 text-center"></i>
                                         <span>إضافة رصيد مالي (Add Wallet)</span>
                                     </button>
-                                    <button onclick="openDeductWalletModal('voucher', '{{ c.id }}', '{{ c.username }}', '{{ c.balance or 0 }}')" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="openDeductWalletModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.balance or 0|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-money-bill-transfer text-amber-400 w-4 text-center"></i>
                                         <span>سحب رصيد مالي (Deduct Wallet)</span>
                                     </button>
                                 </div>
                                 <!-- مجموعة 4: قطع الاتصال الفوري -->
                                 <div class="py-1">
-                                    <button onclick="confirmDisconnect('voucher', '{{ c.id }}', '{{ c.username }}')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                    <button onclick="confirmDisconnect('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-power-off text-rose-400 w-4 text-center"></i>
                                         <span>قطع الاتصال (Disconnect CoA)</span>
                                     </button>
@@ -551,6 +551,8 @@
                                     {% endif %}
                                 </div>
                                 <div class="text-slate-400 text-[10px]">الاستهلاك: غير منطبق — استُخدم للشحن</div>
+                            {% elif c.accounting_unavailable %}
+                                <span class="text-amber-400">المحاسبة غير متاحة؛ تعذر حساب الاستهلاك والمتبقي</span>
                             {% elif c.has_quota %}
                                 <div class="flex items-center justify-between text-[11px] font-mono mb-1 gap-2">
                                     <span class="text-slate-300 font-semibold">{{ c.used_bytes_str }}</span>
@@ -1762,6 +1764,16 @@
                     .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
             }
         });
+    }
+async function activateVoucher(id, username) {
+        const result = await Swal.fire({title:'تنشيط الحساب',text:'إلغاء إيقاف '+username+' حسب رصيده وصلاحيته دون تجديد.',showCancelButton:true,confirmButtonText:'تنشيط',cancelButtonText:'إلغاء'});
+        if (!result.isConfirmed) return;
+        try {
+            const response=await fetch('/api/vouchers/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card_id:id})});
+            const data=await response.json();
+            await Swal.fire({icon:data.success?'success':'error',text:data.message});
+            if (data.success) window.location.reload();
+        } catch (error) { await Swal.fire({icon:'error',text:'تعذر الاتصال؛ تحقق من الحالة قبل إعادة الطلب.'}); }
     }
 </script>
 {% endblock %}

@@ -18,7 +18,7 @@ from flask import (
 
 from database.db import (
     query_all, query_one, execute_write, execute_update, execute_many,
-    log_audit, log_user_audit, DB_PATH
+    log_audit, log_user_audit, DB_PATH, is_mysql_conn
 )
 from core.config import (
     DB_TYPE, APP_NAME, APP_VERSION, APP_EDITION, APP_VERSION_FULL, APP_VERSION_BADGE,
@@ -51,12 +51,36 @@ from services.license_guard_service import *
 from services.system_update_service import *
 from core.time_service import (
     sync_ntp_time, start_ntp_sync_worker, get_time_sync_status,
-    get_configured_timezone_name, get_system_now, get_system_now_str
+    get_configured_timezone_name, get_system_now, get_system_now_str, get_db_storage_now
 )
 
 logger = logging.getLogger('vouchers_bp')
 
 vouchers_bp = Blueprint('vouchers_bp', __name__)
+
+@vouchers_bp.before_request
+def guard_voucher_permissions():
+    endpoint = (request.endpoint or '').split('.')[-1]
+    if 'design' in endpoint or endpoint in ('print_cards','upload_card_bg_api'):
+        permission = 'vouchers.print'
+    elif endpoint=='generate_vouchers_action':
+        permission = 'vouchers.generate'
+    elif endpoint=='delete_batch_action':
+        permission = 'vouchers.delete'
+    elif endpoint=='batches_bulk_action':
+        data = request.get_json(silent=True) or request.form
+        permission = {'delete':'vouchers.delete','export':'vouchers.print'}.get(data.get('action'),'vouchers.actions')
+    elif request.method=='POST':
+        permission = 'vouchers.actions'
+    else:
+        permission = 'vouchers.view'
+    manager = get_current_manager()
+    if not manager:
+        return jsonify(success=False,message='يرجى تسجيل الدخول أولًا.'),401
+    if not has_permission(permission,manager):
+        return jsonify(success=False,message='لا تملك صلاحية هذا الإجراء.'),403
+
+
 
 
 @vouchers_bp.route('/vouchers', endpoint="vouchers")
@@ -218,9 +242,11 @@ def batches_bulk_action():
             try:
                 raw_ids = json.loads(raw_ids)
             except Exception:
-                raw_ids = [int(x.strip()) for x in raw_ids.split(',') if x.strip().isdigit()]
+                raw_ids = [x.strip() for x in raw_ids.split(',') if x.strip()]
 
-        batch_ids = [int(i) for i in raw_ids if str(i).isdigit()]
+        if not isinstance(raw_ids,(list,tuple)) or any(not str(i).isdigit() or int(i)<=0 for i in raw_ids):
+            return jsonify(success=False,message='معرفات الحزم غير صالحة.'),400
+        batch_ids = list(dict.fromkeys(int(i) for i in raw_ids))
         if not batch_ids:
             return jsonify({'success': False, 'message': 'يرجى تحديد حزمة واحدة على الأقل.'}), 400
 
@@ -236,7 +262,9 @@ def batches_bulk_action():
                 except Exception as e:
                     logger.error(f"Error deleting batch {bid}: {e}")
             log_audit(session.get('admin_id', 1), admin_username, 'BULK_DELETE_BATCHES', 'vouchers', f'Bulk deleted {deleted_count} batches')
-            return jsonify({'success': True, 'message': f'تم حذف {deleted_count} حزمة مع كروتها واسترداد الأرصدة بنجاح.'})
+            return jsonify({'success': deleted_count > 0, 'partial': 0 < deleted_count < count,
+                            'successful': deleted_count, 'failed': count-deleted_count,
+                            'message': f'حُذفت {deleted_count} حزمة؛ لم تُحذف {count-deleted_count} حزمة. تحقق من حالتها قبل إعادة الطلب.'})
 
         elif action == 'change_package':
             new_pkg_id = data.get('package_id')
@@ -254,14 +282,27 @@ def batches_bulk_action():
                 except Exception as e:
                     logger.error(f"Error updating package for batch {bid}: {e}")
             log_audit(session.get('admin_id', 1), admin_username, 'BULK_UPDATE_BATCH_PKG', 'vouchers', f'Updated package to [{new_pkg["name"]}] for {updated_count} batches')
-            return jsonify({'success': True, 'message': f'تم تغيير الباقة إلى [{new_pkg["name"]}] ومزامنة FreeRADIUS لـ {updated_count} حزمة بنجاح.'})
+            return jsonify({'success': updated_count > 0, 'partial': 0 < updated_count < count,
+                            'successful': updated_count, 'failed': count-updated_count,
+                            'message': f'تغيرت باقة {updated_count} حزمة إلى [{new_pkg["name"]}]؛ لم تتغير {count-updated_count} حزمة.'})
 
         elif action == 'assign_reseller':
             new_reseller_id = data.get('reseller_id')
-            rid = int(new_reseller_id) if (new_reseller_id and str(new_reseller_id).isdigit()) else None
-            placeholders = ','.join(['?'] * count)
-            execute_write(f"UPDATE wisp_voucher_batches SET reseller_id = ? WHERE id IN ({placeholders})", (rid, *batch_ids))
-            execute_write(f"UPDATE wisp_vouchers SET reseller_id = ? WHERE batch_id IN ({placeholders})", (rid, *batch_ids))
+            if new_reseller_id not in (None, '') and (not str(new_reseller_id).isdigit() or int(new_reseller_id)<=0):
+                return jsonify(success=False,message='معرف الموزع غير صالح.'),400
+            rid = int(new_reseller_id) if new_reseller_id not in (None,'') else None
+            from database.db import db_session
+            from services.voucher_service import _VoucherWriter
+            placeholders=','.join(['?']*count)
+            with db_session() as conn:
+                tx=_VoucherWriter(conn)
+                for bid in batch_ids:
+                    if not tx.one('SELECT id FROM wisp_voucher_batches WHERE id=?'+(' FOR UPDATE' if is_mysql_conn(conn) else ''),(bid,)):
+                        raise ValueError('إحدى الحزم غير موجودة؛ لم تُحفظ التغييرات.')
+                if rid and not tx.one('SELECT id FROM wisp_managers WHERE id=? AND is_active=1 AND COALESCE(is_deleted,0)=0',(rid,)):
+                    raise ValueError('الموزع غير صالح.')
+                tx.write(f'UPDATE wisp_voucher_batches SET reseller_id=? WHERE id IN ({placeholders})',(rid,*batch_ids))
+                tx.write(f'UPDATE wisp_vouchers SET reseller_id=? WHERE batch_id IN ({placeholders})',(rid,*batch_ids))
             reseller_label = 'إدارة النظام'
             if rid:
                 r = query_one('SELECT COALESCE(NULLIF(full_name, ""), username) as name FROM wisp_managers WHERE id = ?', (rid,))
@@ -297,9 +338,11 @@ def batches_bulk_action():
 
         return jsonify({'success': False, 'message': 'إجراء غير معروف.'}), 400
 
-    except Exception as e:
-        logger.error(f"Error in batches_bulk_action: {e}")
-        return jsonify({'success': False, 'message': f'حدث خطأ: {str(e)}'}), 500
+    except ValueError as exc:
+        return jsonify(success=False,message=str(exc)),400
+    except Exception:
+        logger.exception('Batch operation failed')
+        return jsonify(success=False,message='تعذرت العملية؛ تحقق من حالة الحزم قبل إعادة الطلب.'),500
 
 
 @vouchers_bp.route('/vouchers/card/edit/<int:card_id>', methods=['POST'], endpoint="edit_card_action")
@@ -378,7 +421,7 @@ def active_card_users():
             COALESCE(SUM(CASE WHEN (v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled', 'suspended') THEN 1 ELSE 0 END), 0) as total_expired,
             COALESCE(SUM(CASE WHEN v.status = 'recharged' THEN 1 ELSE 0 END), 0) as total_recharged,
             COALESCE(SUM(CASE WHEN v.status IN ('suspended','disabled') THEN 1 ELSE 0 END), 0) as total_suspended,
-            COALESCE(SUM(CASE WHEN v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR acctstarttime >= ?)) THEN 1 ELSE 0 END), 0) as total_online
+            COALESCE(SUM(CASE WHEN v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR (acctupdatetime IS NULL AND acctstarttime >= ?))) THEN 1 ELSE 0 END), 0) as total_online
         FROM wisp_vouchers v
         WHERE {base_sql}
     '''
@@ -398,7 +441,7 @@ def active_card_users():
     if status_filter == 'active':
         where_clauses.append("v.status IN ('active', 'used') AND (v.expires_at IS NULL OR v.expires_at > CURRENT_TIMESTAMP)")
     elif status_filter == 'online':
-        where_clauses.append("v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR acctstarttime >= ?))")
+        where_clauses.append("v.username IN (SELECT username FROM radacct WHERE acctstoptime IS NULL AND (acctupdatetime >= ? OR (acctupdatetime IS NULL AND acctstarttime >= ?)))")
         params.extend([cutoff_s, cutoff_s])
     elif status_filter == 'expired':
         where_clauses.append("(v.status = 'expired' OR (v.expires_at IS NOT NULL AND v.expires_at <= CURRENT_TIMESTAMP)) AND v.status NOT IN ('recharged', 'disabled', 'suspended')")
@@ -457,31 +500,14 @@ def active_card_users():
     
     if usernames:
         placeholders = ','.join(['?'] * len(usernames))
-        traffic_rows = query_all(f'''
-            SELECT v.id as card_id, LOWER(v.username) as username,
-                   COALESCE(SUM(t.max_down), 0) as total_down_bytes,
-                   COALESCE(SUM(t.max_up), 0) as total_up_bytes,
-                   COALESCE(SUM(t.max_time), 0) as total_session_sec
-            FROM wisp_vouchers v
-            LEFT JOIN (
-                SELECT username, nasipaddress, acctsessionid,
-                       MAX(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as max_down,
-                       MAX(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as max_up,
-                       MAX(acctsessiontime) as max_time,
-                       MIN(COALESCE(acctstarttime, acctupdatetime)) as sess_start
-                FROM radacct
-                WHERE username IN ({placeholders})
-                GROUP BY username, nasipaddress, acctsessionid
-            ) t ON LOWER(v.username) = LOWER(t.username)
-               AND (v.last_renewed_at IS NULL OR t.sess_start >= v.last_renewed_at)
-            WHERE v.username IN ({placeholders})
-            GROUP BY v.id, v.username
-        ''', tuple(usernames) + tuple(usernames))
-        for tr in (traffic_rows or []):
-            traffic_map[tr['username'].lower()] = tr
-            
-        from core.time_service import get_utc_cutoff_str
-        cutoff_s = get_utc_cutoff_str(3)
+        from services.quota_service import get_voucher_accounting_totals_batch, AccountingReadError
+        try:
+            traffic_map = get_voucher_accounting_totals_batch([c['id'] for c in cards])
+        except AccountingReadError:
+            traffic_map = {}
+
+        from services.subscriber_service import get_heartbeat_cutoff_str
+        cutoff_s = get_heartbeat_cutoff_str(5)
         active_params = list(usernames) + [cutoff_s, cutoff_s]
         active_rows = query_all(f'''
             SELECT username, framedipaddress, acctsessiontime, acctinputoctets, acctoutputoctets,
@@ -510,17 +536,18 @@ def active_card_users():
         for lr in (last_rows or []):
             last_map[lr['username'].lower()] = lr
 
-    now = datetime.datetime.now()
+    now = get_db_storage_now().replace(tzinfo=None)
 
     for c in cards:
         u_key = c['username'].lower() if c.get('username') else ''
-        t_data = traffic_map.get(u_key, {})
+        t_data = traffic_map.get(u_key)
         a_data = active_map.get(u_key)
         l_data = last_map.get(u_key)
         
-        down_b = float(t_data.get('total_down_bytes') or 0)
-        up_b = float(t_data.get('total_up_bytes') or 0)
-        dur_s = float(t_data.get('total_session_sec') or 0)
+        c['accounting_unavailable'] = t_data is None
+        down_b = float(t_data['down_bytes']) if t_data else 0
+        up_b = float(t_data['up_bytes']) if t_data else 0
+        dur_s = float(t_data['uptime_secs']) if t_data else 0
         total_used_b = down_b + up_b
         
         c['service_type'] = c.get('service_type') or c.get('package_service_type') or 'hotspot'
@@ -592,7 +619,7 @@ def active_card_users():
         extra_quota_mb = float(c.get('extra_quota_mb') or 0)
         is_limited_package = (base_quota_mb > 0)
         vol_quota_mb = max(0.0, base_quota_mb + extra_quota_mb)
-        c['has_quota'] = (is_limited_package or extra_quota_mb > 0)
+        c['has_quota'] = is_limited_package
         c['used_bytes_str'] = format_bytes(total_used_b)
         if c['has_quota']:
             quota_b = vol_quota_mb * 1024 * 1024
@@ -605,6 +632,10 @@ def active_card_users():
             c['remaining_bytes_str'] = 'غير محدود'
             c['consumption_percent'] = 0
             
+        if c['accounting_unavailable']:
+            c['used_bytes_str'] = c['remaining_bytes_str'] = 'غير متاح'
+            c['consumption_percent'] = 0
+
         # Format dates & numbers
         if exp_dt:
             c['expires_at_str'] = exp_dt.strftime('%Y-%m-%d %H:%M')
@@ -678,8 +709,8 @@ def active_card_user_details(card_id):
         return redirect(url_for('active_card_users'))
 
     # Active session (Online)
-    from core.time_service import get_utc_cutoff_str
-    cutoff_s = get_utc_cutoff_str(3)
+    from services.subscriber_service import get_heartbeat_cutoff_str
+    cutoff_s = get_heartbeat_cutoff_str(5)
     active_sess = query_one('''
         SELECT radacctid, acctsessionid, nasipaddress, framedipaddress, callingstationid,
                acctstarttime, acctsessiontime, acctinputoctets, acctoutputoctets
@@ -723,7 +754,7 @@ def active_card_user_details(card_id):
 
     from services.quota_service import calculate_account_quota
     q_info = calculate_account_quota(card['id'], entity_type='voucher')
-    if q_info:
+    if q_info and not q_info.get('accounting_error',False):
         down_bytes = q_info['used_down_bytes']
         up_bytes = q_info['used_up_bytes']
         total_used_bytes = q_info['used_total_bytes']
@@ -744,11 +775,7 @@ def active_card_user_details(card_id):
         down_bytes = 0
         up_bytes = 0
         total_used_bytes = 0
-        total_download = '0 B'
-        total_upload = '0 B'
-        total_used_str = '0 B'
-        quota_str = 'غير محدود'
-        remaining_str = 'غير محدود'
+        total_download = total_upload = total_used_str = quota_str = remaining_str = 'غير متاح'
         usage_percent = 0
 
     # Expiration & Remaining Days calculation
@@ -761,7 +788,7 @@ def active_card_user_details(card_id):
                 exp_dt = datetime.datetime.fromisoformat(exp_val.replace('Z', ''))
             else:
                 exp_dt = exp_val
-            now = datetime.datetime.now()
+            now = get_db_storage_now().replace(tzinfo=None)
             diff = (exp_dt - now).total_seconds()
             if diff > 0:
                 d = int(diff // 86400)
@@ -850,6 +877,9 @@ def edit_active_card_action(card_id):
         if str(old_card.get('expires_at') or '') != str(expires_at or ''):
             changes.append(f"تعديل تاريخ الانتهاء إلى '{expires_at or 'تلقائي'}'")
 
+        if status != ('suspended' if old_card['status']=='disabled' else old_card['status']) or str(expires_at or '').replace('T',' ')[:16] != str(old_card.get('expires_at') or '')[:16]:
+            raise ValueError('استخدم عمليات الحالة وتمديد الصلاحية المخصصة.')
+
         if old_card.get('package_id') != new_pkg_id:
             profile = dict(username=new_username, password=new_password, bound_mac=bound_mac, status=status)
             old_exp = str(old_card.get('expires_at') or '').replace('T', ' ')[:16]
@@ -861,31 +891,7 @@ def edit_active_card_action(card_id):
             flash(message, 'success' if ok else 'danger')
             return redirect(url_for('active_card_user_details', card_id=card_id))
 
-        execute_write('''
-            UPDATE wisp_vouchers
-            SET username = ?, password = ?, pin_code = ?, package_id = ?, bound_mac = ?, status = ?, expires_at = ?
-            WHERE id = ?
-        ''', (new_username, new_password, new_password, new_pkg_id, bound_mac or None, status, expires_at, card_id))
-
-        if old_username != new_username:
-            execute_write("DELETE FROM radcheck WHERE username = ?", (old_username,))
-            execute_write("DELETE FROM radusergroup WHERE username = ?", (old_username,))
-
-        execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = 'Cleartext-Password'", (new_username,))
-        execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (new_username, new_password))
-
-        if pkg_name:
-            execute_write('DELETE FROM radusergroup WHERE username = ?', (new_username,))
-            execute_write('INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)', (new_username, pkg_name))
-
-        execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = 'Calling-Station-Id'", (new_username,))
-        if bound_mac:
-            execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Calling-Station-Id', '==', ?)", (new_username, bound_mac))
-
-        change_summary = "، ".join(changes) if changes else "تحديث عام لبيانات الكرت"
-        log_user_audit('voucher', card_id, new_username, admin_user, 'UPDATE_PROFILE', change_summary)
-        log_audit(1, admin_user, 'UPDATE_VOUCHER_CARD', 'vouchers', f'Updated voucher {new_username}: {change_summary}')
-
+        update_voucher_card(card_id,new_username,new_password,admin_username=admin_user,bound_mac=bound_mac)
         flash('تم حفظ تعديلات الكرت ومزامنة بيانات FreeRADIUS بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء تعديل الكرت: {str(e)}', 'danger')
@@ -897,15 +903,16 @@ def edit_active_card_action(card_id):
 
 def update_card_action():
     try:
-        card_id = int(request.form['card_id'])
-        mac = request.form.get('bound_mac', '').strip()
-        status = request.form.get('status', 'active')
-        if status == 'disabled':
-            status = 'suspended'
-        execute_write('UPDATE wisp_vouchers SET bound_mac = ?, status = ? WHERE id = ?', (mac, status, card_id))
-        flash('تم تعديل بيانات الكرت بنجاح.', 'success')
-    except Exception as e:
-        flash(f'خطأ أثناء التعديل: {str(e)}', 'danger')
+        card_id=int(request.form['card_id'])
+        card=query_one('SELECT * FROM wisp_vouchers WHERE id=?',(card_id,))
+        if not card:
+            raise ValueError('الكرت غير موجود.')
+        if request.form.get('status',card['status']) != card['status']:
+            raise ValueError('استخدم عملية الإيقاف أو التنشيط المخصصة.')
+        update_voucher_card(card_id,card['username'],card['password'],bound_mac=request.form.get('bound_mac',''),admin_username=session.get('admin_username') or 'admin')
+        flash('تم حفظ الماك ومزامنته مع الراديوس.','success')
+    except Exception as exc:
+        flash(str(exc),'danger')
     return redirect(url_for('active_card_users'))
 
 
@@ -916,7 +923,7 @@ def update_card_action():
 @vouchers_bp.route('/card/inspect', endpoint="card_inspect")
 
 def card_inspect():
-    query = request.args.get('q', '').strip()
+    query = (request.args.get('q') or request.args.get('code') or '').strip()
     card = None
     sessions = []
     diag = {
@@ -965,52 +972,28 @@ def card_inspect():
             # 1. Fetch sessions
             sessions = get_subscriber_sessions(card['username'])
 
-            # 2. Accurate Traffic Consumption from radacct
-            traffic = query_one('''
-                SELECT COALESCE(SUM(total_in), 0) as up_bytes, COALESCE(SUM(total_out), 0) as down_bytes
-                FROM (
-                    SELECT nasipaddress, acctsessionid,
-                           MAX(acctinputoctets) as total_in,
-                           MAX(acctoutputoctets) as total_out
-                    FROM radacct
-                    WHERE LOWER(username) = LOWER(?)
-                    GROUP BY nasipaddress, acctsessionid
-                ) AS t
-            ''', (card['username'],))
-
-            down_b = int(traffic['down_bytes'] or 0) if traffic else 0
-            up_b = int(traffic['up_bytes'] or 0) if traffic else 0
-            total_b = down_b + up_b
-
-            diag['total_down_bytes'] = down_b
-            diag['total_up_bytes'] = up_b
-            diag['total_traffic_bytes'] = total_b
-            diag['total_down_str'] = format_bytes(down_b)
-            diag['total_up_str'] = format_bytes(up_b)
-            diag['total_traffic_str'] = format_bytes(total_b)
-
-            # 3. Quota Calculations
-            quota_mb = float(card.get('volume_quota_mb') or 0.0)
-            if quota_mb > 0:
-                quota_bytes = int(quota_mb * 1024 * 1024)
-                rem_bytes = max(0, quota_bytes - total_b)
-                pct_used = min(100.0, round((total_b / quota_bytes) * 100.0, 1))
-                pct_rem = max(0.0, round(100.0 - pct_used, 1))
-                diag['total_quota_str'] = format_bytes(quota_bytes)
-                diag['rem_quota_str'] = format_bytes(rem_bytes)
-                diag['pct_used'] = pct_used
-                diag['pct_remaining'] = pct_rem
+            from services.quota_service import calculate_account_quota
+            q_info = calculate_account_quota(card['id'],entity_type='voucher')
+            diag['accounting_unavailable'] = not q_info or q_info.get('accounting_error',False)
+            if diag['accounting_unavailable']:
+                for field in ('total_down_str','total_up_str','total_traffic_str','rem_quota_str'):
+                    diag[field]='غير متاح'
+                diag['total_down_bytes']=diag['total_up_bytes']=diag['total_traffic_bytes']=None
+                diag['total_quota_str']='غير متاح'
+                diag['pct_used']=diag['pct_remaining']=0
             else:
-                diag['total_quota_str'] = "غير محدود"
-                diag['rem_quota_str'] = "غير محدود"
-                diag['pct_used'] = 0.0
-                diag['pct_remaining'] = 100.0
+                diag.update(total_down_bytes=q_info['used_down_bytes'],total_up_bytes=q_info['used_up_bytes'],total_traffic_bytes=q_info['used_total_bytes'],
+                            total_down_str=format_bytes(q_info['used_down_bytes']),total_up_str=format_bytes(q_info['used_up_bytes']),total_traffic_str=format_bytes(q_info['used_total_bytes']))
+                diag['total_quota_str']='غير محدود' if q_info['is_quota_unlimited'] else format_bytes(q_info['total_quota_mb']*1048576)
+                diag['rem_quota_str']='غير محدود' if q_info['is_quota_unlimited'] else format_bytes(q_info['remaining_bytes'])
+                diag['pct_used']=q_info.get('quota_used_pct') or 0
+                diag['pct_remaining']=100-diag['pct_used']
 
             # 4. Validity & Expiration Time left
             if card.get('expires_at'):
                 try:
                     exp_dt = datetime.datetime.strptime(str(card['expires_at']), '%Y-%m-%d %H:%M:%S')
-                    now_dt = datetime.datetime.now()
+                    now_dt = get_db_storage_now().replace(tzinfo=None)
                     if exp_dt > now_dt:
                         diff = exp_dt - now_dt
                         days = diff.days
@@ -1031,12 +1014,16 @@ def card_inspect():
                 except Exception:
                     diag['time_left_str'] = "غير محدد"
             elif card.get('status') == 'unused':
-                val_days = card.get('validity_days') or 30
-                diag['time_left_str'] = f"لم يبدأ بعد ({val_days} يوم عند التفعيل)"
+                value=card.get('snap_validity_value')
+                if value is None:
+                    value=card.get('validity_days')
+                value=30 if value is None else value
+                unit={'days':'يوم','hours':'ساعة','minutes':'دقيقة','months':'شهر'}.get(card.get('snap_validity_unit') or 'days','يوم')
+                diag['time_left_str']='لم يبدأ بعد (صلاحية غير محدودة)' if int(value)==0 else f'لم يبدأ بعد ({value} {unit} عند التفعيل)'
 
             # 5. Live Online Check & Active Session Details
-            from core.time_service import get_utc_cutoff_str
-            cutoff_s = get_utc_cutoff_str(3)
+            from services.subscriber_service import get_heartbeat_cutoff_str
+            cutoff_s = get_heartbeat_cutoff_str(5)
             active_sess = query_one('''
                 SELECT r.*, n.name as nas_name
                 FROM radacct r
@@ -1079,67 +1066,54 @@ def card_inspect():
 @vouchers_bp.route('/api/vouchers/reset-mac', methods=['POST'], endpoint="api_reset_voucher_mac")
 def api_reset_voucher_mac():
     try:
-        username = request.values.get('username', '').strip()
-        if not username and request.is_json:
-            username = (request.json or {}).get('username', '').strip()
-        if not username:
-            return jsonify({'success': False, 'message': 'اسم المستخدم مطلوب.'})
-        
-        # 1. Clear bound MAC in wisp_vouchers
-        execute_write("UPDATE wisp_vouchers SET bound_mac = NULL WHERE username = ?", (username,))
-        # 2. Clear Calling-Station-Id in radcheck
-        execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = 'Calling-Station-Id'", (username,))
-        
-        admin_user = session.get('admin_username') or 'admin'
-        log_audit(1, admin_user, 'RESET_VOUCHER_MAC', 'vouchers', f'Reset bound MAC for voucher {username}')
-        return jsonify({'success': True, 'message': f'تم فك قيد الماك بنجاح للكرت [{username}]. يمكن للمشترك الآن الدخول من أي جهاز.'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'خطأ أثناء فك الماك: {str(e)}'}), 500
+        data=request.get_json(silent=True) or request.form
+        card=query_one('SELECT * FROM wisp_vouchers WHERE username=?',(str(data.get('username') or '').strip(),))
+        if not card:
+            return jsonify(success=False,message='الكرت غير موجود.'),404
+        update_voucher_card(card['id'],card['username'],card['password'],bound_mac='',admin_username=session.get('admin_username') or 'admin')
+        return jsonify(success=True,message='تم فك قيد الماك ومزامنة الراديوس.')
+    except ValueError as exc:
+        return jsonify(success=False,message=str(exc)),400
+    except Exception:
+        logger.exception('Voucher MAC reset failed')
+        return jsonify(success=False,message='تعذر تحديث الكرت؛ لم تُحفظ التغييرات.'),500
 
 
 @vouchers_bp.route('/api/vouchers/extend-quota-time', methods=['POST'], endpoint="api_extend_voucher")
 def api_extend_voucher():
     try:
-        username = request.values.get('username', '').strip()
-        add_days = int(request.values.get('add_days', 0) or 0)
-        add_mb = int(request.values.get('add_mb', 0) or 0)
-        
-        card = query_one("SELECT * FROM wisp_vouchers WHERE username = ?", (username,))
+        data=request.get_json(silent=True) or request.form
+        card=query_one('SELECT id FROM wisp_vouchers WHERE username=?',(str(data.get('username') or '').strip(),))
         if not card:
-            return jsonify({'success': False, 'message': 'الكرت غير موجود.'})
-        
-        # Add days to expiration
-        if add_days > 0:
-            if card.get('expires_at'):
-                try:
-                    curr_exp = datetime.datetime.strptime(str(card['expires_at']), '%Y-%m-%d %H:%M:%S')
-                    if curr_exp < datetime.datetime.now():
-                        curr_exp = datetime.datetime.now()
-                    new_exp = (curr_exp + datetime.timedelta(days=add_days)).strftime('%Y-%m-%d %H:%M:%S')
-                except Exception:
-                    new_exp = (datetime.datetime.now() + datetime.timedelta(days=add_days)).strftime('%Y-%m-%d %H:%M:%S')
-            else:
-                new_exp = (datetime.datetime.now() + datetime.timedelta(days=add_days)).strftime('%Y-%m-%d %H:%M:%S')
-                
-            execute_write("UPDATE wisp_vouchers SET expires_at = ?, status = 'active' WHERE username = ?", (new_exp, username))
-            execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = 'Expiration'", (username,))
-            execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_exp))
-            
-        # Add MB to quota
-        if add_mb > 0:
-            curr_mb = int(card.get('snap_volume_quota_mb') or 0)
-            new_mb = curr_mb + add_mb
-            execute_write("UPDATE wisp_vouchers SET snap_volume_quota_mb = ?, status = 'active' WHERE username = ?", (new_mb, username))
-            new_octets = new_mb * 1024 * 1024
-            execute_write("DELETE FROM radcheck WHERE username = ? AND attribute = 'Max-Total-Octets'", (username,))
-            execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Max-Total-Octets', ':=', ?)", (username, str(new_octets)))
-            
-        admin_user = session.get('admin_username') or 'admin'
-        log_audit(1, admin_user, 'EXTEND_VOUCHER', 'vouchers', f'Extended voucher {username} (+{add_days} days, +{add_mb} MB)')
-        return jsonify({'success': True, 'message': f'تم تمديد الكرت [{username}] بنجاح (+{add_days} أيام، +{add_mb} MB).'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'خطأ أثناء التمديد: {str(e)}'}), 500
+            return jsonify(success=False,message='الكرت غير موجود.'),404
+        ok,message=action_adjust_entitlement('voucher',card['id'],days=data.get('add_days',0),quota_amount=data.get('add_mb',0),quota_unit='MB',admin_username=session.get('admin_username') or 'admin')
+        return jsonify(success=ok,message=message),200 if ok else 400
+    except Exception:
+        logger.exception('Voucher topup failed')
+        return jsonify(success=False,message='تعذر تمديد الكرت؛ لم تُحفظ التغييرات.'),500
 
+
+@vouchers_bp.route('/api/vouchers/disconnect',methods=['POST'])
+def api_disconnect_voucher():
+    data=request.get_json(silent=True) or request.form
+    card=query_one('SELECT id FROM wisp_vouchers WHERE username=?',(str(data.get('username') or '').strip(),))
+    if not card:
+        return jsonify(success=False,message='الكرت غير موجود.'),404
+    success,message=action_disconnect_user('voucher',card['id'],admin_username=session.get('admin_username') or 'admin')
+    return jsonify(success=success,message=message)
+
+
+@vouchers_bp.route('/api/vouchers/activate',methods=['POST'])
+def api_activate_voucher():
+    try:
+        data=request.get_json(silent=True) or request.form
+        success,message,status=action_activate_subscriber(int(data.get('card_id')),admin_username=session.get('admin_username') or 'admin',entity_type='voucher')
+        return jsonify(success=success,message=message,status=status)
+    except (ValueError,TypeError) as exc:
+        return jsonify(success=False,message='بيانات الكرت غير صالحة.' if isinstance(exc,TypeError) else str(exc)),400
+    except Exception:
+        logger.exception('Voucher activation failed')
+        return jsonify(success=False,message='تعذر تنشيط الكرت؛ لم تُحفظ التغييرات.'),500
 
 
 @vouchers_bp.route('/vouchers/designs', endpoint='voucher_designs_list')

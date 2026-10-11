@@ -58,6 +58,24 @@ logger = logging.getLogger('subscribers_bp')
 
 subscribers_bp = Blueprint('subscribers_bp', __name__)
 
+@subscribers_bp.before_request
+def guard_subscriber_permissions():
+    endpoint = (request.endpoint or '').split('.')[-1]
+    permission = {
+        'subscribers': 'subscribers.view', 'subscriber_details': 'subscribers.view',
+        'subscriber_sessions': 'subscribers.view',
+        'subscriber_create_page': 'subscribers.create', 'add_subscriber_action': 'subscribers.create',
+        'edit_subscriber_action': 'subscribers.edit', 'delete_subscriber_action': 'subscribers.delete',
+        'api_disconnect_subscriber': 'subscribers.disconnect',
+        'invoices': 'invoices.view', 'create_invoice_action': 'invoices.manage',
+        'pay_invoice_action': 'invoices.manage', 'save_invoice_design_action': 'invoices.manage',
+    }.get(endpoint)
+    manager = get_current_manager()
+    if permission and not manager:
+        return jsonify(success=False, message='يرجى تسجيل الدخول أولًا.'), 401
+    if permission and not has_permission(permission, manager):
+        return jsonify(success=False, message='لا تملك صلاحية هذا الإجراء.'), 403
+
 
 @subscribers_bp.route('/subscribers', endpoint="subscribers")
 
@@ -80,7 +98,7 @@ def subscribers():
 def subscriber_create_page():
     if request.method == 'POST':
         try:
-            sub_id = create_subscriber(request.form, admin_username=session.get('admin_username', 'admin'))
+            sub_id = create_subscriber(request.form, admin_username=get_current_manager().get('username') or 'admin')
             flash(f'تم إنشاء المشترك [{request.form.get("username")}] ومزامنته مع FreeRADIUS بنجاح.', 'success')
             return redirect(url_for('subscriber_details', sub_id=sub_id))
         except Exception as e:
@@ -102,7 +120,7 @@ def subscriber_create_page():
 
 def add_subscriber_action():
     try:
-        sub_id = create_subscriber(request.form, admin_username=session.get('admin_username', 'admin'))
+        sub_id = create_subscriber(request.form, admin_username=get_current_manager().get('username') or 'admin')
         flash('تمت إضافة المشترك ومزامنته مع FreeRADIUS بنجاح.', 'success')
         return redirect(url_for('subscriber_details', sub_id=sub_id))
     except Exception as e:
@@ -115,7 +133,7 @@ def add_subscriber_action():
 def subscriber_details(sub_id):
     sub = query_one('''
         SELECT s.*, p.name as package_name, p.price as package_price, p.rate_download, p.rate_upload,
-               p.volume_quota_mb, p.validity_value, p.validity_unit
+               p.volume_quota_mb, p.validity_value, p.validity_unit, p.validity_days
         FROM wisp_subscribers s
         JOIN wisp_packages p ON s.package_id = p.id
         WHERE s.id = ?
@@ -224,7 +242,7 @@ def subscriber_details(sub_id):
             pass
 
     sessions = get_subscriber_sessions(sub['username'], limit=50)
-    invoices = query_all('SELECT * FROM wisp_invoices WHERE subscriber_id = ? OR LOWER(subscriber_name) = LOWER(?) ORDER BY id DESC LIMIT 50', (sub_id, sub['username']))
+    invoices = query_all('SELECT * FROM wisp_invoices WHERE subscriber_id = ? OR LOWER(subscriber_name) = LOWER(?) ORDER BY id DESC LIMIT 50', (sub_id, sub['username'])) if has_permission('invoices.view') else []
     packages = query_all('SELECT id, name, price, service_type, rate_download, rate_upload FROM wisp_packages WHERE is_active = 1')
     audit_logs = get_user_audit_logs('subscriber', sub_id, sub['username'])
     analytics = get_user_usage_analytics(sub['username'])
@@ -251,7 +269,7 @@ def subscriber_details(sub_id):
 
 def edit_subscriber_action(sub_id):
     try:
-        admin_user = session.get('user', {}).get('username', 'admin')
+        admin_user = get_current_manager().get('username') or 'admin'
         update_subscriber(sub_id, request.form, admin_username=admin_user)
         flash('تم تحديث بيانات المشترك ومزامنته مع FreeRADIUS بنجاح.', 'success')
     except Exception as e:
@@ -265,7 +283,7 @@ def edit_subscriber_action(sub_id):
 
 def delete_subscriber_action(sub_id):
     try:
-        if not delete_subscriber(sub_id):
+        if not delete_subscriber(sub_id, admin_username=get_current_manager().get('username') or 'admin'):
             raise ValueError("المشترك غير موجود أو لم يكتمل الحذف")
         flash('تم حذف المشترك وإلغاء صلاحياته من RADIUS.', 'warning')
     except Exception as e:
@@ -276,6 +294,8 @@ def delete_subscriber_action(sub_id):
 @subscribers_bp.route('/subscribers/sessions/<username>', endpoint="subscriber_sessions")
 
 def subscriber_sessions(username):
+    if not query_one('SELECT id FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)', (username,)):
+        return jsonify(success=False, message='المشترك غير موجود.'), 404
     sessions = get_subscriber_sessions(username)
     return jsonify({'username': username, 'sessions': sessions})
 
@@ -286,8 +306,11 @@ def api_disconnect_subscriber():
     username = data.get('username')
     if not username:
         return jsonify({'success': False, 'message': 'اسم المشترك مطلوب.'}), 400
+    if not query_one('SELECT id FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)', (username,)):
+        return jsonify(success=False, message='المشترك غير موجود.'), 404
     from services.coa_queue_service import enqueue_disconnect
-    success, msg = enqueue_disconnect(username, reason="Admin Manual Disconnect")
+    success, msg = enqueue_disconnect(username, reason="Admin Manual Disconnect",
+        admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 

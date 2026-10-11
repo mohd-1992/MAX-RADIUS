@@ -88,5 +88,10 @@ tests/*
 !tests/scenarios/*.md
 !tests/test_portal_card_operations.py
 !tests/test_import_quota_regression.py
+!tests/test_voucher_pages.py
+!tests/voucher_page_fixture.py
+!tests/test_package_page.py
+!tests/test_subscriber_admin_safety.py
+!tests/test_subscriber_list_safety.py
 !tests/portal_card_mariadb_regression.py
 reports/

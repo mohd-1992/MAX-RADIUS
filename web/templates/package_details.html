@@ -43,7 +43,7 @@
             <a href="{{ url_for('packages') }}" class="px-4 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
                 إلغاء
             </a>
-            <button type="button" onclick="document.getElementById('editPkgForm').submit()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+            <button type="submit" form="editPkgForm" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-floppy-disk"></i>
                 <span>حفظ التعديلات ومزامنة RADIUS</span>
             </button>
@@ -78,11 +78,11 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1">سعر البيع للمشترك ({{ currency_symbol }})</label>
-                            <input type="number" step="0.5" name="price" value="{{ package.price }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                            <input type="number" step="0.01" min="0" name="price" value="{{ package.price }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1">سعر التكلفة / الجملة للموزعين</label>
-                            <input type="number" step="0.5" name="cost" value="{{ package.cost or 0 }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                            <input type="number" step="0.01" min="0" name="cost" value="{{ package.cost or 0 }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
                         </div>
                     </div>
 
@@ -186,11 +186,11 @@
                     </h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1">سرعة التحميل الأساسية (Rx / Download) <span class="text-rose-400">*</span></label>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">سرعة التحميل الأساسية (Tx / Download) <span class="text-rose-400">*</span></label>
                             <input type="text" id="inp_rate_down" name="rate_download" value="{{ package.rate_download }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-emerald-400 font-mono font-bold focus:border-blue-500 focus:outline-none" oninput="updateRatePreview()">
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1">سرعة الرفع الأساسية (Tx / Upload) <span class="text-rose-400">*</span></label>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">سرعة الرفع الأساسية (Rx / Upload) <span class="text-rose-400">*</span></label>
                             <input type="text" id="inp_rate_up" name="rate_upload" value="{{ package.rate_upload }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-emerald-400 font-mono font-bold focus:border-blue-500 focus:outline-none" oninput="updateRatePreview()">
                         </div>
                     </div>
@@ -226,16 +226,22 @@
                                 <label class="block text-[11px] text-slate-400 mb-1">مدة البيرست بالثواني (Burst Time)</label>
                                 <input type="number" id="inp_burst_time" name="burst_time" value="{{ package.burst_time or 16 }}" min="1" max="120" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-amber-500 focus:outline-none" oninput="updateRatePreview()">
                             </div>
+                        </div>
+                    </div>
+
+                    <p class="text-[11px] text-slate-400">السرعات الدنيا والأولوية تعمل أيضًا دون بيرست؛ ترك السرعة الدنيا فارغة يستخدم السرعة الأساسية لذلك الاتجاه.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div><label class="block text-xs mb-1">الحد الأدنى للتحميل (اختياري)</label><input id="inp_min_down" name="min_download" value='{{ package.min_download or "" }}' oninput="updateRatePreview()" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-sm" placeholder="مثال: 1M"></div>
+                        <div><label class="block text-xs mb-1">الحد الأدنى للرفع (اختياري)</label><input id="inp_min_up" name="min_upload" value='{{ package.min_upload or "" }}' oninput="updateRatePreview()" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-sm" placeholder="مثال: 512k"></div>
                             <div>
-                                <label class="block text-[11px] text-slate-400 mb-1">أولوية المرور في الراوتر (Priority 1-8)</label>
+                                <label class="block text-[11px] text-slate-400 mb-1">أولوية المرور (Priority 1-8)</label>
                                 <input type="number" id="inp_priority" name="priority" value="{{ package.priority or 8 }}" min="1" max="8" class="w-full bg-[#0b0f19] border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-amber-500 focus:outline-none" oninput="updateRatePreview()">
                             </div>
-                        </div>
                     </div>
 
                     <!-- Live Rate-Limit Preview -->
                     <div class="p-3 bg-[#070b14] rounded-xl border border-slate-800 flex items-center justify-between">
-                        <span class="text-xs text-slate-400">سمة MikroTik-Rate-Limit المتولدة:</span>
+                        <span class="text-xs text-slate-400">حدود السرعة المتولدة:</span>
                         <span id="rateLimitPreview" class="text-sm font-black font-mono text-emerald-400 select-all tracking-wide">-</span>
                     </div>
                 </div>
@@ -245,15 +251,21 @@
                     <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
                         <i class="fa-solid fa-hourglass-half text-sky-400"></i>سعة البيانات (Quota) ومدة الصلاحية (Validity)
                     </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1">سعة البيانات بالميجابايت (MB)</label>
                             <input type="number" name="volume_quota_mb" value="{{ package.volume_quota_mb }}" min="0" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
                             <span class="text-[11px] text-slate-500 mt-1 block">0 = غير محدود (Unlimited Quota)</span>
                         </div>
                         <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1">قيمة مدة الصلاحية</label>
-                            <input type="number" name="validity_value" value="{{ package.validity_value or package.validity_days or 30 }}" min="1" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">حد وقت الاتصال بالدقائق</label>
+                            <input type="number" name="uptime_limit_mins" value="{{ package.uptime_limit_mins or 0 }}" min="0" step="1" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono">
+                            <span class="text-[11px] text-slate-500">0 = غير محدود؛ يختلف عن مدة الصلاحية التقويمية.</span>
+                        </div>
+                        <div class="sm:col-span-2 grid grid-cols-2 items-end gap-3 sm:gap-4">
+                        <div class="min-w-0">
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">قيمة مدة الصلاحية (0 = غير محدود)</label>
+                            <input type="number" name="validity_value" value="{{ package.validity_value if package.validity_value is not none else (package.validity_days if package.validity_days is not none else 30) }}" min="0" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1">وحدة الصلاحية</label>
@@ -263,6 +275,7 @@
                                 <option value="minutes" {% if package.validity_unit == 'minutes' %}selected{% endif %}>دقائق (Minutes)</option>
                                 <option value="months" {% if package.validity_unit == 'months' %}selected{% endif %}>أشهر (Months)</option>
                             </select>
+                        </div>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
@@ -274,7 +287,7 @@
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1">عدد الجلسات المتزامنة لنفس الحساب</label>
                             <input type="number" min="1" max="10" name="simultaneous_sessions" value="{{ package.simultaneous_sessions or 1 }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
-                            <span class="text-[11px] text-slate-500 mt-1 block">يرسل سمة <code class="text-purple-400 font-mono">Simultaneous-Use</code> في FreeRADIUS</span>
+                            <span class="text-[11px] text-slate-500 mt-1 block">حد يطبقه FreeRADIUS حسب الجلسات المسجلة؛ لا يغيّر عدد الجلسات في بروفايل الهوتسبوت.</span>
                         </div>
                     </div>
                 </div>
@@ -302,11 +315,11 @@
                 <div class="grid grid-cols-2 gap-3">
                     <div class="p-3 bg-[#070b14] rounded-xl border border-slate-800 text-center">
                         <span class="text-[11px] text-slate-400 block mb-1">المشتركون</span>
-                        <h4 class="text-xl font-bold font-mono text-blue-400">{{ (package.subs_count or 0) }}</h4>
+                        <h4 class="text-xl font-bold font-mono text-blue-400">{{ subs_count }}</h4>
                     </div>
                     <div class="p-3 bg-[#070b14] rounded-xl border border-slate-800 text-center">
                         <span class="text-[11px] text-slate-400 block mb-1">الكروت المولدة</span>
-                        <h4 class="text-xl font-bold font-mono text-amber-400">{{ (package.vouchers_count or 0) }}</h4>
+                        <h4 class="text-xl font-bold font-mono text-amber-400">{{ vouchers_count }}</h4>
                     </div>
                 </div>
             </div>
@@ -317,14 +330,15 @@
                     <i class="fa-solid fa-server text-cyan-400"></i>سمات RADIUS المتزامنة
                 </h3>
                 <div class="space-y-2 text-xs font-mono">
+                    {% set attribute_labels = {'MikroTik-Rate-Limit': 'حدود السرعة وإعدادات البيرست', 'Mikrotik-Rate-Limit': 'حدود السرعة وإعدادات البيرست', 'Acct-Interim-Interval': 'فترة تحديث المحاسبة', 'Mikrotik-Group': 'بروفايل الخدمة على الراوتر', 'Simultaneous-Use': 'حد الجلسات لدى خادم المصادقة', 'Session-Timeout': 'المدة القصوى للجلسة', 'Idle-Timeout': 'مهلة الخمول', 'Port-Limit': 'حد الجلسات على الراوتر'} %}
+                    {% for attribute in radius_replies + radius_checks %}
                     <div class="p-2.5 bg-[#070b14] rounded-xl border border-slate-800 space-y-1">
-                        <div class="text-blue-400 font-bold">MikroTik-Rate-Limit</div>
-                        <div class="text-[11px] text-slate-400">Simple Queue: {{ package.rate_upload }}/{{ package.rate_download }}</div>
+                        <div class="text-blue-400 font-bold break-all">{{ attribute_labels.get(attribute.attribute, "سمة إضافية") }}</div>
+                        <div class="text-[11px] text-slate-400 break-all" dir="ltr">{{ attribute.attribute }}</div>
+                        <div class="text-[11px] text-slate-400 break-all" dir="ltr">{{ attribute.op }} {{ attribute.value }}</div>
                     </div>
-                    <div class="p-2.5 bg-[#070b14] rounded-xl border border-slate-800 space-y-1">
-                        <div class="text-purple-400 font-bold">ChilliSpot-Max-Total-Octets</div>
-                        <div class="text-[11px] text-slate-400">{% if package.volume_quota_mb > 0 %}{{ package.volume_quota_mb * 1024 * 1024 }} بايت{% else %}غير مقيد (0){% endif %}</div>
-                    </div>
+                    {% else %}<p>لا توجد سمات محفوظة لهذه المجموعة.</p>{% endfor %}
+                    <p class="text-slate-400 font-sans">الكوتا والصلاحية تطبقان حسب عقد كل حساب واستهلاكه، وليستا سمات ثابتة لهذه المجموعة.</p>
                 </div>
             </div>
         </div>
@@ -335,29 +349,35 @@
 {% block scripts %}
 <script>
     function updateRatePreview() {
-        const up = document.getElementById('inp_rate_up').value.trim();
-        const down = document.getElementById('inp_rate_down').value.trim();
-        const b_up = document.getElementById('inp_burst_up').value.trim();
-        const b_down = document.getElementById('inp_burst_down').value.trim();
-        const t_up = document.getElementById('inp_thresh_up').value.trim();
-        const t_down = document.getElementById('inp_thresh_down').value.trim();
-        const b_time = document.getElementById('inp_burst_time').value.trim() || '16';
-        const prio = document.getElementById('inp_priority').value.trim() || '8';
-
-        const previewEl = document.getElementById('rateLimitPreview');
-
-        if (!up || !down || up === '0' || down === '0') {
-            previewEl.innerText = 'سرعة مفتوحة (غير محدود - Unlimited)';
-            previewEl.className = 'text-sm font-black font-mono text-cyan-400 select-all tracking-wide';
+        const value = id => document.getElementById(id).value.trim();
+        const bps = raw => {
+            const v = raw.toLowerCase();
+            if (['', 'unlimited', 'مفتوح', 'غير محدود', '0b'].includes(v)) return 0;
+            if (!/^(?:\d+(?:\.\d+)?|\.\d+)[kmg]?$/.test(v)) return NaN;
+            return Number(v.replace(/[kmg]$/, '')) * ({k:1000,m:1000000,g:1000000000}[v.slice(-1)] || 1);
+        };
+        const up = value('inp_rate_up'), down = value('inp_rate_down');
+        const b_up = value('inp_burst_up'), b_down = value('inp_burst_down');
+        const preview = document.getElementById('rateLimitPreview');
+        if (!Number.isFinite(bps(up)) || !Number.isFinite(bps(down))) { preview.innerText = 'صيغة السرعة غير صالحة'; return; }
+        if ((!bps(up)) !== (!bps(down))) { preview.innerText = 'للسرعة المفتوحة أدخل 0 في الاتجاهين'; return; }
+        if (!bps(up) || !bps(down)) {
+            preview.innerText = 'سرعة مفتوحة (غير محدود - Unlimited)';
             return;
         }
-
         let rate = `${up}/${down}`;
-        if (b_up && b_down && t_up && t_down) {
-            rate += ` ${b_up}/${b_down} ${t_up}/${t_down} ${b_time}/${b_time} ${prio}`;
+        const minUp = value('inp_min_up'), minDown = value('inp_min_down');
+        const hasMinimum = bps(minUp) > 0 || bps(minDown) > 0;
+        const priority = value('inp_priority') || '8';
+        if (bps(b_up) > bps(up) && bps(b_down) > bps(down)) {
+            const t_up = value('inp_thresh_up'), t_down = value('inp_thresh_down');
+            const time = value('inp_burst_time') || '16';
+            rate += ` ${b_up}/${b_down} ${bps(t_up) ? t_up : up}/${bps(t_down) ? t_down : down} ${time}/${time} ${priority}`;
+        } else if (hasMinimum || priority !== '8') {
+            rate += ` 0/0 0/0 0/0 ${priority}`;
         }
-        previewEl.innerText = rate;
-        previewEl.className = 'text-sm font-black font-mono text-emerald-400 select-all tracking-wide';
+        if (hasMinimum) rate += ` ${bps(minUp) > 0 ? minUp : up}/${bps(minDown) > 0 ? minDown : down}`;
+        preview.innerText = rate;
     }
 
     function toggleLoyaltyPointsInput() {
@@ -377,6 +397,7 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
+        if (!{{ has_permission('packages.manage')|tojson }}) { document.querySelectorAll('#editPkgForm input, #editPkgForm select, #editPkgForm textarea, button[type=submit]').forEach(el => el.disabled = true); }
         updateRatePreview();
         toggleLoyaltyPointsInput();
     });

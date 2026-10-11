@@ -364,7 +364,7 @@
                     const cqrEl_{{ c.id }} = document.getElementById("cqr_{{ c.id }}");
                     if (cqrEl_{{ c.id }}) {
                         new QRCode(cqrEl_{{ c.id }}, {
-                            text: "{{ c.login_url }}",
+                            text: {{ c.login_url|tojson }},
                             width: {{ [qr_px, 64]|max }},
                             height: {{ [qr_px, 64]|max }},
                             colorDark : "#0f172a",
@@ -410,7 +410,7 @@
                 const qrEl_{{ c.id }} = document.getElementById("qr_{{ c.id }}");
                 if (qrEl_{{ c.id }}) {
                     new QRCode(qrEl_{{ c.id }}, {
-                        text: "{{ c.login_url }}",
+                        text: {{ c.login_url|tojson }},
                         width: 64,
                         height: 64,
                         colorDark : "#0f172a",

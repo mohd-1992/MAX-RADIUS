@@ -16,7 +16,9 @@ Handles:
 import datetime
 from core.time_service import get_db_storage_now
 import uuid
-from database.db import query_one, query_all, execute_write, log_audit, log_user_audit, db_session, is_mysql_conn, adapt_query
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from database.db import (query_one, query_all, execute_write, log_audit, log_user_audit,
+                         db_session, is_mysql_conn, adapt_query, execute_in_transaction)
 from core.coa import RadiusCoaClient
 from core.rate_limit import format_bytes, format_duration, build_mikrotik_rate_limit
 from services.voucher_service import calculate_package_expiration
@@ -137,14 +139,17 @@ def action_disable_account(entity_type, entity_id, admin_username='admin'):
     return True, 'تم إيقاف الحساب مع حفظ الرصيد والصلاحية، وطُلب فصل جميع جلساته؛ قبول الطلب لا يؤكد اكتمال الفصل.'
 
 
-def action_activate_subscriber(entity_id, admin_username='admin'):
+def action_activate_subscriber(entity_id, admin_username='admin', entity_type='subscriber'):
     """Remove a manual suspension without renewing or adding entitlement."""
     from services.account_lifecycle_service import run_transaction, lock_account, sql, expiry_reason, ACCOUNTING_UNCERTAIN_REASON
     from services.license_guard_service import get_active_license_status
-    from core.radius_sync import sync_subscriber_to_radius
+    from core.radius_sync import sync_subscriber_to_radius, sync_voucher_to_radius
+    if entity_type not in ('subscriber','voucher'):
+        raise ValueError('نوع الحساب غير صالح')
+    sync_account = sync_subscriber_to_radius if entity_type=='subscriber' else sync_voucher_to_radius
 
     def activate(conn):
-        table, row = lock_account(conn, 'subscriber', entity_id)
+        table, row = lock_account(conn, entity_type, entity_id)
         if not row:
             raise ValueError('المشترك غير موجود')
         if row['status'] not in ('suspended', 'disabled'):
@@ -154,7 +159,7 @@ def action_activate_subscriber(entity_id, admin_username='admin'):
         if not sql(conn, 'SELECT id FROM wisp_packages WHERE id=? FOR UPDATE', (row['package_id'],), 'one'):
             raise ValueError('تعذر العثور على باقة المشترك')
         candidate = dict(row, status='active')
-        reason = expiry_reason(conn, 'subscriber', candidate)
+        reason = expiry_reason(conn, entity_type, candidate)
         if reason == ACCOUNTING_UNCERTAIN_REASON:
             raise ValueError('تعذر تنشيط المشترك قبل تسوية محاسبة الدورة الحالية')
         status = 'expired' if reason else 'active'
@@ -163,12 +168,12 @@ def action_activate_subscriber(entity_id, admin_username='admin'):
             if not license_status.get('valid') or license_status.get('status') == 'revoked':
                 raise ValueError('لا يمكن تنشيط المشترك: الترخيص غير صالح')
         sql(conn, f"UPDATE {table} SET status=?,pause_reason='' WHERE id=?", (status, entity_id))
-        if not sync_subscriber_to_radius(entity_id, conn=conn):
+        if not sync_account(entity_id, conn=conn):
             raise RuntimeError('تعذر تحديث صلاحيات المشترك في الراديوس')
         return dict(status=status, reason=reason, username=row['username'])
 
     result = run_transaction(activate)
-    log_user_audit('subscriber', entity_id, result['username'], admin_username,
+    log_user_audit(entity_type, entity_id, result['username'], admin_username,
                    'ACTIVATE_ACCOUNT', 'إلغاء الإيقاف: '+result['status'])
     message = 'تم تنشيط الحساب ونقله إلى تبويب النشط' if result['status']=='active' else 'أُلغي الإيقاف ونُقل الحساب إلى المنتهي: '+result['reason']
     return True, message, result['status']
@@ -206,7 +211,9 @@ def action_bulk_execute(action_fn, entity_type, target_ids, **kwargs):
             'deduct_wallet': action_deduct_wallet_balance,
             'disconnect': action_disconnect_user
         }
-        action_fn = action_map.get(action_fn.lower().strip(), action_delete_entity)
+        action_fn = action_map.get(action_fn.lower().strip())
+        if action_fn is None:
+            return False, 'العملية المطلوبة غير صالحة.'
 
     if isinstance(target_ids, str):
         target_ids = target_ids.strip()
@@ -225,7 +232,20 @@ def action_bulk_execute(action_fn, entity_type, target_ids, **kwargs):
     if not isinstance(target_ids, (list, tuple, set)):
         target_ids = [target_ids] if target_ids is not None else []
         
-    target_ids = [x for x in target_ids if x is not None and str(x).strip() != '']
+    # Validate the entire batch before any side effects; normalize equivalent IDs.
+    unique_ids = []
+    seen_ids = set()
+    for value in target_ids:
+        if isinstance(value, bool) or not isinstance(value, (int, str)):
+            return False, 'معرف الحساب غير صالح.'
+        text = str(value).strip()
+        if not text.isascii() or not text.isdigit() or int(text) <= 0:
+            return False, 'معرف الحساب غير صالح.'
+        ident = int(text)
+        if ident not in seen_ids:
+            seen_ids.add(ident)
+            unique_ids.append(ident)
+    target_ids = unique_ids
     if not target_ids:
         return False, "لم يتم تحديد أي مشتركين لتنفيذ العملية الجماعية."
         
@@ -257,50 +277,70 @@ def action_bulk_execute(action_fn, entity_type, target_ids, **kwargs):
 
 @settle_cycle_operation
 def action_extend_time(entity_type, entity_id, days, admin_username='admin'):
-    """1. تمديد الصلاحية"""
-    entity, etype = get_target_entity(entity_type, entity_id)
-    if not entity:
-        return False, "الحساب أو الكرت غير موجود"
-    
+    return action_adjust_entitlement(entity_type,entity_id,days=days,admin_username=admin_username)
+
+
+def action_adjust_entitlement(entity_type, entity_id, days=0, quota_amount=0, quota_unit='MB', admin_username='admin'):
+    """One transaction for time/data topups; manual suspension is preserved."""
+    from core.radius_sync import sync_subscriber_to_radius, sync_voucher_to_radius
+    from services.account_lifecycle_service import expiry_reason, ACCOUNTING_UNCERTAIN_REASON
     try:
-        days = int(days)
-        if days <= 0:
-            return False, "يرجى إدخال عدد أيام صحيح أكبر من 0"
-    except (ValueError, TypeError):
-        return False, "قيمة الأيام المدخلة غير صحيحة"
-    
-    username = entity['username']
-    now = get_db_storage_now().replace(tzinfo=None)
-    current_exp = entity.get('expires_at')
-    
-    start_dt = now
-    if current_exp and str(current_exp).strip() not in ['', 'None', 'غير محدد']:
-        try:
-            exp_dt = datetime.datetime.strptime(str(current_exp).split('.')[0].strip(), '%Y-%m-%d %H:%M:%S')
-            if exp_dt > now:
-                start_dt = exp_dt
-        except Exception:
-            start_dt = now
-            
-    new_exp_dt = start_dt + datetime.timedelta(days=days)
-    new_exp_iso = new_exp_dt.strftime('%Y-%m-%d %H:%M:%S')
-    new_freeradius_exp = new_exp_dt.strftime('%d %b %Y %H:%M:%S')
-    
-    if etype == 'subscriber':
-        execute_write("UPDATE wisp_subscribers SET expires_at = ?, status = 'active' WHERE id = ?", (new_exp_iso, entity['id']))
-    else:
-        execute_write("UPDATE wisp_vouchers SET expires_at = ?, status = 'active', expire_reason = '' WHERE id = ?", (new_exp_iso, entity['id']))
-        
-    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", (username,))
-    execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Expiration', ':=', ?)", (username, new_freeradius_exp))
-    
-    # Ensure active password in radcheck
-    user_pwd = entity.get('password') or entity.get('pin_code') or username
-    execute_write("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND (attribute = 'Cleartext-Password' OR (attribute = 'Auth-Type' AND value = 'Reject'))", (username,))
-    execute_write("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", (username, user_pwd))
-    
-    log_audit(1, admin_username, 'EXTEND_VALIDITY', etype, f'Extended validity by {days} days for {username}. New expiry: {new_exp_iso}')
-    return True, f"تم تمديد الصلاحية بنجاح بمقدار {days} يوم. تاريخ الانتهاء الجديد: {new_exp_iso}"
+        days_value = Decimal(str(days or 0))
+        if not days_value.is_finite() or days_value != days_value.to_integral_value() or days_value<0 or days_value>36500:
+            raise ValueError('عدد الأيام غير صالح.')
+        days = int(days_value)
+        mb = 0
+        if Decimal(str(quota_amount or 0)) != 0:
+            _,mb,_ = parse_quota_adjustment(quota_amount,quota_unit)
+        if not days and not mb:
+            raise ValueError('أدخل أيامًا موجبة أو بيانات غير صفرية.')
+        entity,etype = get_target_entity(entity_type,entity_id)
+        if not entity or etype not in ('subscriber','voucher'):
+            raise ValueError('الحساب أو الكرت غير موجود.')
+        table = 'wisp_subscribers' if etype=='subscriber' else 'wisp_vouchers'
+        with db_session() as conn:
+            cur = conn.cursor()
+            try:
+                def run(statement,args=()):
+                    cur.execute(adapt_query(statement,conn),args)
+                lock = ' FOR UPDATE' if is_mysql_conn(conn) else ''
+                run(f'SELECT *, CURRENT_TIMESTAMP AS checked_at FROM {table} WHERE id=?'+lock,(entity['id'],))
+                row = dict(cur.fetchone())
+                if etype=='voucher' and row['status']=='recharged':
+                    raise ValueError('الكرت مستخدم للشحن؛ لا يمكن إعادة استخدامه.')
+                if days:
+                    start = get_db_storage_now().replace(tzinfo=None)
+                    if row.get('expires_at'):
+                        start = max(start,datetime.datetime.fromisoformat(str(row['expires_at']).replace('T',' ')))
+                    expiry = (start+datetime.timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+                    run(f'UPDATE {table} SET expires_at=? WHERE id=?',(expiry,row['id']))
+                if mb:
+                    run(f'UPDATE {table} SET extra_quota_mb=COALESCE(extra_quota_mb,0)+? WHERE id=?',(mb,row['id']))
+                if row['status']=='expired' and (days or mb>0):
+                    run(f'SELECT *, CURRENT_TIMESTAMP AS checked_at FROM {table} WHERE id=?',(row['id'],))
+                    candidate=dict(cur.fetchone());candidate['status']='active'
+                    # The same lifecycle policy decides whether all limits allow activation.
+                    reason=expiry_reason(conn,etype,candidate)
+                    if reason==ACCOUNTING_UNCERTAIN_REASON:
+                        raise ValueError('تعذرت تسوية المحاسبة؛ لم تُحفظ الإضافة.')
+                    if not reason:
+                        from services.license_guard_service import get_active_license_status
+                        lic=get_active_license_status()
+                        if not lic.get('valid') or lic.get('status')=='revoked':
+                            raise ValueError('الترخيص غير صالح؛ لم تُحفظ الإضافة.')
+                        run(f"UPDATE {table} SET status='active' WHERE id=?",(row['id'],))
+                        if etype=='voucher':
+                            run("UPDATE wisp_vouchers SET expire_reason='' WHERE id=?",(row['id'],))
+                sync=sync_subscriber_to_radius if etype=='subscriber' else sync_voucher_to_radius
+                if not sync(row['id'],conn=conn):
+                    raise RuntimeError('تعذر تحديث الراديوس؛ لم تُحفظ الإضافة.')
+                run('INSERT INTO wisp_audit_logs (admin_id,username,action,module,details) VALUES (?,?,?,?,?)',
+                    (1,admin_username,'ADJUST_ENTITLEMENT',etype,f'Adjusted {row["username"]}: {days} days, {mb} MB; cycle and suspension preserved'))
+            finally:
+                cur.close()
+        return True,'تم تعديل الأيام والبيانات مع حفظ حالة الإيقاف ودورة المحاسبة.'
+    except (ValueError,InvalidOperation,OverflowError) as exc:
+        return False,str(exc)
 
 def action_terminate_subscription(entity_type, entity_id, admin_username='admin'):
     """2. إنهاء الاشتراك فوراً وطرده من ميكروتيك"""
@@ -827,37 +867,7 @@ def parse_quota_adjustment(quota_amount, quota_unit='GB'):
 
 @settle_cycle_operation
 def action_add_quota(entity_type, entity_id, quota_amount, quota_unit='GB', admin_username='admin'):
-    """Apply a signed quota adjustment without renewing the subscription cycle."""
-    try:
-        val, mb_val, unit = parse_quota_adjustment(quota_amount, quota_unit)
-    except (ValueError, TypeError, OverflowError):
-        return False, "يرجى إدخال قيمة بيانات صالحة غير صفرية؛ الموجب للإضافة والسالب للخصم."
-    entity, etype = get_target_entity(entity_type, entity_id)
-    if not entity:
-        return False, "الحساب أو الكرت غير موجود"
-    table = 'wisp_subscribers' if etype == 'subscriber' else 'wisp_vouchers'
-    with db_session() as conn:
-        cursor = conn.cursor()
-        try:
-            # Keep the quota adjustment and credential synchronization atomic.
-            # A deduction must preserve inactive/expired/disabled account state.
-            state_sql = ''
-            if mb_val > 0:
-                state_sql = ", status = CASE WHEN status = 'expired' THEN 'active' ELSE status END"
-                if etype != 'subscriber':
-                    state_sql += ", expire_reason = ''"
-            cursor.execute(adapt_query(f"UPDATE {table} SET extra_quota_mb = COALESCE(extra_quota_mb, 0) + ?{state_sql} WHERE id = ?", conn), (mb_val, entity['id']))
-            if mb_val > 0:
-                user_pwd = entity.get('password') or entity.get('pin_code') or entity['username']
-                cursor.execute(adapt_query("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Cleartext-Password'", conn), (entity['username'],))
-                cursor.execute(adapt_query("INSERT INTO radcheck (username, attribute, op, value) VALUES (?, 'Cleartext-Password', ':=', ?)", conn), (entity['username'], user_pwd))
-        finally:
-            cursor.close()
-    deduct = mb_val < 0
-    action = 'DEDUCT_DATA_QUOTA' if deduct else 'ADD_DATA_QUOTA'
-    verb = 'خصم' if deduct else 'إضافة'
-    log_audit(1, admin_username, action, etype, f'Quota adjustment {val} {unit} ({mb_val} MB) for {entity["username"]}')
-    return True, f"تم {verb} رصيد تحميل بمقدار {abs(val)} {unit} ({abs(mb_val)} MB) بنجاح."
+    return action_adjust_entitlement(entity_type,entity_id,quota_amount=quota_amount,quota_unit=quota_unit,admin_username=admin_username)
 
 
 def action_get_usage_history(entity_type, entity_id):
@@ -907,62 +917,55 @@ def action_get_usage_history(entity_type, entity_id):
     return True, "تم جلب سجل الاستهلاك بنجاح", sum_data
 
 def action_add_wallet_balance(entity_type, entity_id, amount, notes='', admin_username='admin'):
-    """7. إضافة رصيد مالي للمحفظة"""
-    entity, etype = get_target_entity(entity_type, entity_id)
-    if not entity:
-        return False, "الحساب أو الكرت غير موجود"
-        
-    try:
-        val = float(amount)
-        if val <= 0:
-            return False, "يرجى إدخال مبلغ مالي صحيح أكبر من 0"
-    except (ValueError, TypeError):
-        return False, "قيمة المبلغ المدخل غير صحيحة"
-        
-    username = entity['username']
-    if etype == 'subscriber':
-        execute_write("UPDATE wisp_subscribers SET balance = COALESCE(balance, 0) + ? WHERE id = ?", (val, entity['id']))
-        inv_num = generate_invoice_number(entity['id'])
-        execute_write("""
-            INSERT INTO wisp_invoices (invoice_number, subscriber_id, subscriber_name, amount, status, package_name, notes, paid_at)
-            VALUES (?, ?, ?, ?, 'paid', 'إيداع رصيد محفظة', ?, CURRENT_TIMESTAMP)
-        """, (inv_num, entity['id'], entity.get('full_name') or username, val, notes or f'إيداع رصيد بالمحفظة بواسطة {admin_username}'))
-    else:
-        execute_write("UPDATE wisp_vouchers SET balance = COALESCE(balance, 0) + ? WHERE id = ?", (val, entity['id']))
-        
-    log_audit(1, admin_username, 'ADD_WALLET_BALANCE', etype, f'Added {val} to wallet for {username}')
-    return True, f"تمت إضافة {val} إلى محفظة المشترك بنجاح."
+    return _change_wallet_balance(entity_type, entity_id, amount, notes, admin_username, deduct=False)
 
 def action_deduct_wallet_balance(entity_type, entity_id, amount, notes='', admin_username='admin'):
-    """8. سحب / تصحيح رصيد مالي من المحفظة"""
+    return _change_wallet_balance(entity_type, entity_id, amount, notes, admin_username, deduct=True)
+
+def _change_wallet_balance(entity_type, entity_id, amount, notes, admin_username, deduct):
+    """Keep locked balance, subscriber invoice and audit in one transaction."""
     entity, etype = get_target_entity(entity_type, entity_id)
-    if not entity:
+    if not entity or etype not in ('subscriber', 'voucher'):
         return False, "الحساب أو الكرت غير موجود"
-        
     try:
-        val = float(amount)
-        if val <= 0:
+        val = Decimal(str(amount).strip())
+        if not val.is_finite() or val <= 0 or val > Decimal('99999999.99'):
             return False, "يرجى إدخال مبلغ مالي صحيح أكبر من 0"
-    except (ValueError, TypeError):
+        val = val.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        if val <= 0:
+            return False, 'أقل مبلغ مسموح هو 0.01'
+    except (InvalidOperation, ValueError, TypeError):
         return False, "قيمة المبلغ المدخل غير صحيحة"
-        
-    curr_balance = float(entity.get('balance') or 0.0)
-    if curr_balance < val:
-        return False, f"الرصيد الحالي ({curr_balance}) غير كافٍ لسحب مبلغ ({val})"
-        
-    username = entity['username']
-    if etype == 'subscriber':
-        execute_write("UPDATE wisp_subscribers SET balance = balance - ? WHERE id = ?", (val, entity['id']))
-        inv_num = generate_invoice_number(entity['id'])
-        execute_write("""
-            INSERT INTO wisp_invoices (invoice_number, subscriber_id, subscriber_name, amount, status, package_name, notes, paid_at)
-            VALUES (?, ?, ?, ?, 'refunded', 'سحب/تصحيح رصيد محفظة', ?, CURRENT_TIMESTAMP)
-        """, (inv_num, entity['id'], entity.get('full_name') or username, val, notes or f'سحب/تصحيح رصيد بواسطة {admin_username}'))
-    else:
-        execute_write("UPDATE wisp_vouchers SET balance = balance - ? WHERE id = ?", (val, entity['id']))
-        
-    log_audit(1, admin_username, 'DEDUCT_WALLET_BALANCE', etype, f'Deducted {val} from wallet for {username}')
-    return True, f"تم خصم/سحب {val} من رصيد المحفظة بنجاح. الرصيد المتبقي: {curr_balance - val}"
+    table = 'wisp_subscribers' if etype == 'subscriber' else 'wisp_vouchers'
+    with db_session() as conn:
+        write = lambda sql, params=(): execute_in_transaction(conn, sql, params)
+        locked = execute_in_transaction(conn, f'SELECT * FROM {table} WHERE id = ?' +
+            (' FOR UPDATE' if is_mysql_conn(conn) else ''), (entity['id'],), fetch='one')
+        if not locked:
+            return False, 'الحساب أو الكرت غير موجود'
+        balance = Decimal(str(locked.get('balance') or 0))
+        if not balance.is_finite():
+            return False, 'رصيد المحفظة غير صالح؛ راجع بيانات الحساب'
+        if deduct and balance < val:
+            return False, f'الرصيد الحالي ({balance}) غير كافٍ لسحب مبلغ ({val})'
+        remaining = balance - val if deduct else balance + val
+        if abs(remaining) > Decimal('99999999.99'):
+            return False, 'المبلغ يتجاوز الحد المسموح للمحفظة'
+        write(f'UPDATE {table} SET balance = ? WHERE id = ?', (str(remaining), locked['id']))
+        title = 'سحب/تصحيح رصيد محفظة' if deduct else 'إيداع رصيد محفظة'
+        if etype == 'subscriber':
+            write('''INSERT INTO wisp_invoices
+                (invoice_number, subscriber_id, subscriber_name, amount, status, package_name, notes, paid_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
+                (generate_invoice_number(locked['id']), locked['id'], locked.get('full_name') or locked['username'],
+                 str(val), 'refunded' if deduct else 'paid', title, notes or f'{title} بواسطة {admin_username}'))
+        action = 'DEDUCT_WALLET_BALANCE' if deduct else 'ADD_WALLET_BALANCE'
+        write('''INSERT INTO wisp_audit_logs (admin_id, username, action, module, details)
+            VALUES (1, ?, ?, ?, ?)''', (admin_username, action, etype,
+            f'{action}: {val}; account {locked["username"]}; remaining {remaining}'))
+    if deduct:
+        return True, f'تم خصم/سحب {val} من رصيد المحفظة بنجاح. الرصيد المتبقي: {remaining}'
+    return True, f'تمت إضافة {val} إلى محفظة المشترك بنجاح.'
 
 def action_disconnect_user(entity_type, entity_id=None, admin_username='admin'):
     entity, kind = get_target_entity(entity_type, entity_id)

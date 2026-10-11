@@ -51,9 +51,8 @@ def create_app(config=None):
 
     # Register Template Filters
     register_template_filters(app)
-    from core.license_security import install_csrf
-    install_csrf(app, lambda req: req.path in (
-        '/settings/license/activate', '/settings/license/sync-heartbeat'))
+    from core.license_security import install_csrf, protects_admin_account_request
+    install_csrf(app, protects_admin_account_request)
 
     # Start Background 5-minute Real-Time License Heartbeat Sync Daemon
     try:

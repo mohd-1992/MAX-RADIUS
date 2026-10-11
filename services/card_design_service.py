@@ -307,6 +307,7 @@ def save_card_design(data, upload_dir=None):
     cut_lines = 1 if data.get('cut_lines') in [1, '1', True, 'true', 'on'] else 0
     bg_color = data.get('background_color', '#ffffff')
     border_color = data.get('border_color', '#cbd5e1')
+    config_obj = data.get('config')
     bg_image = data.get('bg_image', '').strip()
     if bg_image:
         bg_image = os.path.basename(bg_image)
