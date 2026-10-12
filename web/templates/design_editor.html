@@ -187,7 +187,7 @@
                                 <span>الملاءمة الذكية للأبعاد (Auto Fit & Containment):</span>
                             </div>
                             <p class="text-slate-300">
-                                عند رفع أي صورة، يتعرف النظام فورياً على أبعادها ونسبتها الطبيعية ($W : H$) ويقوم بضبط أبعاد الكرت تلقائياً بدون أي قص لأطراف الصورة أو تشويه للنصوص.
+                                عند رفع أي صورة، يتعرف النظام فورياً على أبعادها ونسبتها الطبيعية (العرض إلى الارتفاع) ويقوم بضبط أبعاد الكرت تلقائياً بدون أي قص لأطراف الصورة أو تشويه للنصوص.
                             </p>
                         </div>
                     </div>
@@ -343,7 +343,7 @@
             <!-- Single Card Canvas (Interactive Drag & Drop) -->
             <div id="viewSingleCard" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center shadow-inner relative overflow-hidden">
                 <div class="w-full flex items-center justify-between text-xs text-slate-400 mb-3 pb-2 border-b border-slate-800">
-                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-hand-pointer text-blue-400"></i>انقر على أي عنصر أو اسحبه بالفأرة لتعديله مباشرة</span>
+                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-hand-pointer text-blue-400"></i>انقر على أي عنصر أو اسحبه بالفأرة أو اللمس لتعديله مباشرة</span>
                     <span id="canvasDimLabel" class="font-mono text-cyan-400 font-bold bg-[#070b14] px-2.5 py-1 rounded border border-cyan-500/30">{{ design.width_mm if design else 85 }} × {{ design.height_mm if design else 52 }} مم</span>
                 </div>
 
@@ -882,6 +882,11 @@
     // -------------------------------------------------------------
     // Live Preview Engine (Single Card Canvas & Drag-and-Drop)
     // -------------------------------------------------------------
+    let previewResizeFrame;
+    window.addEventListener('resize', () => {
+        cancelAnimationFrame(previewResizeFrame);
+        previewResizeFrame = requestAnimationFrame(renderPreview);
+    });
     function renderPreview() {
         const box = document.getElementById('previewCardBox');
         const bgLayer = document.getElementById('previewCardBgLayer');
@@ -893,7 +898,10 @@
         const hMm = parseFloat((currentConfig.general && currentConfig.general.height_mm) || 52);
         
         // Base scale: 1mm = 4.8px with responsive container bounds
-        const maxCanvasWidth = 520;
+        const workspace = box.parentElement;
+        const workspaceStyle = getComputedStyle(workspace);
+        const availableWidth = workspace.clientWidth - parseFloat(workspaceStyle.paddingLeft) - parseFloat(workspaceStyle.paddingRight);
+        const maxCanvasWidth = Math.min(520, Math.max(1, availableWidth));
         const maxCanvasHeight = 360;
 
         let scale = 4.8;

@@ -1,0 +1,49 @@
+/* Shared responsive and accessible presentation; no account policy changes. */
+.max-ui-modal {
+    padding: 1rem !important;
+    overscroll-behavior: contain;
+}
+.max-ui-modal > div:first-child {
+    max-height: calc(100vh - 2rem) !important;
+    max-height: calc(100dvh - 2rem) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+}
+.max-ui-modal :focus-visible, button:focus-visible, a:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 3px;
+}
+#previewCardBox { flex-shrink: 0; }
+#quickElementEditorBar > div:first-child { flex-wrap: wrap; gap: .75rem; }
+#quickElementEditorBar > div:first-child > div { min-width: 0; }
+@media (max-width: 639px) {
+    .max-topbar { gap: .5rem !important; }
+    .max-topbar-title { min-width: 0; flex: 1; }
+    .max-topbar-title > div { min-width: 0; }
+    .max-topbar-title h2 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .875rem; }
+    .max-topbar-actions { flex-shrink: 0; gap: .25rem !important; }
+    #topLiveClockWidget { display: none !important; }
+    .max-topbar button { min-width: 44px; min-height: 44px; }
+    .max-topbar #profileDropdownContainer > button { padding-inline: .25rem; gap: .25rem; }
+    #profileDropdownMenu { max-width: calc(100vw - 2rem); }
+    form input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]),
+    form select, form textarea, .max-ui-modal input:not([type=hidden]):not([type=checkbox]):not([type=radio]),
+    #quickElementEditorBar input:not([type=range]):not([type=color]), #quickElementEditorBar select {
+        font-size: 16px !important;
+        min-height: 44px;
+    }
+    form button, .action-dropdown-menu button, .max-ui-modal button { min-height: 44px; }
+    form button[title], .max-ui-modal button[title] { min-width: 44px; }
+    .max-ui-modal { padding: .75rem !important; }
+    .max-ui-modal > div:first-child { max-height: calc(100dvh - 1.5rem) !important; }
+    #quickElementEditorBar > div:first-child > div { width: 100%; flex-wrap: wrap; gap: .5rem; }
+    #quickElementEditorBar > div:first-child input { width: 3rem; }
+    #quickElementEditorBar > div:first-child .font-mono { flex-wrap: wrap; max-width: 100%; }
+    #quickElementEditorBar > div:first-child .font-mono input { width: 4rem; flex-shrink: 0; }
+    #quickElementEditorBar > div:first-child button { min-height: 44px; }
+    .max-mobile-nav { padding-bottom: calc(.5rem + env(safe-area-inset-bottom, 0px)); }
+    .max-portal-body { padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .max-ui-modal, .max-ui-modal * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

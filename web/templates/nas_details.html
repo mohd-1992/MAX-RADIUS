@@ -85,7 +85,7 @@
                 fetch('/api/nas/test-coa/' + nasId, {method: 'POST'})
                     .then(function(r) { return r.json(); })
                     .then(function(data) { alert(data.message); })
-                    .catch(function(e) { alert('خطأ: ' + e); });
+                    .catch(function(e) { window.toast.error('تعذر الاتصال بالراوتر. حاول مرة أخرى.', 'تعذر إكمال الطلب'); });
             }
             return;
         }

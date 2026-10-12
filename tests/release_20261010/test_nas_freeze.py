@@ -28,16 +28,16 @@ def snapshot():
 
 class API:
     def __init__(self,**kw):
-        self.live=[s['live'].copy() for s in snapshot().values()];self.rules=[];self.scheduled=[];self.fasttrack=False;self.unstable=False;self.refuse=False;self.seq=0
+        self.live=[s['live'].copy() for s in snapshot().values()];self.rules=[];self.filters=[];self.scheduled=[];self.fasttrack=False;self.unstable=False;self.refuse=False;self.seq=0
     def connect(self):pass
     def login(self,*a):return True
     def close(self):pass
     def execute_command(self,path,words=None):
-        if path=='/ip/firewall/filter/print':return [{'action':'fasttrack-connection','disabled':'false'}] if self.fasttrack else []
+        if path=='/ip/firewall/filter/print' and self.fasttrack:return [{'action':'fasttrack-connection','disabled':'false'}]
         if path=='/system/clock/print':return [{'date':'2026-10-09','time':'20:00:00'}]
         if path.endswith('/add'):
             self.seq+=1;row=dict(words,**{'.id':'*r'+str(self.seq)})
-            (self.rules if '/raw/' in path else self.scheduled).append(row);return [{'ret':row['.id']}]
+            (self.rules if '/raw/' in path else self.filters if '/filter/' in path else self.scheduled).append(row);return [{'ret':row['.id']}]
         if path=='/ip/hotspot/active/print':
             if self.unstable:
                 for r in self.live:r['bytes-in']=str(int(r['bytes-in'])+1)
@@ -45,7 +45,7 @@ class API:
         if path=='/ip/hotspot/active/remove':
             if self.refuse:return [{'!trap':'test reject'}]
             self.live=[r for r in self.live if r['.id']!=words['numbers']];return []
-        rows=self.rules if '/raw/' in path else self.scheduled
+        rows=self.rules if '/raw/' in path else self.filters if '/filter/' in path else self.scheduled
         if path.endswith('/print'):
             if not words:return [dict(r) for r in rows]
             k,v=words[0][1:].split('=',1);return [dict(r) for r in rows if r.get(k)==v]
@@ -79,7 +79,7 @@ class FreezeTests(unittest.TestCase):
     def test_all_sessions_absent_before_seal_and_cleanup(self):
         api=API()
         def seal(rows):
-            self.assertEqual(api.live,[]);self.assertEqual(len(api.rules),4);self.assertEqual(len(rows),2)
+            self.assertEqual(api.live,[]);self.assertEqual(len(api.rules),2);self.assertEqual(len(rows),2)
         data=self.run_case(api,seal);self.assertEqual(data,{});self.assertEqual(api.rules,[]);self.assertEqual(api.scheduled,[])
     def test_concurrent_cleanup_cannot_remove_insertion_anchor(self):
         api=API();api.rules=[{'.id':'*other','comment':'MAX-SETTLEMENT:other','action':'drop'}]
@@ -92,7 +92,7 @@ class FreezeTests(unittest.TestCase):
             return original(path,words)
         api.execute_command=command
         self.run_case(api,lambda _:None)
-        self.assertEqual(len(insertions),4)
+        self.assertEqual(len(insertions),2)
         self.assertTrue(all('place-before' not in r for r in insertions))
     def test_permanent_rule_still_precedes_owned_freezes(self):
         api=API();api.rules=[{'.id':'*other','comment':'MAX-SETTLEMENT:other','action':'drop'},
@@ -119,16 +119,30 @@ class FreezeTests(unittest.TestCase):
     def test_disconnect_rejection_no_seal_rules_removed(self):
         api=API();api.refuse=True
         with self.assertRaises(Pending):self.run_case(api,lambda _:self.fail('must not seal'))
-        self.assertEqual(len(api.rules),4);self.assertEqual(len(api.scheduled),1);self.assertEqual(len(api.live),2)
+        self.assertEqual(len(api.rules),2);self.assertEqual(len(api.scheduled),1);self.assertEqual(len(api.live),2)
         self.assertEqual(len(list(Path(self.temp.name).glob('*.json'))),1)
-    def test_unstable_counters_never_accepted(self):
+    def test_moving_counters_require_stop_and_leave_recovery_proof(self):
         api=API();api.unstable=True
-        with patch.object(ns['time'],'sleep',return_value=None),self.assertRaises(Pending):self.run_case(api,lambda _:self.fail('must not seal'))
-        self.assertEqual(len(api.live),2);self.assertEqual(api.rules,[])
+        clock=iter(range(100));captured=[]
+        def seal(rows):
+            captured.extend(rows.values())
+            self.assertTrue(all(s['requires_actual_stop'] for s in rows.values()))
+            raise RuntimeError('Final accounting counters are not yet verified')
+        with patch.object(ns['time'],'monotonic',side_effect=lambda:next(clock)),patch.object(ns['time'],'sleep',return_value=None),self.assertRaises(Pending):self.run_case(api,seal)
+        self.assertEqual(api.live,[]);self.assertTrue(captured)
+        self.assertEqual(len(api.filters),4)
+        self.assertEqual(len(list(Path(self.temp.name).glob('*.json'))),1)
+    def test_moving_counters_can_finish_with_genuine_stop(self):
+        api=API();api.unstable=True;clock=iter(range(100));seen=[]
+        def seal(rows):
+            self.assertTrue(all(s['requires_actual_stop'] for s in rows.values()));seen.append(len(rows))
+        with patch.object(ns['time'],'monotonic',side_effect=lambda:next(clock)),patch.object(ns['time'],'sleep',return_value=None),patch.dict(ns,query_one=lambda *a:dict(acctstoptime='stop',acctterminatecause='Admin-Reset')):
+            self.assertEqual(self.run_case(api,seal),{})
+        self.assertEqual(seen,[2]);self.assertEqual(api.rules,[]);self.assertEqual(api.filters,[])
     def test_seal_failure_does_not_mark_success(self):
         api=API()
         with self.assertRaises(Pending):self.run_case(api,lambda _:(_ for _ in ()).throw(RuntimeError('test transaction failure')))
-        self.assertEqual(len(api.rules),4);self.assertEqual(len(api.scheduled),1)
+        self.assertEqual(len(api.rules),2);self.assertEqual(len(api.scheduled),1)
         self.assertEqual(len(list(Path(self.temp.name).glob('*.json'))),1)
     def test_detached_journal_recovers_without_rebilling(self):
         api=API();api.live=[];data=snapshot()

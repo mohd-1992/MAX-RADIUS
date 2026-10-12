@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}مشتركين الكروت المفعلة{% endblock %}
+{% block title %}مشتركو الكروت{% endblock %}
 
 {% block container_class %}max-w-full px-3 sm:px-6 2xl:px-8{% endblock %}
 {% block footer_container_class %}max-w-full px-3 sm:px-6 2xl:px-8{% endblock %}
@@ -12,7 +12,7 @@
         <div>
             <h2 class="text-xl font-bold text-white flex items-center gap-2">
                 <i class="fa-solid fa-id-card text-emerald-400"></i>
-                مشتركين الكروت المفعلة والمستخدمة (Active Voucher Users)
+                مشتركو الكروت
             </h2>
             <p class="text-xs text-slate-400">مراقبة حية للكروت النشطة، الحزمة التابعة لها، واستهلاك البيانات والوقت من واقع FreeRADIUS radacct</p>
         </div>
@@ -22,7 +22,7 @@
                 <span>تخصيص الأعمدة</span>
             </button>
             <a href="{{ url_for('card_inspect') }}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-2">
-                <i class="fa-solid fa-magnifying-glass text-sky-400"></i>فحص كارت
+                <i class="fa-solid fa-magnifying-glass text-sky-400"></i>فحص كرت
             </a>
             <a href="{{ url_for('vouchers') }}" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 transition flex items-center gap-2">
                 <i class="fa-solid fa-layer-group"></i>إدارة الحزم
@@ -126,7 +126,7 @@
                 <button type="submit" name="status" value="active" 
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'active' or not status %}bg-emerald-600 text-white shadow-md shadow-emerald-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span>النشطين</span>
+                    <span>النشط</span>
                     <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'active' or not status %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
                         {{ status_counts.active if status_counts else 0 }}
                     </span>
@@ -139,7 +139,7 @@
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
                         <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-400"></span>
                     </span>
-                    <span>المتصلين الآن</span>
+                    <span>المتصل الآن</span>
                     <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'online' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
                         {{ status_counts.online if status_counts else 0 }}
                     </span>
@@ -149,7 +149,7 @@
                 <button type="submit" name="status" value="expired" 
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 {% if status == 'expired' %}bg-rose-600 text-white shadow-md shadow-rose-600/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     <span class="w-2 h-2 rounded-full bg-rose-400"></span>
-                    <span>المنتهين</span>
+                    <span>المنتهي</span>
                     <span class="px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold {% if status == 'expired' %}bg-black/25 text-white{% else %}bg-[#070b14] text-slate-400 border border-[#1c2840]{% endif %}">
                         {{ status_counts.expired if status_counts else 0 }}
                     </span>
@@ -263,7 +263,7 @@
                 <div class="py-1">
                     <button type="button" onclick="bulkAction('delete')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
                         <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
-                        <span>حذف الكروت المحددة (Delete)</span>
+                        <span>حذف الكروت المحددة</span>
                     </button>
                 </div>
 
@@ -377,18 +377,11 @@
                                     <span>الكرت: {{ c.username }}</span>
                                     <span class="text-emerald-400 font-mono">#{{ c.seq_id }}</span>
                                 </div>
-                                <!-- الخيار الأول: الحذف الكامل -->
-                                <div class="py-1">
-                                    <button onclick="confirmDelete('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
-                                        <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
-                                        <span>حذف الكرت (Delete)</span>
-                                    </button>
-                                </div>
                                 <!-- مجموعة 1: الصلاحية والباقة -->
                                 <div class="py-1">
                                     <button onclick="openExtendModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.expires_at|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
-                                        <span>تمديد الصلاحية (Extend Time)</span>
+                                        <span>تمديد الصلاحية</span>
                                     </button>
                                     <button type="button" 
                                             data-action="disable-account" 
@@ -400,49 +393,56 @@
                                             title="{% if c.status in ('suspended','disabled') %}إلغاء الإيقاف حسب الرصيد والصلاحية{% else %}إيقاف الحساب مع حفظ الرصيد والصلاحية{% endif %}">
                                         <div class="flex items-center gap-2.5">
                                             <i class="fa-solid {% if c.status in ('suspended','disabled') %}fa-user-check{% else %}fa-user-slash{% endif %} text-amber-400 w-4 text-center group-hover:scale-110 transition-transform"></i>
-                                            <span>{% if c.status in ('suspended','disabled') %}تنشيط الحساب{% else %}إيقاف الحساب (Disable){% endif %}</span>
+                                            <span>{% if c.status in ('suspended','disabled') %}تنشيط الحساب{% else %}إيقاف الحساب{% endif %}</span>
                                         </div>
-                                    </button>
-                                    <button onclick="confirmTerminate('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
-                                        <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
-                                        <span>إنهاء الاشتراك (Terminate)</span>
                                     </button>
                                     <button onclick="confirmRenew('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.package_name|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-arrows-rotate text-emerald-400 w-4 text-center"></i>
-                                        <span>تجديد الباقة (Renew Package)</span>
+                                        <span>تجديد الباقة</span>
                                     </button>
                                     <button onclick="openChangePackageModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.package_id|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-layer-group text-indigo-400 w-4 text-center"></i>
-                                        <span>تغيير الباقة (Change Package)</span>
+                                        <span>تغيير الباقة</span>
                                     </button>
                                 </div>
                                 <!-- مجموعة 2: الكوتا وسجل الاستهلاك -->
                                 <div class="py-1">
                                     <button onclick="openAddQuotaModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-database text-sky-400 w-4 text-center"></i>
-                                        <span>إضافة رصيد تحميل (Add Quota)</span>
+                                        <span>إضافة رصيد تحميل</span>
                                     </button>
                                     <button onclick="openUsageHistoryModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-chart-line text-purple-400 w-4 text-center"></i>
-                                        <span>سجل الاستهلاك (Usage History)</span>
+                                        <span>سجل الاستهلاك</span>
                                     </button>
                                 </div>
                                 <!-- مجموعة 3: المحفظة المالية -->
                                 <div class="py-1">
                                     <button onclick="openAddWalletModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.balance or 0|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-wallet text-emerald-400 w-4 text-center"></i>
-                                        <span>إضافة رصيد مالي (Add Wallet)</span>
+                                        <span>إضافة رصيد مالي</span>
                                     </button>
                                     <button onclick="openDeductWalletModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.balance or 0|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-money-bill-transfer text-amber-400 w-4 text-center"></i>
-                                        <span>سحب رصيد مالي (Deduct Wallet)</span>
+                                        <span>سحب رصيد مالي</span>
                                     </button>
                                 </div>
                                 <!-- مجموعة 4: قطع الاتصال الفوري -->
                                 <div class="py-1">
                                     <button onclick="confirmDisconnect('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-power-off text-rose-400 w-4 text-center"></i>
-                                        <span>قطع الاتصال (Disconnect CoA)</span>
+                                        <span>قطع الاتصال</span>
+                                    </button>
+                                </div>
+                                <!-- الإجراءات النهائية -->
+                                <div class="py-1">
+                                    <button onclick="confirmTerminate('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                        <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
+                                        <span>إنهاء الاشتراك</span>
+                                    </button>
+                                    <button onclick="confirmDelete('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
+                                        <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
+                                        <span>حذف الكرت</span>
                                     </button>
                                 </div>
                             </div>
@@ -1074,7 +1074,7 @@
         } catch (e) {
             console.error('Error reading saved columns:', e);
         }
-        return DEFAULT_VISIBLE_COLUMNS;
+        return window.matchMedia('(max-width: 639px)').matches ? ['id', 'username', 'consumption', 'service'] : DEFAULT_VISIBLE_COLUMNS;
     }
 
     function applyColumnVisibility(columns) {

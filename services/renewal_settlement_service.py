@@ -112,13 +112,13 @@ def settled_account(username):
             from services.online_policy_service import fail
             fail()
         snapshot = checkpoint(username)
-        preflight(snapshot)
         # A cycle timestamp has second precision; never overwrite a same-second cut.
         latest = query_one("SELECT last_renewed_at FROM wisp_subscribers WHERE username=%s UNION ALL SELECT last_renewed_at FROM wisp_vouchers WHERE username=%s LIMIT 1", (username, username))
         if latest and latest.get('last_renewed_at'):
             now = query_one('SELECT NOW() AS now')['now']
             if latest['last_renewed_at'] >= now:
                 raise SettlementPending('\u0627\u0646\u062a\u0638\u0631 \u062b\u0627\u0646\u064a\u0629 \u0642\u0628\u0644 \u062a\u0643\u0631\u0627\u0631 \u0627\u0644\u0639\u0645\u0644\u064a\u0629.')
+        preflight(snapshot)
         intent(username)
         with view(snapshot):
             from services.online_policy_service import local
@@ -162,21 +162,46 @@ def settle_cycle_operation(fn):
                 parse_quota_adjustment(values['quota_amount'], values['quota_unit'])
             except (ValueError, TypeError, OverflowError):
                 return False, 'يرجى إدخال قيمة بيانات صالحة غير صفرية؛ الموجب للإضافة والسالب للخصم.'
+        if fn.__name__ == 'action_adjust_entitlement':
+            from services.quick_action_service import parse_entitlement_adjustment
+            try:
+                parse_entitlement_adjustment(values['days'],values['quota_amount'],values['quota_unit'])
+            except (ValueError, TypeError, ArithmeticError):
+                return False, 'أدخل أيامًا صحيحة موجبة أو بيانات صالحة غير صفرية.'
         if fn.__name__ == 'recharge_user_wallet_by_card' and str(values['recharge_type']).strip().lower() != 'package':
             return fn(*args, **kwargs)
         if 'entity_type' in values:
             from services.quick_action_service import get_target_entity
-            entity, _ = get_target_entity(values['entity_type'], values['entity_id'])
+            entity, entity_kind = get_target_entity(values['entity_type'], values['entity_id'])
         else:
             username = str(values['username'] or '').strip()
             entity = query_one('SELECT * FROM wisp_subscribers WHERE username=%s', (username,))
+            entity_kind = 'subscriber'
             if not entity:
                 entity = query_one('SELECT * FROM wisp_vouchers WHERE username=%s', (username,))
+                entity_kind = 'voucher'
         if not entity:
             return fn(*args, **kwargs)
+        if fn.__name__ == 'action_adjust_entitlement' and entity_kind == 'voucher' and entity.get('status') == 'recharged':
+            return False, 'الكرت مستخدم للشحن؛ لا يمكن إعادة استخدامه.'
+        if fn.__name__ == 'request_data_loan':
+            # Eligibility first; the body rechecks financial conditions under lock.
+            if entity_kind != 'subscriber':
+                return False, 'السلفة متاحة للمشتركين فقط.'
+            if entity.get('status') in ('disabled','suspended') or int(entity.get('loan_status') or 0) == 1 or float(entity.get('loan_balance_mb') or 0) > 0:
+                return fn(*args, **kwargs)
+            setting = query_one("SELECT `value` FROM wisp_system_settings WHERE `key`='allow_data_loan'")
+            if setting and str(setting.get('value')).lower() in ('0','false'):
+                return fn(*args, **kwargs)
         if fn.__name__ == 'redeem_reward':
-            reward = query_one('SELECT reward_type FROM wisp_loyalty_rewards WHERE id=%s', (values['reward_id'],))
-            if not reward or reward['reward_type'] not in ('data_bonus_mb', 'validity_days'):
+            reward = query_one('SELECT * FROM wisp_loyalty_rewards WHERE id=%s', (values['reward_id'],))
+            if not reward or not reward.get('is_active') or reward['reward_type'] not in ('data_bonus_mb', 'validity_days'):
+                return fn(*args, **kwargs)
+            setting = query_one("SELECT `value` FROM wisp_system_settings WHERE `key`='portal_enable_loyalty'")
+            wallet = query_one('SELECT points_balance FROM wisp_loyalty_wallets WHERE LOWER(username)=LOWER(%s)', (entity['username'],))
+            if (not setting or setting.get('value') != '1' or
+                    not wallet or float(wallet.get('points_balance') or 0) < float(reward.get('points_cost') or 0) or
+                    (entity_kind == 'voucher' and entity.get('status') not in ('unused','used','active','expired','disabled','suspended'))):
                 return fn(*args, **kwargs)
         profile = values.get('voucher_profile')
         protected_profile_change = profile and (

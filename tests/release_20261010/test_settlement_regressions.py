@@ -41,6 +41,13 @@ class Tests(unittest.TestCase):
  def test_ppp_without_stop_never_claims_final(self):
   c,s,seal=self.fixture(False,'pppoe')
   with self.assertRaisesRegex(RuntimeError,'not yet verified'):seal({1:s})
+ def test_moving_hotspot_without_stop_cannot_use_administrative_fallback(self):
+  c,s,seal=self.fixture(False);s.update(input=150,output=250,requires_actual_stop=True)
+  with self.assertRaisesRegex(RuntimeError,'not yet verified'):seal({1:s})
+  self.assertEqual(c.inserts,0);self.assertEqual(c.rollbacks,1)
+ def test_moving_hotspot_late_stop_merges_and_replay_is_idempotent(self):
+  c,s,seal=self.fixture();s['requires_actual_stop']=True
+  seal({1:s});seal({1:s});self.assertEqual(c.inserts,1);self.assertEqual(c.row['acctinputoctets'],120)
  def test_conflicting_proof_replay_is_rejected(self):
   c,s,seal=self.fixture();seal({1:s});s['evidence_token']='different'
   with self.assertRaisesRegex(RuntimeError,'Conflicting'):seal({1:s})

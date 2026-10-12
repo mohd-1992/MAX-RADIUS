@@ -243,7 +243,7 @@
     },
     {
       "file": "core/mikrotik_api.py",
-      "sha256": "4770020d8202a215546318d3e0637d6f03791909970e5b8976d530e7ee12fcb9",
+      "sha256": "b6657c1a289b4089e5ddf3b306aac4423207ca174cfa83d9c9b7ef1f15749c26",
       "imports": [
         "core.time_service",
         "database.db",
@@ -307,37 +307,37 @@
         },
         {
           "name": "talk",
-          "line": 151,
+          "line": 160,
           "kind": "FunctionDef"
         },
         {
           "name": "login",
-          "line": 164,
+          "line": 175,
           "kind": "FunctionDef"
         },
         {
           "name": "ping_host",
-          "line": 193,
+          "line": 204,
           "kind": "FunctionDef"
         },
         {
           "name": "fetch_single_nas_status",
-          "line": 249,
+          "line": 260,
           "kind": "FunctionDef"
         },
         {
           "name": "get_all_nas_live_status",
-          "line": 420,
+          "line": 431,
           "kind": "FunctionDef"
         },
         {
           "name": "get_nas_status",
-          "line": 470,
+          "line": 481,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_mikrotik_router_clock",
-          "line": 477,
+          "line": 488,
           "kind": "FunctionDef"
         }
       ]
@@ -2934,7 +2934,7 @@
     },
     {
       "file": "services/nas_session_settlement.py",
-      "sha256": "d10c1580f24290963b53958164e0e4db375b6ba396eb1cf620b0c5aef7ac623f",
+      "sha256": "ad75bbbf44c83d004419c1dcd1285f8ed4eed4de0561b09bac2be7a48d9da82c",
       "imports": [
         "core.mikrotik_api",
         "database.db",
@@ -2960,47 +2960,47 @@
         },
         {
           "name": "command",
-          "line": 56,
+          "line": 57,
           "kind": "FunctionDef"
         },
         {
           "name": "identity",
-          "line": 64,
+          "line": 65,
           "kind": "FunctionDef"
         },
         {
           "name": "counters",
-          "line": 68,
+          "line": 69,
           "kind": "FunctionDef"
         },
         {
           "name": "live_view",
-          "line": 72,
+          "line": 73,
           "kind": "FunctionDef"
         },
         {
           "name": "original_identity",
-          "line": 88,
+          "line": 89,
           "kind": "FunctionDef"
         },
         {
           "name": "active_menu",
-          "line": 95,
+          "line": 96,
           "kind": "FunctionDef"
         },
         {
           "name": "seal_rows",
-          "line": 99,
+          "line": 100,
           "kind": "FunctionDef"
         },
         {
           "name": "recover_journals",
-          "line": 154,
+          "line": 155,
           "kind": "FunctionDef"
         },
         {
           "name": "freeze_and_disconnect",
-          "line": 213,
+          "line": 218,
           "kind": "FunctionDef"
         }
       ]
@@ -3135,7 +3135,7 @@
     },
     {
       "file": "services/quick_action_service.py",
-      "sha256": "3563e865d771bc94e346e4200318297a4bcd9eece68930a5ea44fbac40bc12e2",
+      "sha256": "2a094b2b33ab9260de44d200f5f0be5bebda59ebcd1b88200e9f6aa843eaa624",
       "imports": [
         "core.coa",
         "core.radius_sync",
@@ -3199,67 +3199,72 @@
         },
         {
           "name": "action_extend_time",
-          "line": 279,
+          "line": 278,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "parse_entitlement_adjustment",
+          "line": 282,
           "kind": "FunctionDef"
         },
         {
           "name": "action_adjust_entitlement",
-          "line": 283,
+          "line": 296,
           "kind": "FunctionDef"
         },
         {
           "name": "run",
-          "line": 304,
+          "line": 309,
           "kind": "FunctionDef"
         },
         {
           "name": "action_terminate_subscription",
-          "line": 345,
+          "line": 350,
           "kind": "FunctionDef"
         },
         {
           "name": "action_renew_package",
-          "line": 371,
+          "line": 376,
           "kind": "FunctionDef"
         },
         {
           "name": "action_change_package",
-          "line": 594,
+          "line": 599,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_quota_adjustment",
-          "line": 856,
+          "line": 861,
           "kind": "FunctionDef"
         },
         {
           "name": "action_add_quota",
-          "line": 869,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "action_get_usage_history",
           "line": 873,
           "kind": "FunctionDef"
         },
         {
+          "name": "action_get_usage_history",
+          "line": 877,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "action_add_wallet_balance",
-          "line": 919,
+          "line": 923,
           "kind": "FunctionDef"
         },
         {
           "name": "action_deduct_wallet_balance",
-          "line": 922,
+          "line": 926,
           "kind": "FunctionDef"
         },
         {
           "name": "_change_wallet_balance",
-          "line": 925,
+          "line": 929,
           "kind": "FunctionDef"
         },
         {
           "name": "action_disconnect_user",
-          "line": 970,
+          "line": 974,
           "kind": "FunctionDef"
         }
       ]
@@ -3362,7 +3367,7 @@
     },
     {
       "file": "services/renewal_settlement_service.py",
-      "sha256": "5096f3d1b0c3517b518793f0fcf9bfcf865aea82880b9d985985da788d30b743",
+      "sha256": "7bb528397a3a54a41fb12f3cecc34a285caa974f992516040677ea112b01576a",
       "imports": [
         "contextlib",
         "database.db",

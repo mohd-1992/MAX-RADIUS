@@ -275,25 +275,30 @@ def action_bulk_execute(action_fn, entity_type, target_ids, **kwargs):
         
     return is_success, summary
 
-@settle_cycle_operation
 def action_extend_time(entity_type, entity_id, days, admin_username='admin'):
     return action_adjust_entitlement(entity_type,entity_id,days=days,admin_username=admin_username)
 
 
+def parse_entitlement_adjustment(days=0, quota_amount=0, quota_unit='MB'):
+    days_value = Decimal(str(days or 0))
+    if not days_value.is_finite() or days_value != days_value.to_integral_value() or days_value<0 or days_value>36500:
+        raise ValueError('عدد الأيام غير صالح.')
+    days = int(days_value)
+    mb = 0
+    if Decimal(str(quota_amount or 0)) != 0:
+        _,mb,_ = parse_quota_adjustment(quota_amount,quota_unit)
+    if not days and not mb:
+        raise ValueError('أدخل أيامًا موجبة أو بيانات غير صفرية.')
+    return days,mb
+
+
+@settle_cycle_operation
 def action_adjust_entitlement(entity_type, entity_id, days=0, quota_amount=0, quota_unit='MB', admin_username='admin'):
     """One transaction for time/data topups; manual suspension is preserved."""
     from core.radius_sync import sync_subscriber_to_radius, sync_voucher_to_radius
     from services.account_lifecycle_service import expiry_reason, ACCOUNTING_UNCERTAIN_REASON
     try:
-        days_value = Decimal(str(days or 0))
-        if not days_value.is_finite() or days_value != days_value.to_integral_value() or days_value<0 or days_value>36500:
-            raise ValueError('عدد الأيام غير صالح.')
-        days = int(days_value)
-        mb = 0
-        if Decimal(str(quota_amount or 0)) != 0:
-            _,mb,_ = parse_quota_adjustment(quota_amount,quota_unit)
-        if not days and not mb:
-            raise ValueError('أدخل أيامًا موجبة أو بيانات غير صفرية.')
+        days,mb = parse_entitlement_adjustment(days,quota_amount,quota_unit)
         entity,etype = get_target_entity(entity_type,entity_id)
         if not entity or etype not in ('subscriber','voucher'):
             raise ValueError('الحساب أو الكرت غير موجود.')
@@ -865,7 +870,6 @@ def parse_quota_adjustment(quota_amount, quota_unit='GB'):
     return val, mb_val, unit
 
 
-@settle_cycle_operation
 def action_add_quota(entity_type, entity_id, quota_amount, quota_unit='GB', admin_username='admin'):
     return action_adjust_entitlement(entity_type,entity_id,quota_amount=quota_amount,quota_unit=quota_unit,admin_username=admin_username)
 

@@ -238,7 +238,7 @@
 
                     .then(function(data) { alert(data.message); })
 
-                    .catch(function(e) { alert('خطأ: ' + e); });
+                    .catch(function(e) { window.toast.error('تعذر الاتصال بالراوتر. حاول مرة أخرى.', 'تعذر إكمال الطلب'); });
 
             }
 

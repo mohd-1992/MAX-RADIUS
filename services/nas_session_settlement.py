@@ -35,12 +35,13 @@ def journal(snapshot, phase):
     first=next(iter(snapshot.values()))
     token=first['evidence_token']
     path=journal_path(first['row']['username'],token)
-    payload={'phase':phase,'token':token,'username':first['row']['username'],'sessions':{}}
+    payload={'phase':phase,'token':token,'username':first['row']['username'],'freeze_version':2,'sessions':{}}
     for rid,s in snapshot.items():
         fields=('radacctid','acctuniqueid','username','nasipaddress','acctsessionid','framedipaddress','acctstarttime','callingstationid')
         payload['sessions'][str(rid)]={'row':{k:s['row'].get(k) for k in fields},
             'input':s['input'],'output':s['output'],'seconds':s['seconds'],
-            'evidence_token':token,'kind':s.get('kind','hotspot'),'nas_live_id':s.get('live',{}).get('.id') or s['nas_live_id']}
+            'evidence_token':token,'kind':s.get('kind','hotspot'),'requires_actual_stop':s.get('requires_actual_stop',False),
+            'nas_live_id':s.get('live',{}).get('.id') or s['nas_live_id']}
     tmp=path.with_suffix('.tmp')
     with tmp.open('w',encoding='utf8') as f:
         os.chmod(tmp,0o600)
@@ -55,7 +56,7 @@ def journal(snapshot, phase):
 
 def command(api, path, words=None):
     result = api.execute_command(path, words)
-    traps = [row.get('message', 'rejected') for row in result if '!trap' in row]
+    traps = [row.get('message') or row.get('!trap') or 'rejected' for row in result if '!trap' in row]
     if traps:
         raise RuntimeError('NAS rejected settlement command: ' + path + ': ' + '; '.join(traps))
     return result
@@ -122,12 +123,12 @@ def seal_rows(snapshot):
                     if existing['evidence_token']!=session['evidence_token'] or existing['input_bytes']!=session['input'] or existing['output_bytes']!=session['output']:
                         raise RuntimeError('Conflicting settlement evidence')
                     continue
-                if session.get('kind') == 'pppoe':
+                if session.get('kind') == 'pppoe' or session.get('requires_actual_stop'):
                     # PPP teardown can add control bytes after interface counters
                     # stabilize. Only an actual final accounting packet can
                     # authorize using those larger counters; never discard it.
                     if not actual_stop(row):
-                        raise RuntimeError('PPP final counters are not yet verified')
+                        raise RuntimeError('Final accounting counters are not yet verified')
                     session = dict(session, input=max(session['input'],int(row['acctinputoctets'] or 0)),
                                    output=max(session['output'],int(row['acctoutputoctets'] or 0)))
                 if int(row['acctinputoctets'] or 0) > session['input'] or int(row['acctoutputoctets'] or 0) > session['output']:
@@ -175,12 +176,16 @@ def recover_journals(username):
                     if not api.login(n['api_username'],n['api_password']):raise RuntimeError('Recovery NAS login failed')
                     comment='MAX-SETTLEMENT:'+payload['token']
                     rules=command(api,'/ip/firewall/raw/print',['?comment='+comment])
+                    forward=command(api,'/ip/firewall/filter/print',['?comment='+comment]) if payload.get('freeze_version')==2 else []
                     live_by_kind={kind:live_view(api,next(s for s in pending.values() if s['row']['nasipaddress']==ip and s.get('kind','hotspot')==kind)) for kind in {s.get('kind','hotspot') for s in pending.values() if s['row']['nasipaddress']==ip}}
                     for s in pending.values():
                         if s['row']['nasipaddress']!=ip:continue
                         address=s['row']['framedipaddress']+'/32'
-                        if not all(any(r.get('action')=='drop' and r.get('chain')=='prerouting' and r.get(field)==address for r in rules) for field in ('src-address','dst-address')):
+                        if payload.get('freeze_version')!=2 or not (any(r.get('action')=='drop' and r.get('chain')=='prerouting' and r.get('src-address')==address and r.get('disabled')!='true' for r in rules) and
+                                all(any(r.get('action')=='drop' and r.get('chain')=='forward' and r.get(field)==address and r.get('disabled')!='true' for r in forward) for field in ('src-address','dst-address'))):
                             raise RuntimeError('Interrupted freeze no longer proves final counters')
+                        if s.get('requires_actual_stop'):
+                            raise RuntimeError('Interrupted moving counters require genuine final accounting')
                         old=[r for r in live_by_kind[s.get('kind','hotspot')] if r.get('.id')==s['nas_live_id']]
                         if old:
                             if len(old)!=1 or old[0].get('address')!=s['row']['framedipaddress'] or (s['row'].get('callingstationid') and str(old[0].get('mac-address','')).upper().replace('-',':')!=str(s['row']['callingstationid']).upper().replace('-',':')) or (s.get('kind')=='pppoe' and str(old[0].get('session-id','')).lower().removeprefix('0x')!=str(s['row']['acctsessionid']).lower().removeprefix('0x')) or counters(old[0])!=(s['input'],s['output']):
@@ -204,7 +209,7 @@ def recover_journals(username):
             try:
                 api.connect()
                 if not api.login(n['api_username'],n['api_password']):continue
-                for menu,field,value in [('/ip/firewall/raw','comment','MAX-SETTLEMENT:'+payload['token']),('/system/scheduler','name','max-seal-'+payload['token'])]:
+                for menu,field,value in [('/ip/firewall/raw','comment','MAX-SETTLEMENT:'+payload['token']),('/ip/firewall/filter','comment','MAX-SETTLEMENT:'+payload['token']),('/system/scheduler','name','max-seal-'+payload['token'])]:
                     for r in command(api,menu+'/print',['?'+field+'='+value]):command(api,menu+'/remove',{'numbers':r['.id']})
             except Exception:pass  # NAS-owned cleanup still bounds the freeze lease.
             finally:api.close()
@@ -250,27 +255,35 @@ def freeze_and_disconnect(snapshot, include_ppp=False):
                 raise RuntimeError('Cannot schedule freeze cleanup using NAS clock')
             name = 'max-seal-' + token
             comment = 'MAX-SETTLEMENT:' + token
-            event = '/ip firewall raw remove [find where comment="'+comment+'"]; /system scheduler remove [find where name="'+name+'"]'
-            command(api, '/system/scheduler/add', {'name':name,'start-date':expires.strftime('%Y-%m-%d'),
+            event = '/ip firewall raw remove [find where comment="'+comment+'"]; /ip firewall filter remove [find where comment="'+comment+'"]; /system scheduler remove [find where name="'+name+'"]'
+            # Preserve the NAS date dialect: ROS 6 uses mon/dd/yyyy, newer ROS
+            # uses yyyy-mm-dd. The cleanup date must also handle day rollover.
+            schedule_date = expires.strftime(fmt.split(' ')[0]).lower()
+            command(api, '/system/scheduler/add', {'name':name,'start-date':schedule_date,
                 'start-time':expires.strftime('%H:%M:%S'),'interval':'0s','on-event':event,'policy':'read,write,test'})
             schedulers.append((api,name))
-            current = command(api, '/ip/firewall/raw/print')
             # Other settlements remove their owned rules concurrently. Never
             # use those ephemeral IDs as an insertion anchor. Owned rules only
             # drop traffic, so appending behind them cannot bypass this freeze.
-            anchor = next((r for r in current if not str(r.get('comment','')).startswith('MAX-SETTLEMENT:')), None)
-            for rid,s in sorted(hot.items()):
-                if s['row']['nasipaddress'] != ip:
-                    continue
-                address = str(ipaddress.IPv4Address(s['row']['framedipaddress']))
-                for field in ('src-address','dst-address'):
-                    words = {'chain':'prerouting','action':'drop',field:address+'/32','comment':comment}
-                    if anchor:
-                        words['place-before'] = anchor['.id']
-                    command(api, '/ip/firewall/raw/add', words)
-                    installed.append((api,comment))
+            # Return traffic only acquires the client's address after DNAT.
+            # Keep ingress RAW protection, and block both directions in forward.
+            for menu,chain,fields in (('/ip/firewall/raw','prerouting',('src-address',)),
+                                      ('/ip/firewall/filter','forward',('src-address','dst-address'))):
+                current = command(api, menu+'/print')
+                anchor = next((r for r in current if not str(r.get('comment','')).startswith('MAX-SETTLEMENT:')), None)
+                for rid,s in sorted(hot.items()):
+                    if s['row']['nasipaddress'] != ip:
+                        continue
+                    address = str(ipaddress.IPv4Address(s['row']['framedipaddress']))
+                    for field in fields:
+                        words = {'chain':chain,'action':'drop',field:address+'/32','comment':comment}
+                        if anchor:
+                            words['place-before'] = anchor['.id']
+                        command(api, menu+'/add', words)
+                        installed.append((api,menu,comment))
         # Require two identical counter observations after packet queues drain.
         previous = None
+        observed = {}
         stable = 0
         deadline = time.monotonic()+12
         while time.monotonic()<deadline:
@@ -299,7 +312,12 @@ def freeze_and_disconnect(snapshot, include_ppp=False):
                 break
             time.sleep(.25)
         if not completed:
-            raise RuntimeError('NAS counters did not stabilize under the traffic freeze')
+            # Hotspot ingress/control counters can advance before RAW. Disconnect
+            # the verified generation, but never seal these moving observations
+            # without its genuine final Stop. The wait below remains bounded.
+            if set(observed)!=set(hot):
+                raise RuntimeError('NAS counters unavailable under the traffic freeze')
+            completed={rid:dict(s,requires_actual_stop=True) for rid,s in observed.items()}
         proof=journal(completed,'frozen')
         for rid,s in completed.items():
             removing=True
@@ -334,17 +352,17 @@ def freeze_and_disconnect(snapshot, include_ppp=False):
         # recovery; the router watchdog bounds it even if this process dies.
         if removing and not sealed:
             installed=[];schedulers=[]
-        for api,comment in installed:
+        for api,menu,comment in installed:
             try:
-                for row in command(api,'/ip/firewall/raw/print',['?comment='+comment]):
-                    command(api,'/ip/firewall/raw/remove',{'numbers':row['.id']})
+                for row in command(api,menu+'/print',['?comment='+comment]):
+                    command(api,menu+'/remove',{'numbers':row['.id']})
             except Exception:
                 pass  # The NAS scheduler removes any remaining owned rules.
         for api,name in schedulers:
             try:
                 # Keep the watchdog if removal could not be verified.
                 comment='MAX-SETTLEMENT:'+token
-                if not command(api,'/ip/firewall/raw/print',['?comment='+comment]):
+                if not command(api,'/ip/firewall/raw/print',['?comment='+comment]) and not command(api,'/ip/firewall/filter/print',['?comment='+comment]):
                     for row in command(api,'/system/scheduler/print',['?name='+name]):
                         command(api,'/system/scheduler/remove',{'numbers':row['.id']})
             except Exception:

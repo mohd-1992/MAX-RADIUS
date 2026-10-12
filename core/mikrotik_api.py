@@ -131,9 +131,14 @@ class RouterOSApiProtocol:
         self.write_sentence(words)
         replies = []
         while True:
-            sentence = self.read_sentence()
+            try:
+                sentence = self.read_sentence()
+            except (OSError, ValueError):
+                self.close()
+                raise
             if not sentence:
-                break
+                self.close()
+                raise ConnectionError('RouterOS API reply ended before !done')
             reply_type = sentence[0] if sentence else ''
             attrs = {}
             for item in sentence[1:]:
@@ -144,7 +149,11 @@ class RouterOSApiProtocol:
                     else:
                         attrs[parts[0]] = ''
             replies.append((reply_type, attrs))
-            if reply_type in ('!done', '!trap', '!fatal'):
+            # !trap is followed by !done. Drain both before reusing the socket.
+            if reply_type == '!fatal':
+                self.close()
+                break
+            if reply_type == '!done':
                 break
         return replies
 
@@ -158,7 +167,9 @@ class RouterOSApiProtocol:
             elif r_type == '!done' and attrs:
                 results.append(attrs)
             elif r_type == '!trap':
-                results.append({'!trap': attrs.get('message', 'Error')})
+                results.append({'!trap': attrs.get('message', 'Error'), **attrs})
+            elif r_type == '!fatal':
+                raise ConnectionError(attrs.get('message', 'RouterOS API fatal error'))
         return results
 
     def login(self, username, password):
