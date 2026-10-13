@@ -175,7 +175,7 @@
     },
     {
       "file": "core/license_security.py",
-      "sha256": "2aaaea2758f2b3cff465121895238005f897c76899e0c3486fe5a7df80259897",
+      "sha256": "f8295a2ae28f0dd850aeb8847bd9c579a2a9099b6eba4b28b939a778ee86dae8",
       "imports": [
         "flask",
         "pathlib"
@@ -193,22 +193,22 @@
         },
         {
           "name": "install_csrf",
-          "line": 38,
+          "line": 39,
           "kind": "FunctionDef"
         },
         {
           "name": "token",
-          "line": 40,
+          "line": 41,
           "kind": "FunctionDef"
         },
         {
           "name": "check_csrf",
-          "line": 46,
+          "line": 47,
           "kind": "FunctionDef"
         },
         {
           "name": "inject_form_tokens",
-          "line": 53,
+          "line": 54,
           "kind": "FunctionDef"
         }
       ]
@@ -416,7 +416,7 @@
     },
     {
       "file": "core/permission_catalog.py",
-      "sha256": "cc45aa5d6fb2082eebd55d9234f5a57d4c94ee6a9b162054edf395cf7be1de12",
+      "sha256": "331a252735f65e44ceb8de67b3188d474bd844ab29e47187504dda7a8a206622",
       "imports": [],
       "definitions": [
         {
@@ -2149,7 +2149,7 @@
     },
     {
       "file": "services/factory_reset_service.py",
-      "sha256": "5813a115f3a1be846285a9cba729afcab29c0335f5facf702e9146febfa30bbf",
+      "sha256": "da818f4d22eb9cbbdc2abd90d246c684db633055a9c839eb714663f17c6c6a23",
       "imports": [
         "core.config",
         "database.db",
@@ -2937,7 +2937,7 @@
     },
     {
       "file": "services/mikrotik_userman_importer.py",
-      "sha256": "3cf2256b176c79301ef46aa45391f79758fb3f1c52e337d09915e4c05edd846e",
+      "sha256": "e1463d832bf31771fd257e7e37d3627e0f1ba541026a71963153d937a01fe120",
       "imports": [
         "core.mikrotik_api",
         "database.db",
@@ -3012,27 +3012,32 @@
         },
         {
           "name": "_read_len",
-          "line": 406,
+          "line": 413,
           "kind": "FunctionDef"
         },
         {
           "name": "read_sentence",
-          "line": 426,
+          "line": 433,
           "kind": "FunctionDef"
         },
         {
           "name": "fetch_userman_via_api",
-          "line": 436,
+          "line": 443,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "read_rows",
+          "line": 464,
           "kind": "FunctionDef"
         },
         {
           "name": "_clean_limit",
-          "line": 473,
+          "line": 516,
           "kind": "FunctionDef"
         },
         {
           "name": "execute_userman_import",
-          "line": 577,
+          "line": 621,
           "kind": "FunctionDef"
         }
       ]
@@ -4124,6 +4129,125 @@
       ]
     },
     {
+      "file": "services/userman_job_service.py",
+      "sha256": "9b54cb23894a0078bb77e0f7339a8d909abe430bdc0b691ff898fd7fa213a3bd",
+      "imports": [
+        "contextlib",
+        "core.config",
+        "pathlib",
+        "services.account_lifecycle_service",
+        "services.factory_reset_service",
+        "services.mikrotik_userman_importer"
+      ],
+      "definitions": [
+        {
+          "name": "JobCancelled",
+          "line": 13,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "JobNotFound",
+          "line": 14,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "process_start",
+          "line": 16,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "import_gate",
+          "line": 21,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "root",
+          "line": 29,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "write",
+          "line": 34,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "folder",
+          "line": 46,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "public",
+          "line": 54,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "status",
+          "line": 59,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "cancel",
+          "line": 70,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "result",
+          "line": 75,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "operation_lock",
+          "line": 85,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "launch",
+          "line": 100,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "run",
+          "line": 112,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "check_cancel",
+          "line": 114,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "update",
+          "line": 116,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "start_fetch",
+          "line": 137,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "worker",
+          "line": 141,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "start_import",
+          "line": 150,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "worker",
+          "line": 172,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "guarded_worker",
+          "line": 190,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "services/voucher_service.py",
       "sha256": "34f8afd2f1562b5035dc4f0503ddaccac8f8b30dd917fbaeda47431745443290",
       "imports": [
@@ -4692,7 +4816,7 @@
     },
     {
       "file": "web/endpoint_permissions.py",
-      "sha256": "7a6d0762834833e8da637688a857936025342d3d8f5db98a807a1db150c43e86",
+      "sha256": "6c1585863b8afd809eca71f4049be027be61344fb511e1b2041b07cc81a6ec20",
       "imports": [],
       "definitions": []
     },
@@ -4960,7 +5084,7 @@
     },
     {
       "file": "web/routes/nas.py",
-      "sha256": "a8047987e6f204b9017906c999fdec8607d4f7006bf0c16110477f05d3cd57fa",
+      "sha256": "5827fac27504a2430601811fdd88feaf0d0bb289440655688bf5e28d7149d78b",
       "imports": [
         "core.config",
         "core.mikrotik_api",
@@ -4969,6 +5093,7 @@
         "core.time_service",
         "database.db",
         "flask",
+        "services",
         "services.backup_scheduler_service",
         "services.backup_service",
         "services.card_design_service",
@@ -4987,6 +5112,7 @@
         "services.system_control_service",
         "services.system_update_service",
         "services.user_portal_service",
+        "services.userman_job_service",
         "services.voucher_service",
         "services.wireguard_service",
         "web.access_policy",
@@ -5144,38 +5270,53 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "api_mikrotik_userman_analyze_rsc",
+          "name": "api_userman_job_fetch",
           "line": 549,
           "kind": "FunctionDef"
         },
         {
+          "name": "api_userman_job_import",
+          "line": 557,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "api_userman_job_read",
+          "line": 569,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "api_mikrotik_userman_analyze_rsc",
+          "line": 582,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "api_mikrotik_userman_test_api",
-          "line": 564,
+          "line": 597,
           "kind": "FunctionDef"
         },
         {
           "name": "api_mikrotik_userman_execute",
-          "line": 585,
+          "line": 618,
           "kind": "FunctionDef"
         },
         {
           "name": "hotspot_generator_page",
-          "line": 635,
+          "line": 668,
           "kind": "FunctionDef"
         },
         {
           "name": "api_hotspot_generator_save",
-          "line": 650,
+          "line": 683,
           "kind": "FunctionDef"
         },
         {
           "name": "api_nas_status_compat",
-          "line": 667,
+          "line": 700,
           "kind": "FunctionDef"
         },
         {
           "name": "api_nas_single_status_compat",
-          "line": 684,
+          "line": 717,
           "kind": "FunctionDef"
         }
       ]
@@ -7230,6 +7371,61 @@
       "line": 543
     },
     {
+      "rule": "/api/tools/mikrotik-import/jobs/fetch",
+      "blueprint": "nas_bp",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "api_userman_job_fetch",
+      "handler": "api_userman_job_fetch",
+      "file": "web/routes/nas.py",
+      "line": 549
+    },
+    {
+      "rule": "/api/tools/mikrotik-import/jobs/import",
+      "blueprint": "nas_bp",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "api_userman_job_import",
+      "handler": "api_userman_job_import",
+      "file": "web/routes/nas.py",
+      "line": 557
+    },
+    {
+      "rule": "/api/tools/mikrotik-import/jobs/<job_id>",
+      "blueprint": "nas_bp",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "api_userman_job_status",
+      "handler": "api_userman_job_read",
+      "file": "web/routes/nas.py",
+      "line": 569
+    },
+    {
+      "rule": "/api/tools/mikrotik-import/jobs/<job_id>/result",
+      "blueprint": "nas_bp",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "api_userman_job_result",
+      "handler": "api_userman_job_read",
+      "file": "web/routes/nas.py",
+      "line": 569
+    },
+    {
+      "rule": "/api/tools/mikrotik-import/jobs/<job_id>/cancel",
+      "blueprint": "nas_bp",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "api_userman_job_cancel",
+      "handler": "api_userman_job_read",
+      "file": "web/routes/nas.py",
+      "line": 569
+    },
+    {
       "rule": "/api/tools/mikrotik-import/analyze-rsc",
       "blueprint": "nas_bp",
       "methods": [
@@ -7238,7 +7434,7 @@
       "endpoint": "api_mikrotik_userman_analyze_rsc",
       "handler": "api_mikrotik_userman_analyze_rsc",
       "file": "web/routes/nas.py",
-      "line": 549
+      "line": 582
     },
     {
       "rule": "/api/tools/mikrotik-import/test-api",
@@ -7249,7 +7445,7 @@
       "endpoint": "api_mikrotik_userman_test_api",
       "handler": "api_mikrotik_userman_test_api",
       "file": "web/routes/nas.py",
-      "line": 564
+      "line": 597
     },
     {
       "rule": "/api/tools/mikrotik-import/execute",
@@ -7260,7 +7456,7 @@
       "endpoint": "api_mikrotik_userman_execute",
       "handler": "api_mikrotik_userman_execute",
       "file": "web/routes/nas.py",
-      "line": 585
+      "line": 618
     },
     {
       "rule": "/tools/hotspot-generator",
@@ -7271,7 +7467,7 @@
       "endpoint": "hotspot_generator_page",
       "handler": "hotspot_generator_page",
       "file": "web/routes/nas.py",
-      "line": 635
+      "line": 668
     },
     {
       "rule": "/tools/subscriber-portal",
@@ -7282,7 +7478,7 @@
       "endpoint": "subscriber_portal_page",
       "handler": "hotspot_generator_page",
       "file": "web/routes/nas.py",
-      "line": 635
+      "line": 668
     },
     {
       "rule": "/api/tools/hotspot-generator/save",
@@ -7293,7 +7489,7 @@
       "endpoint": "api_hotspot_generator_save",
       "handler": "api_hotspot_generator_save",
       "file": "web/routes/nas.py",
-      "line": 650
+      "line": 683
     },
     {
       "rule": "/api/tools/subscriber-portal/save",
@@ -7304,7 +7500,7 @@
       "endpoint": "api_subscriber_portal_save",
       "handler": "api_hotspot_generator_save",
       "file": "web/routes/nas.py",
-      "line": 650
+      "line": 683
     },
     {
       "rule": "/api/nas-status",
@@ -7315,7 +7511,7 @@
       "endpoint": "api_nas_status_compat",
       "handler": "api_nas_status_compat",
       "file": "web/routes/nas.py",
-      "line": 667
+      "line": 700
     },
     {
       "rule": "/api/nas/<int:nas_id>/status",
@@ -7326,7 +7522,7 @@
       "endpoint": "api_nas_single_status_compat",
       "handler": "api_nas_single_status_compat",
       "file": "web/routes/nas.py",
-      "line": 684
+      "line": 717
     },
     {
       "rule": "/packages",

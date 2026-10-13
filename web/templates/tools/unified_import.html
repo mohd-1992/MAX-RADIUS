@@ -1044,6 +1044,7 @@
 <!-- SweetAlert2 Vendor -->
 <script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
 
+<script src="{{ url_for('static', filename='userman-progress.js') }}"></script>
 <script>
 const SYSTEM_CURRENCY = "{{ currency_symbol }}";
 /* ========================================================================= */
@@ -1748,64 +1749,18 @@ function hideMikrotikLoading() {
 
 function fetchFromApi() {
     const host = document.getElementById('apiHost').value.trim();
-    const port = document.getElementById('apiPort').value.trim();
     const username = document.getElementById('apiUser').value.trim();
-    const password = document.getElementById('apiPass').value;
-    const use_ssl = document.getElementById('apiSsl').checked;
-
-    if (!host || !username) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'بيانات ناقصة',
-            text: 'يرجى تزويد عنوان IP واسم المستخدم للراوتر',
-            confirmButtonText: 'حسناً',
-            customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
-        });
-        return;
-    }
-
-    showMikrotikLoading('جاري الاتصال براوتر MikroTik...', `الاتصال عبر المنفذ ${port} وفحص قاعدة User Manager`);
-
-    fetch('{{ url_for("api_mikrotik_userman_test_api") }}', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            host: host,
-            port: port,
-            username: username,
-            password: password,
-            use_ssl: use_ssl
-        })
-    })
-    .then(r => r.json())
-    .then(res => {
-        hideMikrotikLoading();
-        if (res.success && res.data) {
-            parsedMikrotikDataStore = res.data;
-            renderMikrotikPreview(res.data, `اتصال حي: ${host}:${port}`);
-        } else {
-            Swal.fire({
-                icon: 'error',
-                title: 'فشل الاتصال بالراوتر',
-                text: res.error || 'تعذر الاتصال بـ RouterOS API. تأكد من تمكين خدمة API في IP -> Services وصحة اسم المستخدم وكلمة المرور.',
-                confirmButtonText: 'حسناً',
-                customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
-            });
-        }
-    })
-    .catch(err => {
-        hideMikrotikLoading();
-        Swal.fire({
-            icon: 'error',
-            title: 'خطأ في الاتصال',
-            text: err.message || err.toString(),
-            confirmButtonText: 'حسناً',
-            customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
-        });
-    });
+    if (!host || !username) { Swal.fire('بيانات ناقصة', 'أدخل عنوان الراوتر واسم المستخدم.', 'warning'); return; }
+    parsedMikrotikDataStore = null;
+    document.getElementById('panelPreviewMikrotik').classList.add('hidden');
+    UsermanProgress.fetch({host, username, port:document.getElementById('apiPort').value.trim() || 8728,
+        password:document.getElementById('apiPass').value, use_ssl:document.getElementById('apiSsl').checked})
+    .then(data => {parsedMikrotikDataStore = data; renderMikrotikPreview(data, `اتصال حي: ${host}`);})
+    .catch(error => Swal.fire(error.cancelled ? 'أُلغي السحب' : 'تعذر سحب البيانات', error.message, error.cancelled ? 'info' : 'error'));
 }
 
 function renderMikrotikPreview(data, sourceLabel) {
+    parsedMikrotikDataStore = data;
     document.getElementById('panelPreviewMikrotik').classList.remove('hidden');
     document.getElementById('previewSourceLabel').innerText = sourceLabel || '';
 
@@ -1904,11 +1859,11 @@ function executeMikrotikImportAction() {
     const dupAction = document.getElementById('importDuplicateAction').value;
     const ignoreExpired = (document.getElementById('importIgnoreExpired').value === 'yes');
     const importConsumption = (document.getElementById('importConsumption').value === 'yes');
-    const totalUsers = parsedMikrotikDataStore.users.length;
+    const totalUsers = Number(parsedMikrotikDataStore.total_users ?? parsedMikrotikDataStore.users.length);
     const activeUsers = parsedMikrotikDataStore.active_users || totalUsers;
     const totalProfiles = (parsedMikrotikDataStore.profiles || []).length;
 
-    const countToImport = ignoreExpired ? activeUsers : totalUsers;
+    const countToImport = ignoreExpired ? Math.max(0,totalUsers-Number(parsedMikrotikDataStore.expired_users || 0)) : totalUsers;
 
     Swal.fire({
         title: 'تأكيد ترحيل وزرع البيانات',
@@ -1927,7 +1882,7 @@ function executeMikrotikImportAction() {
         customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
     }).then((res) => {
         if (res.isConfirmed) {
-            showMikrotikLoading('جاري ترحيل وزرع البيانات...', 'إنشاء الحزم والباقات وتوزيع الكروت وسجلات FreeRADIUS');
+
 
             const profileCosts = {};
             (parsedMikrotikDataStore.profiles || []).forEach(p => {
@@ -1935,26 +1890,11 @@ function executeMikrotikImportAction() {
                 profileCosts[p.name] = inp ? (parseFloat(inp.value) || parseFloat(p.price) || 0) : (parseFloat(p.price) || 0);
             });
 
-            fetch('{{ url_for("api_mikrotik_userman_execute") }}', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    data: parsedMikrotikDataStore,
-                    target_type: targetType,
-                    fallback_package: fallbackPkg,
-                    duplicate_action: dupAction,
-                    ignore_expired: ignoreExpired,
-                    import_consumption: importConsumption,
-                    profile_costs: profileCosts
-                })
-            })
-            .then(async r => {
-                const text = await r.text();
-                try {
-                    return JSON.parse(text);
-                } catch(e) {
-                    throw new Error(`استجابة غير متوقعة من السيرفر (كود ${r.status}): ${text.slice(0, 150)}`);
-                }
+            UsermanProgress.import({
+                source_job_id:parsedMikrotikDataStore.source_job_id || null,
+                data:parsedMikrotikDataStore.source_job_id ? undefined : parsedMikrotikDataStore,
+                target_type:targetType, fallback_package:fallbackPkg, duplicate_action:dupAction,
+                ignore_expired:ignoreExpired, import_consumption:importConsumption, profile_costs:profileCosts
             })
             .then(data => {
                 hideMikrotikLoading();
@@ -2008,9 +1948,9 @@ function executeMikrotikImportAction() {
             .catch(err => {
                 hideMikrotikLoading();
                 Swal.fire({
-                    icon: 'error',
-                    title: 'خطأ في الاتصال',
-                    text: err.message || err.toString(),
+                    icon: err.cancelled ? 'info' : 'error',
+                    title: err.cancelled ? 'أُلغي الاستيراد' : 'تعذر متابعة الاستيراد',
+                    text: (err.message || err.toString()) + (err.stats ? ' تم حفظ ' + (err.stats.created_users || 0) + ' كرت/مشترك قبل الإلغاء.' : ''),
                     confirmButtonText: 'حسناً',
                     customClass: { popup: 'bg-[#0b0f19] text-white border border-[#1c2840]' }
                 });

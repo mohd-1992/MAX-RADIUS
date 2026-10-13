@@ -293,8 +293,9 @@ def get_factory_reset(job_id=None):
 def start_factory_reset(keep_packages=True, keep_resellers=False, created_by='admin'):
     if type(keep_packages) is not bool or type(keep_resellers) is not bool:raise ValueError('خيارات إعادة المصنع غير صالحة.')
     ensure_job_table()
-    with job_lock('factory-reset-submit') as submit:
+    with job_lock('factory-reset-submit') as submit, job_lock('userman-import') as import_idle:
         if not submit:raise ValueError('يجري تجهيز إعادة المصنع؛ أعد المحاولة.')
+        if not import_idle:raise ValueError('توجد عملية استيراد User Manager قيد التنفيذ؛ ألغها أو انتظر اكتمالها قبل إعادة المصنع.')
         row=query_one("SELECT * FROM wisp_maintenance_jobs WHERE active_key='factory-reset'")
         if row:return _public(row),False
         job_id=uuid.uuid4().hex

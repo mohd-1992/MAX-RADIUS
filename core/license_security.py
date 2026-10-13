@@ -31,7 +31,8 @@ def persistent_secret(storage, env_name='SECRET_KEY'):
 
 
 def protects_admin_account_request(req):
-    return (req.path in ('/settings/license/activate', '/settings/license/sync-heartbeat')
+    return (req.path.startswith('/api/tools/mikrotik-import/jobs/')
+            or req.path in ('/settings/license/activate', '/settings/license/sync-heartbeat')
             or req.path.startswith(('/packages', '/subscribers', '/api/subscribers/', '/api/actions/', '/vouchers', '/api/vouchers/', '/card-designer', '/managers', '/roles', '/resellers', '/api/reseller-wallets/', '/impersonate/', '/profile/update'))
             or req.path.startswith('/invoices'))
 

@@ -55,7 +55,7 @@ DETAILS = (
  ('nas.hotspot_view', 'عرض مولد صفحات الهوتسبوت', 'nas.view', 'hotspot_generator_page'),
  ('nas.hotspot_manage', 'حفظ تصميم صفحة الهوتسبوت', 'nas.manage', 'api_hotspot_generator_save'),
  ('nas.userman_view', 'عرض استيراد User Manager', 'nas.view', 'mikrotik_userman_import_page'),
- ('nas.userman_import', 'تحليل وتنفيذ استيراد User Manager', 'nas.manage', 'api_mikrotik_userman_analyze_rsc api_mikrotik_userman_test_api api_mikrotik_userman_execute'),
+ ('nas.userman_import', 'تحليل وتنفيذ استيراد User Manager', 'nas.manage', 'api_mikrotik_userman_analyze_rsc api_mikrotik_userman_test_api api_mikrotik_userman_execute api_userman_job_fetch api_userman_job_import api_userman_job_status api_userman_job_result api_userman_job_cancel'),
  ('managers.create', 'إضافة مدير أو موزع', 'managers.manage', 'add_manager_action add_reseller_action'),
  ('managers.edit', 'تعديل المدير أو الموزع', 'managers.manage', 'edit_manager_action'),
  ('managers.status', 'إيقاف وتنشيط المدير أو الموزع', 'managers.manage', 'toggle_manager_status_action'),

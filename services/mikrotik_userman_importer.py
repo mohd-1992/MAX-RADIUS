@@ -388,10 +388,17 @@ class BufferedRouterOSApiProtocol(RouterOSApiProtocol):
         self._pos = 0
 
     def _read_raw(self, n):
+        import select
         res = bytearray()
         while len(res) < n:
+            if getattr(self, 'cancel_check', None): self.cancel_check()
             avail = len(self._buf) - self._pos
             if avail <= 0:
+                deadline = time.monotonic() + self.timeout
+                while not (hasattr(self.sock, 'pending') and self.sock.pending()):
+                    if getattr(self, 'cancel_check', None): self.cancel_check()
+                    if time.monotonic() >= deadline: raise TimeoutError('RouterOS API read timeout')
+                    if select.select([self.sock], [], [], min(1, self.timeout))[0]: break
                 chunk = self.sock.recv(65536)
                 if not chunk:
                     break
@@ -433,29 +440,65 @@ class BufferedRouterOSApiProtocol(RouterOSApiProtocol):
         return res
 
 
-def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, timeout=90.0):
+def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, timeout=90.0, progress=None, check_cancel=None):
     """
     Connects to live MikroTik router and pulls User Manager v6 profiles and users
     using optimized property lists and buffered socket to prevent router crashes.
     """
     client = BufferedRouterOSApiProtocol(host=host, port=port, use_ssl=use_ssl, timeout=timeout)
-    client.connect()
-    logged_in = client.login(username=username, password=password)
+    client.cancel_check = check_cancel
+    try:
+        client.timeout = min(10, timeout)
+        client.connect()
+        client.timeout = timeout
+        client.sock.settimeout(timeout)
+        logged_in = client.login(username=username, password=password)
+    except Exception:
+        client.close()
+        raise
     if not logged_in:
         client.close()
         raise ValueError("فشل تسجيل الدخول إلى راوتر الميكروتك. يرجى التحقق من اسم المستخدم وكلمة المرور.")
 
     try:
+        def read_rows(path,words=None):
+            rows=client.execute_command(path,words=words)
+            if any('!trap' in row for row in rows): raise RuntimeError('تعذر قراءة بيانات User Manager أو صلاحياتها.')
+            return rows
+        total_users = None
+        if progress:
+            progress(stage='profiles', processed=0, total=None, percent=2)
+            count_replies = client.talk_raw(['/tool/user-manager/user/print', '=count-only='])
+            total_users = next((int(attrs['ret']) for kind, attrs in count_replies if kind == '!done' and str(attrs.get('ret', '')).isdigit()), None)
         # 1. Fetch Profiles
-        raw_profiles = client.execute_command('/tool/user-manager/profile/print')
+        raw_profiles = read_rows('/tool/user-manager/profile/print')
         # 2. Fetch Limitations
-        raw_limitations = client.execute_command('/tool/user-manager/profile/limitation/print')
+        raw_limitations = read_rows('/tool/user-manager/profile/limitation/print')
         # 3. Fetch Profile-Limitations
-        raw_profile_limits = client.execute_command('/tool/user-manager/profile/profile-limitation/print')
+        raw_profile_limits = read_rows('/tool/user-manager/profile/profile-limitation/print')
         
         # 4. Fetch Users with .proplist to prevent router freeze and out-of-memory
         props = '.id,username,password,actual-profile,caller-id,comment,email,phone,shared-users,disabled,uptime-used,download-used,upload-used,till-time'
-        raw_users = client.execute_command('/tool/user-manager/user/print', words=[f'=.proplist={props}'])
+        if progress:
+            progress(stage='users', processed=0, total=total_users, percent=10)
+            # Read rows as they arrive, without waiting for the final !done to report progress.
+            client.write_sentence(['/tool/user-manager/user/print', f'=.proplist={props}'])
+            raw_users=[]; error=None
+            while True:
+                if check_cancel: check_cancel()
+                sentence=client.read_sentence()
+                if not sentence: raise ConnectionError('RouterOS API reply ended before !done')
+                attrs=dict(word[1:].split('=',1) for word in sentence[1:] if word.startswith('=') and '=' in word[1:])
+                if sentence[0]=='!re':
+                    raw_users.append(attrs)
+                    progress(stage='users', processed=len(raw_users), total=total_users,
+                             percent=min(90,10+int(80*len(raw_users)/max(1,total_users))) if total_users is not None else None)
+                elif sentence[0] in ('!trap','!fatal'): error=attrs.get('message','User Manager read failed')
+                if sentence[0]=='!fatal' or sentence[0]=='!done': break
+            if error: raise RuntimeError(error)
+            progress(stage='preparing_preview', processed=len(raw_users), total=len(raw_users), percent=92)
+        else:
+            raw_users = read_rows('/tool/user-manager/user/print', words=[f'=.proplist={props}'])
     finally:
         client.close()
 
@@ -532,6 +575,7 @@ def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, ti
 
     users_list = []
     for u in raw_users:
+        if check_cancel: check_cancel()
         uname = u.get('username')
         if not uname:
             continue
@@ -574,7 +618,7 @@ def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, ti
 # -------------------------------------------------------------
 # 3. Execution Engine: Insert into MAX RADIUS
 # -------------------------------------------------------------
-def execute_userman_import(parsed_data, target_type='vouchers', fallback_package=None, duplicate_action='skip', ignore_expired=True, import_consumption=False, admin_user='admin', profile_costs=None, chunk_index=None, total_chunks=None, state_cache=None):
+def execute_userman_import(parsed_data, target_type='vouchers', fallback_package=None, duplicate_action='skip', ignore_expired=True, import_consumption=False, admin_user='admin', profile_costs=None, chunk_index=None, total_chunks=None, state_cache=None, check_cancel=None):
     """
     Executes the isolated database insertion:
     - Creates/matches packages in wisp_packages
@@ -739,6 +783,7 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
 
         # 3. Process Users
         for u in users:
+            if check_cancel: check_cancel()
             uname = u['username'].strip()
             uname_lower = uname.lower()
             upass = u.get('password', uname).strip() or uname
@@ -911,6 +956,7 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
         if is_mysql_conn(db):
             cur.execute("SET foreign_key_checks = 1;")
             
+        if check_cancel: check_cancel()
         db.commit()
 
         if is_last_chunk:

@@ -544,6 +544,39 @@ def mikrotik_userman_import_page():
     return redirect(url_for('import_data_page', tab='mikrotik'))
 
 
+@nas_bp.route('/api/tools/mikrotik-import/jobs/fetch', methods=['POST'], endpoint='api_userman_job_fetch')
+@login_required
+def api_userman_job_fetch():
+    from core.rbac import get_current_manager
+    from services.userman_job_service import start_fetch
+    try: return jsonify(success=True,job=start_fetch(get_current_manager()['id'],request.get_json(silent=True) or {})),202
+    except ValueError as exc: return jsonify(success=False,message=str(exc)),400
+
+@nas_bp.route('/api/tools/mikrotik-import/jobs/import', methods=['POST'], endpoint='api_userman_job_import')
+@login_required
+def api_userman_job_import():
+    from core.rbac import get_current_manager
+    from services.userman_job_service import start_import,JobNotFound
+    manager=get_current_manager()
+    try: return jsonify(success=True,job=start_import(manager['id'],request.get_json(silent=True) or {},manager['username'])),202
+    except JobNotFound: return jsonify(success=False,message='المهمة غير موجودة.'),404
+    except ValueError as exc: return jsonify(success=False,message=str(exc)),400
+
+@nas_bp.route('/api/tools/mikrotik-import/jobs/<job_id>', endpoint='api_userman_job_status')
+@nas_bp.route('/api/tools/mikrotik-import/jobs/<job_id>/result', endpoint='api_userman_job_result')
+@nas_bp.route('/api/tools/mikrotik-import/jobs/<job_id>/cancel', methods=['POST'], endpoint='api_userman_job_cancel')
+@login_required
+def api_userman_job_read(job_id):
+    from core.rbac import get_current_manager
+    from services import userman_job_service as jobs
+    owner=get_current_manager()['id']
+    try:
+        if request.endpoint.endswith('api_userman_job_result'): return jsonify(success=True,data=jobs.result(job_id,owner))
+        value=jobs.cancel(job_id,owner) if request.method=='POST' else jobs.status(job_id,owner)
+        return jsonify(success=True,job=value)
+    except jobs.JobNotFound: return jsonify(success=False,message='المهمة غير موجودة.'),404
+    except ValueError as exc: return jsonify(success=False,message=str(exc)),409
+
 @nas_bp.route('/api/tools/mikrotik-import/analyze-rsc', methods=['POST'], endpoint="api_mikrotik_userman_analyze_rsc")
 @login_required
 def api_mikrotik_userman_analyze_rsc():
