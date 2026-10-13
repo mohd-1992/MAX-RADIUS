@@ -112,3 +112,6 @@ reports/
 !tests/test_manager_wallet_receipts.py
 !tests/test_import_release_consistency.py
 !tests/test_userman_progress.py
+!tests/first_use_policy_integration.py
+!tests/test_import_loyalty_fixes.py
+!tests/import_loyalty_mariadb_regression.py

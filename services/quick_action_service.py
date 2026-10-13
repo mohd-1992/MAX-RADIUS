@@ -493,7 +493,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
         if etype == 'subscriber':
             upd_sub = adapt_query("""
                 UPDATE wisp_subscribers
-                SET snap_volume_quota_mb = NULL, expires_at = ?,
+                SET snap_volume_quota_mb = ?, expires_at = ?,
                     last_renewed_at = ?,
                     extra_quota_mb = ?,
                     loan_balance_mb = ?,
@@ -501,7 +501,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
                     status = 'active'
                 WHERE id = ?
             """, conn)
-            cursor.execute(upd_sub, (new_exp_iso, db_now_str, new_extra_mb, new_loan_balance_mb, new_loan_status, entity['id']))
+            cursor.execute(upd_sub, (new_base_quota_mb, new_exp_iso, db_now_str, new_extra_mb, new_loan_balance_mb, new_loan_status, entity['id']))
 
             inv_num = generate_invoice_number(entity['id'])
             ins_inv = adapt_query("""
@@ -737,11 +737,11 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
         if etype == 'subscriber':
             upd_sub = adapt_query("""
                 UPDATE wisp_subscribers
-                SET snap_volume_quota_mb = NULL, package_id = ?, expires_at = ?, last_renewed_at = ?, 
+                SET snap_volume_quota_mb = ?, package_id = ?, expires_at = ?, last_renewed_at = ?,
                     extra_quota_mb = ?, loan_balance_mb = ?, loan_status = ?, status = 'active'
                 WHERE id = ?
             """, conn)
-            cursor.execute(upd_sub, (new_pkg['id'], new_exp_iso, db_now_str, new_extra_mb, new_loan_balance_mb, new_loan_status, entity['id']))
+            cursor.execute(upd_sub, (new_base_quota_mb, new_pkg['id'], new_exp_iso, db_now_str, new_extra_mb, new_loan_balance_mb, new_loan_status, entity['id']))
 
             inv_num = generate_invoice_number(entity['id'])
             ins_inv = adapt_query("""

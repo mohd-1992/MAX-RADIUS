@@ -12,10 +12,11 @@ import os
 import re
 import time
 import datetime
+import uuid
 from database.db import get_connection, is_mysql_conn, adapt_query, query_all, query_one, execute_write, log_audit
 from core.mikrotik_api import RouterOSApiProtocol
 from services.import_state_service import (present_value, import_now, imported_state,
-    historical_accounting_values, imported_radius_checks, ensure_import_package_radius, imported_profile_plan)
+    historical_accounting_values, imported_radius_checks, ensure_import_package_radius, imported_profile_plan, imported_policy_rate)
 
 # Helper: parse human-readable bandwidth (e.g. '1M', '512k', '10M/10M', '1048576') -> (rx_kbps, tx_kbps)
 def parse_mikrotik_rate_limit(rate_str):
@@ -736,8 +737,9 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
                     if b_row:
                         batch_map[pkg_id] = b_row['id'] if isinstance(b_row, dict) else b_row[0]
                     else:
-                        clean_code = re.sub(r'[^A-Za-z0-9]', '', pkg_name_actual)[:6].upper() or 'PKG'
-                        batch_num = f"UM-{clean_code}-{datetime.datetime.now().strftime('%m%d%H%M')}"
+                        # Package names and minute timestamps are not unique.
+                        # Fits VARCHAR(30), even for a ten-digit package ID.
+                        batch_num = f"UM-{pkg_id}-{uuid.uuid4().hex[:16]}"
                         cur.execute("INSERT INTO wisp_voucher_batches (batch_number, name, package_id, card_count, created_at) VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)".replace('?', '%s' if is_mysql_conn(db) else '?'), (batch_num, f"استيراد يوزرمانجر - {pkg_name_actual}", pkg_id))
                         batch_map[pkg_id] = cur.lastrowid
                         stats['created_batches'] += 1
@@ -850,7 +852,7 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
                     state['first_used_at'], state['expires_at'], state['last_renewed_at'],
                     float(plan.get('price') or 0), float(package_costs_map.get(uprofile, plan.get('cost') or 0)),
                     int(plan.get('volume_quota_mb') or 0), int(plan.get('uptime_limit_mins') or 0),
-                    snap_v_val, snap_v_unit, snap_v_days, snap_rd, snap_ru, f"{snap_rd}/{snap_ru}",
+                    snap_v_val, snap_v_unit, snap_v_days, snap_rd, snap_ru, imported_policy_rate(plan),
                     int(plan.get('simultaneous_sessions') or 1)
                 ))
             else:

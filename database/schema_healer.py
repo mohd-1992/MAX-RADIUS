@@ -282,6 +282,12 @@ BEGIN
     DECLARE v_simul INT DEFAULT 1;
     DECLARE v_mgroup VARCHAR(100) DEFAULT NULL;
     DECLARE v_assigned_seq BIGINT DEFAULT NULL;
+    DECLARE v_policy_result INT;
+
+    IF COALESCE(@max_radius_import,0)=0 THEN
+        SET v_policy_result=fn_freeze_voucher_policy(NEW.username);
+        IF v_policy_result=0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Voucher policy unavailable'; END IF;
+    END IF;
     
     SELECT v.id, v.batch_id, b.name, v.serial_number,
            p.name, COALESCE(v.snap_price, p.price), COALESCE(v.snap_cost, p.cost), v.reseller_id,
@@ -303,7 +309,7 @@ BEGIN
     WHERE (LOWER(v.username) = LOWER(NEW.username) OR v.pin_code = NEW.username)
       AND v.status = 'unused'
       AND COALESCE(@max_radius_import, 0) = 0
-    LIMIT 1;
+    LIMIT 1 FOR UPDATE;
     
     IF v_id IS NOT NULL THEN
         IF v_val <= 0 THEN
@@ -379,6 +385,8 @@ def install_accounting_triggers(conn):
     from database.voucher_sales_schema import ensure_activation_sale_key
     ensure_activation_sale_key(conn)
     install_capacity_schema(conn)
+    from database.first_use_policy import install_first_use_policy
+    install_first_use_policy(conn)
     with conn.cursor() as cur:
         cur.execute('SELECT VERSION() AS version')
         maria = 'mariadb' in str(cur.fetchone()['version']).lower()
@@ -487,6 +495,11 @@ def heal_database_schema(backfill=True, install_triggers=True):
                 conn.commit()
         except Exception as e:
             print(f"[Schema Healer] Sequence backfill notice: {e}")
+
+        if is_mysql:
+            from database.first_use_policy import install_first_use_policy
+            install_first_use_policy(conn)
+            conn.commit()
 
         # 4. Backfill missing snap columns on vouchers from batches / packages
         try:

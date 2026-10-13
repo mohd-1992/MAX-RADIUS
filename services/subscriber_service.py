@@ -435,8 +435,8 @@ def create_subscriber(data, admin_username='admin', conn=None):
         INSERT INTO wisp_subscribers (
             username, password, full_name, phone, email, national_id, address,
             service_type, package_id, mac_binding, static_ip, status, balance,
-            extra_quota_mb, expires_at, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            extra_quota_mb, expires_at, notes, snap_volume_quota_mb
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['username'].strip(),
         data['password'].strip(),
@@ -453,7 +453,8 @@ def create_subscriber(data, admin_username='admin', conn=None):
         initial_balance,
         extra_quota,
         exp_iso,
-        data.get('notes', '')
+        data.get('notes', ''),
+        int((query_one('SELECT volume_quota_mb FROM wisp_packages WHERE id=?', (int(data['package_id']),)) or {}).get('volume_quota_mb') or 0)
     ))
     
     if not sync_subscriber_to_radius(sub_id, conn=conn):

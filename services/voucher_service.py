@@ -109,7 +109,7 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
         automatic_name = not name or not str(name).strip()
         name = str(name).strip() if not automatic_name else f"{pkg['name']} — {count} كرت"
 
-        # 1. Capture Immutable Contract / Package Snapshot at this exact moment
+        # Batch invoices capture issuance cost; commercial card policy waits for first use.
         rate_str = build_mikrotik_rate_limit(
             download=pkg['rate_download'],
             upload=pkg['rate_upload'],
@@ -230,9 +230,9 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
 
             vouchers_data.append((
                 batch_id, package_id, reseller_id or None, serial, user, pwd, pin, 'unused',
-                pkg_price, pkg_cost, pkg_quota, pkg_uptime,
+                None, None, None, pkg_uptime,
                 pkg_val, pkg_unit, pkg_days,
-                pkg.get('rate_download') or '', pkg.get('rate_upload') or '', rate_str or '',
+                None, None, None,
                 pkg_simul, pkg_mgroup or ''
             ))
         
@@ -388,7 +388,7 @@ def get_batch_cards_for_print(batch_id):
     if not batch:
         return None, [], None
         
-    cards = query_all('''SELECT v.*, p.name as current_package_name FROM wisp_vouchers v
+    cards = query_all('''SELECT v.*, p.name as current_package_name, p.price as live_price, p.volume_quota_mb as live_quota, p.rate_download as live_down, p.rate_upload as live_up FROM wisp_vouchers v
         LEFT JOIN wisp_packages p ON p.id=v.package_id WHERE v.batch_id=? ORDER BY v.id ASC''', (batch_id,))
     
     hotspot_domain = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = 'hotspot_domain'")
@@ -408,10 +408,10 @@ def get_batch_cards_for_print(batch_id):
     unit_ar = 'ساعة' if v_unit == 'hours' else ('دقيقة' if v_unit == 'minutes' else ('أشهر' if v_unit == 'months' else 'يوم'))
 
     for c in cards:
-        c_price = c.get('snap_price') if c.get('snap_price') is not None else batch['package_price']
-        c_quota_mb = c.get('snap_volume_quota_mb') if c.get('snap_volume_quota_mb') is not None else (batch.get('volume_quota_mb') or 0)
-        c_rate_down = c.get('snap_rate_download') if c.get('snap_rate_download') is not None else batch.get('rate_download')
-        c_rate_up = c.get('snap_rate_upload') if c.get('snap_rate_upload') is not None else batch.get('rate_upload')
+        c_price = c.get('snap_price') if c.get('snap_price') is not None else c.get('live_price', batch['package_price'])
+        c_quota_mb = c.get('snap_volume_quota_mb') if c.get('snap_volume_quota_mb') is not None else (c.get('live_quota') or 0)
+        c_rate_down = c.get('snap_rate_download') if c.get('snap_rate_download') is not None else c.get('live_down')
+        c_rate_up = c.get('snap_rate_upload') if c.get('snap_rate_upload') is not None else c.get('live_up')
         c_val = c.get('snap_validity_value') if c.get('snap_validity_value') is not None else v_val
         c_unit = c.get('snap_validity_unit') or v_unit
         c_unit_ar = 'ساعة' if c_unit == 'hours' else ('دقيقة' if c_unit == 'minutes' else ('أشهر' if c_unit == 'months' else 'يوم'))
@@ -422,7 +422,7 @@ def get_batch_cards_for_print(batch_id):
         c['package_name'] = c.get('current_package_name') or batch['package_name']
         c['price'] = c_price
         c['speed'] = f"{c_rate_down or '0'} / {c_rate_up or '0'}"
-        c['quota'] = f"{c_quota_mb // 1024} GB" if c_quota_mb >= 1024 else (f"{c_quota_mb} MB" if c_quota_mb > 0 else "غير محدود")
+        c['quota'] = f"{c_quota_mb / 1024:g} GB" if c_quota_mb >= 1024 else (f"{c_quota_mb} MB" if c_quota_mb > 0 else "غير محدود")
         c['validity'] = "غير محدود" if int(c_val or 0)==0 else f"{c_val} {c_unit_ar}"
         
     return batch, cards, template
@@ -455,7 +455,7 @@ def update_voucher_batch(batch_id, name, package_id, admin_username='admin'):
             cards = cur.fetchall()
             # Batch reassignment is an issued-contract change, not a renewal.
             # Used cards must go through the individual settlement-aware path.
-            if any(c['status'] != 'unused' or c.get('first_used_at') for c in cards):
+            if any(c['status'] != 'unused' or c.get('first_used_at') or c.get('policy_frozen_at') for c in cards):
                 raise ValueError('تحتوي الدفعة كروتًا مستخدمة؛ غيّر باقتها من عمليات الكرت لتسوية الاستهلاك. لم تُعدّل الدفعة.')
             run('''SELECT 1 FROM radacct a JOIN wisp_vouchers v ON v.username=a.username
                 WHERE v.batch_id=? LIMIT 1''', (batch_id,))
@@ -513,7 +513,7 @@ def update_voucher_card(card_id, new_username, new_password, admin_username='adm
             raise ValueError('الكرت غير موجود.')
         old_username = card['username']
         if old_username != new_username:
-            if card['status'] != 'unused' or card.get('first_used_at') or tx.one('SELECT radacctid FROM radacct WHERE LOWER(username)=LOWER(?) LIMIT 1',(old_username,)):
+            if card['status'] != 'unused' or card.get('first_used_at') or card.get('policy_frozen_at') or tx.one('SELECT radacctid FROM radacct WHERE LOWER(username)=LOWER(?) LIMIT 1',(old_username,)):
                 raise ValueError('لا يمكن تغيير اسم كرت مستخدم؛ سجل المحاسبة مرتبط به.')
             if tx.one('SELECT id FROM wisp_vouchers WHERE LOWER(username)=LOWER(?) AND id<>? UNION ALL SELECT id FROM wisp_subscribers WHERE LOWER(username)=LOWER(?)', (new_username,card_id,new_username)):
                 raise ValueError('اسم المستخدم مستخدم لحساب آخر.')
@@ -577,7 +577,7 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
     Activates a voucher card upon first login or manual activation.
     1. Locks the row with SELECT ... FOR UPDATE within an atomic transaction.
     2. Checks idempotency: if status != 'unused', returns False.
-    3. Preserves the issued voucher policy, falling back to its package only for missing snapshots.
+    3. Freezes current package quota, speed and commercial policy at first accepted use.
     4. Calculates exact expiration date from validity_value and validity_unit natively in SQL.
     5. Updates status = 'active', first_used_at, and expires_at.
     6. Writes snapshotted rate-limit and VSAs to radreply.
@@ -619,6 +619,13 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
 
             if card['status'] != 'unused':
                 return False
+
+            if is_mysql_conn(conn):
+                cursor.execute('SELECT fn_freeze_voucher_policy(%s) AS result', (card['username'],))
+                if cursor.fetchone()['result'] not in (2, 3):
+                    raise ValueError('Voucher policy unavailable')
+                cursor.execute('SELECT * FROM wisp_vouchers WHERE id=%s', (card['id'],))
+                card.update(dict(cursor.fetchone()))
 
             def policy(field, default=None):
                 saved = card.get('snap_' + field)
@@ -748,12 +755,12 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
             if not existing_sale:
                 ins_sale = adapt_query('''
                     INSERT INTO wisp_voucher_sales (
-                        voucher_id, batch_id, batch_name, username, serial_number,
+                        first_activation_voucher_id, voucher_id, batch_id, batch_name, username, serial_number,
                         package_name, price, cost, reseller_id, activated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ''', conn)
                 cursor.execute(ins_sale, (
-                    card['id'], card['batch_id'], card['batch_name'], card['username'],
+                    card['id'], card['id'], card['batch_id'], card['batch_name'], card['username'],
                     card['serial_number'], card['package_name'], pkg_price,
                     pkg_cost, card['reseller_id']
                 ))

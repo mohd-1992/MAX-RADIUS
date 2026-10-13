@@ -910,6 +910,18 @@
       ]
     },
     {
+      "file": "database/first_use_policy.py",
+      "sha256": "d4f439d738747d0c7f3682a94ee69bb9e2f9d9b2ddb884e210fbb6754e7ff105",
+      "imports": [],
+      "definitions": [
+        {
+          "name": "install_first_use_policy",
+          "line": 39,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "database/license_capacity.py",
       "sha256": "ae1cce95eb22df4847cdc815182ee59b010b84519f3f47a784f3aff23e4f795b",
       "imports": [
@@ -993,9 +1005,10 @@
     },
     {
       "file": "database/schema_healer.py",
-      "sha256": "20e27162e256f59c723159782867e620211ac56e0837e4f7fd713d237bf417d1",
+      "sha256": "25bade50670ecdfb78cfe952611d8f198c77df5c972c50cd5d1d3138aef6a4aa",
       "imports": [
         "database.db",
+        "database.first_use_policy",
         "database.license_capacity",
         "database.loyalty_schema",
         "database.maintenance_jobs",
@@ -1004,12 +1017,12 @@
       "definitions": [
         {
           "name": "install_accounting_triggers",
-          "line": 374,
+          "line": 380,
           "kind": "FunctionDef"
         },
         {
           "name": "heal_database_schema",
-          "line": 405,
+          "line": 413,
           "kind": "FunctionDef"
         }
       ]
@@ -1946,7 +1959,7 @@
     },
     {
       "file": "services/database_migration_service.py",
-      "sha256": "57557e4c1819913b8e01a2baeda3b3f48c0597196fc3719582f53a524ab24c42",
+      "sha256": "530fad60ca098be28a9eb1766066432b3641e5d285d8300a87daeda008632f8e",
       "imports": [
         "database.db",
         "database.schema_healer",
@@ -1956,77 +1969,77 @@
       "definitions": [
         {
           "name": "get_migration_progress",
-          "line": 36,
+          "line": 37,
           "kind": "FunctionDef"
         },
         {
           "name": "update_migration_progress",
-          "line": 41,
+          "line": 42,
           "kind": "FunctionDef"
         },
         {
           "name": "cancel_migration",
-          "line": 61,
+          "line": 62,
           "kind": "FunctionDef"
         },
         {
           "name": "_open_backup_stream",
-          "line": 72,
+          "line": 73,
           "kind": "FunctionDef"
         },
         {
           "name": "_clean_sql_val",
-          "line": 95,
+          "line": 96,
           "kind": "FunctionDef"
         },
         {
           "name": "_parse_sql_tuple",
-          "line": 106,
+          "line": 107,
           "kind": "FunctionDef"
         },
         {
           "name": "_exec_sql",
-          "line": 142,
+          "line": 143,
           "kind": "FunctionDef"
         },
         {
           "name": "rollback_cancelled_import",
-          "line": 149,
+          "line": 150,
           "kind": "FunctionDef"
         },
         {
           "name": "analyze_backup_file",
-          "line": 211,
+          "line": 212,
           "kind": "FunctionDef"
         },
         {
           "name": "imported_extra_quota_mb",
-          "line": 459,
+          "line": 460,
           "kind": "FunctionDef"
         },
         {
           "name": "apply_import_quota_allowances",
-          "line": 470,
+          "line": 471,
           "kind": "FunctionDef"
         },
         {
           "name": "verify_migration_license",
-          "line": 486,
+          "line": 487,
           "kind": "FunctionDef"
         },
         {
           "name": "execute_database_migration",
-          "line": 498,
+          "line": 499,
           "kind": "FunctionDef"
         },
         {
           "name": "_flush_radacct",
-          "line": 905,
+          "line": 906,
           "kind": "FunctionDef"
         },
         {
           "name": "start_async_migration",
-          "line": 1593,
+          "line": 1594,
           "kind": "FunctionDef"
         }
       ]
@@ -2287,7 +2300,7 @@
     },
     {
       "file": "services/import_service.py",
-      "sha256": "b7f525cd89a783bb4d4e6c55c2e6562fa6e929d3c2bc54056476235e01e1fa29",
+      "sha256": "cf0f43067d935bdf987edf9a0f96160ecf274227d7f5c4647dc93067bd4a972f",
       "imports": [
         "core.rate_limit",
         "database.db",
@@ -2341,9 +2354,10 @@
     },
     {
       "file": "services/import_state_service.py",
-      "sha256": "0333f7ef870a1985f4670591df0eaa86e6dc0cdd82ebf167c37c30f9786bc42e",
+      "sha256": "725cf1e7e0ea2472228856215a6d98646cfd337ac6ab3131c8eb835f6f2b1105",
       "imports": [
         "core.radius_sync",
+        "core.rate_limit",
         "database.db"
       ],
       "definitions": [
@@ -2373,23 +2387,28 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "imported_profile_plan",
+          "name": "imported_policy_rate",
           "line": 89,
           "kind": "FunctionDef"
         },
         {
+          "name": "imported_profile_plan",
+          "line": 100,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "historical_accounting_values",
-          "line": 101,
+          "line": 112,
           "kind": "FunctionDef"
         },
         {
           "name": "imported_radius_checks",
-          "line": 111,
+          "line": 122,
           "kind": "FunctionDef"
         },
         {
           "name": "ensure_import_package_radius",
-          "line": 120,
+          "line": 131,
           "kind": "FunctionDef"
         }
       ]
@@ -2659,63 +2678,64 @@
     },
     {
       "file": "services/loyalty_rewards_service.py",
-      "sha256": "b1d22da67f7a8e06af675aa0c29d3989892ce2dc2320f439c64ffd14369f4edc",
+      "sha256": "8ff0af2fdf6e249b9d73ea40b7da96174bfb0b6ad807ec4d42554b24166d6b3d",
       "imports": [
         "core.time_service",
         "database.db",
         "database.loyalty_schema",
+        "decimal",
         "services.quick_action_service",
         "services.renewal_settlement_service"
       ],
       "definitions": [
         {
           "name": "ensure_loyalty_tables",
-          "line": 20,
+          "line": 22,
           "kind": "FunctionDef"
         },
         {
           "name": "calculate_tier",
-          "line": 49,
+          "line": 51,
           "kind": "FunctionDef"
         },
         {
           "name": "get_loyalty_overview",
-          "line": 60,
+          "line": 62,
           "kind": "FunctionDef"
         },
         {
           "name": "get_reward_by_id",
-          "line": 105,
+          "line": 107,
           "kind": "FunctionDef"
         },
         {
           "name": "create_reward",
-          "line": 116,
+          "line": 118,
           "kind": "FunctionDef"
         },
         {
           "name": "update_reward",
-          "line": 139,
+          "line": 141,
           "kind": "FunctionDef"
         },
         {
           "name": "delete_reward",
-          "line": 163,
+          "line": 165,
           "kind": "FunctionDef"
         },
         {
           "name": "toggle_reward_status",
-          "line": 178,
+          "line": 180,
           "kind": "FunctionDef"
         },
         {
           "name": "award_loyalty_points",
-          "line": 194,
+          "line": 196,
           "kind": "FunctionDef"
         },
         {
           "name": "redeem_reward",
-          "line": 242,
+          "line": 263,
           "kind": "FunctionDef"
         }
       ]
@@ -2937,7 +2957,7 @@
     },
     {
       "file": "services/mikrotik_userman_importer.py",
-      "sha256": "e1463d832bf31771fd257e7e37d3627e0f1ba541026a71963153d937a01fe120",
+      "sha256": "5cb4fc77f176ce24558a5d89ffdb1c19c8da3837b8cf87f4d6549edbf4a17463",
       "imports": [
         "core.mikrotik_api",
         "database.db",
@@ -2947,97 +2967,97 @@
       "definitions": [
         {
           "name": "parse_mikrotik_rate_limit",
-          "line": 21,
+          "line": 22,
           "kind": "FunctionDef"
         },
         {
           "name": "to_kbps",
-          "line": 28,
+          "line": 29,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_mikrotik_validity",
-          "line": 56,
+          "line": 57,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_shared_users",
-          "line": 81,
+          "line": 82,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_mikrotik_bytes_to_mb",
-          "line": 93,
+          "line": 94,
           "kind": "FunctionDef"
         },
         {
           "name": "extract_quota_from_name",
-          "line": 122,
+          "line": 123,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_mikrotik_uptime_to_mins",
-          "line": 148,
+          "line": 149,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_rsc_content",
-          "line": 184,
+          "line": 185,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_attributes",
-          "line": 215,
+          "line": 216,
           "kind": "FunctionDef"
         },
         {
           "name": "_clean_limit",
-          "line": 281,
+          "line": 282,
           "kind": "FunctionDef"
         },
         {
           "name": "BufferedRouterOSApiProtocol",
-          "line": 379,
+          "line": 380,
           "kind": "ClassDef"
         },
         {
           "name": "connect",
-          "line": 385,
+          "line": 386,
           "kind": "FunctionDef"
         },
         {
           "name": "_read_raw",
-          "line": 390,
+          "line": 391,
           "kind": "FunctionDef"
         },
         {
           "name": "_read_len",
-          "line": 413,
+          "line": 414,
           "kind": "FunctionDef"
         },
         {
           "name": "read_sentence",
-          "line": 433,
+          "line": 434,
           "kind": "FunctionDef"
         },
         {
           "name": "fetch_userman_via_api",
-          "line": 443,
+          "line": 444,
           "kind": "FunctionDef"
         },
         {
           "name": "read_rows",
-          "line": 464,
+          "line": 465,
           "kind": "FunctionDef"
         },
         {
           "name": "_clean_limit",
-          "line": 516,
+          "line": 517,
           "kind": "FunctionDef"
         },
         {
           "name": "execute_userman_import",
-          "line": 621,
+          "line": 622,
           "kind": "FunctionDef"
         }
       ]
@@ -3314,7 +3334,7 @@
     },
     {
       "file": "services/quick_action_service.py",
-      "sha256": "6d5c478d3caba1b8cba4e19c66e28480d4ec00c8ec2a564dc23f2c370d7556c3",
+      "sha256": "bfe9a690262ec56479b401f1231c3570dd10e113b5345b87267612b19d6ba974",
       "imports": [
         "core.coa",
         "core.ownership",
@@ -3830,7 +3850,7 @@
     },
     {
       "file": "services/subscriber_service.py",
-      "sha256": "cb2d7c44bcb3975d89cd3e4ebfb7501ff89a95cfc47f21e636948a7343160ce2",
+      "sha256": "a6be172dd5bf66b0518e8a2f3fd834ced086930cf0465820f31aee924b494ce2",
       "imports": [
         "core.coa",
         "core.ownership",
@@ -3877,32 +3897,32 @@
         },
         {
           "name": "update_subscriber",
-          "line": 466,
+          "line": 467,
           "kind": "FunctionDef"
         },
         {
           "name": "delete_subscriber",
-          "line": 542,
+          "line": 543,
           "kind": "FunctionDef"
         },
         {
           "name": "get_subscriber_sessions",
-          "line": 551,
+          "line": 552,
           "kind": "FunctionDef"
         },
         {
           "name": "disconnect_subscriber_session",
-          "line": 578,
+          "line": 579,
           "kind": "FunctionDef"
         },
         {
           "name": "dispatch_async_disconnect",
-          "line": 592,
+          "line": 593,
           "kind": "FunctionDef"
         },
         {
           "name": "clean_stale_sessions",
-          "line": 601,
+          "line": 602,
           "kind": "FunctionDef"
         }
       ]
@@ -4026,7 +4046,7 @@
     },
     {
       "file": "services/user_portal_service.py",
-      "sha256": "66d63b7315ae57540a2edc5e0ea9ae111e832308377018a7c470f1f21d988dea",
+      "sha256": "ed17731f904556750750de671f8e98007d7099fd70d912cd1e7c86de921b7228",
       "imports": [
         "core.coa",
         "core.config",
@@ -4088,42 +4108,42 @@
         },
         {
           "name": "request_data_loan",
-          "line": 1053,
+          "line": 1063,
           "kind": "FunctionDef"
         },
         {
           "name": "apply_portal_speed",
-          "line": 1216,
+          "line": 1226,
           "kind": "FunctionDef"
         },
         {
           "name": "_lock_portal_account",
-          "line": 1254,
+          "line": 1264,
           "kind": "FunctionDef"
         },
         {
           "name": "renew_or_change_package",
-          "line": 1268,
+          "line": 1278,
           "kind": "FunctionDef"
         },
         {
           "name": "get_user_sessions_history",
-          "line": 1485,
+          "line": 1495,
           "kind": "FunctionDef"
         },
         {
           "name": "ensure_initial_package",
-          "line": 1491,
+          "line": 1501,
           "kind": "FunctionDef"
         },
         {
           "name": "register_portal_subscriber",
-          "line": 1546,
+          "line": 1556,
           "kind": "FunctionDef"
         },
         {
           "name": "change_portal_password",
-          "line": 1637,
+          "line": 1647,
           "kind": "FunctionDef"
         }
       ]
@@ -4249,7 +4269,7 @@
     },
     {
       "file": "services/voucher_service.py",
-      "sha256": "34f8afd2f1562b5035dc4f0503ddaccac8f8b30dd917fbaeda47431745443290",
+      "sha256": "300a4f3eefd65ea5a170d8825bfa7dbdb2e97d6a959a8bfa6079844013836972",
       "imports": [
         "contextlib",
         "core.ownership",
@@ -4361,17 +4381,17 @@
         },
         {
           "name": "policy",
-          "line": 623,
+          "line": 630,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_voucher_sales",
-          "line": 782,
+          "line": 789,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_voucher_activations",
-          "line": 815,
+          "line": 822,
           "kind": "FunctionDef"
         }
       ]

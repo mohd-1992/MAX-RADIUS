@@ -16,7 +16,7 @@ import datetime
 from database.db import get_connection, is_mysql_conn, query_all, query_one, execute_write, log_audit
 from core.rate_limit import format_bytes
 from services.import_state_service import (present_value, import_now, imported_state,
-                                           historical_accounting_values, imported_radius_checks, ensure_import_package_radius)
+                                           historical_accounting_values, imported_radius_checks, ensure_import_package_radius, imported_policy_rate)
 
 try:
     import openpyxl
@@ -553,7 +553,7 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
                     c['username'], c['password'], c['pin_code'], status, c.get('mac_binding', ''),
                     state['first_used_at'], state['expires_at'], state['last_renewed_at'],
                     snap_p, snap_c, snap_q, snap_u, snap_val, snap_unit, snap_days,
-                    snap_rd, snap_ru, f"{snap_rd}/{snap_ru}", snap_simul, snap_group
+                    snap_rd, snap_ru, imported_policy_rate(pkg), snap_simul, snap_group
                 ))
                 if state['history']:
                     radacct_bulk.append(historical_accounting_values(

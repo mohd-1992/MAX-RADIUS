@@ -10,6 +10,8 @@ and awards data, validity, credit balance, and custom bonuses with atomic concur
 import datetime
 from core.time_service import get_db_storage_now
 import logging
+import time
+from decimal import Decimal, InvalidOperation
 from database.db import get_connection, is_mysql_conn
 from database.loyalty_schema import ensure_loyalty_schema
 
@@ -195,47 +197,66 @@ def award_loyalty_points(username, points, reason='Recharge Bonus'):
     """Award or adjust points for a subscriber wallet."""
     ensure_loyalty_tables()
     username = (username or '').strip()
+    try:
+        amount = Decimal(str(points))
+        if not amount.is_finite() or amount != amount.to_integral_value() or abs(amount) > 2147483647:
+            raise ValueError('invalid points')
+        points = int(amount)
+    except (InvalidOperation, ValueError, TypeError):
+        return False, "عدد النقاط يجب أن يكون عددًا صحيحًا صالحًا."
     if not username or points == 0:
         return False, "اسم المشترك وعدد النقاط مطلوبة."
 
-    db = _get_db()
-    try:
-        with db.cursor() as cur:
-            cur.execute("SELECT points_balance, total_points_earned FROM wisp_loyalty_wallets WHERE LOWER(username) = LOWER(%s)", (username,))
-            row = cur.fetchone()
-            if not row:
-                if points < 0:
+    for attempt in range(3):
+        db = _get_db()
+        try:
+            with db.cursor() as cur:
+                # Upsert a zero wallet first: concurrent first grants lock the same
+                # unique username instead of racing two independent INSERTs.
+                if points > 0:
+                    cur.execute("""INSERT INTO wisp_loyalty_wallets
+                        (username, points_balance, total_points_earned, tier_level)
+                        VALUES (%s, 0, 0, 'bronze')
+                        ON DUPLICATE KEY UPDATE username=username""", (username,))
+                cur.execute("SELECT points_balance, total_points_earned FROM wisp_loyalty_wallets WHERE username = %s FOR UPDATE", (username,))
+                row = cur.fetchone()
+                if not row:
+                    db.rollback()
                     return False, "لا يمكن خصم نقاط من مشترك ليس لديه محفظة ولاء بعد."
-                new_bal = points
-                total_earned = points
+                new_bal = int(row['points_balance'] or 0) + points
+                total_earned = int(row['total_points_earned'] or 0) + max(0, points)
+                if new_bal < 0:
+                    db.rollback()
+                    return False, "رصيد النقاط غير كافٍ للخصم؛ لم يتغير الرصيد."
+                if max(new_bal, total_earned) > 2147483647:
+                    db.rollback()
+                    return False, "عدد النقاط يتجاوز الحد المسموح؛ لم يتغير الرصيد."
                 tier = calculate_tier(total_earned)
                 cur.execute("""
-                    INSERT INTO wisp_loyalty_wallets (username, points_balance, total_points_earned, tier_level)
-                    VALUES (%s, %s, %s, %s)
-                """, (username, new_bal, total_earned, tier))
-            else:
-                new_bal = max(0, row['points_balance'] + points)
-                total_earned = row['total_points_earned'] + (points if points > 0 else 0)
-                tier = calculate_tier(total_earned)
-                cur.execute("""
-                    UPDATE wisp_loyalty_wallets 
-                    SET points_balance = %s, total_points_earned = %s, tier_level = %s
-                    WHERE LOWER(username) = LOWER(%s)
-                """, (new_bal, total_earned, tier, username))
+                        UPDATE wisp_loyalty_wallets
+                        SET points_balance = %s, total_points_earned = %s, tier_level = %s
+                        WHERE username = %s
+                    """, (new_bal, total_earned, tier, username))
 
-            trx_type = 'earn' if points > 0 else 'admin_adjustment'
-            cur.execute("""
-                INSERT INTO wisp_loyalty_transactions (username, transaction_type, points, balance_after, notes)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (username, trx_type, points, new_bal, reason))
-            db.commit()
-            action_text = f"منح {points} نقطة" if points > 0 else f"خصم {abs(points)} نقطة"
-            return True, f"تم {action_text} للمشترك {username} بنجاح! الرصيد الحالي: {new_bal} نقطة."
-    except Exception as e:
-        logger.error("Error awarding points: %s", e)
-        return False, str(e)
-    finally:
-        db.close()
+                trx_type = 'earn' if points > 0 else 'admin_adjustment'
+                cur.execute("""
+                    INSERT INTO wisp_loyalty_transactions (username, transaction_type, points, balance_after, notes)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (username, trx_type, points, new_bal, reason))
+                db.commit()
+                action_text = f"منح {points} نقطة" if points > 0 else f"خصم {abs(points)} نقطة"
+                return True, f"تم {action_text} للمشترك {username} بنجاح! الرصيد الحالي: {new_bal} نقطة."
+        except Exception as e:
+            db.rollback()
+            # Only retry a server-confirmed deadlock after the whole transaction
+            # rolled back. Never retry a network/commit uncertainty.
+            if getattr(e, "args", ()) and e.args[0] == 1213 and attempt < 2:
+                time.sleep(.02 * (attempt + 1))
+                continue
+            logger.error("Error awarding points: %s", e)
+            return False, str(e)
+        finally:
+            db.close()
 
 
 @settle_cycle_operation
@@ -294,15 +315,15 @@ def redeem_reward(username, reward_id):
 
             # 3. ATOMIC point deduction: prevents race conditions & negative balances
             cur.execute(f"""
-                UPDATE wisp_loyalty_wallets 
+                UPDATE wisp_loyalty_wallets
                 SET points_balance = points_balance - {ph}, 
                     total_points_redeemed = total_points_redeemed + {ph} 
-                WHERE LOWER(username) = LOWER({ph}) AND points_balance >= {ph}
+                WHERE username = {ph} AND points_balance >= {ph}
             """, (cost, cost, username, cost))
 
             if cur.rowcount == 0:
                 # Deduction failed: balance was insufficient
-                cur.execute(f"SELECT points_balance FROM wisp_loyalty_wallets WHERE LOWER(username) = LOWER({ph})", (username,))
+                cur.execute(f"SELECT points_balance FROM wisp_loyalty_wallets WHERE username = {ph}", (username,))
                 current_w = cur.fetchone()
                 if current_w and not isinstance(current_w, dict):
                     current_w = dict(current_w)
@@ -310,7 +331,7 @@ def redeem_reward(username, reward_id):
                 return False, f"رصيد نقاطك الحالي ({current_bal} نقطة) غير كافٍ لاستبدال هذه المكافأة ({cost} نقطة)."
 
             # 4. Fetch the new balance
-            cur.execute(f"SELECT points_balance FROM wisp_loyalty_wallets WHERE LOWER(username) = LOWER({ph})", (username,))
+            cur.execute(f"SELECT points_balance FROM wisp_loyalty_wallets WHERE username = {ph}", (username,))
             new_bal_row = cur.fetchone()
             if new_bal_row and not isinstance(new_bal_row, dict):
                 new_bal_row = dict(new_bal_row)

@@ -1,7 +1,7 @@
 import ast, re, sqlite3, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
-FILES=['services/subscriber_service.py','web/routes/vouchers.py','services/quick_action_service.py','services/whatsapp_service.py']
+FILES=['services/subscriber_service.py','services/quick_action_service.py','services/whatsapp_service.py']
 class Tests(unittest.TestCase):
  def test_real_import_counters_match_sql_displays(self):
   db=sqlite3.connect(':memory:')
@@ -18,6 +18,10 @@ class Tests(unittest.TestCase):
       value=db.execute('SELECT '+expression+' FROM radacct').fetchone()[0]
       self.assertEqual(value,(up or 0) if 'input' in expression else (down or 0))
   db.close()
+ def test_voucher_page_uses_cycle_aware_accounting(self):
+  source=(ROOT/'web/routes/vouchers.py').read_text(encoding='utf8')
+  self.assertIn('traffic_map = get_voucher_accounting_totals_batch([c[\'id\'] for c in cards])', source)
+  self.assertNotIn('acctinputgigawords *', source)
  def test_session_history_uses_full_counters_once(self):
   tree=ast.parse((ROOT/'services/subscriber_service.py').read_text(encoding='utf8'))
   fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='get_subscriber_sessions')

@@ -86,6 +86,17 @@ def imported_state(row, plan, now, preserve_history):
                 upload_bytes=up_bytes, download_bytes=down_bytes, uptime_seconds=seconds)
 
 
+def imported_policy_rate(plan):
+    """Encode known imported policy in NAS upload/download order, including burst."""
+    from core.rate_limit import build_mikrotik_rate_limit
+    return build_mikrotik_rate_limit(
+        download=plan.get('rate_download') or '0', upload=plan.get('rate_upload') or '0',
+        burst_down=plan.get('burst_download'), burst_up=plan.get('burst_upload'),
+        threshold_down=plan.get('burst_threshold_down'), threshold_up=plan.get('burst_threshold_up'),
+        burst_time=plan.get('burst_time') or 16, priority=plan.get('priority') or 8,
+        min_down=plan.get('min_download'), min_up=plan.get('min_upload')) or '0/0'
+
+
 def imported_profile_plan(existing_plan, source_profile):
     """Source limits belong to imported account snapshots, not existing customers."""
     plan = dict(existing_plan)

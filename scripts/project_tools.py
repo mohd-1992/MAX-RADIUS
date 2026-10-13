@@ -72,17 +72,23 @@ def doctor():
 
 def check_docs():
     broken = []
+    encoding_errors = []
     paths = [ROOT/'README.md', ROOT/'AGENTS.md'] + list((ROOT/'docs').rglob('*.md')) + list((ROOT/'.agents').rglob('SKILL.md'))
     paths += list((ROOT/'tests/scenarios').glob('*.md'))
     for p in paths:
-        for ref in re.findall(r'\[[^\]]*\]\(([^)]+)\)', p.read_text(encoding='utf-8')):
+        try:
+            content = p.read_text(encoding='utf-8')
+        except UnicodeDecodeError as exc:
+            encoding_errors.append({'file':p.relative_to(ROOT).as_posix(), 'byte':exc.start})
+            continue
+        for ref in re.findall(r'\[[^\]]*\]\(([^)]+)\)', content):
             ref = ref.strip().strip('<>').split('#')[0]
             if not ref or re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*:', ref):
                 continue
             if not (p.parent/unquote(ref)).exists():
                 broken.append({'file':p.relative_to(ROOT).as_posix(), 'target':ref})
-    emit({'checked_documents':len(paths), 'broken_links':broken})
-    return bool(broken)
+    emit({'checked_documents':len(paths), 'broken_links':broken, 'encoding_errors':encoding_errors})
+    return bool(broken or encoding_errors)
 
 def run_smoke(output):
     results = []

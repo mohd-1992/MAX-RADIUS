@@ -15,6 +15,7 @@ import datetime
 import threading
 import time
 from database.db import get_connection, is_mysql_conn, adapt_query, query_all, query_one, execute_write, log_audit
+from services.import_state_service import imported_policy_rate
 
 SYSTEM_TYPE_SAS4 = "SAS4 (Smart Authentication System)"
 SYSTEM_TYPE_GENERIC_MYSQL = "Generic MySQL Radius Backup"
@@ -1222,7 +1223,7 @@ def execute_database_migration(file_input, options=None):
                             c_status, c_reason, c_first_used, c_exp_str, c_last_renewed, c_created,
                             matched_pkg.get('price', 0), matched_pkg.get('cost', 0), matched_pkg.get('volume_quota_mb', 0), matched_pkg.get('uptime_limit_mins', 0),
                             matched_pkg.get('validity_value', 30), matched_pkg.get('validity_unit', 'days'), matched_pkg.get('validity_days', 30),
-                            matched_pkg.get('rate_download', '0'), matched_pkg.get('rate_upload', '0'), f"{matched_pkg.get('rate_upload', '0')}/{matched_pkg.get('rate_download', '0')}",
+                            matched_pkg.get('rate_download', '0'), matched_pkg.get('rate_upload', '0'), imported_policy_rate(matched_pkg),
                             matched_pkg.get('simultaneous_sessions', 1), matched_pkg.get('mikrotik_group', 'ALL-SPEED')
                         ))
 

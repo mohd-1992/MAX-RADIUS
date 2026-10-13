@@ -730,7 +730,7 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                        COALESCE(v.snap_uptime_limit_mins, p.uptime_limit_mins, 0) as uptime_limit_mins,
                        COALESCE(v.snap_rate_download, p.rate_download, '0') as policy_rate_download,
                        COALESCE(v.snap_rate_upload, p.rate_upload, '0') as policy_rate_upload,
-                       COALESCE(v.snap_rate_limit_str, CONCAT(p.rate_download, '/', p.rate_upload), '0/0') as policy_rate_limit_str,
+                       COALESCE(v.snap_rate_limit_str, CONCAT(p.rate_upload, '/', p.rate_download), '0/0') as policy_rate_limit_str,
                        COALESCE(v.snap_simultaneous_sessions, p.simultaneous_sessions, 1) as policy_simultaneous_sessions,
                        COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb, 0) as volume_quota_mb, 
                        COALESCE(v.snap_validity_value, p.validity_value) as validity_value, 
@@ -754,6 +754,8 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 card = dict(card)
             if card['status'] != 'unused':
                 return False, "هذا الكرت مستخدم مسبقاً أو منتهي الصلاحية ولا يمكن استخدامه."
+            if card.get('policy_frozen_at') is not None:
+                return False, 'تم قبول دخول هذا الكرت بالفعل؛ لا يمكن استهلاكه للشحن أثناء انتظار التفعيل.'
 
             card_value = float(card['card_price'] or 0.0)
 
@@ -779,6 +781,14 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                 return False, 'لا يمكن استخدام الكرت لشحن الحساب نفسه'
             if recharge_type == 'package' and str(sub.get('status') or '').lower() in ('disabled', 'suspended', 'recharged'):
                 return False, 'لا يمكن شحن باقة لحساب معطل أو موقوف أو كرت مستهلك للشحن.'
+            if is_mysql_conn(conn):
+                # The snapshot and recharge remain in the same billing transaction.
+                cursor.execute('SELECT fn_freeze_voucher_policy(%s) AS result', (card['username'],))
+                if cursor.fetchone()['result'] not in (2, 3):
+                    raise ValueError('Voucher recharge policy unavailable')
+                cursor.execute(sql_card, (card_code, card_code, card_code))
+                card = dict(cursor.fetchone())
+                card_value = float(card['card_price'] or 0.0)
             username = sub['username']
             loan_mb = int(sub.get('loan_balance_mb') or 0)
             loan_status = int(sub.get('loan_status') or 0)
@@ -943,9 +953,9 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                     INSERT INTO wisp_voucher_sales (
                         voucher_id, batch_id, batch_name, username, serial_number,
                         package_name, price, cost, reseller_id, activated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, NULL, CURRENT_TIMESTAMP)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, conn)
-                cursor.execute(sql_sales, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value))
+                cursor.execute(sql_sales, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value, card['policy_cost'], card['reseller_id']))
 
             else:
                 # Balance recharge
@@ -980,9 +990,9 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                     INSERT INTO wisp_voucher_sales (
                         voucher_id, batch_id, batch_name, username, serial_number,
                         package_name, price, cost, reseller_id, activated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, NULL, CURRENT_TIMESTAMP)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, conn)
-                cursor.execute(sql_sales, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value))
+                cursor.execute(sql_sales, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value, card['policy_cost'], card['reseller_id']))
 
             if recharge_type == 'package':
                 _sync_recharge_radius(cursor, conn, username, sub, card, target_type, new_fr_exp)
@@ -1397,7 +1407,7 @@ def renew_or_change_package(username, new_pkg_id):
         upd_sql = adapt_query("""
             UPDATE wisp_subscribers SET
                 balance = balance - ?,
-                snap_volume_quota_mb = NULL,
+                snap_volume_quota_mb = ?,
                 package_id = ?,
                 status = 'active',
                 last_renewed_at = ?,
@@ -1408,7 +1418,7 @@ def renew_or_change_package(username, new_pkg_id):
             WHERE id = ? AND balance >= ?
         """, conn)
         if account_type == 'subscriber':
-            cursor.execute(upd_sql, (pkg_price, pkg['id'], db_now_str, new_extra_mb, new_expiry, new_loan_balance_mb, new_loan_status, sub['id'], pkg_price))
+            cursor.execute(upd_sql, (pkg_price, new_base_quota_mb, pkg['id'], db_now_str, new_extra_mb, new_expiry, new_loan_balance_mb, new_loan_status, sub['id'], pkg_price))
         else:
             from core.rate_limit import build_mikrotik_rate_limit
             rate = pkg.get('rate_limit_str') or build_mikrotik_rate_limit(pkg.get('rate_download'), pkg.get('rate_upload')) or '0/0'

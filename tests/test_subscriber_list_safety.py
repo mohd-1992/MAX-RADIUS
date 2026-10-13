@@ -6,7 +6,8 @@ import subprocess
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
-from flask import render_template, session
+from flask import render_template, session, request
+from types import SimpleNamespace
 from test_subscriber_admin_safety import fixture
 from test_package_page import ROOT, load_functions
 
@@ -93,6 +94,7 @@ class ListSafetyTests(unittest.TestCase):
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_invoices').fetchone()[0],1)
     def render(self,name,**context):
         with self.app.test_request_context('/subscribers'):
+            request.url_rule=SimpleNamespace(endpoint='subscribers')
             session['permissions']=['subscribers.view','subscribers.edit','subscribers.disconnect','subscribers.renew','subscribers.delete','wallets.manage']
             return render_template(name,**context)
     def test_quoted_account_and_package_values_survive_inline_actions(self):
