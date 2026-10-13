@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}إعدادات كروت الموزعين{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-5"><h1 class="text-xl text-white font-bold"><i class="fa-solid fa-sliders text-blue-400 ml-2"></i>إعدادات إصدار كروت الموزعين</h1><p class="text-sm text-slate-400">إعداد عام للإصدار السريع وطباعة الحزم من حسابات الموزعين. لا يغير الكروت السابقة أو خيارات إصدار الحزم للإدارة.</p>
+<form method="post" id="issuePolicyForm" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4">
+ <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  <div><label for="issue_prefix" class="block text-sm text-slate-300 mb-2">البادئة</label><input id="issue_prefix" name="prefix" maxlength="12" pattern="[A-Za-z0-9]*" value="{{ policy.prefix }}" dir="ltr" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-white"></div>
+  <div><label for="issue_chars" class="block text-sm text-slate-300 mb-2">نوع الرموز</label><select id="issue_chars" name="char_type" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-white">{% for val,label in [('numbers','أرقام فقط'),('alphanumeric','أرقام وحروف إنجليزية')] %}<option value="{{ val }}" {% if policy.char_type==val %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div><label for="issue_length" class="block text-sm text-slate-300 mb-2">طول اسم المستخدم شامل البادئة</label><input id="issue_length" name="total_length" type="number" min="4" max="32" step="1" required value="{{ policy.total_length }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-white"><p class="text-xs text-slate-400 mt-1">أربعة رموز عشوائية على الأقل بعد البادئة.</p></div>
+  <div><label for="issue_format" class="block text-sm text-slate-300 mb-2">طريقة الدخول</label><select id="issue_format" name="format_type" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-white">{% for val,label in [('pin_only','اسم مستخدم فقط'),('same_user_pass','اسم وكلمة مرور متطابقان'),('user_pass','كلمة مرور مستقلة')] %}<option value="{{ val }}" {% if policy.format_type==val %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div id="issuePasswordField"><label for="issue_password_length" class="block text-sm text-slate-300 mb-2">طول كلمة المرور المستقلة</label><input id="issue_password_length" name="password_length" type="number" min="4" max="32" step="1" required value="{{ policy.password_length }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-white"></div>
+ </div>
+ <div class="bg-blue-500/10 rounded-xl p-4 text-sm text-slate-300">معاينة الشكل: <strong id="issuePreview" dir="ltr" class="font-mono text-blue-300"></strong><p class="text-xs mt-2">مثال توضيحي لا يصدر كرتًا. اختيار اسم مستخدم فقط لا يغيّر إعدادات صفحة دخول الهوتسبوت.</p></div>
+ <button class="rounded-xl px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold">حفظ الإعدادات</button>
+</form></div><script src="{{ url_for('static',filename='quick-cards.js') }}"></script>
+{% endblock %}

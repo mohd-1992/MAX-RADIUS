@@ -189,6 +189,9 @@ def create_app(config=None):
             pass
         return None
 
+    from web.access_policy import install_visibility_policy
+    install_visibility_policy(app)
+
     # 4. Context Processor
     @app.context_processor
     def inject_global_settings():
@@ -222,7 +225,7 @@ def create_app(config=None):
             default_coa_port = settings.get('default_coa_port', '3799')
             try:
                 nas_cnt_row = query_one('SELECT COUNT(*) as cnt FROM wisp_nas_devices')
-                nas_count = nas_cnt_row['cnt'] if nas_cnt_row else 0
+                nas_count = nas_cnt_row['cnt'] if nas_cnt_row and has_permission('nas.view') else None
             except Exception:
                 nas_count = 0
 
@@ -259,6 +262,9 @@ def create_app(config=None):
             except Exception:
                 lic_stat = {}
 
+            from core.ownership import owner_id
+            if owner_id() is not None or not has_permission('system.settings'):
+                lic_stat = {k: v for k, v in lic_stat.items() if k in ('plan_tier',)}
             return {
                 'settings': settings,
                 'network_name': network_name,
@@ -316,7 +322,7 @@ def create_app(config=None):
                 'app_name': APP_NAME,
                 'app_version': APP_VERSION,
                 'system_version': APP_VERSION_FULL,
-                'has_permission': lambda *args, **kwargs: True,
+                'has_permission': lambda *args, **kwargs: False,
                 'has_feature': lambda *args, **kwargs: True
             }
 
@@ -397,13 +403,13 @@ def create_app(config=None):
     from web.routes import (
         auth_bp, dashboard_bp, vouchers_bp, subscribers_bp,
         packages_bp, resellers_bp, nas_bp, accounting_bp,
-        system_bp, portal_bp, whatsapp_bp
+        system_bp, portal_bp, whatsapp_bp, quick_cards_bp
     )
 
     for bp in [
         auth_bp, dashboard_bp, vouchers_bp, subscribers_bp,
         packages_bp, resellers_bp, nas_bp, accounting_bp,
-        system_bp, portal_bp, whatsapp_bp
+        system_bp, portal_bp, whatsapp_bp, quick_cards_bp
     ]:
         app.register_blueprint(bp)
 

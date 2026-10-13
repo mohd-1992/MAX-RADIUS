@@ -21,9 +21,9 @@
             </div>
         </div>
         <div class="flex items-center gap-2.5">
-            <a href="{{ url_for('import_data_page') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+            {% if can_access_endpoint('import_data_page') %}<a href="{{ url_for('import_data_page') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
                 <i class="fa-solid fa-file-excel text-emerald-400"></i>استيراد Excel
-            </a>
+            </a>{% endif %}
             <a href="{{ url_for('system_services_page') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
                 <i class="fa-solid fa-arrow-right text-slate-400"></i>أدوات النظام
             </a>

@@ -17,6 +17,8 @@ from services.quota_service import get_subscriber_accounting_totals_batch, Accou
 from core.rate_limit import format_bytes, format_duration
 from core.time_service import get_system_now, get_configured_timezone_name, get_utc_cutoff_str
 
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one
+
 def get_heartbeat_cutoff_str(timeout_minutes=5):
     """Returns cutoff timestamp string based on UTC time for interim-update heartbeat check matching database radacct."""
     return get_utc_cutoff_str(timeout_minutes)

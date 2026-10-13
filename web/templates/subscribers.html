@@ -244,58 +244,58 @@
 
                 <!-- المجموعة 1: الحذف (الأول) -->
                 <div class="py-1">
-                    {% if has_permission('subscribers.delete') %}<button type="button" onclick="bulkAction('delete')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
+                    {% if has_permission('subscribers.delete') %}{% if can_access_account_action('delete', 'subscriber') %}<button type="button" onclick="bulkAction('delete')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
                         <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
                         <span>حذف المشتركين المحددين</span>
-                    </button>{% endif %}
+                    </button>{% endif %}{% endif %}
                 </div>
 
                 <!-- المجموعة 2: الصلاحية والباقات -->
                 <div class="py-1">
-                    {% if has_permission('subscribers.renew') %}<button type="button" onclick="bulkAction('extend')" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition">
+                    {% if has_permission('subscribers.renew') %}{% if can_access_account_action('extend-time', 'subscriber') %}<button type="button" onclick="bulkAction('extend')" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
                         <span>تمديد الصلاحية</span>
-                    </button>{% endif %}
-                    {% if has_permission('subscribers.edit') %}<button type="button" onclick="bulkAction('terminate')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                    </button>{% endif %}{% endif %}
+                    {% if has_permission('subscribers.edit') %}{% if can_access_account_action('terminate', 'subscriber') %}<button type="button" onclick="bulkAction('terminate')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
                         <span>إنهاء الاشتراك وتصفير الكوتا</span>
-                    </button>{% endif %}
-                    {% if has_permission('subscribers.renew') %}<button type="button" onclick="bulkAction('renew')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                    </button>{% endif %}{% endif %}
+                    {% if has_permission('subscribers.renew') %}{% if can_access_account_action('renew', 'subscriber') %}<button type="button" onclick="bulkAction('renew')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-arrows-rotate text-emerald-400 w-4 text-center"></i>
                         <span>تجديد الباقة الحالية</span>
-                    </button>{% endif %}
-                    {% if has_permission('subscribers.edit') %}<button type="button" onclick="bulkAction('change-pkg')" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
+                    </button>{% endif %}{% endif %}
+                    {% if has_permission('subscribers.edit') %}{% if can_access_account_action('change-package', 'subscriber') %}<button type="button" onclick="bulkAction('change-pkg')" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-layer-group text-indigo-400 w-4 text-center"></i>
                         <span>تغيير باقة المحدد</span>
-                    </button>{% endif %}
+                    </button>{% endif %}{% endif %}
                 </div>
 
                 <!-- المجموعة 3: الكوتا -->
                 <div class="py-1">
-                    {% if has_permission('subscribers.edit') %}<button type="button" onclick="bulkAction('add-quota')" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
+                    {% if has_permission('subscribers.edit') %}{% if can_access_account_action('add-quota', 'subscriber') %}<button type="button" onclick="bulkAction('add-quota')" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-database text-sky-400 w-4 text-center"></i>
                         <span>إضافة رصيد كوتا (Data Quota)</span>
-                    </button>{% endif %}
+                    </button>{% endif %}{% endif %}
                 </div>
 
                 <!-- المجموعة 4: الرصيد والمحفظة -->
                 <div class="py-1">
-                    {% if has_permission('wallets.manage') %}<button type="button" onclick="bulkAction('add-wallet')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                    {% if has_permission('wallets.manage') %}{% if can_access_account_action('add-wallet', 'subscriber') %}<button type="button" onclick="bulkAction('add-wallet')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-wallet text-emerald-400 w-4 text-center"></i>
                         <span>إيداع رصيد مالي بالمحفظة</span>
-                    </button>{% endif %}
-                    {% if has_permission('wallets.manage') %}<button type="button" onclick="bulkAction('deduct-wallet')" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
+                    </button>{% endif %}{% endif %}
+                    {% if has_permission('wallets.manage') %}{% if can_access_account_action('deduct-wallet', 'subscriber') %}<button type="button" onclick="bulkAction('deduct-wallet')" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-money-bill-transfer text-amber-400 w-4 text-center"></i>
                         <span>سحب / تصحيح رصيد مالي</span>
-                    </button>{% endif %}
+                    </button>{% endif %}{% endif %}
                 </div>
 
                 <!-- المجموعة 5: الجلسات والإنهاء -->
                 <div class="py-1">
-                    {% if has_permission('subscribers.disconnect') %}<button type="button" onclick="bulkAction('disconnect')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                    {% if has_permission('subscribers.disconnect') %}{% if can_access_account_action('disconnect', 'subscriber') %}<button type="button" onclick="bulkAction('disconnect')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-power-off text-rose-400 w-4 text-center"></i>
                         <span>قطع الاتصال الفوري (Kick CoA)</span>
-                    </button>{% endif %}
+                    </button>{% endif %}{% endif %}
                 </div>
             </div>
         </div>
@@ -323,7 +323,7 @@
                         <!-- الأعمدة الإضافية الافتراضية مخفية -->
                         <th class="py-3.5 px-4 col-expires hidden whitespace-nowrap min-w-[140px]">تاريخ الانتهاء</th>
                         <th class="py-3.5 px-4 col-ip hidden whitespace-nowrap min-w-[125px]">عنوان IP</th>
-                        <th class="py-3.5 px-4 col-balance hidden whitespace-nowrap min-w-[110px]">الرصيد المالي</th>
+                        {% if has_permission('invoices.view') or has_permission('wallets.manage') %}<th class="py-3.5 px-4 col-balance hidden whitespace-nowrap min-w-[110px]">الرصيد المالي</th>{% endif %}
                         <th class="py-3.5 px-4 col-email hidden whitespace-nowrap min-w-[140px]">البريد الإلكتروني</th>
                         <th class="py-3.5 px-4 col-phone hidden whitespace-nowrap min-w-[125px]">رقم الجوال</th>
                         <th class="py-3.5 px-4 col-createdby hidden whitespace-nowrap min-w-[120px]">أنشئ بواسطة</th>
@@ -356,17 +356,17 @@
                                 </div>
                                 <!-- الخيار الأول: الحذف الكامل -->
                                 <div class="py-1">
-                                    {% if has_permission('subscribers.delete') %}<button onclick="confirmDelete('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
+                                    {% if has_permission('subscribers.delete') %}{% if can_access_account_action('delete', 'subscriber') %}<button onclick="confirmDelete('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
                                         <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
                                         <span>حذف المشترك</span>
-                                    </button>{% endif %}
+                                    </button>{% endif %}{% endif %}
                                 </div>
                                 <!-- مجموعة 1: الصلاحية والباقة -->
                                 <div class="py-1">
-                                    {% if has_permission('subscribers.renew') %}<button onclick="openExtendModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ s.expires_at|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if has_permission('subscribers.renew') %}{% if can_access_account_action('extend-time', 'subscriber') %}<button onclick="openExtendModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ s.expires_at|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
                                         <span>تمديد الصلاحية</span>
-                                    </button>{% endif %}
+                                    </button>{% endif %}{% endif %}
                                     {% if has_permission('subscribers.edit') %}<button type="button"
                                             data-action="{{ 'activate-account' if s.status in ('suspended', 'disabled') else 'disable-account' }}"
                                             data-id="{{ s.id }}"
@@ -380,47 +380,47 @@
                                             <span>{{ 'تنشيط الحساب' if s.status in ('suspended', 'disabled') else 'إيقاف الحساب' }}</span>
                                         </div>
                                     </button>{% endif %}
-                                    {% if has_permission('subscribers.edit') %}<button onclick="confirmTerminate('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if has_permission('subscribers.edit') %}{% if can_access_account_action('terminate', 'subscriber') %}<button onclick="confirmTerminate('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
                                         <span>إنهاء الاشتراك</span>
-                                    </button>{% endif %}
-                                    {% if has_permission('subscribers.renew') %}<button onclick="confirmRenew('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ s.package_name|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                    </button>{% endif %}{% endif %}
+                                    {% if has_permission('subscribers.renew') %}{% if can_access_account_action('renew', 'subscriber') %}<button onclick="confirmRenew('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ s.package_name|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-arrows-rotate text-emerald-400 w-4 text-center"></i>
                                         <span>تجديد الباقة</span>
-                                    </button>{% endif %}
-                                    {% if has_permission('subscribers.edit') %}<button onclick="openChangePackageModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ s.package_id|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
+                                    </button>{% endif %}{% endif %}
+                                    {% if has_permission('subscribers.edit') %}{% if can_access_account_action('change-package', 'subscriber') %}<button onclick="openChangePackageModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ s.package_id|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-layer-group text-indigo-400 w-4 text-center"></i>
                                         <span>تغيير الباقة</span>
-                                    </button>{% endif %}
+                                    </button>{% endif %}{% endif %}
                                 </div>
                                 <!-- مجموعة 2: الكوتا وسجل الاستهلاك -->
                                 <div class="py-1">
-                                    {% if has_permission('subscribers.edit') %}<button onclick="openAddQuotaModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if has_permission('subscribers.edit') %}{% if can_access_account_action('add-quota', 'subscriber') %}<button onclick="openAddQuotaModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-database text-sky-400 w-4 text-center"></i>
                                         <span>إضافة رصيد تحميل (Quota)</span>
-                                    </button>{% endif %}
-                                    <button onclick="openUsageHistoryModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition">
+                                    </button>{% endif %}{% endif %}
+                                    {% if can_access_account_action('usage-history', 'subscriber') %}<button onclick="openUsageHistoryModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-chart-line text-purple-400 w-4 text-center"></i>
                                         <span>سجل الاستهلاك والجلسات</span>
-                                    </button>
+                                    </button>{% endif %}
                                 </div>
                                 <!-- مجموعة 3: المحفظة المالية -->
                                 <div class="py-1">
-                                    {% if has_permission('wallets.manage') %}<button onclick="openAddWalletModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ (s.balance or 0)|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if has_permission('wallets.manage') %}{% if can_access_account_action('add-wallet', 'subscriber') %}<button onclick="openAddWalletModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ (s.balance or 0)|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-wallet text-emerald-400 w-4 text-center"></i>
                                         <span>إضافة رصيد مالي</span>
-                                    </button>{% endif %}
-                                    {% if has_permission('wallets.manage') %}<button onclick="openDeductWalletModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ (s.balance or 0)|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
+                                    </button>{% endif %}{% endif %}
+                                    {% if has_permission('wallets.manage') %}{% if can_access_account_action('deduct-wallet', 'subscriber') %}<button onclick="openDeductWalletModal('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }}, {{ (s.balance or 0)|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-money-bill-transfer text-amber-400 w-4 text-center"></i>
                                         <span>سحب رصيد مالي</span>
-                                    </button>{% endif %}
+                                    </button>{% endif %}{% endif %}
                                 </div>
                                 <!-- مجموعة 4: قطع الاتصال الفوري -->
                                 <div class="py-1">
-                                    {% if has_permission('subscribers.disconnect') %}<button onclick="confirmDisconnect('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if has_permission('subscribers.disconnect') %}{% if can_access_account_action('disconnect', 'subscriber') %}<button onclick="confirmDisconnect('subscriber', {{ s.id|string|tojson|forceescape }}, {{ s.username|string|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-power-off text-rose-400 w-4 text-center"></i>
                                         <span>قطع الاتصال (Kick CoA)</span>
-                                    </button>{% endif %}
+                                    </button>{% endif %}{% endif %}
                                 </div>
                             </div>
                         </td>
@@ -429,9 +429,9 @@
                         <td class="py-3.5 px-4 col-fullname whitespace-nowrap min-w-[155px]">
                             <div class="flex items-center gap-2">
                                 <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 {% if s.is_online %}bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse{% else %}bg-slate-600{% endif %}"></span>
-                                <a href="{{ url_for('subscriber_details', sub_id=s.id) }}" class="font-bold text-white hover:text-blue-400 transition" onclick="event.stopPropagation()">
+                                {% if can_access_endpoint('subscriber_details') %}<a href="{{ url_for('subscriber_details', sub_id=s.id) }}" class="font-bold text-white hover:text-blue-400 transition" onclick="event.stopPropagation()">
                                     {{ s.full_name }}
-                                </a>
+                                </a>{% endif %}
                             </div>
                         </td>
 
@@ -535,9 +535,9 @@
                         </td>
 
                         <!-- 11. الرصيد -->
-                        <td class="py-3.5 px-4 text-xs font-mono text-emerald-400 font-bold col-balance hidden whitespace-nowrap min-w-[110px]">
+                        {% if has_permission('invoices.view') or has_permission('wallets.manage') %}<td class="py-3.5 px-4 text-xs font-mono text-emerald-400 font-bold col-balance hidden whitespace-nowrap min-w-[110px]">
                             {{ s.balance_formatted }} {{ currency_symbol }}
-                        </td>
+                        </td>{% endif %}
 
                         <!-- 12. البريد الإلكتروني -->
                         <td class="py-3.5 px-4 text-xs text-slate-300 col-email hidden whitespace-nowrap min-w-[140px]">
@@ -990,10 +990,10 @@
                         <input type="checkbox" name="col_pref" value="ip" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
                         <span class="text-xs font-medium text-slate-200">عنوان IP</span>
                     </label>
-                    <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
+                    {% if has_permission('invoices.view') or has_permission('wallets.manage') %}<label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
                         <input type="checkbox" name="col_pref" value="balance" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
                         <span class="text-xs font-medium text-slate-200">الرصيد المالي</span>
-                    </label>
+                    </label>{% endif %}
                     <label class="flex items-center gap-2.5 p-2.5 bg-[#070b14] hover:bg-slate-800/60 rounded-xl border border-[#1c2840] cursor-pointer transition">
                         <input type="checkbox" name="col_pref" value="email" class="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 cursor-pointer">
                         <span class="text-xs font-medium text-slate-200">البريد الإلكتروني</span>

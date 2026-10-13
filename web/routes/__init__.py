@@ -6,6 +6,7 @@ MAX RADIUS Web Routes Package - Exports all 10 Functional Blueprints.
 from web.routes.auth import auth_bp
 from web.routes.dashboard import dashboard_bp
 from web.routes.vouchers import vouchers_bp
+from web.routes.quick_cards import quick_cards_bp
 from web.routes.subscribers import subscribers_bp
 from web.routes.packages import packages_bp
 from web.routes.resellers import resellers_bp

@@ -14,6 +14,7 @@ COPY web/ ./web/
 COPY database/db.py database/schema_healer.py database/schema_mysql.sql ./database/
 COPY database/freeradius_standard.sql database/wisp_extensions.sql database/seed_data.sql ./database/
 COPY database/license_capacity.py database/maintenance_jobs.py ./database/
+COPY database/permission_catalog.py database/quick_card_schema.py ./database/
 COPY database/loyalty_schema.py database/cycle_safety.py database/nas_session_safety.py database/voucher_sales_schema.py ./database/
 COPY database/migrations/ ./database/migrations/
 COPY storage/keys/master_public_key.pem ./storage/keys/master_public_key.pem

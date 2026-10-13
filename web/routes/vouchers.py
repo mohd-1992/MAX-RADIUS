@@ -56,6 +56,10 @@ from core.time_service import (
 
 logger = logging.getLogger('vouchers_bp')
 
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one, owner_id, generation_owner
+
+from services.quick_card_service import get_issue_policy
+
 vouchers_bp = Blueprint('vouchers_bp', __name__)
 
 @vouchers_bp.before_request
@@ -135,7 +139,8 @@ def vouchers():
                            package_id=package_id,
                            reseller_id=reseller_id,
                            status=status,
-                           card_designs=get_all_card_designs())
+                           card_designs=get_all_card_designs(),
+                           issue_policy=get_issue_policy() if owner_id() else None)
 
 
 
@@ -163,7 +168,7 @@ def generate_vouchers_action():
         prefix = request.form.get('prefix', '').strip()
         reseller_id = request.form.get('reseller_id')
         reseller_id = int(reseller_id) if reseller_id and reseller_id.isdigit() else None
-        name = request.form.get('name', '').strip()
+        name = '' if request.form.get('auto_name') == '1' else request.form.get('name', '').strip()
         same_user_pass = request.form.get('same_user_pass') == '1'
         pin_only = (format_type == 'pin_only')
         
@@ -176,7 +181,7 @@ def generate_vouchers_action():
             char_type=char_type,
             code_length=code_length,
             reseller_id=reseller_id,
-            created_by=session.get('user', 'admin'),
+            created_by=get_current_manager().get('username') or 'admin',
             same_user_pass=same_user_pass,
             pass_length=pass_length
         )
@@ -827,8 +832,8 @@ def active_card_user_details(card_id):
                            remaining_days_text=remaining_days_text,
                            is_expired=is_expired,
                            sessions=sessions,
-                           invoices=invoices,
-                           audit_logs=audit_logs,
+                           invoices=invoices if has_permission('invoices.view') else [],
+                           audit_logs=audit_logs if has_permission('system.audit_logs') else [],
                            analytics=analytics,
                            analytics_json=json.dumps(analytics, default=str),
                            packages=packages)
@@ -1304,7 +1309,7 @@ def print_cards(batch_id):
         flash('الدفعة المطلوبة غير موجودة.', 'danger')
         return redirect(url_for('vouchers'))
 
-    design_id = request.args.get('design_id')
+    design_id = request.values.get('design_id')
     selected_design = None
     if design_id:
         try:

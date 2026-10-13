@@ -120,6 +120,8 @@ def fixture():
               (ident, name, kind, 20, 10, '4M', '2M', '8M', '4M', '', '', 16, 8,
                '1M', '512k', 1024, 60, 0, 0, 'days', 'test', 2, 1, 1, 0, 1, 7, 'وصف'))
         namespace['sync_package_to_radius'](ident)
+    from visibility_fixture import install_fixture_visibility
+    install_fixture_visibility(app, namespace)
     return app, db, namespace
 
 

@@ -530,13 +530,13 @@
 
 
 
-            <a href="{{ url_for('add_nas_action') }}" id="btnAddNasTop" onclick="return openAddNasModal(event);" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer">
+            {% if can_access_endpoint('add_nas_action') %}<a href="{{ url_for('add_nas_action') }}" id="btnAddNasTop" onclick="return openAddNasModal(event);" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer">
 
                 <i class="fa-solid fa-plus"></i>
 
                 <span>إضافة راوتر جديد</span>
 
-            </a>
+            </a>{% endif %}
 
         </div>
 
@@ -622,7 +622,7 @@
 
         <!-- 3. Total Active Users on NAS -->
 
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+        {% if can_view_network_totals() %}<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
 
             <div class="flex items-center justify-between">
 
@@ -654,7 +654,7 @@
 
             </div>
 
-        </div>
+        </div>{% endif %}
 
 
 
@@ -720,11 +720,11 @@
 
                         <div class="min-w-0">
 
-                            <a href="{{ url_for('nas_details_page', nas_id=d.id) }}" class="font-bold text-white text-base hover:text-blue-400 transition block truncate">
+                            {% if can_access_endpoint('nas_details_page') %}<a href="{{ url_for('nas_details_page', nas_id=d.id) }}" class="font-bold text-white text-base hover:text-blue-400 transition block truncate">
 
                                 {{ d.name }}
 
-                            </a>
+                            </a>{% endif %}
 
                             <div class="flex items-center gap-2 mt-0.5">
 
@@ -804,7 +804,7 @@
 
                     <!-- 2. Active Sessions Count -->
 
-                    <div class="flex items-center justify-between">
+                    {% if can_view_network_totals() %}<div class="flex items-center justify-between">
 
                         <span class="text-slate-400 flex items-center gap-1.5">
 
@@ -816,11 +816,11 @@
 
                         <span id="users-val-{{ d.id }}" class="font-mono font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
 
-                            {{ d.active_users }} متصل
+                            {% if can_view_network_totals() %}{{ d.active_users }}{% endif %} متصل
 
                         </span>
 
-                    </div>
+                    </div>{% endif %}
 
 
 
@@ -916,19 +916,19 @@
 
                     <!-- 1. الدخول والتفاصيل -->
 
-                    <a href="{{ url_for('nas_details_page', nas_id=d.id) }}" class="px-2 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 whitespace-nowrap min-w-0" title="عرض وتعديل بيانات الراوتر">
+                    {% if can_access_endpoint('nas_details_page') %}<a href="{{ url_for('nas_details_page', nas_id=d.id) }}" class="px-2 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 whitespace-nowrap min-w-0" title="عرض وتعديل بيانات الراوتر">
 
                         <i class="fa-solid fa-sliders text-[11px]"></i>
 
                         <span class="truncate">تعديل</span>
 
-                    </a>
+                    </a>{% endif %}
 
 
 
                     <!-- 2. نسخ أوامر التهيئة -->
 
-                    <button type="button" 
+                    {% if has_permission('nas.manage') %}<button type="button"
 
                             data-name="{{ d.name }}" 
 
@@ -948,7 +948,7 @@
 
                         <span class="truncate">الأوامر</span>
 
-                    </button>
+                    </button>{% endif %}
 
 
 
@@ -1020,11 +1020,11 @@
 
             </div>
 
-            <a href="{{ url_for('add_nas_action') }}" id="btnAddNasEmpty" onclick="return openAddNasModal(event);" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition cursor-pointer">
+            {% if can_access_endpoint('add_nas_action') %}<a href="{{ url_for('add_nas_action') }}" id="btnAddNasEmpty" onclick="return openAddNasModal(event);" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition cursor-pointer">
 
                 <i class="fa-solid fa-plus"></i>إضافة أول راوتر الآن
 
-            </a>
+            </a>{% endif %}
 
         </div>
 

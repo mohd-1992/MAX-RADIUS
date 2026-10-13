@@ -47,6 +47,8 @@ class _VoucherWriter:
                    (admin_id, username, action, module, details))
 
 
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one
+
 def generate_random_code(length=8, char_type='numbers'):
     if char_type == 'numbers':
         chars = string.digits
@@ -62,10 +64,23 @@ def generate_random_code(length=8, char_type='numbers'):
 
 def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
                            char_type='numbers', code_length=8, reseller_id=None,
-                           created_by='admin', same_user_pass=False, pass_length=None):
-    with db_session() as conn:
+                           created_by='admin', same_user_pass=False, pass_length=None, _conn=None):
+    import math
+    from core.ownership import generation_owner
+    reseller_id = generation_owner(reseller_id, package_id)
+    from contextlib import nullcontext
+    with (nullcontext(_conn) if _conn is not None else db_session()) as conn:
         tx = _VoucherWriter(conn)
         query_one, execute_write, execute_many, log_audit = tx.one, tx.write, tx.many, tx.audit
+        if generation_owner(None, package_id) is not None:
+            from services.quick_card_service import get_issue_policy
+            policy = get_issue_policy(tx)
+            prefix = policy['prefix']
+            code_length = policy['total_length'] - len(prefix)
+            char_type = policy['char_type']
+            pin_only = policy['format_type'] == 'pin_only'
+            same_user_pass = policy['format_type'] == 'same_user_pass'
+            pass_length = policy['password_length']
         lock = " FOR UPDATE" if is_mysql_conn(conn) else ""
         pkg = query_one('SELECT * FROM wisp_packages WHERE id = ?' + lock, (package_id,))
         if not pkg:
@@ -91,12 +106,9 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
         now_dt = get_db_storage_now().replace(tzinfo=None)
         batch_num = f"B{now_dt.strftime('%y%m%d%H%M%S')}-{secrets.randbelow(1000):03d}"
     
-        if not name or not str(name).strip():
-            short_seq = f"{secrets.randbelow(900) + 100}"
-            name = f"حزمة {now_dt.strftime('%Y/%m/%d %H:%M:%S')} #{short_seq}"
-        else:
-            name = str(name).strip()
-    
+        automatic_name = not name or not str(name).strip()
+        name = str(name).strip() if not automatic_name else f"{pkg['name']} — {count} كرت"
+
         # 1. Capture Immutable Contract / Package Snapshot at this exact moment
         rate_str = build_mikrotik_rate_limit(
             download=pkg['rate_download'],
@@ -141,8 +153,22 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
         if reseller_id:
             mgr = query_one('SELECT * FROM wisp_managers WHERE id = ?' + lock, (reseller_id,))
             if mgr:
+                if not mgr.get('is_active') or mgr.get('is_deleted'):
+                    raise ValueError('حساب الموزع موقوف أو محذوف؛ لم تنشأ الحزمة.')
+                import json
+                allowed = mgr.get('allowed_packages')
+                if allowed:
+                    try:
+                        allowed_ids = json.loads(allowed) if str(allowed).startswith('[') else str(allowed).split(',')
+                        allowed_ids = {int(p) for p in allowed_ids}
+                    except (TypeError, ValueError):
+                        raise ValueError('قائمة باقات الموزع غير صالحة.')
+                    if allowed_ids and int(package_id) not in allowed_ids:
+                        raise ValueError('الباقة غير مسموحة لهذا الموزع.')
                 total_cost = round(count * float(pkg.get('cost') if pkg.get('cost') is not None else (float(pkg['price']) * 0.8)), 2)
                 cur_bal = float(mgr.get('wallet_balance') or 0.0)
+                if not math.isfinite(total_cost) or total_cost < 0 or total_cost > cur_bal:
+                    raise ValueError('الرصيد غير كافٍ لشراء الحزمة؛ اشحن المحفظة نقدًا أو ضمن سقف الآجل أولًا.')
                 new_bal = round(cur_bal - total_cost, 2)
                 execute_write('UPDATE wisp_managers SET wallet_balance = ? WHERE id = ?', (new_bal, reseller_id))
                 inv_number = f"INV-CRD-{reseller_id}-{get_db_storage_now().replace(tzinfo=None).strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
@@ -159,6 +185,8 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
                 reseller = query_one('SELECT * FROM wisp_resellers WHERE id = ?' + lock, (reseller_id,))
                 if reseller:
                     total_cost = count * float(pkg.get('cost') if pkg.get('cost') is not None else (float(pkg['price']) * 0.8))
+                    if not math.isfinite(total_cost) or total_cost < 0 or float(reseller['balance'] or 0) < total_cost:
+                        raise ValueError('رصيد الموزع القديم غير كافٍ.')
                     new_balance = float(reseller['balance']) - total_cost
                     execute_write('UPDATE wisp_resellers SET balance = ? WHERE id = ?', (new_balance, reseller_id))
                     execute_write('''
@@ -227,6 +255,12 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
         execute_many('INSERT INTO radcheck (username, attribute, op, value) VALUES (?, ?, ?, ?)', radcheck_data)
         execute_many('INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, ?)', radusergroup_data)
     
+        if automatic_name:
+            owner = query_one('SELECT username FROM wisp_managers WHERE id = ?', (reseller_id,)) if reseller_id else None
+            owner_part = f" — {owner['username']}" if owner else (f" — {reseller_id}" if reseller_id else '')
+            name = f"{pkg['name']} — {count} كرت{owner_part} — #{batch_id}"
+            execute_write('UPDATE wisp_voucher_batches SET name = ? WHERE id = ?', (name, batch_id))
+
         log_audit(1, created_by, 'GENERATE_BATCH', 'vouchers', f'Generated batch {batch_num} with {count} cards for package {pkg_name}')
         return batch_id, batch_num
 

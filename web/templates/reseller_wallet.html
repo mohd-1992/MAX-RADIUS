@@ -14,20 +14,20 @@
             </div>
             <div>
                 <h2 class="text-xl font-black text-white flex items-center gap-2">
-                    المحافظ الرقمية وحسابات الموزعين (Reseller Digital Wallets)
+                    المحافظ الرقمية للموزعين
                 </h2>
                 <p class="text-xs text-slate-400 mt-0.5">إدارة أرصدة الموزعين المالية، إيداع السيولة، والتحويل المباشر بين الموزعين لشراء الكروت</p>
             </div>
         </div>
         <div class="flex items-center gap-3">
-            <button onclick="openTransferModal()" class="px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+            {% if has_permission('managers.billing') %}{% if not is_reseller_scope() %}<button onclick="openTransferModal()" class="px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-money-bill-transfer"></i>
                 <span>تحويل رصيد بين موزعين</span>
-            </button>
-            <button onclick="openDepositModal()" class="px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+            </button>{% endif %}{% endif %}
+            {% if has_permission('managers.billing') %}{% if not is_reseller_scope() %}{% if can_access_endpoint('deposit_manager_action') %}<button onclick="openDepositModal()" class="px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-circle-plus"></i>
                 <span>إيداع رصيد نقدي</span>
-            </button>
+            </button>{% endif %}{% endif %}{% endif %}
         </div>
     </div>
 
@@ -62,7 +62,7 @@
                 <h4 class="text-2xl font-black text-white font-mono">{{ data.wallets_count }}</h4>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
                     <span>الحالة:</span>
-                    <span class="font-bold text-emerald-400">نشطة 100%</span>
+                    <span class="font-bold text-emerald-400">{{ data.active_count }} نشطة من {{ data.wallets_count }}</span>
                 </div>
             </div>
         </div>
@@ -70,7 +70,7 @@
         <!-- 3. Transactions Count -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
             <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">حركات القيود المالية</span>
+                <span class="text-xs font-semibold text-slate-400">آخر 20 قيدًا ماليًا</span>
                 <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
                     <i class="fa-solid fa-receipt"></i>
                 </div>
@@ -93,10 +93,10 @@
                 </div>
             </div>
             <div class="mt-3">
-                <h4 class="text-base font-black text-amber-400">Double-Entry Ledger</h4>
+                <h4 class="text-base font-black text-amber-400">قيدان مترابطان للتحويل</h4>
                 <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
                     <span>القفل الذري:</span>
-                    <span class="font-mono text-emerald-400 font-bold">Atomic Transaction</span>
+                    <span class="font-mono text-emerald-400 font-bold">معاملة واحدة</span>
                 </div>
             </div>
         </div>
@@ -135,12 +135,12 @@
                         </td>
                         <td class="py-3.5 px-5 font-mono text-slate-300">{{ "{:,.2f}".format(w.total_deposits) }}</td>
                         <td class="py-3.5 px-5">
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">نشطة</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">{{ 'نشطة' if w.wallet_status == 'active' else 'موقوفة' }}</span>
                         </td>
                         <td class="py-3.5 px-5 text-left">
-                            <button onclick="quickDeposit({{ w.reseller_id }}, '{{ w.reseller_name }}')" class="px-3 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-bold transition">
+                            {% if has_permission('managers.billing') %}{% if not is_reseller_scope() %}<button onclick="quickDeposit({{ w.reseller_id }}, {{ w.reseller_name|tojson|forceescape }})" class="px-3 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-bold transition">
                                 إيداع سريع
-                            </button>
+                            </button>{% endif %}{% endif %}
                         </td>
                     </tr>
                     {% else %}
@@ -185,7 +185,7 @@
                             {% elif l.trx_type == 'transfer_out' %}
                             <span class="text-amber-400">→ تحويل صادر</span>
                             {% else %}
-                            <span class="text-purple-400">- مشتريات</span>
+                            {% if l.trx_type == 'debt_payment' %}<span>سداد ذمة</span>{% elif l.trx_type == 'withdraw' %}<span>خصم</span>{% else %}<span class="text-purple-400">شراء كروت</span>{% endif %}
                             {% endif %}
                         </td>
                         <td class="py-3 px-4 font-mono font-bold {% if l.amount > 0 %}text-emerald-400{% else %}text-amber-400{% endif %}">
@@ -193,7 +193,7 @@
                         </td>
                         <td class="py-3 px-4 font-mono text-slate-300">{{ "{:,.2f}".format(l.balance_after) }}</td>
                         <td class="py-3 px-4 text-slate-200 text-xs">{{ l.notes }}</td>
-                        <td class="py-3 px-4 font-mono text-slate-400 text-[11px]">{{ l.created_at }}</td>
+                        <td class="py-3 px-4 font-mono text-slate-400 text-[11px]">{{ l.created_at }}{% if can_access_endpoint('manager_operation_receipt') %}<a class="block mt-1 text-blue-400 font-sans" href="{{ url_for('manager_operation_receipt', invoice_id=l.id) }}"><i class="fa-solid fa-print"></i> سند العملية</a>{% endif %}</td>
                     </tr>
                     {% else %}
                     <tr>
@@ -205,25 +205,28 @@
         </div>
     </div>
 
+<p class="text-xs text-slate-400">هذه المحافظ مرتبطة بحسابات المدراء وسجل فواتيرهم. السجلات القديمة محفوظة ولم تُنقل أرصدتها تلقائيًا.</p>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='manager-actions.js') }}"></script>
 <script>
     const resellersList = [
         {% for w in data.wallets %}
-        { id: {{ w.reseller_id }}, name: "{{ w.reseller_name }} (رصيده: {{ w.balance }})" },
+        { id: {{ w.reseller_id }}, name: {{ w.reseller_name|tojson }}, balance: {{ w.balance }}, active: {{ (w.wallet_status == 'active')|tojson }} },
         {% endfor %}
     ];
 
     function openTransferModal() {
+        const requestId = managerRequestId();
         if (resellersList.length < 2) {
             Swal.fire('تنبيه', 'يجب توفر موزعين على الأقل لإجراء التحويل.', 'warning');
             return;
         }
 
-        let fromOptions = resellersList.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
-        let toOptions = resellersList.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        let fromOptions = resellersList.filter(r=>r.active).map(r => new Option(`${r.name} (رصيده: ${r.balance})`, r.id).outerHTML).join('');
+        let toOptions = resellersList.filter(r=>r.active).map(r => new Option(`${r.name} (رصيده: ${r.balance})`, r.id).outerHTML).join('');
 
         Swal.fire({
             title: 'تحويل رصيد مالي بين موزعين',
@@ -271,23 +274,25 @@
                 fd.append('from_id', result.value.from);
                 fd.append('to_id', result.value.to);
                 fd.append('amount', result.value.amount);
+                fd.append('request_id', requestId);
                 fd.append('notes', result.value.notes);
 
                 fetch('/api/reseller-wallets/transfer', { method: 'POST', body: fd })
-                    .then(r => r.json())
+                    .then(r => { if (!r.headers.get('content-type')?.includes('application/json')) throw new Error('تعذر إتمام الطلب؛ تحقق من الاتصال ثم راجع النتيجة قبل إعادة المحاولة.'); return r.json(); })
                     .then(data => {
                         if (data.success) {
                             Swal.fire('تم التحويل بنجاح', data.message, 'success').then(() => location.reload());
                         } else {
                             Swal.fire('خطأ في التحويل', data.message, 'error');
                         }
-                    });
+                    }).catch(error => Swal.fire('تعذر إتمام الطلب', error.message, 'error'));
             }
         });
     }
 
     function openDepositModal() {
-        let opt = resellersList.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+        const requestId = managerRequestId();
+        let opt = resellersList.filter(r=>r.active).map(r => new Option(`${r.name} (رصيده: ${r.balance})`, r.id).outerHTML).join('');
         Swal.fire({
             title: 'إيداع رصيد نقدي في محفظة موزع',
             html: `
@@ -308,49 +313,61 @@
             `,
             showCancelButton: true,
             confirmButtonText: 'إيداع الرصيد',
-            cancelButtonText: 'إلغاء'
+            cancelButtonText: 'إلغاء',
+            preConfirm: () => {
+                const amount = document.getElementById('swalDepAmount').value;
+                if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) { Swal.showValidationMessage('أدخل مبلغًا موجبًا صالحًا'); return false; }
+                return { id: document.getElementById('swalDepReseller').value, amount, notes: document.getElementById('swalDepNotes').value };
+            }
         }).then(res => {
             if (res.isConfirmed) {
                 const fd = new FormData();
-                fd.append('reseller_id', document.getElementById('swalDepReseller').value);
-                fd.append('amount', document.getElementById('swalDepAmount').value);
-                fd.append('notes', document.getElementById('swalDepNotes').value);
+                fd.append('reseller_id', res.value.id);
+                fd.append('amount', res.value.amount);
+                fd.append('request_id', requestId);
+                fd.append('notes', res.value.notes);
                 fetch('/api/reseller-wallets/deposit', { method: 'POST', body: fd })
-                    .then(r => r.json())
+                    .then(r => { if (!r.headers.get('content-type')?.includes('application/json')) throw new Error('تعذر إتمام الطلب؛ تحقق من الاتصال ثم راجع النتيجة قبل إعادة المحاولة.'); return r.json(); })
                     .then(data => {
                         if (data.success) {
                             Swal.fire('تم الإيداع', data.message, 'success').then(() => location.reload());
                         } else {
                             Swal.fire('خطأ', data.message, 'error');
                         }
-                    });
+                    }).catch(error => Swal.fire('تعذر إتمام الطلب', error.message, 'error'));
             }
         });
     }
 
     function quickDeposit(resellerId, name) {
+        const requestId = managerRequestId();
         Swal.fire({
-            title: `إيداع سريع لـ ${name}`,
+            titleText: `إيداع سريع لـ ${name}`,
             input: 'number',
             inputPlaceholder: 'المبلغ (' + '{{ currency_symbol }}' + ')',
             showCancelButton: true,
             confirmButtonText: 'إيداع الآن',
-            cancelButtonText: 'إلغاء'
+            cancelButtonText: 'إلغاء',
+            preConfirm: (amount) => {
+                if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) { Swal.showValidationMessage('أدخل مبلغًا موجبًا صالحًا'); return false; }
+                return amount;
+            }
         }).then(res => {
             if (res.isConfirmed && res.value) {
                 const fd = new FormData();
                 fd.append('reseller_id', resellerId);
                 fd.append('amount', res.value);
+                fd.append('request_id', requestId);
                 fd.append('notes', 'إيداع سريع مباشر');
                 fetch('/api/reseller-wallets/deposit', { method: 'POST', body: fd })
-                    .then(r => r.json())
+                    .then(r => { if (!r.headers.get('content-type')?.includes('application/json')) throw new Error('تعذر إتمام الطلب؛ تحقق من الاتصال ثم راجع النتيجة قبل إعادة المحاولة.'); return r.json(); })
                     .then(data => {
                         if (data.success) {
                             Swal.fire('تم الإيداع', data.message, 'success').then(() => location.reload());
                         } else {
                             Swal.fire('خطأ', data.message, 'error');
                         }
-                    });
+                    }).catch(error => Swal.fire('تعذر إتمام الطلب', error.message, 'error'));
             }
         });
     }

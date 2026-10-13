@@ -23,10 +23,10 @@
         </div>
 
         <div class="flex items-center gap-2.5">
-            <a href="{{ url_for('managers_page') }}" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+            {% if can_access_endpoint('managers_page') %}<a href="{{ url_for('managers_page') }}" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-users text-blue-400"></i>
                 <span>المدراء والموزعين</span>
-            </a>
+            </a>{% endif %}
 
             <button onclick="window.print()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-print"></i>
@@ -114,7 +114,7 @@
 
     <!-- Filter Bar & Invoices Table Card -->
     <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-sm overflow-hidden">
-        
+
         <!-- Filter Header -->
         <form method="GET" action="" class="p-4 border-b border-[#1c2840] bg-[#070b14]/50 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div class="flex items-center gap-2.5 flex-wrap">
@@ -158,9 +158,9 @@
                 </button>
             </div>
 
-            <a href="{{ url_for('manager_invoices_page') }}" class="text-slate-400 hover:text-white transition">
+            {% if can_access_endpoint('manager_invoices_page') %}{% if can_access_endpoint('manager_invoices_page') %}<a href="{{ url_for('manager_invoices_page') }}" class="text-slate-400 hover:text-white transition">
                 إعادة ضبط
-            </a>
+            </a>{% endif %}{% endif %}
         </form>
 
         <!-- Table -->
@@ -184,9 +184,10 @@
                 <tbody class="divide-y divide-[#162136]">
                     {% for inv in invoices %}
                     <tr class="hover:bg-[#11192b]/40 transition {% if inv.is_voided %}opacity-45 line-through bg-rose-950/10{% endif %}">
-                        
+
                         <td class="p-3.5 font-mono font-bold text-white">
                             {{ inv.invoice_number }}
+                            {% if can_access_endpoint('manager_operation_receipt') %}<a href="{{ url_for('manager_operation_receipt', invoice_id=inv.id) }}" class="block mt-1 text-xs text-blue-400 font-sans no-underline" title="عرض وطباعة سند العملية"><i class="fa-solid fa-print"></i> سند العملية</a>{% endif %}
                             {% if inv.is_voided %}
                             <span class="no-underline block text-[10px] text-rose-400 font-sans font-normal">(قيد ملغي)</span>
                             {% endif %}
@@ -270,14 +271,14 @@
 
                         <td class="p-3.5 text-center">
                             <div class="flex items-center justify-center gap-1.5">
-                                <a href="{{ url_for('manager_statement_page', manager_id=inv.manager_id) }}" class="p-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold transition inline-flex items-center gap-1" title="كشف الحساب">
+                                {% if can_access_endpoint('manager_statement_page') %}{% if can_access_endpoint('manager_statement_page') %}<a href="{{ url_for('manager_statement_page', manager_id=inv.manager_id) }}" class="p-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold transition inline-flex items-center gap-1" title="كشف الحساب">
                                     <i class="fa-solid fa-receipt"></i>
-                                </a>
+                                </a>{% endif %}{% endif %}
 
-                                {% if not inv.is_voided %}
-                                <button type="button" onclick="confirmVoidInvoice({{ inv.id }}, '{{ inv.invoice_number }}', {{ inv.amount }})" class="p-1.5 bg-rose-600/10 hover:bg-rose-600/25 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer" title="إلغاء وعكس القيد المالي">
+                                {% if not inv.is_voided and inv.transaction_type != 'card_purchase' and inv.payment_type != 'transfer' %}
+                                {% if not is_reseller_scope() %}<button type="button" onclick="confirmVoidInvoice({{ inv.id }}, {{ inv.invoice_number|tojson|forceescape }}, {{ inv.amount }})" class="p-1.5 bg-rose-600/10 hover:bg-rose-600/25 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer" title="إلغاء وعكس القيد المالي">
                                     <i class="fa-solid fa-ban"></i>
-                                </button>
+                                </button>{% endif %}
                                 {% endif %}
                             </div>
                         </td>
@@ -296,14 +297,20 @@
     </div>
 
 </div>
+<nav class="flex items-center justify-between gap-3 py-3" aria-label="صفحات الفواتير">
+    {% if page|default(1) > 1 %}{% if can_access_endpoint('manager_invoices_page') %}{% if can_access_endpoint('manager_invoices_page') %}<a href="{{ url_for('manager_invoices_page', page=page-1, manager_id=request.args.get('manager_id',''), type=request.args.get('type',''), payment_type=request.args.get('payment_type','')) }}">السابق</a>{% endif %}{% endif %}{% endif %}
+    <span>الصفحة {{ page|default(1) }} — إحصائيات أعلى الصفحة لجميع الحسابات</span>
+    {% if has_next %}{% if can_access_endpoint('manager_invoices_page') %}{% if can_access_endpoint('manager_invoices_page') %}<a href="{{ url_for('manager_invoices_page', page=page+1, manager_id=request.args.get('manager_id',''), type=request.args.get('type',''), payment_type=request.args.get('payment_type','')) }}">التالي</a>{% endif %}{% endif %}{% endif %}
+    </nav>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='manager-actions.js') }}"></script>
 <script>
     function confirmVoidInvoice(invoiceId, invoiceNumber, amount) {
         Swal.fire({
             title: 'إلغاء وعكس القيد المالي',
-            html: `هل أنت متأكد من إلغاء القيد/الفاتورة <strong class="text-rose-400 font-mono">[${invoiceNumber}]</strong> بقيمة <strong>${amount}</strong>؟<br><span class="text-xs text-slate-400 mt-2 block">سيتم عكس الأثر المالي للقيد فوراً في محفظة الموزع وتسجيل سبب الإلغاء.</span>`,
+            text: `هل أنت متأكد من إلغاء القيد/الفاتورة [${invoiceNumber}] بقيمة ${amount}؟سيتم عكس الأثر المالي للقيد فوراً في محفظة الموزع وتسجيل سبب الإلغاء.`,
             input: 'text',
             inputPlaceholder: 'اكتب سبب الإلغاء هنا (مطلوب)...',
             inputValidator: (val) => {
@@ -332,6 +339,7 @@
                 f.appendChild(inp);
 
                 document.body.appendChild(f);
+                prepareManagerForm(f);
                 f.submit();
             }
         });

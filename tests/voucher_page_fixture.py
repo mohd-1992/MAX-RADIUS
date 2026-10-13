@@ -84,6 +84,7 @@ def voucher_fixture():
     seed('radacct',radacctid=1,username='fixture-2',acctsessionid='sess',nasipaddress='fixture-nas',acctinputoctets=100,acctoutputoctets=200,acctsessiontime=7200,acctstarttime='2026-10-11 16:00:00',acctupdatetime='2026-10-11 17:56:00')
     seed('wisp_card_templates',id=1,name='Fixture design',design_type='image',width_mm=85,height_mm=52,cards_per_row=2,cards_per_col=5,margin_top_mm=10,margin_page_mm=10,card_spacing_mm=3,is_default=1,config_json=json.dumps(ns['DEFAULT_CARD_CONFIG']),bg_image='')
     app.before_request(ns['guard_voucher_permissions'])
+    ownership_stub=types.ModuleType('core.ownership');ownership_stub.generation_owner=lambda owner,package:owner
     license_stub=types.ModuleType('services.license_guard_service');license_stub.get_active_license_status=lambda:dict(valid=True,status='active')
     quota_stub=types.ModuleType('services.quota_service');quota_stub.calculate_account_quota=lambda *a,**kw:dict(used_down_bytes=150,used_up_bytes=75,used_total_bytes=225,is_quota_unlimited=False,total_quota_mb=15,remaining_bytes=15*1048576-225,quota_used_pct=1)
     sub_stub=types.ModuleType('services.subscriber_service');sub_stub.get_heartbeat_cutoff_str=ns['get_heartbeat_cutoff_str']
@@ -114,4 +115,7 @@ def voucher_fixture():
     lifecycle_stub.run_transaction=run_tx
     stubs={'core.radius_sync':radius_stub,'services.account_lifecycle_service':lifecycle_stub,'services.license_guard_service':license_stub,'services.quota_service':quota_stub,'services.subscriber_service':sub_stub,'core.time_service':time_stub}
 
+    from visibility_fixture import install_fixture_visibility
+    install_fixture_visibility(app,ns)
+    stubs['core.ownership']=ownership_stub
     return app,db,ns,stubs,seed

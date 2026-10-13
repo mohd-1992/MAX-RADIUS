@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}سند عملية المحفظة{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-4">
+ <div class="flex flex-wrap gap-3 receipt-controls"><button onclick="window.print()" class="bg-blue-600 text-white px-4 py-2 rounded-xl"><i class="fa-solid fa-print"></i> طباعة / حفظ PDF</button><button onclick="history.back()" class="bg-slate-800 text-slate-300 px-4 py-2 rounded-xl">رجوع</button></div>
+ <article id="walletReceipt" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 sm:p-8 space-y-5 text-slate-300 break-words">
+  <header class="border-b border-slate-700 pb-4"><h1 class="text-xl font-bold text-white">سند عملية المحفظة — MAX RADIUS</h1><p class="font-mono mt-2">{{ receipt.invoice_number }}</p></header>
+  {% if receipt.is_voided %}<p class="bg-rose-500/10 text-rose-400 p-3 rounded-xl font-bold">قيد ملغي — لا يمثل حركة مالية سارية</p>{% endif %}
+  {% set types={'deposit':'شحن رصيد','deduction':'خصم من المحفظة','debt_payment':'سداد ذمة','card_purchase':'شراء كروت','refund':'رد رصيد'} %}
+  {% set payments={'cash':'نقدي','credit':'آجل','transfer':'تحويل'} %}
+  <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   {% for label,value in [('نوع العملية',types.get(receipt.transaction_type,receipt.transaction_type)),('الحساب',receipt.full_name or receipt.username or receipt.manager_id),('اسم المستخدم',receipt.username or '—'),('التاريخ',receipt.created_at),('طريقة الدفع',payments.get(receipt.payment_type,receipt.payment_type)),('المنفذ',receipt.created_by)] %}<div><dt class="text-sm text-slate-400">{{ label }}</dt><dd class="mt-1 font-bold text-white">{{ value }}</dd></div>{% endfor %}
+   {% for label,value in [('المبلغ',receipt.amount),('الرصيد قبل العملية',receipt.balance_before),('الرصيد بعد العملية',receipt.balance_after)] %}<div><dt class="text-sm text-slate-400">{{ label }}</dt><dd class="mt-1 font-bold text-white">{{ '{:,.2f}'.format(value) }} {{ currency_symbol }}</dd></div>{% endfor %}
+  </dl>
+  <div><h2 class="text-sm text-slate-400">البيان / سبب العملية</h2><p class="whitespace-pre-wrap mt-2">{{ receipt.notes or '—' }}</p></div>
+  {% if receipt.is_voided %}<div><h2 class="text-sm text-rose-400">سبب إلغاء القيد</h2><p>{{ receipt.void_reason or '—' }}</p></div>{% endif %}
+  <footer class="text-xs text-slate-400 border-t border-slate-700 pt-3">نسخة من القيد المسجل. إعادة عرض السند أو طباعته لا تغيّر الرصيد ولا تنفّذ عملية مالية جديدة.</footer>
+ </article>
+</div>
+<style>@media print {body * {visibility:hidden!important} #walletReceipt,#walletReceipt * {visibility:visible!important;color:#111!important;background:white!important;box-shadow:none!important} #walletReceipt {position:absolute;top:0;right:0;width:100%;border:0!important;margin:0;padding:15mm!important} .receipt-controls {display:none!important} @page {size:A4;margin:12mm}}</style>
+{% endblock %}

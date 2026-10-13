@@ -30,3 +30,18 @@
 انحدار المسار المشترك 2026-10-12: `python -m unittest discover -s tests -p test_nas_shared_path.py -v`؛ قراءة !trap/!done وEOF/timeout/fatal، رفض سلفة الكرت والمعطيات غير الصالحة والمكافأة غير المؤهلة قبل NAS، وحاجز واحد للإضافات المنفردة والمركبة. `python tests/release_20261010/test_nas_freeze.py` و`python tests/release_20261010/test_settlement_regressions.py` يختبران ثبات/حركة العدادات، شرط Stop للعدادات المتحركة، الاحتفاظ بالدليل واستعادته، والتكرار وحماية جيل الجلسة. فحص صفحات الكروت يحتاج Node لاختبار JavaScript.
 
 أدلة CHR الخاصة في مساحة الجولات `work/nas-shared-fixes-20261012/reports`: أربعة إصدارات 6.48.7/6.49.19/7.16.2/7.20.8، NAT وحركة Hotspot فعلية وجلسات PPPoE حقيقية، وفحص إخفاء رؤية Stop لمحاكاة تأخر DB ثم استعادة journal. مستقبل RADIUS وأجسام ختم SQL في المختبر ليست MariaDB الإنتاجية؛ اختبارات SQLite المالية والحواجز النموذجية مستويات مستقلة. لا تبدأ هذه الحاويات أو أي فحص حي بمجرد قراءة الوثيقة.
+
+فحص المديرين: `python -m unittest discover -s tests -p test_manager_pages.py` (41 حالة معزولة، يحتاج Node). فحص MariaDB المنفصل: `tests/manager_mariadb_regression.py` مع MANAGER_REGRESSION_DATABASE وقاعدة fixture فارغة معزولة؛ لا يعمل على قاعدة العملاء. راجع [المديرين](MANAGERS.md) لحدود التحقق.
+
+إخفاء البيانات والتبويبات: `python -m unittest discover -s tests -p test_permission_visibility.py`،24حالة على Flask مع قاعدة معزولة. تغطي عدم وجود الأرقام المحظورة في HTML/API، الأرصدة في بيانات صف المدير، فواتير وتدقيق الكروت، بيانات NAS وأسراره، الطلبات المباشرة، منع المسار الإداري غير المصنف، توافق أسماء صلاحية الإعدادات القديمة، وJavaScript بعد إخفاء الأقسام. تحتاج Node؛ لا تبدأ التطبيق الكامل أو اتصالات الراوتر. تُستخدم `tests/visibility_fixture.py` لتحميل الدوال دون بدء العمال.
+
+
+عزل ملكية الموزع: `python -m unittest discover -s tests -p test_reseller_ownership.py`؛ Flask/SQLite لدخول موزعين مختلفين والمدير العام، العرض وAPI والمبيعات والطباعة والتصدير والطلبات المختلطة وعدم تجاوز محفظة الشراء. `tests/reseller_ownership_mariadb.py` فحص MariaDB منفصل لا يعمل إلا بقاعدة فارغة معزولة باسم max_ownership_regression_… عبر OWNERSHIP_REGRESSION_DATABASE؛ يختبر SQL الفعلي والشراء المتزامن والتراجع المالي. لا يستورد التطبيق أو يشغل NAS.
+
+يشمل اختبار الملكية تحميل ملفات Tailwind والخط والأيقونات الفعلية عبر Flask تحت Cookie موزع بصلاحيات فارغة، والمدير والزائر، مع رفض اجتياز المجلد وإرجاع 404 للملف المفقود. لا يكفي اختبار HTML وحده لإثبات سلامة أصول الواجهة.
+
+تفاصيل الصلاحيات: `python -m unittest discover -s tests -p test_permission_catalog.py`؛ 9 اختبارات بمعاملة SQLite وFlask مع RBAC الفعلي. تشمل جميع المسارات التفصيلية الـ203، الفصل بين عمليات المشترك والكرت، العمليات الجماعية لكل نوع، استمرار شرط القسم الأساسي، منع غير المسجل، المنح والسحب في طلب تالٍ دون تسجيل دخول جديد، وتكرار المثبت دون إعادة منح المسحوب. نسخة MariaDB من فحوص التركيب أُجريت محليًا على قاعدة مستقلة حذفت بعد الفحص؛ لا تشغّل المثبت على ماكس ضمن اختبار عادي.
+
+الإصدار السريع: `python -m unittest discover -s tests -p test_quick_cards.py` يغطي الإصدار والمرجع المتكرر والتراجع والملكية والصيغ والإعدادات وحماية HTTP/CSRF. `tests/quick_cards_mariadb.py` يستعمل إعداد fixture معزول من reseller_ownership_mariadb.py فقط، ويتطلب OWNERSHIP_REGRESSION_DATABASE باسم max_ownership_regression_… وقاعدة فارغة، ولا يعيد تنفيذ اختبار الملكية القديم. يغطي شراءين متزامنين بنفس المرجع، نقص الرصيد، فشل الإيصال، صيغة الإصدار، وإعادة الطباعة. لا يشغل التطبيق أو NAS.
+
+اختبار test_manager_wallet_receipts.py معزول: خصم مرجع واحد، رفض القيم والسبب وCSRF، عرض السند دون أثر مالي، escaping، ووجود النموذج في كتلة المحتوى. test_reseller_ownership.py يشمل منع قراءة سند الطرف الآخر ومنع خصم الموزع.

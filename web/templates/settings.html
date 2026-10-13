@@ -31,10 +31,10 @@
                 <i class="fa-solid fa-database text-xs"></i>
                 <span>MariaDB Active</span>
             </span>
-            <a href="{{ url_for('backups_page') }}" class="px-3.5 py-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            {% if can_access_endpoint('backups_page') %}<a href="{{ url_for('backups_page') }}" class="px-3.5 py-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-box-archive text-amber-400"></i>
                 <span>النسخ الاحتياطي</span>
-            </a>
+            </a>{% endif %}
         </div>
     </div>
 

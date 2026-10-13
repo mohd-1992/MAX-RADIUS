@@ -6,10 +6,10 @@
 <div class="space-y-6">
     <!-- Breadcrumb -->
     <div class="flex items-center gap-2 text-xs text-slate-400">
-        <a href="{{ url_for('active_card_users') }}" class="hover:text-blue-400 transition flex items-center gap-1.5">
+        {% if can_access_endpoint('active_card_users') %}{% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users') }}" class="hover:text-blue-400 transition flex items-center gap-1.5">
             <i class="fa-solid fa-arrow-right"></i>
             <span>العودة إلى مشتركين الكروت المفعلة</span>
-        </a>
+        </a>{% endif %}{% endif %}
         <span>/</span>
         <span class="text-slate-200 font-semibold">{{ card.username }}</span>
     </div>
@@ -85,13 +85,13 @@
 
         <div class="flex items-center gap-2 self-end md:self-center">
             {% if card.is_online %}
-            <button onclick="disconnectVoucher({{ card.username|tojson|forceescape }})" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            {% if can_access_account_action('disconnect', 'voucher') %}<button onclick="disconnectVoucher({{ card.username|tojson|forceescape }})" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-power-off"></i>فصل الجلسة (CoA)
-            </button>
+            </button>{% endif %}
             {% endif %}
-            <a href="{{ url_for('active_card_users') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
+            {% if can_access_endpoint('active_card_users') %}{% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
                 رجوع
-            </a>
+            </a>{% endif %}{% endif %}
             <button onclick="document.getElementById('editCardForm').submit()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-1.5">
                 <i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات
             </button>
@@ -114,16 +114,16 @@
                 <span>سجل الجلسات</span>
                 <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ sessions|length }}</span>
             </button>
-            <button onclick="switchTab('invoices')" id="tab-btn-invoices" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
+            {% if has_permission('invoices.view') %}<button onclick="switchTab('invoices')" id="tab-btn-invoices" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-file-invoice-dollar text-sm"></i>
                 <span>سجل المبيعات / الفواتير</span>
                 <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ invoices|length }}</span>
-            </button>
-            <button onclick="switchTab('audit')" id="tab-btn-audit" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
+            </button>{% endif %}
+            {% if has_permission('system.audit_logs') %}<button onclick="switchTab('audit')" id="tab-btn-audit" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-shield-halved text-sm"></i>
                 <span>سجل التعديلات</span>
                 <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ audit_logs|length }}</span>
-            </button>
+            </button>{% endif %}
             <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-chart-line text-sm"></i>
                 <span>الرسم البياني</span>
@@ -448,7 +448,7 @@
     </div>
 
     <!-- TAB 4: INVOICES & SALES LOG (سجل المبيعات / الفواتير) -->
-    <div id="tab-pane-invoices" class="tab-pane hidden space-y-6">
+    {% if has_permission('invoices.view') %}<div id="tab-pane-invoices" class="tab-pane hidden space-y-6">
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">
             <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
                 <h3 class="font-bold text-white text-sm flex items-center gap-2">
@@ -499,10 +499,10 @@
             </div>
             {% endif %}
         </div>
-    </div>
+    </div>{% endif %}
 
     <!-- TAB 5: AUDIT LOG (سجل التعديلات) -->
-    <div id="tab-pane-audit" class="tab-pane hidden space-y-6">
+    {% if has_permission('system.audit_logs') %}<div id="tab-pane-audit" class="tab-pane hidden space-y-6">
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">
             <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
                 <div>
@@ -555,7 +555,7 @@
             </div>
             {% endif %}
         </div>
-    </div>
+    </div>{% endif %}
 
     <!-- TAB 6: USAGE ANALYTICS CHART (الرسم البياني) -->
     <div id="tab-pane-analytics" class="tab-pane hidden space-y-6">

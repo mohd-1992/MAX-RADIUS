@@ -21,20 +21,20 @@
         </div>
 
         <div class="flex items-center gap-2.5 flex-wrap">
-            <a href="{{ url_for('roles_page') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+            {% if can_access_endpoint('roles_page') %}{% if can_access_endpoint('roles_page') %}<a href="{{ url_for('roles_page') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-shield-halved text-blue-400"></i>
                 <span>مجموعات الصلاحيات</span>
-            </a>
+            </a>{% endif %}{% endif %}
 
-            <a href="{{ url_for('manager_invoices_page') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+            {% if can_access_endpoint('manager_invoices_page') %}{% if can_access_endpoint('manager_invoices_page') %}<a href="{{ url_for('manager_invoices_page') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-file-invoice-dollar text-emerald-400"></i>
                 <span>سجل الفواتير العام</span>
-            </a>
+            </a>{% endif %}{% endif %}
 
-            <button type="button" onclick="openAddManagerModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+            {% if has_permission('managers.manage') %}{% if not is_reseller_scope() %}{% if can_access_endpoint('add_manager_action') %}<button type="button" onclick="openAddManagerModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-user-plus"></i>
                 <span>إضافة مدير / موزع جديد</span>
-            </button>
+            </button>{% endif %}{% endif %}{% endif %}
         </div>
     </div>
 
@@ -76,7 +76,7 @@
         </div>
 
         <!-- 2. Wallet Balances -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-emerald-500/40 transition">
+        {% if has_permission('managers.billing') %}<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-emerald-500/40 transition">
             <div>
                 <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي أرصدة المحافظ</span>
                 <h4 class="text-2xl font-black text-emerald-400 font-mono">
@@ -87,10 +87,10 @@
             <div class="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-lg border border-emerald-500/20 flex-shrink-0">
                 <i class="fa-solid fa-wallet"></i>
             </div>
-        </div>
+        </div>{% endif %}
 
         <!-- 3. Cash Deposits -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-sky-500/40 transition">
+        {% if has_permission('managers.billing') %}<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-sky-500/40 transition">
             <div>
                 <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي الإيداعات النقدية</span>
                 <h4 class="text-2xl font-black text-sky-400 font-mono">
@@ -101,10 +101,10 @@
             <div class="w-11 h-11 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-lg border border-sky-500/20 flex-shrink-0">
                 <i class="fa-solid fa-money-bill-wave"></i>
             </div>
-        </div>
+        </div>{% endif %}
 
         <!-- 4. Net Outstanding Debt -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-amber-500/40 transition">
+        {% if has_permission('managers.billing') %}<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex items-center justify-between hover:border-amber-500/40 transition">
             <div>
                 <span class="text-xs font-bold text-slate-400 block mb-1">صافي الذمم المستحقة (الآجل)</span>
                 <h4 class="text-2xl font-black text-amber-400 font-mono">
@@ -115,7 +115,7 @@
             <div class="w-11 h-11 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-lg border border-amber-500/20 flex-shrink-0">
                 <i class="fa-solid fa-handshake"></i>
             </div>
-        </div>
+        </div>{% endif %}
     </div>
 
     <!-- Managers Table Card -->
@@ -135,8 +135,8 @@
                     <tr>
                         <th class="py-3.5 px-5">المدير / الموزع</th>
                         <th class="py-3.5 px-5">الدور والصلاحيات</th>
-                        <th class="py-3.5 px-5">رصيد المحفظة</th>
-                        <th class="py-3.5 px-5 hidden lg:table-cell">الذمة المالية (الآجل)</th>
+                        {% if has_permission('managers.billing') %}<th class="py-3.5 px-5">رصيد المحفظة</th>{% endif %}
+                        {% if has_permission('managers.billing') %}<th class="py-3.5 px-5 hidden lg:table-cell">الذمة المالية (الآجل)</th>{% endif %}
                         <th class="py-3.5 px-5 hidden md:table-cell">بيانات الاتصال</th>
                         <th class="py-3.5 px-5 text-center">الحالة</th>
                         <th class="py-3.5 px-5 text-center">الإجراءات والعمليات</th>
@@ -144,8 +144,8 @@
                 </thead>
                 <tbody class="divide-y divide-[#1c2840]">
                     {% for m in managers %}
-                    <tr class="hover:bg-[#11192b] transition group" data-role="{{ m.role_name }}" data-active="{{ 'active' if m.is_active else 'inactive' }}">
-                        
+                    <tr class="hover:bg-[#11192b] transition group" data-phone="{{ m.phone or '' }}" data-role="{{ m.role_name }}" data-active="{{ 'active' if m.is_active else 'inactive' }}">
+
                         <!-- 1. Manager Name & Username -->
                         <td class="py-3.5 px-5">
                             <div class="flex items-center gap-3">
@@ -178,18 +178,18 @@
                         </td>
 
                         <!-- 3. Wallet Balance -->
-                        <td class="py-3.5 px-5">
+                        {% if has_permission('managers.billing') %}<td class="py-3.5 px-5">
                             <div class="font-mono font-black text-sm {% if m.wallet_balance > 0 %}text-emerald-400{% elif m.wallet_balance < 0 %}text-rose-400{% else %}text-slate-300{% endif %}">
                                 {{ "{:,.2f}".format(m.wallet_balance) }} <span class="text-[10px] font-sans font-normal text-slate-400">{{ currency_symbol }}</span>
                             </div>
                             {% if m.credit_limit > 0 %}
                             <span class="text-[10px] text-slate-500 font-mono block mt-0.5">سقف الآجل: {{ "{:,.0f}".format(m.credit_limit) }}</span>
                             {% endif %}
-                        </td>
+                        </td>{% endif %}
 
                         <!-- 4. Net Outstanding Debt -->
-                        <td class="py-3.5 px-5 font-mono text-xs hidden lg:table-cell">
-                            {% if m.net_outstanding_debt > 0 %}
+                        {% if has_permission('managers.billing') %}<td class="py-3.5 px-5 font-mono text-xs hidden lg:table-cell">
+                            {% if has_permission('managers.billing') and m.net_outstanding_debt > 0 %}
                             <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/20 font-bold">
                                 <i class="fa-solid fa-handshake text-[11px]"></i>
                                 <span>{{ "{:,.2f}".format(m.net_outstanding_debt) }} {{ currency_symbol }}</span>
@@ -197,7 +197,7 @@
                             {% else %}
                             <span class="text-slate-500 text-[11px]">لا توجد ذمم (مسدد)</span>
                             {% endif %}
-                        </td>
+                        </td>{% endif %}
 
                         <!-- 5. Contact -->
                         <td class="py-3.5 px-5 text-slate-300 text-xs hidden md:table-cell">
@@ -226,54 +226,59 @@
                         <!-- 7. Actions -->
                         <td class="py-3.5 px-5 text-center">
                             <div class="flex items-center justify-center gap-1.5 flex-wrap">
-                                
-                                <!-- Statement of Account (كشف الحساب) -->
-                                <a href="{{ url_for('manager_statement_page', manager_id=m.id) }}" class="px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1" title="عرض كشف الحساب المالي والحركات">
-                                    <i class="fa-solid fa-receipt"></i>
-                                    <span>كشف حساب</span>
-                                </a>
 
                                 <!-- Deposit Wallet (شحن رصيد) -->
-                                <button type="button" onclick="openDepositModal({{ m.id }}, '{{ m.full_name }}', {{ m.wallet_balance }}, {{ m.net_outstanding_debt }})" class="px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="شحن رصيد نقدي أو آجل">
+                                {% if has_permission('managers.billing') %}{% if not is_reseller_scope() %}{% if can_access_endpoint('deposit_manager_action') %}<button type="button" onclick="openDepositModal({{ m.id }}, {{ m.full_name|tojson|forceescape }}, {{ m.wallet_balance }}, {{ m.net_outstanding_debt }})" class="px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="شحن رصيد نقدي أو آجل">
                                     <i class="fa-solid fa-circle-plus"></i>
-                                    <span>شحن</span>
-                                </button>
+                                    <span>شحن رصيد</span>
+                                </button>{% endif %}{% endif %}{% endif %}
 
+                                <!-- Statement of Account (كشف الحساب) -->
+                                {% if can_access_endpoint('manager_statement_page') %}{% if can_access_endpoint('manager_statement_page') %}<a href="{{ url_for('manager_statement_page', manager_id=m.id) }}" class="hidden sm:flex px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition items-center gap-1" title="عرض كشف الحساب المالي والحركات">
+                                    <i class="fa-solid fa-receipt"></i>
+                                    <span>كشف حساب</span>
+                                </a>{% endif %}{% endif %}
+
+<button type="button" class="manager-menu-toggle min-h-[44px] px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold inline-flex items-center gap-2" aria-expanded="false" aria-controls="managerMenu{{ m.id }}" aria-label="عمليات الحساب {{ m.full_name or m.username }}"><span>العمليات</span><i class="fa-solid fa-ellipsis-vertical"></i></button>
+<div id="managerMenu{{ m.id }}" class="manager-actions-menu hidden bg-[#0b0f19] border border-[#1c2840] rounded-xl shadow-2xl p-1.5 text-slate-300" aria-label="عمليات الحساب">
+{% if can_access_endpoint('manager_statement_page') %}<a href="{{ url_for('manager_statement_page', manager_id=m.id) }}" class="manager-menu-item sm:hidden"><i class="fa-solid fa-receipt"></i><span>كشف الحساب</span></a>{% endif %}
+                                {% if not is_reseller_scope() and can_access_endpoint('deduct_manager_action') %}<button type="button" onclick="openDeductModal({{ m.id }}, {{ m.full_name|tojson|forceescape }}, {{ m.wallet_balance }})" class="manager-menu-item text-rose-400" title="خصم من المحفظة"><i class="fa-solid fa-circle-minus"></i><span>خصم من المحفظة</span></button>{% endif %}
                                 <!-- Settle Debt (سداد ذمة / سند قبض) -->
-                                {% if m.net_outstanding_debt > 0 %}
-                                <button type="button" onclick="openSettleDebtModal({{ m.id }}, '{{ m.full_name }}', {{ m.net_outstanding_debt }})" class="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="سداد ذمة مالية أو قيد سند قبض">
+                                {% if has_permission('managers.billing') and m.net_outstanding_debt > 0 %}
+                                {% if has_permission('managers.billing') %}{% if not is_reseller_scope() %}{% if can_access_endpoint('settle_manager_debt_action') %}<button type="button" onclick="openSettleDebtModal({{ m.id }}, {{ m.full_name|tojson|forceescape }}, {{ m.net_outstanding_debt }})" class="manager-menu-item" title="سداد ذمة مالية أو قيد سند قبض">
                                     <i class="fa-solid fa-handshake"></i>
                                     <span>سداد ذمة</span>
-                                </button>
+                                </button>{% endif %}{% endif %}{% endif %}
                                 {% endif %}
+
+                                <!-- Edit Manager -->
+                                {% if has_permission('managers.manage') %}{% if not is_reseller_scope() %}{% if can_access_endpoint('edit_manager_action') %}<button type="button" onclick="openEditManagerModal({{ m|tojson|forceescape }})" class="manager-menu-item" title="تعديل الحساب">
+                                    <i class="fa-solid fa-pen-to-square"></i><span>تعديل البيانات</span>
+                                </button>{% endif %}{% endif %}{% endif %}
+
+                                <!-- Toggle Active / Inactive -->
+                                {% if m.id != 1 %}
+                                {% if has_permission('managers.manage') %}{% if not is_reseller_scope() %}{% if can_access_endpoint('toggle_manager_status_action') %}<button type="button" onclick="toggleManagerStatus({{ m.id }}, {{ m.full_name|tojson|forceescape }})" class="manager-menu-item {% if m.is_active %}text-amber-400{% else %}text-emerald-400{% endif %}" title="{% if m.is_active %}تعطيل الحساب{% else %}تفعيل الحساب{% endif %}">
+                                    <i class="fa-solid {% if m.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i><span>{% if m.is_active %}إيقاف الحساب{% else %}تنشيط الحساب{% endif %}</span>
+                                </button>{% endif %}{% endif %}{% endif %}
 
                                 <!-- Login As / Impersonate (For Super Admin) -->
                                 {% if current_manager and (current_manager.id == 1 or current_manager.role_code == 'superadmin' or session.get('original_admin_id') == 1) %}
                                 {% if m.id != current_manager.id %}
-                                <button type="button" onclick="impersonateManager({{ m.id }}, '{{ m.full_name }}')" class="px-2.5 py-1.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="تسجيل الدخول والتصفح بحساب هذا الموزع/المدير">
+                                <button type="button" onclick="impersonateManager({{ m.id }}, {{ m.full_name|tojson|forceescape }})" class="manager-menu-item" title="تسجيل الدخول والتصفح بحساب هذا الموزع/المدير">
                                     <i class="fa-solid fa-user-secret"></i>
                                     <span>الدخول كـ</span>
                                 </button>
                                 {% endif %}
                                 {% endif %}
 
-                                <!-- Edit Manager -->
-                                <button type="button" onclick="openEditManagerModal({{ m|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="تعديل الحساب">
-                                    <i class="fa-solid fa-pen-to-square"></i>
-                                </button>
-
-                                <!-- Toggle Active / Inactive -->
-                                {% if m.id != 1 %}
-                                <button type="button" onclick="toggleManagerStatus({{ m.id }}, '{{ m.full_name }}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 {% if m.is_active %}text-amber-400 hover:text-amber-300{% else %}text-emerald-400 hover:text-emerald-300{% endif %} rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="{% if m.is_active %}تعطيل الحساب{% else %}تفعيل الحساب{% endif %}">
-                                    <i class="fa-solid {% if m.is_active %}fa-user-slash{% else %}fa-user-check{% endif %}"></i>
-                                </button>
-
                                 <!-- Delete -->
-                                <button type="button" onclick="confirmDeleteManager({{ m.id }}, '{{ m.full_name }}')" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الحساب">
-                                    <i class="fa-solid fa-trash"></i>
-                                </button>
+                                {% if has_permission('managers.manage') %}{% if not is_reseller_scope() %}{% if can_access_endpoint('delete_manager_action') %}<button type="button" onclick="confirmDeleteManager({{ m.id }}, {{ m.full_name|tojson|forceescape }})" class="manager-menu-item text-rose-400 manager-menu-delete" title="حذف الحساب">
+                                    <i class="fa-solid fa-trash"></i><span>حذف الحساب</span>
+                                </button>{% endif %}{% endif %}{% endif %}
                                 {% endif %}
 
+</div>
                             </div>
                         </td>
 
@@ -345,10 +350,10 @@
                     <label class="block text-slate-300 font-semibold mb-1">البريد الإلكتروني</label>
                     <input type="email" name="email" placeholder="pos@example.com" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
                 </div>
-                <div>
-                    <label class="block text-slate-300 font-semibold mb-1">نسبة العمولة (%)</label>
-                    <input type="number" step="0.1" name="commission_percent" value="0.0" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
-                </div>
+                {% if has_permission('managers.billing') %}<div>
+                    <label class="block text-slate-300 font-semibold mb-1">نسبة العمولة (معلومة إدارية) (%)</label>
+                    <input type="number" step="0.1" min="0" max="100" name="commission_percent" value="0.0" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                </div>{% endif %}
             </div>
 
             <!-- Allowed Packages Selection -->
@@ -373,10 +378,10 @@
                     <i class="fa-solid fa-coins text-amber-400"></i>إعدادات الرصيد والذمم الافتتاحية
                 </h4>
                 <div class="grid grid-cols-2 gap-3">
-                    <div>
+                    {% if has_permission('managers.billing') %}<div>
                         <label class="block text-slate-400 mb-1">الرصيد الافتتاحي</label>
                         <input type="number" step="0.01" name="wallet_balance" value="0.00" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-sm text-emerald-400 font-mono font-bold focus:border-blue-500 focus:outline-none">
-                    </div>
+                    </div>{% endif %}
                     <div>
                         <label class="block text-slate-400 mb-1">نوع دفع الرصيد الافتتاحي</label>
                         <select name="initial_payment_type" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none">
@@ -386,10 +391,10 @@
                         </select>
                     </div>
                 </div>
-                <div>
+                {% if has_permission('managers.billing') %}<div>
                     <label class="block text-slate-400 mb-1">الحد الأقصى للآجل (Credit Limit)</label>
                     <input type="number" step="1" name="credit_limit" value="0" placeholder="0 = غير محدد" class="w-full bg-[#0b0f19] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-blue-500 focus:outline-none">
-                </div>
+                </div>{% endif %}
             </div>
 
             <div>
@@ -408,7 +413,7 @@
 <!-- ============================================================== -->
 <!-- 2. Deposit / Recharge Wallet Modal                             -->
 <!-- ============================================================== -->
-<div id="depositModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+{% if has_permission('managers.billing') %}<div id="depositModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
         <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
             <h3 class="font-bold text-base text-white flex items-center gap-2">
@@ -467,12 +472,12 @@
             </div>
         </form>
     </div>
-</div>
+</div>{% endif %}
 
 <!-- ============================================================== -->
 <!-- 3. Settle Debt Modal (سند قبض / سداد ذمة مالية)                  -->
 <!-- ============================================================== -->
-<div id="settleDebtModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+{% if has_permission('managers.billing') %}<div id="settleDebtModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
         <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
             <h3 class="font-bold text-base text-white flex items-center gap-2">
@@ -528,7 +533,7 @@
             </div>
         </form>
     </div>
-</div>
+</div>{% endif %}
 
 <!-- ============================================================== -->
 <!-- 4. Edit Manager Modal                                          -->
@@ -580,10 +585,10 @@
                     <label class="block text-slate-300 font-semibold mb-1">البريد الإلكتروني</label>
                     <input type="email" name="email" id="edit_email" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
                 </div>
-                <div>
-                    <label class="block text-slate-300 font-semibold mb-1">نسبة العمولة (%)</label>
-                    <input type="number" step="0.1" name="commission_percent" id="edit_commission" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
-                </div>
+                {% if has_permission('managers.billing') %}<div>
+                    <label class="block text-slate-300 font-semibold mb-1">نسبة العمولة (معلومة إدارية) (%)</label>
+                    <input type="number" step="0.1" min="0" max="100" name="commission_percent" id="edit_commission" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
+                </div>{% endif %}
             </div>
 
             <!-- Allowed Packages Edit Selection -->
@@ -602,10 +607,10 @@
                 </div>
             </div>
 
-            <div>
+            {% if has_permission('managers.billing') %}<div>
                 <label class="block text-slate-300 font-semibold mb-1">الحد الأقصى للآجل (Credit Limit)</label>
                 <input type="number" step="1" name="credit_limit" id="edit_credit_limit" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white font-mono focus:border-blue-500 focus:outline-none">
-            </div>
+            </div>{% endif %}
 
             <div>
                 <label class="block text-slate-300 font-semibold mb-1">ملاحظات</label>
@@ -619,9 +624,36 @@
         </form>
     </div>
 </div>
+{% if not is_reseller_scope() and can_access_endpoint('deduct_manager_action') %}
+<div id="deductModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+ <div class="w-full max-w-md max-h-[90vh] overflow-y-auto bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4">
+  <div class="flex items-center justify-between"><h3 class="font-bold text-rose-400">خصم من المحفظة</h3><button type="button" onclick="closeModal('deductModal')" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></div>
+  <form method="POST" id="deductForm" class="space-y-4">
+   <p id="deductTargetName" class="font-bold text-white"></p><p class="text-sm text-slate-400">الرصيد الحالي: <span id="deductCurrentBal"></span> {{ currency_symbol }}</p>
+   <label class="block text-sm text-slate-300">المبلغ<input id="deductAmount" name="amount" type="number" min="0.01" step="0.01" required class="mt-2 w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-white"></label>
+   <label class="block text-sm text-slate-300">سبب الخصم<select name="reason" required class="mt-2 w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-white"><option value="">اختر السبب</option><option>سحب نقدي</option><option>تصحيح رصيد</option><option>أخرى</option></select></label>
+   <label class="block text-sm text-slate-300">التفاصيل (مطلوبة عند اختيار أخرى)<textarea name="notes" maxlength="500" class="mt-2 w-full bg-[#070b14] border border-slate-700 rounded-xl p-3 text-white"></textarea></label>
+   <p class="text-xs text-slate-400">يسجل الخصم في كشف الحساب ولا يسدد الذمة المالية. راجع المبلغ والسبب قبل التأكيد.</p>
+   <div class="flex gap-2"><button type="submit" class="bg-rose-600 text-white rounded-xl px-4 py-2">تأكيد الخصم</button><button type="button" onclick="closeModal('deductModal')" class="bg-slate-800 text-slate-300 rounded-xl px-4 py-2">إلغاء</button></div>
+  </form>
+ </div>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='manager-menu.js') }}" defer></script>
+<style>
+.manager-actions-menu {position:fixed;z-index:70;width:230px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 24px);overflow-y:auto;text-align:right}
+.manager-menu-item {display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:10px 12px;border-radius:8px;font-size:12px;font-weight:600;text-align:right;cursor:pointer}
+.manager-menu-item:hover,.manager-menu-item:focus-visible {background:rgba(100,116,139,.15);outline:2px solid transparent}
+.manager-menu-item i {width:18px;text-align:center}
+.manager-menu-delete {border-top:1px solid rgba(100,116,139,.3);margin-top:5px;border-radius:0 0 8px 8px}
+@media(min-width:640px){.manager-menu-item.sm\:hidden{display:none}}
+</style>
+
+<script src="{{ url_for('static', filename='manager-actions.js') }}"></script>
 <script>
     function openAddManagerModal() {
         document.getElementById('addManagerModal').classList.remove('hidden');
@@ -630,6 +662,16 @@
         document.getElementById(id).classList.add('hidden');
     }
 
+    function openDeductModal(managerId, name, balance) {
+        const form = document.getElementById('deductForm');
+        form.reset(); form.action = `/managers/${managerId}/deduct`;
+        form.dataset.sending = ''; form.querySelector('[type="submit"]').disabled = false;
+        const reference = form.querySelector('[name="request_id"]'); if (reference) reference.remove();
+        document.getElementById('deductTargetName').textContent = name;
+        document.getElementById('deductCurrentBal').textContent = Number(balance || 0).toFixed(2);
+        document.getElementById('deductAmount').max = Number(balance || 0).toFixed(2);
+        document.getElementById('deductModal').classList.remove('hidden');
+    }
     function openDepositModal(managerId, managerName, currentBal, currentDebt) {
         const form = document.getElementById('depositForm');
         form.action = `/managers/${managerId}/deposit`;
@@ -663,8 +705,8 @@
         document.getElementById('edit_phone').value = mgr.phone || '';
         document.getElementById('edit_email').value = mgr.email || '';
         document.getElementById('edit_role_id').value = mgr.role_id;
-        document.getElementById('edit_commission').value = mgr.commission_percent || 0;
-        document.getElementById('edit_credit_limit').value = mgr.credit_limit || 0;
+        if (document.getElementById('edit_commission')) document.getElementById('edit_commission').value = mgr.commission_percent || 0;
+        if (document.getElementById('edit_credit_limit')) document.getElementById('edit_credit_limit').value = mgr.credit_limit || 0;
         document.getElementById('edit_notes').value = mgr.notes || '';
 
         // Reset package checkboxes
@@ -684,7 +726,7 @@
     function impersonateManager(managerId, name) {
         Swal.fire({
             title: 'تسجيل الدخول كـ (انتحال الشخصية)',
-            html: `هل تريد الانتقال للتصفح بحساب الموزع/المدير <strong class="text-amber-400 font-bold">[${name}]</strong>؟<br><span class="text-xs text-slate-400 mt-2 block">ستتمكن من استعراض كافة أقسام النظام بصلاحياته وبياناته والعودة لحسابك في أي وقت.</span>`,
+            text: `هل تريد الانتقال للتصفح بحساب الموزع/المدير [${name}]؟ستتمكن من استعراض كافة أقسام النظام بصلاحياته وبياناته والعودة لحسابك في أي وقت.`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'نعم، الدخول كـ هذا الموزع',
@@ -752,6 +794,7 @@
                 f.method = 'POST';
                 f.action = `/managers/toggle-status/${managerId}`;
                 document.body.appendChild(f);
+                prepareManagerForm(f);
                 f.submit();
             }
         });
@@ -760,7 +803,7 @@
     function confirmDeleteManager(managerId, name) {
         Swal.fire({
             title: 'حذف وتعطيل الحساب',
-            html: `هل أنت متأكد من حذف وتعطيل حساب <strong class="text-rose-400 font-bold">[${name}]</strong>؟<br><span class="text-xs text-slate-400 mt-2 block">سيتم التحقق من عدم وجود رصيد متبقي أو ذمم مالية مستحقة، والاحتفاظ بالسجل المالي والفواتير كاملة.</span>`,
+            text: `هل أنت متأكد من حذف وتعطيل حساب [${name}]؟سيتم التحقق من عدم وجود رصيد متبقي أو ذمم مالية مستحقة، والاحتفاظ بالسجل المالي والفواتير كاملة.`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#e11d48',
@@ -775,6 +818,7 @@
                 f.method = 'POST';
                 f.action = `/managers/delete/${managerId}`;
                 document.body.appendChild(f);
+                prepareManagerForm(f);
                 f.submit();
             }
         });
@@ -784,17 +828,17 @@
         const q = (document.getElementById('searchInput').value || '').toLowerCase();
         const role = (document.getElementById('roleFilter').value || '').toLowerCase();
         const status = (document.getElementById('statusFilter').value || '').toLowerCase();
-        
+
         const rows = document.querySelectorAll('#managersTable tbody tr');
         rows.forEach(r => {
-            const text = r.innerText.toLowerCase();
+            const text = (r.innerText + ' ' + (r.dataset.phone || '')).toLowerCase();
             const rRole = (r.getAttribute('data-role') || '').toLowerCase();
             const rActive = (r.getAttribute('data-active') || '').toLowerCase();
-            
+
             const matchQ = !q || text.includes(q);
             const matchRole = !role || rRole.includes(role);
             const matchStatus = !status || rActive === status;
-            
+
             r.style.display = (matchQ && matchRole && matchStatus) ? '' : 'none';
         });
     }

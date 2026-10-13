@@ -31,22 +31,22 @@
                 <i class="fa-solid fa-qrcode text-xs"></i>
                 <span>مسح رمز QR للربط</span>
             </button>
-            <a href="{{ url_for('whatsapp_simulator_page') }}" class="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30">
+            {% if can_access_endpoint('whatsapp_simulator_page') %}<a href="{{ url_for('whatsapp_simulator_page') }}" class="px-3.5 py-2 bg-gradient-to-r from-emerald-700 to-teal-700 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30">
                 <i class="fa-solid fa-comments text-xs"></i>
                 <span>المحاكي التفاعلي (Live Chat)</span>
-            </a>
-            <a href="{{ url_for('whatsapp_templates_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            </a>{% endif %}
+            {% if can_access_endpoint('whatsapp_templates_page') %}<a href="{{ url_for('whatsapp_templates_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-file-code text-indigo-400"></i>
                 <span>قوالب الرسائل</span>
-            </a>
-            <a href="{{ url_for('whatsapp_broadcast_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            </a>{% endif %}
+            {% if can_access_endpoint('whatsapp_broadcast_page') %}<a href="{{ url_for('whatsapp_broadcast_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-bullhorn text-amber-400"></i>
                 <span>إرسال جماعي</span>
-            </a>
-            <a href="{{ url_for('whatsapp_logs_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            </a>{% endif %}
+            {% if can_access_endpoint('whatsapp_logs_page') %}<a href="{{ url_for('whatsapp_logs_page') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>
                 <span>السجل</span>
-            </a>
+            </a>{% endif %}
         </div>
     </div>
 
@@ -305,10 +305,10 @@
                 <i class="fa-solid fa-list-check text-indigo-400"></i>
                 <h3 class="text-sm font-bold text-white">آخر الرسائل والعمليات المسجلة</h3>
             </div>
-            <a href="{{ url_for('whatsapp_logs_page') }}" class="text-xs text-emerald-400 hover:underline flex items-center gap-1">
+            {% if can_access_endpoint('whatsapp_logs_page') %}<a href="{{ url_for('whatsapp_logs_page') }}" class="text-xs text-emerald-400 hover:underline flex items-center gap-1">
                 <span>عرض السجل بالكامل</span>
                 <i class="fa-solid fa-arrow-left text-[10px]"></i>
-            </a>
+            </a>{% endif %}
         </div>
 
         <div class="overflow-x-auto">

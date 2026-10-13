@@ -24,10 +24,10 @@
                 <i class="fa-solid fa-server text-xs text-amber-400"></i>
                 <span>إدارة الراوترات</span>
             </a>
-            <a href="{{ url_for('l2tp_tunnels_page') }}" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-lg shadow-amber-500/20 transition flex items-center gap-2">
+            {% if can_access_endpoint('l2tp_tunnels_page') %}<a href="{{ url_for('l2tp_tunnels_page') }}" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold shadow-lg shadow-amber-500/20 transition flex items-center gap-2">
                 <i class="fa-solid fa-shield-halved text-xs"></i>
                 <span>أنفاق L2TP & WireGuard</span>
-            </a>
+            </a>{% endif %}
         </div>
     </div>
 

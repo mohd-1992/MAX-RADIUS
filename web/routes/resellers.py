@@ -56,7 +56,18 @@ from core.time_service import (
 
 logger = logging.getLogger('resellers_bp')
 
+from web.access_policy import filter_manager_visibility
+
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one, owner_id, generation_owner
+
 resellers_bp = Blueprint('resellers_bp', __name__)
+
+
+def _financial_request_id():
+    reference = request.form.get('request_id', '')
+    if not reference:
+        raise ValueError('مرجع العملية مفقود؛ حدّث الصفحة ثم أعد المحاولة.')
+    return reference
 
 
 @resellers_bp.route('/managers', endpoint="managers_page")
@@ -66,6 +77,7 @@ def managers_page():
     mgrs = get_all_managers()
     roles = get_all_roles()
     kpis = get_manager_kpis()
+    mgrs, kpis = filter_manager_visibility(mgrs, kpis)
     packages = query_all("SELECT id, name, price, service_type FROM wisp_packages ORDER BY id ASC")
     return render_template('managers.html', managers=mgrs, roles=roles, kpis=kpis, packages=packages)
 
@@ -76,6 +88,9 @@ def managers_page():
 def add_manager_action():
     try:
         data = request.form.to_dict()
+        if not has_permission('managers.billing'):
+            for key in ('wallet_balance', 'credit_limit', 'commission_percent', 'payment_type'):
+                data.pop(key, None)
         data['allowed_packages'] = request.form.getlist('allowed_packages')
         mgr_id = create_manager(data, admin_user=session.get('user', 'admin'))
         flash('تمت إضافة حساب المدير / الموزع بنجاح وتعيين الصلاحيات.', 'success')
@@ -90,6 +105,9 @@ def add_manager_action():
 def edit_manager_action(manager_id):
     try:
         data = request.form.to_dict()
+        if not has_permission('managers.billing'):
+            for key in ('wallet_balance', 'credit_limit', 'commission_percent', 'payment_type'):
+                data.pop(key, None)
         data['allowed_packages'] = request.form.getlist('allowed_packages')
         update_manager(manager_id, data, admin_user=session.get('user', 'admin'))
         flash('تم حفظ وتحديث بيانات الحساب والصلاحيات بنجاح.', 'success')
@@ -131,7 +149,7 @@ def deposit_manager_action(manager_id):
         amt = request.form['amount']
         pay_type = request.form.get('payment_type', 'cash')
         notes = request.form.get('notes', '')
-        bal_after, inv_num = deposit_manager_wallet(manager_id, amt, payment_type=pay_type, notes=notes, admin_user=session.get('user', 'admin'))
+        bal_after, inv_num = deposit_manager_wallet(manager_id, amt, payment_type=pay_type, notes=notes, admin_user=session.get('admin_username', 'admin'), request_id=_financial_request_id())
         flash(f'تم إيداع الرصيد بنجاح ({amt}) وإصدار الفاتورة/القيد {inv_num}.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء الإيداع: {str(e)}', 'danger')
@@ -143,9 +161,14 @@ def deposit_manager_action(manager_id):
 @require_permission('managers.billing')
 def deduct_manager_action(manager_id):
     try:
+        reason = request.form.get('reason', '').strip()
+        if reason not in ('سحب نقدي', 'تصحيح رصيد', 'أخرى'):
+            raise ValueError('اختر سبب الخصم.')
+        if reason == 'أخرى' and not request.form.get('notes', '').strip():
+            raise ValueError('اكتب تفاصيل سبب الخصم.')
         amt = request.form['amount']
-        notes = request.form.get('notes', '')
-        bal_after, inv_num = deduct_manager_wallet(manager_id, amt, notes=notes, admin_user=session.get('user', 'admin'))
+        notes = reason + (': ' + request.form.get('notes', '').strip() if request.form.get('notes', '').strip() else '')
+        bal_after, inv_num = deduct_manager_wallet(manager_id, amt, notes=notes, admin_user=session.get('admin_username', 'admin'), request_id=_financial_request_id())
         flash(f'تم خصم الرصيد بنجاح ({amt}) وتسجيل القيد {inv_num}.', 'info')
     except Exception as e:
         flash(f'خطأ أثناء الخصم: {str(e)}', 'danger')
@@ -160,7 +183,7 @@ def settle_manager_debt_action(manager_id):
         amt = request.form['amount']
         pay_type = request.form.get('payment_type', 'cash')
         notes = request.form.get('notes', '')
-        rem_debt, inv_num = settle_manager_debt(manager_id, amt, payment_type=pay_type, notes=notes, admin_user=session.get('user', 'admin'))
+        rem_debt, inv_num = settle_manager_debt(manager_id, amt, payment_type=pay_type, notes=notes, admin_user=session.get('admin_username', 'admin'), request_id=_financial_request_id())
         flash(f'تم تسجيل سند القبض وسداد الذمة بنجاح بقيمة ({amt}) برقم القيد {inv_num}. الذمة المتبقية: {rem_debt:,.2f}', 'success')
     except Exception as e:
         flash(f'خطأ أثناء سداد الذمة: {str(e)}', 'danger')
@@ -182,7 +205,7 @@ def void_manager_invoice_action(invoice_id):
 
 @resellers_bp.route('/managers/<int:manager_id>/statement', endpoint="manager_statement_page")
 
-@require_permission('managers.view')
+@require_permission('managers.billing')
 def manager_statement_page(manager_id):
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
@@ -193,6 +216,7 @@ def manager_statement_page(manager_id):
         flash('الحساب المطلوب غير موجود.', 'danger')
         return redirect(url_for('managers_page'))
     mgr, invoices, stats = res
+    mgr.pop('password_hash', None)
     return render_template('manager_statement.html', manager=mgr, invoices=invoices, stats=stats)
 
 
@@ -203,10 +227,12 @@ def manager_invoices_page():
     mgr_id = request.args.get('manager_id')
     tx_type = request.args.get('type')
     pay_type = request.args.get('payment_type')
-    invoices = get_all_manager_invoices(limit=150, manager_id=mgr_id, transaction_type=tx_type, payment_type=pay_type)
+    page = max(1, request.args.get('page', 1, type=int) or 1)
+    invoices = get_all_manager_invoices(limit=101, manager_id=mgr_id, transaction_type=tx_type, payment_type=pay_type, offset=(page-1)*100)
+    has_next = len(invoices) > 100
     managers = get_all_managers()
     kpis = get_manager_kpis()
-    return render_template('manager_invoices.html', invoices=invoices, managers=managers, kpis=kpis)
+    return render_template('manager_invoices.html', invoices=invoices[:100], managers=managers, kpis=kpis, page=page, has_next=has_next)
 
 
 @resellers_bp.route('/roles', endpoint="roles_page")
@@ -258,6 +284,7 @@ def delete_role_action(role_id):
 
 @resellers_bp.route('/api/roles/<int:role_id>/permissions', endpoint="api_role_permissions")
 
+@require_permission('roles.manage')
 def api_role_permissions(role_id):
     pids = get_role_permission_ids(role_id)
     return jsonify({'success': True, 'permission_ids': pids})
@@ -283,6 +310,7 @@ def topup_reseller_action():
 
 @resellers_bp.route('/reseller-wallets', endpoint="reseller_wallets_page")
 
+@require_permission('managers.billing')
 def reseller_wallets_page():
     from services.reseller_wallet_service import get_wallets_overview
     data = get_wallets_overview()
@@ -291,24 +319,37 @@ def reseller_wallets_page():
 
 @resellers_bp.route('/api/reseller-wallets/transfer', methods=['POST'], endpoint="api_reseller_wallet_transfer")
 
+@require_permission('managers.billing')
 def api_reseller_wallet_transfer():
-    from_id = int(request.form.get('from_id', 0))
-    to_id = int(request.form.get('to_id', 0))
-    amount = float(request.form.get('amount', 0))
-    notes = request.form.get('notes', '')
-    from services.reseller_wallet_service import transfer_reseller_balance
-    ok, msg = transfer_reseller_balance(from_id, to_id, amount, notes=notes)
-    return jsonify({'success': ok, 'message': msg})
+    try:
+        transfer_manager_wallet(request.form.get('from_id'), request.form.get('to_id'), request.form.get('amount'),
+                                notes=request.form.get('notes', ''), admin_user=session.get('admin_username', 'admin'),
+                                request_id=_financial_request_id())
+        return jsonify(success=True, message='تم التحويل وتسجيل القيدين في محافظ المدراء.')
+    except (ValueError, TypeError) as exc:
+        return jsonify(success=False, message=str(exc)), 400
 
 
 @resellers_bp.route('/api/reseller-wallets/deposit', methods=['POST'], endpoint="api_reseller_wallet_deposit")
 
+@require_permission('managers.billing')
 def api_reseller_wallet_deposit():
-    reseller_id = int(request.form.get('reseller_id', 0))
-    amount = float(request.form.get('amount', 0))
-    notes = request.form.get('notes', 'Direct Deposit')
-    from services.reseller_wallet_service import deposit_reseller_balance
-    ok, msg = deposit_reseller_balance(reseller_id, amount, notes=notes)
-    return jsonify({'success': ok, 'message': msg})
+    try:
+        deposit_manager_wallet(int(request.form.get('reseller_id', 0)), request.form.get('amount'),
+                               notes=request.form.get('notes', ''), admin_user=session.get('admin_username', 'admin'),
+                               request_id=_financial_request_id())
+        return jsonify(success=True, message='تم الإيداع في محفظة المدير وتسجيل فاتورته.')
+    except (ValueError, TypeError) as exc:
+        return jsonify(success=False, message=str(exc)), 400
 
 
+
+
+@resellers_bp.route('/managers/invoices/<int:invoice_id>/receipt', endpoint='manager_operation_receipt')
+@require_permission('managers.billing')
+def manager_operation_receipt(invoice_id):
+    receipt = get_manager_operation_receipt(invoice_id)
+    if not receipt:
+        from flask import abort
+        abort(404)
+    return render_template('manager_operation_receipt.html', receipt=receipt)

@@ -61,6 +61,8 @@ from core.time_service import (
 
 logger = logging.getLogger('nas_bp')
 
+from web.access_policy import filter_nas_credentials, can_view_network_totals
+
 nas_bp = Blueprint('nas_bp', __name__)
 
 
@@ -70,7 +72,7 @@ def nas():
     require_permission('nas_view')
     # Fetch devices with live status probe on page load as originally configured
     devices = get_nas_devices(skip_live_probe=False)
-    return render_template('nas.html', devices=devices)
+    return render_template('nas.html', devices=[filter_nas_credentials(d) for d in devices])
 
 
 @nas_bp.route('/nas/add', methods=['GET', 'POST'], endpoint="add_nas_action")
@@ -133,14 +135,14 @@ def nas_details_page(nas_id):
     
     return render_template(
         'nas_details.html',
-        device=device,
-        status_info=status_info,
+        device=filter_nas_credentials(device),
+        status_info=filter_nas_credentials(status_info),
         live_status=live_status,
         is_online=is_online,
         latency_ms=latency_ms,
-        active_sessions=active_sessions,
-        total_upload_str=format_bytes(total_up),
-        total_download_str=format_bytes(total_down)
+        active_sessions=active_sessions if can_view_network_totals() else [],
+        total_upload_str=format_bytes(total_up) if can_view_network_totals() else None,
+        total_download_str=format_bytes(total_down) if can_view_network_totals() else None
     )
 
 
@@ -220,7 +222,7 @@ def api_nas_live_status(nas_id):
         return jsonify({'success': False, 'message': 'الراوتر غير موجود.'}), 404
     from core.mikrotik_api import fetch_single_nas_status
     status_data = fetch_single_nas_status(device)
-    return jsonify({'success': True, 'data': status_data})
+    return jsonify({'success': True, 'data': filter_nas_credentials(status_data)})
 
 @nas_bp.route('/api/nas/test-coa/<int:nas_id>', methods=['POST'], endpoint="api_nas_test_coa")
 @login_required
@@ -669,11 +671,11 @@ def api_nas_status_compat():
     total_users = sum(d.get('active_users', 0) for d in devices)
     return jsonify({
         'success': True,
-        'devices': devices,
+        'devices': [filter_nas_credentials(d) for d in devices],
         'total_routers': len(devices),
         'online_routers': online_count,
         'offline_routers': len(devices) - online_count,
-        'total_active_users': total_users
+        **({'total_active_users': total_users} if can_view_network_totals() else {})
     })
 
 
@@ -685,4 +687,4 @@ def api_nas_single_status_compat(nas_id):
         return jsonify({'success': False, 'message': 'الراوتر غير موجود.'}), 404
     from core.mikrotik_api import fetch_single_nas_status
     status_data = fetch_single_nas_status(device)
-    return jsonify({'success': True, 'data': status_data, 'status': status_data})
+    return jsonify({'success': True, 'data': filter_nas_credentials(status_data), 'status': filter_nas_credentials(status_data)})

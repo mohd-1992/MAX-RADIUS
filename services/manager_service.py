@@ -6,10 +6,136 @@ cash vs credit ledger invoices, debt repayment, invoice voiding, and statements.
 """
 
 import json
+import hashlib
+import re
+from decimal import Decimal, InvalidOperation
 import secrets
 import datetime
 from database.db import query_all, query_one, execute_write, execute_update, log_audit, db_session, adapt_query
 from core.rbac import hash_manager_password, verify_manager_password
+
+
+
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one
+
+def _money(value, positive=False):
+    try:
+        number = Decimal(str(value or 0))
+        if not number.is_finite() or abs(number) > Decimal('9999999999.99'):
+            raise ValueError()
+        number = number.quantize(Decimal('0.01'))
+    except (ValueError, InvalidOperation, TypeError):
+        raise ValueError('يرجى إدخال مبلغ مالي صالح.')
+    if number < 0 or (positive and number <= 0):
+        raise ValueError('المبلغ يجب أن يكون أكبر من الصفر.' if positive else 'القيمة لا تقبل السالب.')
+    return float(number)
+
+
+def _manager_tx(conn, sql, params=(), fetch=None):
+    cur = conn.cursor()
+    try:
+        cur.execute(adapt_query(sql, conn), params)
+        if fetch == 'one':
+            row = cur.fetchone()
+            return dict(row) if row else None
+        if fetch == 'all':
+            return [dict(row) for row in cur.fetchall()]
+        return cur.lastrowid
+    finally:
+        cur.close()
+
+
+def _permission_ids(permission_ids):
+    try:
+        ids = sorted({int(p) for p in (permission_ids or [])})
+    except (ValueError, TypeError):
+        raise ValueError('قائمة الصلاحيات غير صالحة.')
+    known = {p['id'] for p in query_all('SELECT id FROM wisp_permissions')}
+    if not set(ids).issubset(known):
+        raise ValueError('تتضمن القائمة صلاحية غير موجودة؛ لم تحفظ التغييرات.')
+    return ids
+
+
+def _validate_manager_data(data, existing=None):
+    if not str(data.get('full_name', '')).strip():
+        raise ValueError('الاسم الكامل مطلوب.')
+    role_id = int(data.get('role_id', (existing or {}).get('role_id', 2)))
+    if not get_role_by_id(role_id):
+        raise ValueError('الدور المحدد غير موجود.')
+    _money(data.get('credit_limit', (existing or {}).get('credit_limit', 0)))
+    commission = _money(data.get('commission_percent', (existing or {}).get('commission_percent', 0)))
+    if commission > 100:
+        raise ValueError('نسبة العمولة يجب أن تكون بين صفر و100.')
+    values = data.get('allowed_packages') or []
+    if isinstance(values, str):
+        values = json.loads(values) if values.startswith('[') else values.split(',')
+    try:
+        ids = sorted({int(p) for p in values})
+    except (ValueError, TypeError):
+        raise ValueError('قائمة الباقات غير صالحة.')
+    known = {p['id'] for p in query_all('SELECT id FROM wisp_packages')}
+    if not set(ids).issubset(known):
+        raise ValueError('تتضمن القائمة باقة غير موجودة.')
+    return json.dumps(ids) if ids else None
+
+
+def _active_financial_manager(mgr):
+    if not mgr or not mgr.get('is_active') or mgr.get('is_deleted'):
+        raise ValueError('الحساب غير موجود أو موقوف أو محذوف؛ لم يتغير الرصيد.')
+
+
+def _operation_invoice(conn, manager_id, operation, amount, payment_type, request_id, admin_user):
+    if not request_id:
+        return None, None
+    if not re.fullmatch(r'[A-Za-z0-9_-]{16,128}', str(request_id)):
+        raise ValueError('مرجع العملية غير صالح؛ حدّث الصفحة.')
+    digest = hashlib.sha256(f'{admin_user}:{request_id}'.encode()).hexdigest()[:32]
+    number = 'INV-REQ-' + digest
+    previous = _manager_tx(conn, 'SELECT * FROM wisp_manager_invoices WHERE invoice_number = ?', (number,), 'one')
+    if previous and (previous['manager_id'] != manager_id or previous['transaction_type'] != operation
+                     or previous['payment_type'] != payment_type or _money(previous['amount']) != amount):
+        raise ValueError('هذا المرجع مستخدم لعملية مختلفة؛ حدّث الصفحة.')
+    return number, previous
+
+
+def _debt_in_transaction(conn, manager_id):
+    row = _manager_tx(conn, """SELECT
+        COALESCE(SUM(CASE WHEN transaction_type='deposit' AND payment_type='credit' THEN amount ELSE 0 END),0) credit,
+        COALESCE(SUM(CASE WHEN transaction_type='debt_payment' THEN amount ELSE 0 END),0) paid
+        FROM wisp_manager_invoices WHERE manager_id=? AND COALESCE(is_voided,0)=0""", (manager_id,), 'one')
+    return round(max(0, float(row['credit']) - float(row['paid'])), 2)
+
+
+def transfer_manager_wallet(from_id, to_id, amount, notes='', admin_user='admin', request_id=None):
+    from_id, to_id = int(from_id), int(to_id)
+    amount = _money(amount, positive=True)
+    if from_id == to_id:
+        raise ValueError('لا يمكن التحويل إلى الحساب نفسه.')
+    with db_session() as conn:
+        accounts = {}
+        for ident in sorted((from_id, to_id)):
+            accounts[ident] = _manager_tx(conn, 'SELECT * FROM wisp_managers WHERE id=? FOR UPDATE', (ident,), 'one')
+            _active_financial_manager(accounts[ident])
+        number, previous = _operation_invoice(conn, from_id, 'deduction', amount, 'transfer', request_id, admin_user)
+        if previous:
+            # The paired destination is part of the transfer identity.
+            if previous['notes'] != f'تحويل إلى #{to_id}: {notes}':
+                raise ValueError('مرجع التحويل مستخدم لمستلم مختلف.')
+            return previous['balance_after'], number
+        if float(accounts[from_id]['wallet_balance'] or 0) < amount:
+            raise ValueError('رصيد المحفظة غير كافٍ للتحويل.')
+        number = number or 'INV-TR-' + secrets.token_hex(16)
+        for ident, kind, delta, detail, suffix in (
+            (from_id, 'deduction', -amount, f'تحويل إلى #{to_id}: {notes}', ''),
+            (to_id, 'deposit', amount, f'تحويل من #{from_id}: {notes}', '-IN')):
+            before = float(accounts[ident]['wallet_balance'] or 0)
+            after = round(before + delta, 2)
+            _manager_tx(conn, 'UPDATE wisp_managers SET wallet_balance=? WHERE id=?', (after, ident))
+            _manager_tx(conn, """INSERT INTO wisp_manager_invoices
+                (invoice_number,manager_id,transaction_type,amount,payment_type,balance_before,balance_after,notes,is_voided,created_by)
+                VALUES(?,?,?,?,'transfer',?,?,?,0,?)""", (number+suffix,ident,kind,amount,before,after,detail,admin_user))
+    log_audit(1, admin_user, 'TRANSFER_WALLET', 'managers', f'Transfer reference {number}')
+    return round(float(accounts[from_id]['wallet_balance']) - amount, 2), number
 
 
 # =============================================================================
@@ -52,64 +178,40 @@ def get_role_permission_ids(role_id):
 
 
 def create_role(data, permission_ids=None, admin_user='admin'):
-    """Creates a new role and assigns selected permissions."""
-    name = data['name'].strip()
-    code = data.get('code', '').strip() or name.lower().replace(' ', '_')
-    description = data.get('description', '').strip()
-
-    role_id = execute_write('''
-        INSERT INTO wisp_roles (name, code, description, is_system)
-        VALUES (?, ?, ?, 0)
-    ''', (name, code, description))
-
-    if permission_ids:
-        for pid in permission_ids:
-            try:
-                execute_write('''
-                    INSERT INTO wisp_role_permissions (role_id, permission_id)
-                    VALUES (?, ?)
-                ''', (role_id, int(pid)))
-            except Exception:
-                pass
-
-    log_audit(1, admin_user, 'CREATE_ROLE', 'roles', f'Created role {name} with {len(permission_ids or [])} permissions')
+    name = str(data.get('name', '')).strip()
+    code = str(data.get('code', '')).strip() or name.lower().replace(' ', '_')
+    if not name or not re.fullmatch(r'[a-zA-Z0-9_-]{1,64}', code) or code == 'superadmin':
+        raise ValueError('اسم الدور أو رمزه غير صالح.')
+    pids = _permission_ids(permission_ids)
+    with db_session() as conn:
+        role_id = _manager_tx(conn, 'INSERT INTO wisp_roles(name,code,description,is_system) VALUES(?,?,?,0)',
+                              (name, code, data.get('description', '').strip()))
+        for pid in pids:
+            _manager_tx(conn, 'INSERT INTO wisp_role_permissions(role_id,permission_id) VALUES(?,?)', (role_id,pid))
+    log_audit(1, admin_user, 'CREATE_ROLE', 'roles', f'Created role ID {role_id}')
     return role_id
 
 
 def update_role(role_id, data, permission_ids=None, admin_user='admin'):
-    """Updates an existing role and synchronizes its permissions."""
     role = get_role_by_id(role_id)
     if not role:
-        raise ValueError("الدور المطلوب غير موجود.")
-
-    name = data['name'].strip()
-    description = data.get('description', '').strip()
-
-    execute_write('''
-        UPDATE wisp_roles SET name = ?, description = ? WHERE id = ?
-    ''', (name, description, role_id))
-
-    # Super Admin role permissions are fixed to all permissions
-    if role.get('is_system') and role.get('code') == 'superadmin':
-        execute_write('DELETE FROM wisp_role_permissions WHERE role_id = ?', (role_id,))
-        execute_write('''
-            INSERT INTO wisp_role_permissions (role_id, permission_id)
-            SELECT ?, id FROM wisp_permissions
-        ''', (role_id,))
-    else:
-        # Re-assign permissions
-        execute_write('DELETE FROM wisp_role_permissions WHERE role_id = ?', (role_id,))
-        if permission_ids:
-            for pid in permission_ids:
-                try:
-                    execute_write('''
-                        INSERT INTO wisp_role_permissions (role_id, permission_id)
-                        VALUES (?, ?)
-                    ''', (role_id, int(pid)))
-                except Exception:
-                    pass
-
-    log_audit(1, admin_user, 'UPDATE_ROLE', 'roles', f'Updated role {name} (ID: {role_id})')
+        raise ValueError('الدور غير موجود.')
+    name = str(data.get('name', '')).strip()
+    if not name:
+        raise ValueError('اسم الدور مطلوب.')
+    if data.get('code') and data['code'] != role['code']:
+        raise ValueError('رمز الدور ثابت بعد إنشائه.')
+    pids = _permission_ids(permission_ids)
+    with db_session() as conn:
+        _manager_tx(conn, 'SELECT id FROM wisp_roles WHERE id=? FOR UPDATE', (role_id,), 'one')
+        _manager_tx(conn, 'UPDATE wisp_roles SET name=?,description=? WHERE id=?', (name,data.get('description','').strip(),role_id))
+        _manager_tx(conn, 'DELETE FROM wisp_role_permissions WHERE role_id=?', (role_id,))
+        if role.get('is_system') and role['code'] == 'superadmin':
+            _manager_tx(conn, 'INSERT INTO wisp_role_permissions(role_id,permission_id) SELECT ?,id FROM wisp_permissions', (role_id,))
+        else:
+            for pid in pids:
+                _manager_tx(conn, 'INSERT INTO wisp_role_permissions(role_id,permission_id) VALUES(?,?)', (role_id,pid))
+    log_audit(1, admin_user, 'UPDATE_ROLE', 'roles', f'Updated role ID {role_id}')
     return True
 
 
@@ -125,8 +227,10 @@ def delete_role(role_id, admin_user='admin'):
     if managers_count > 0:
         raise ValueError(f"لا يمكن حذف الدور لأنه مرتبط بـ {managers_count} من المدراء/الموزعين.")
 
-    execute_write('DELETE FROM wisp_role_permissions WHERE role_id = ?', (role_id,))
-    execute_write('DELETE FROM wisp_roles WHERE id = ?', (role_id,))
+    with db_session() as conn:
+        _manager_tx(conn, 'SELECT id FROM wisp_roles WHERE id=? FOR UPDATE', (role_id,), 'one')
+        _manager_tx(conn, 'DELETE FROM wisp_role_permissions WHERE role_id = ?', (role_id,))
+        _manager_tx(conn, 'DELETE FROM wisp_roles WHERE id = ?', (role_id,))
     log_audit(1, admin_user, 'DELETE_ROLE', 'roles', f'Deleted role {role["name"]} (ID: {role_id})')
     return True
 
@@ -149,6 +253,7 @@ def get_all_managers():
         ORDER BY m.id ASC
     ''')
     for m in managers:
+        m.pop('password_hash', None)
         credit = float(m.get('total_credit_deposits') or 0.0)
         repaid = float(m.get('total_debt_payments') or 0.0)
         m['net_outstanding_debt'] = max(0.0, round(credit - repaid, 2))
@@ -204,65 +309,65 @@ def create_manager(data, admin_user='admin'):
         raise ValueError(err_msg)
 
     """Creates a new manager or reseller account with package restrictions."""
+    allowed_pkgs_str = _validate_manager_data(data)
     username = data['username'].strip()
+    if not username or len(str(data.get('password', ''))) < 4:
+        raise ValueError('اسم المستخدم وكلمة مرور من أربعة أحرف على الأقل مطلوبان.')
     raw_password = data['password'].strip()
+    if len(raw_password) < 4:
+        raise ValueError('كلمة المرور يجب ألا تقل عن أربعة أحرف.')
     full_name = data['full_name'].strip()
     phone = data.get('phone', '').strip()
     email = data.get('email', '').strip()
     role_id = int(data.get('role_id', 2))
-    initial_balance = float(data.get('wallet_balance', 0.0))
-    credit_limit = float(data.get('credit_limit', 0.0))
-    commission = float(data.get('commission_percent', 0.0))
+    initial_balance = _money(data.get('wallet_balance', 0.0))
+    credit_limit = _money(data.get('credit_limit', 0.0))
+    commission = _money(data.get('commission_percent', 0.0))
     payment_type = data.get('initial_payment_type', 'cash')
     notes = data.get('notes', '').strip()
-
-    # Handle allowed_packages
-    allowed_pkgs = data.get('allowed_packages')
-    allowed_pkgs_str = None
-    if allowed_pkgs:
-        if isinstance(allowed_pkgs, list):
-            allowed_pkgs_str = json.dumps([int(x) for x in allowed_pkgs if str(x).isdigit()])
-        elif isinstance(allowed_pkgs, str):
-            parts = [int(x.strip()) for x in allowed_pkgs.split(',') if x.strip().isdigit()]
-            allowed_pkgs_str = json.dumps(parts) if parts else None
 
     existing = query_one('SELECT id FROM wisp_managers WHERE LOWER(username) = LOWER(?)', (username,))
     if existing:
         raise ValueError(f"اسم المستخدم [{username}] مستخدم بالفعل.")
 
+    if payment_type not in ('cash', 'credit', 'transfer'):
+        raise ValueError('نوع الدفع غير صالح.')
+    if payment_type == 'credit' and credit_limit > 0 and initial_balance > credit_limit:
+        raise ValueError('الرصيد الافتتاحي الآجل يتجاوز سقف الذمة.')
     password_hash = hash_manager_password(raw_password)
 
-    manager_id = execute_write('''
-        INSERT INTO wisp_managers (
-            username, password_hash, full_name, phone, email,
-            role_id, wallet_balance, credit_limit, commission_percent,
-            allowed_packages, is_active, is_deleted, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?)
-    ''', (
-        username, password_hash, full_name, phone, email,
-        role_id, initial_balance, credit_limit, commission,
-        allowed_pkgs_str, notes
-    ))
-
-    # Also sync into wisp_admins for legacy compatibility
-    execute_write('''
-        INSERT INTO wisp_admins (username, password, full_name, role, is_active)
-        VALUES (?, ?, ?, 'manager', 1)
-        ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password), is_active = 1
-    ''', (username, password_hash, full_name))
-
-    # Record initial deposit ledger invoice if balance > 0
-    if initial_balance > 0:
-        inv_number = f"INV-M{manager_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
-        execute_write('''
-            INSERT INTO wisp_manager_invoices (
-                invoice_number, manager_id, transaction_type, amount,
-                payment_type, balance_before, balance_after, notes, created_by
-            ) VALUES (?, ?, 'deposit', ?, ?, 0.00, ?, ?, ?)
+    with db_session() as conn:
+        manager_id = _manager_tx(conn, '''
+            INSERT INTO wisp_managers (
+                username, password_hash, full_name, phone, email,
+                role_id, wallet_balance, credit_limit, commission_percent,
+                allowed_packages, is_active, is_deleted, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?)
         ''', (
-            inv_number, manager_id, initial_balance, payment_type,
-            initial_balance, 'رصيد افتتاحي عند إنشاء الحساب', admin_user
+            username, password_hash, full_name, phone, email,
+            role_id, initial_balance, credit_limit, commission,
+            allowed_pkgs_str, notes
         ))
+
+        # Also sync into wisp_admins for legacy compatibility
+        _manager_tx(conn, '''
+            INSERT INTO wisp_admins (username, password, full_name, role, is_active)
+            VALUES (?, ?, ?, 'manager', 1)
+            ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), password = VALUES(password), is_active = 1
+        ''', (username, password_hash, full_name))
+
+        # Record initial deposit ledger invoice if balance > 0
+        if initial_balance > 0:
+            inv_number = f"INV-M{manager_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
+            _manager_tx(conn, '''
+                INSERT INTO wisp_manager_invoices (
+                    invoice_number, manager_id, transaction_type, amount,
+                    payment_type, balance_before, balance_after, notes, created_by
+                ) VALUES (?, ?, 'deposit', ?, ?, 0.00, ?, ?, ?)
+            ''', (
+                inv_number, manager_id, initial_balance, payment_type,
+                initial_balance, 'رصيد افتتاحي عند إنشاء الحساب', admin_user
+            ))
 
     log_audit(1, admin_user, 'CREATE_MANAGER', 'managers', f'Created manager {username} ({full_name}) with role ID {role_id}')
     return manager_id
@@ -278,36 +383,43 @@ def update_manager(manager_id, data, admin_user='admin'):
     phone = data.get('phone', '').strip()
     email = data.get('email', '').strip()
     role_id = int(data.get('role_id', mgr['role_id']))
-    credit_limit = float(data.get('credit_limit', mgr.get('credit_limit', 0)))
-    commission = float(data.get('commission_percent', mgr.get('commission_percent', 0)))
+    credit_limit = _money(data.get('credit_limit', mgr.get('credit_limit', 0)))
+    commission = _money(data.get('commission_percent', mgr.get('commission_percent', 0)))
     notes = data.get('notes', '').strip()
     password = data.get('password', '').strip()
 
-    # Handle allowed_packages
-    allowed_pkgs = data.get('allowed_packages')
-    allowed_pkgs_str = None
-    if allowed_pkgs is not None:
-        if isinstance(allowed_pkgs, list):
-            allowed_pkgs_str = json.dumps([int(x) for x in allowed_pkgs if str(x).isdigit()])
-        elif isinstance(allowed_pkgs, str) and allowed_pkgs.strip():
-            parts = [int(x.strip()) for x in allowed_pkgs.split(',') if x.strip().isdigit()]
-            allowed_pkgs_str = json.dumps(parts) if parts else None
+    allowed_pkgs_str = _validate_manager_data(data, mgr)
+    if password and len(password) < 4:
+        raise ValueError("كلمة المرور يجب ألا تقل عن أربعة أحرف.")
 
     # If ID 1 (Superadmin), keep role_id = 1
     if manager_id == 1:
         role_id = 1
 
-    if password:
-        password_hash = hash_manager_password(password)
-        execute_write('''
-            UPDATE wisp_managers SET
-                full_name = ?, phone = ?, email = ?, role_id = ?,
-                credit_limit = ?, commission_percent = ?, allowed_packages = ?,
-                notes = ?, password_hash = ?
-            WHERE id = ?
-        ''', (full_name, phone, email, role_id, credit_limit, commission, allowed_pkgs_str, notes, password_hash, manager_id))
+    with db_session() as conn:
+        if password:
+            password_hash = hash_manager_password(password)
+            _manager_tx(conn, '''
+                UPDATE wisp_managers SET
+                    full_name = ?, phone = ?, email = ?, role_id = ?,
+                    credit_limit = ?, commission_percent = ?, allowed_packages = ?,
+                    notes = ?, password_hash = ?
+                WHERE id = ?
+            ''', (full_name, phone, email, role_id, credit_limit, commission, allowed_pkgs_str, notes, password_hash, manager_id))
 
-        execute_write('UPDATE wisp_admins SET full_name = ?, password = ? WHERE username = ?', (full_name, password_hash, mgr['username']))
+            _manager_tx(conn, 'UPDATE wisp_admins SET full_name = ?, password = ? WHERE username = ?', (full_name, password_hash, mgr['username']))
+
+        else:
+            _manager_tx(conn, '''
+                UPDATE wisp_managers SET
+                    full_name = ?, phone = ?, email = ?, role_id = ?,
+                    credit_limit = ?, commission_percent = ?, allowed_packages = ?, notes = ?
+                WHERE id = ?
+            ''', (full_name, phone, email, role_id, credit_limit, commission, allowed_pkgs_str, notes, manager_id))
+
+            _manager_tx(conn, 'UPDATE wisp_admins SET full_name = ? WHERE username = ?', (full_name, mgr['username']))
+
+    if password:
         # Sync plain password for SaaS Manager if this is the primary admin account
         if (manager_id == 1 or mgr['username'].lower() in ('admin', 'superadmin')) and password:
             try:
@@ -317,16 +429,6 @@ def update_manager(manager_id, data, admin_user='admin'):
                     json.dump({'username': mgr['username'], 'password': password, 'updated_at': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}, f_cred, indent=2)
             except Exception:
                 pass
-
-    else:
-        execute_write('''
-            UPDATE wisp_managers SET
-                full_name = ?, phone = ?, email = ?, role_id = ?,
-                credit_limit = ?, commission_percent = ?, allowed_packages = ?, notes = ?
-            WHERE id = ?
-        ''', (full_name, phone, email, role_id, credit_limit, commission, allowed_pkgs_str, notes, manager_id))
-
-        execute_write('UPDATE wisp_admins SET full_name = ? WHERE username = ?', (full_name, mgr['username']))
 
     log_audit(1, admin_user, 'UPDATE_MANAGER', 'managers', f'Updated manager {mgr["username"]} (ID: {manager_id})')
     return True
@@ -385,8 +487,13 @@ def toggle_manager_status(manager_id, admin_user='admin'):
         raise ValueError("الحساب غير موجود.")
 
     new_status = 0 if mgr['is_active'] else 1
-    execute_write('UPDATE wisp_managers SET is_active = ? WHERE id = ?', (new_status, manager_id))
-    execute_write('UPDATE wisp_admins SET is_active = ? WHERE username = ?', (new_status, mgr['username']))
+    with db_session() as conn:
+        locked = _manager_tx(conn, 'SELECT * FROM wisp_managers WHERE id=? FOR UPDATE', (manager_id,), 'one')
+        if not locked or locked.get('is_deleted'):
+            raise ValueError('الحساب محذوف ولا يمكن إعادة تفعيله.')
+        new_status = 0 if locked['is_active'] else 1
+        _manager_tx(conn, 'UPDATE wisp_managers SET is_active = ? WHERE id = ?', (new_status, manager_id))
+        _manager_tx(conn, 'UPDATE wisp_admins SET is_active = ? WHERE username = ?', (new_status, mgr['username']))
 
     status_str = 'تفعيل' if new_status == 1 else 'تعطيل'
     log_audit(1, admin_user, 'TOGGLE_MANAGER', 'managers', f'{status_str} حساب المدير {mgr["username"]}')
@@ -407,7 +514,7 @@ def delete_manager(manager_id, admin_user='admin'):
 
     # 1. Financial Check: Wallet Balance
     wallet_bal = float(mgr.get('wallet_balance') or 0.0)
-    if wallet_bal > 0.001:
+    if abs(wallet_bal) > 0.001:
         raise ValueError(f"لا يمكن حذف الحساب لوجود رصيد متبقي في المحفظة ({wallet_bal:,.2f}). يرجى تصفية أو سحب الرصيد أولاً.")
 
     # 2. Financial Check: Unsettled Debt
@@ -422,8 +529,15 @@ def delete_manager(manager_id, admin_user='admin'):
         raise ValueError(f"لا يمكن حذف الحساب لوجود {active_cards} كرت نشط مرتبط به في النظام.")
 
     # 4. Perform Soft Delete (Preserves all historical invoice ledger rows)
-    execute_write('UPDATE wisp_managers SET is_deleted = 1, is_active = 0 WHERE id = ?', (manager_id,))
-    execute_write('UPDATE wisp_admins SET is_active = 0 WHERE username = ?', (mgr['username'],))
+    with db_session() as conn:
+        locked = _manager_tx(conn, 'SELECT * FROM wisp_managers WHERE id=? FOR UPDATE', (manager_id,), 'one')
+        if not locked or locked.get('is_deleted'):
+            raise ValueError('الحساب محذوف بالفعل.')
+        active = _manager_tx(conn, "SELECT COUNT(*) c FROM wisp_vouchers WHERE reseller_id=? AND status='active'", (manager_id,), 'one')
+        if abs(float(locked.get('wallet_balance') or 0)) > 0.001 or _debt_in_transaction(conn, manager_id) > 0.001 or active['c']:
+            raise ValueError('تغيرت أرصدة الحساب أو الكروت النشطة؛ يلزم تسويتها قبل الحذف.')
+        _manager_tx(conn, 'UPDATE wisp_managers SET is_deleted = 1, is_active = 0 WHERE id = ?', (manager_id,))
+        _manager_tx(conn, 'UPDATE wisp_admins SET is_active = 0 WHERE username = ?', (mgr['username'],))
 
     log_audit(1, admin_user, 'DELETE_MANAGER', 'managers', f'Soft-deleted manager {mgr["username"]} (ID: {manager_id}) - ledger preserved.')
     return True
@@ -433,32 +547,44 @@ def delete_manager(manager_id, admin_user='admin'):
 # 3. Financial Ledger & Statement of Account (كشف الحساب والفواتير والذمم)
 # =============================================================================
 
-def deposit_manager_wallet(manager_id, amount, payment_type='cash', notes='', admin_user='admin'):
+def deposit_manager_wallet(manager_id, amount, payment_type='cash', notes='', admin_user='admin', request_id=None):
     """
     Adds balance to a manager/reseller wallet with specified payment type (cash نقدي / credit آجل / transfer تحويل).
     Atomically locks the manager row (FOR UPDATE) and inserts a ledger record in wisp_manager_invoices.
     """
-    amount = round(float(amount), 2)
+    amount = _money(amount, positive=True)
     if amount <= 0:
         raise ValueError("المبلغ يجب أن يكون أكبر من الصفر.")
 
+    if payment_type not in ('cash', 'credit', 'transfer'):
+        raise ValueError('نوع الدفع غير صالح.')
+
     with db_session() as conn:
         cursor = conn.cursor()
-        sql_lock = adapt_query('SELECT id, username, wallet_balance, credit_limit FROM wisp_managers WHERE id = ? FOR UPDATE', conn)
+        sql_lock = adapt_query('SELECT * FROM wisp_managers WHERE id = ? FOR UPDATE', conn)
         cursor.execute(sql_lock, (manager_id,))
         mgr = cursor.fetchone()
         if not mgr:
             raise ValueError("حساب المدير/الموزع غير موجود.")
 
+        _active_financial_manager(mgr)
+        operation_number, previous = _operation_invoice(conn, manager_id, 'deposit', amount, payment_type, request_id, admin_user)
+        if previous:
+            return previous['balance_after'], previous['invoice_number']
+
         balance_before = float(mgr['wallet_balance'] or 0.0)
         balance_after = round(balance_before + amount, 2)
+
+        if payment_type == 'credit' and float(mgr.get('credit_limit') or 0) > 0:
+            if _debt_in_transaction(conn, manager_id) + amount > float(mgr['credit_limit']):
+                raise ValueError('الإيداع الآجل يتجاوز سقف الذمة المسموح.')
 
         # 1. Update wallet balance
         sql_upd = adapt_query('UPDATE wisp_managers SET wallet_balance = ? WHERE id = ?', conn)
         cursor.execute(sql_upd, (balance_after, manager_id))
 
         # 2. Insert ledger invoice
-        inv_number = f"INV-DEP-{manager_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
+        inv_number = operation_number or f"INV-DEP-{manager_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
         sql_inv = adapt_query('''
             INSERT INTO wisp_manager_invoices (
                 invoice_number, manager_id, transaction_type, amount,
@@ -475,29 +601,36 @@ def deposit_manager_wallet(manager_id, amount, payment_type='cash', notes='', ad
     return balance_after, inv_number
 
 
-def deduct_manager_wallet(manager_id, amount, notes='', admin_user='admin'):
+def deduct_manager_wallet(manager_id, amount, notes='', admin_user='admin', request_id=None):
     """
     Deducts balance from a manager/reseller wallet atomically with row locking.
     """
-    amount = round(float(amount), 2)
+    amount = _money(amount, positive=True)
     if amount <= 0:
         raise ValueError("المبلغ يجب أن يكون أكبر من الصفر.")
 
     with db_session() as conn:
         cursor = conn.cursor()
-        sql_lock = adapt_query('SELECT id, username, wallet_balance FROM wisp_managers WHERE id = ? FOR UPDATE', conn)
+        sql_lock = adapt_query('SELECT * FROM wisp_managers WHERE id = ? FOR UPDATE', conn)
         cursor.execute(sql_lock, (manager_id,))
         mgr = cursor.fetchone()
         if not mgr:
             raise ValueError("حساب المدير/الموزع غير موجود.")
 
+        _active_financial_manager(mgr)
+        operation_number, previous = _operation_invoice(conn, manager_id, 'deduction', amount, 'cash', request_id, admin_user)
+        if previous:
+            return previous['balance_after'], previous['invoice_number']
+
         balance_before = float(mgr['wallet_balance'] or 0.0)
+        if amount > balance_before:
+            raise ValueError('الرصيد غير كافٍ للخصم.')
         balance_after = round(balance_before - amount, 2)
 
         sql_upd = adapt_query('UPDATE wisp_managers SET wallet_balance = ? WHERE id = ?', conn)
         cursor.execute(sql_upd, (balance_after, manager_id))
 
-        inv_number = f"INV-DED-{manager_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
+        inv_number = operation_number or f"INV-DED-{manager_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
         sql_inv = adapt_query('''
             INSERT INTO wisp_manager_invoices (
                 invoice_number, manager_id, transaction_type, amount,
@@ -513,22 +646,30 @@ def deduct_manager_wallet(manager_id, amount, notes='', admin_user='admin'):
     return balance_after, inv_number
 
 
-def settle_manager_debt(manager_id, amount, payment_type='cash', notes='', admin_user='admin'):
+def settle_manager_debt(manager_id, amount, payment_type='cash', notes='', admin_user='admin', request_id=None):
     """
     Settles outstanding credit debt (سند قبض / سداد ذمة مالية).
     Reduces the net outstanding debt without inflating spendable wallet balance.
     """
-    amount = round(float(amount), 2)
+    amount = _money(amount, positive=True)
     if amount <= 0:
         raise ValueError("المبلغ المسدد يجب أن يكون أكبر من الصفر.")
 
+    if payment_type not in ('cash', 'transfer'):
+        raise ValueError('نوع الدفع غير صالح.')
+
     with db_session() as conn:
         cursor = conn.cursor()
-        sql_lock = adapt_query('SELECT id, username, wallet_balance FROM wisp_managers WHERE id = ? FOR UPDATE', conn)
+        sql_lock = adapt_query('SELECT * FROM wisp_managers WHERE id = ? FOR UPDATE', conn)
         cursor.execute(sql_lock, (manager_id,))
         mgr = cursor.fetchone()
         if not mgr:
             raise ValueError("حساب المدير/الموزع غير موجود.")
+
+        _active_financial_manager(mgr)
+        operation_number, previous = _operation_invoice(conn, manager_id, 'debt_payment', amount, payment_type, request_id, admin_user)
+        if previous:
+            return _debt_in_transaction(conn, manager_id), previous['invoice_number']
 
         # Calculate current net debt
         sql_debt = adapt_query('''
@@ -551,7 +692,7 @@ def settle_manager_debt(manager_id, amount, payment_type='cash', notes='', admin
             raise ValueError(f"المبلغ المدخل ({amount:,.2f}) أكبر من إجمالي الذمة المستحقة ({outstanding_debt:,.2f}).")
 
         cur_balance = float(mgr['wallet_balance'] or 0.0)
-        inv_number = f"INV-PAY-{manager_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
+        inv_number = operation_number or f"INV-PAY-{manager_id}-{datetime.datetime.now().strftime('%y%m%d%H%M%S')}-{secrets.token_hex(2).upper()}"
 
         sql_inv = adapt_query('''
             INSERT INTO wisp_manager_invoices (
@@ -589,6 +730,8 @@ def void_manager_invoice(invoice_id, void_reason, admin_user='admin'):
 
         mgr_id = inv['manager_id']
         tx_type = inv['transaction_type']
+        if tx_type == 'card_purchase' or inv.get('payment_type') == 'transfer':
+            raise ValueError('لا يمكن عكس شراء الكروت أو أحد طرفي تحويل بقيد منفرد؛ يلزم إجراء تسوية مترابط.')
         amount = float(inv['amount'])
 
         # Lock manager
@@ -603,6 +746,10 @@ def void_manager_invoice(invoice_id, void_reason, admin_user='admin'):
 
         # Reversal logic
         if tx_type == 'deposit':
+            if amount > cur_bal:
+                raise ValueError('لا يكفي الرصيد الحالي لعكس الإيداع؛ لم يلغ القيد.')
+            if inv.get('payment_type') == 'credit' and amount > _debt_in_transaction(conn, mgr_id):
+                raise ValueError('لا يمكن عكس إيداع آجل تم سداد جزء منه بقيد منفرد.')
             # Deposit gave money -> take it back
             new_bal = round(cur_bal - amount, 2)
             sql_upd = adapt_query('UPDATE wisp_managers SET wallet_balance = ? WHERE id = ?', conn)
@@ -669,7 +816,7 @@ def get_manager_statement(manager_id, date_from=None, date_to=None, payment_type
     total_deductions = sum(float(i['amount']) for i in invoices if i['transaction_type'] == 'deduction' and not i.get('is_voided'))
     total_refunds = sum(float(i['amount']) for i in invoices if i['transaction_type'] == 'refund' and not i.get('is_voided'))
 
-    net_outstanding_debt = max(0.0, round(total_credit_deposits - total_debt_payments, 2))
+    net_outstanding_debt = float(mgr.get('net_outstanding_debt') or 0)
 
     stats = {
         'total_transactions': len(invoices),
@@ -688,7 +835,7 @@ def get_manager_statement(manager_id, date_from=None, date_to=None, payment_type
     return mgr, invoices, stats
 
 
-def get_all_manager_invoices(limit=100, manager_id=None, transaction_type=None, payment_type=None):
+def get_all_manager_invoices(limit=100, manager_id=None, transaction_type=None, payment_type=None, offset=0):
     """Returns general ledger invoices for all managers with optional filters."""
     sql = '''
         SELECT inv.*, m.username, m.full_name, r.name as role_name
@@ -708,7 +855,7 @@ def get_all_manager_invoices(limit=100, manager_id=None, transaction_type=None, 
         sql += " AND inv.payment_type = ?"
         params.append(payment_type)
 
-    sql += f" ORDER BY inv.id DESC LIMIT {int(limit)}"
+    sql += f" ORDER BY inv.id DESC LIMIT {max(1,min(501,int(limit)))} OFFSET {max(0,int(offset))}"
     return query_all(sql, params)
 
 
@@ -749,3 +896,10 @@ def get_manager_kpis():
         'net_outstanding_debt': net_debt,
         'card_purchases': float(invoices_summary['card_purchases'] if invoices_summary else 0)
     }
+
+
+def get_manager_operation_receipt(invoice_id):
+    """Read a ledger receipt through the current account ownership scope."""
+    return query_one('''SELECT i.*,m.username,m.full_name
+        FROM wisp_manager_invoices i LEFT JOIN wisp_managers m ON m.id=i.manager_id
+        WHERE i.id=?''', (invoice_id,))

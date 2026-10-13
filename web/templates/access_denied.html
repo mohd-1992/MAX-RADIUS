@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}صلاحية غير متاحة{% endblock %}
+{% block content %}
+<div class="max-w-xl mx-auto mt-10 rounded-2xl border border-slate-700 bg-[#0b0f19] p-6 text-center">
+    <i class="fa-solid fa-lock text-3xl text-amber-400" aria-hidden="true"></i>
+    <h2 class="mt-4 text-xl font-bold">ليس لديك صلاحية لعرض هذه الصفحة</h2>
+    <p class="mt-3 text-sm text-slate-400">راجع مدير النظام إذا كنت تحتاج الوصول إليها.</p>
+    <a href="{{ url_for('dashboard') }}" class="inline-block mt-5 rounded-xl bg-blue-600 px-5 py-3 text-white">العودة للوحة التحكم</a>
+</div>
+{% endblock %}

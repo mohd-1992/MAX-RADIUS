@@ -27,10 +27,10 @@
                 <i class="fa-solid fa-trash-can text-xs"></i>
                 <span>مسح السجل</span>
             </button>
-            <a href="{{ url_for('whatsapp_dashboard') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            {% if can_access_endpoint('whatsapp_dashboard') %}<a href="{{ url_for('whatsapp_dashboard') }}" class="px-3.5 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-arrow-right text-xs"></i>
                 <span>العودة للوحة الواتساب</span>
-            </a>
+            </a>{% endif %}
         </div>
     </div>
 
@@ -59,9 +59,9 @@
             </button>
 
             {% if status_filter != 'all' or phone_filter %}
-            <a href="{{ url_for('whatsapp_logs_page') }}" class="px-3 py-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition">
+            {% if can_access_endpoint('whatsapp_logs_page') %}<a href="{{ url_for('whatsapp_logs_page') }}" class="px-3 py-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition">
                 إلغاء الفلتر
-            </a>
+            </a>{% endif %}
             {% endif %}
 
         </form>

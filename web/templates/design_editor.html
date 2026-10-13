@@ -91,9 +91,9 @@
     <!-- Top Action Toolbar & Breadcrumb -->
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm">
         <div class="flex items-center gap-3">
-            <a href="{{ url_for('voucher_designs_list') }}" class="w-10 h-10 rounded-xl bg-[#070b14] hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 flex items-center justify-center text-sm transition shadow-xs cursor-pointer" title="رجوع لقائمة التصاميم">
+            {% if can_access_endpoint('voucher_designs_list') %}<a href="{{ url_for('voucher_designs_list') }}" class="w-10 h-10 rounded-xl bg-[#070b14] hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 flex items-center justify-center text-sm transition shadow-xs cursor-pointer" title="رجوع لقائمة التصاميم">
                 <i class="fa-solid fa-arrow-right"></i>
-            </a>
+            </a>{% endif %}
             <div>
                 <div class="flex items-center gap-2.5 flex-wrap">
                     <h2 id="topDesignTitle" class="text-base sm:text-lg font-black text-white tracking-tight">
@@ -119,9 +119,9 @@
                 <i class="fa-solid fa-arrow-rotate-left text-slate-400"></i>
                 <span class="hidden sm:inline">استعادة الافتراضي</span>
             </button>
-            <a href="{{ url_for('voucher_designs_list') }}" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer">
+            {% if can_access_endpoint('voucher_designs_list') %}<a href="{{ url_for('voucher_designs_list') }}" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition cursor-pointer">
                 إلغاء
-            </a>
+            </a>{% endif %}
         </div>
     </div>
 

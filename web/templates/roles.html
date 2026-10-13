@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}إدارة مجموعات الصلاحيات والأدوار (RBAC Roles){% endblock %}
-{% block page_title %}صلاحيات ومجموعات المدراء (Roles & Permissions){% endblock %}
+{% block page_title %}صلاحيات المدراء{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -14,7 +14,7 @@
             </div>
             <div>
                 <h2 class="text-xl font-black text-white flex items-center gap-2">
-                    مجموعات الصلاحيات والأدوار (RBAC Matrix)
+                    الأدوار والصلاحيات
                 </h2>
                 <p class="text-xs text-slate-400 mt-0.5">
                     تحديد دقيق لما يمكن لكل مدير أو موزع أو نقطة بيع الوصول إليه والتنفيذ في النظام
@@ -28,10 +28,10 @@
                 <span>العودة للمدراء والموزعين</span>
             </a>
 
-            <button onclick="openAddRoleModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2">
+            {% if can_access_endpoint('add_role_action') %}<button onclick="openAddRoleModal()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2">
                 <i class="fa-solid fa-plus"></i>
                 <span>إنشاء دور جديد</span>
-            </button>
+            </button>{% endif %}
         </div>
     </div>
 
@@ -74,15 +74,15 @@
 
             <!-- Actions -->
             <div class="border-t border-[#1c2840] pt-3 flex items-center justify-between gap-2">
-                <button type="button" onclick="openEditRoleModal({{ r.id }}, '{{ r.name }}', '{{ r.description }}', {{ r.is_system|int }})" class="w-full py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
+                {% if can_access_endpoint('edit_role_action') %}<button type="button" onclick="openEditRoleModal({{ r.id }}, {{ r.name|tojson|forceescape }}, {{ r.description|tojson|forceescape }}, {{ r.is_system|int }}, {{ r.code|tojson|forceescape }})" class="w-full py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/20 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5">
                     <i class="fa-solid fa-pen-to-square"></i>
                     <span>تعديل الصلاحيات</span>
-                </button>
+                </button>{% endif %}
 
                 {% if not r.is_system and r.id != 1 %}
-                <button type="button" onclick="confirmDeleteRole({{ r.id }}, '{{ r.name }}')" class="p-1.5 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-xl text-xs transition border border-[#162136]" title="حذف الدور">
+                {% if can_access_endpoint('delete_role_action') %}<button type="button" onclick="confirmDeleteRole({{ r.id }}, {{ r.name|tojson|forceescape }})" class="p-1.5 bg-[#070b14] hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-xl text-xs transition border border-[#162136]" title="حذف الدور">
                     <i class="fa-solid fa-trash"></i>
-                </button>
+                </button>{% endif %}
                 {% endif %}
             </div>
         </div>
@@ -131,6 +131,7 @@
                     </button>
                 </div>
 
+                <p class="text-[11px] text-slate-400 leading-relaxed">صلاحيات القسم الأساسية مطلوبة للدخول إليه، والخيارات التفصيلية تحدد الصفحات والعمليات المتاحة داخله. صلاحيات الموزع تقتصر على بياناته.</p>
                 <div class="space-y-4">
                     {% for cat_name, perms in grouped_permissions.items() %}
                     <div class="bg-[#070b14] rounded-xl p-3.5 border border-[#162136] space-y-2.5">
@@ -147,7 +148,8 @@
                                 <input type="checkbox" name="permissions" value="{{ p.id }}" class="perm-checkbox mt-0.5 rounded text-blue-600 focus:ring-blue-500 bg-[#070b14] border-slate-700">
                                 <div>
                                     <span class="font-semibold text-slate-200 block text-[11px]">{{ p.name }}</span>
-                                    <span class="text-[10px] text-slate-500 font-mono block">{{ p.code }}</span>
+                                    <span class="text-[10px] text-slate-500 font-mono block break-all">{{ p.code }}</span>
+                                    {% if p.description %}<span class="text-[10px] text-slate-500 block mt-1 leading-relaxed">{{ p.description }}</span>{% endif %}
                                 </div>
                             </label>
                             {% endfor %}
@@ -167,8 +169,11 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='manager-actions.js') }}"></script>
 <script>
+    let roleLoadVersion = 0;
     function openAddRoleModal() {
+        ++roleLoadVersion;
         document.getElementById('roleModalTitle').innerHTML = '<i class="fa-solid fa-plus text-blue-400"></i> إنشاء دور جديد';
         const form = document.getElementById('roleForm');
         form.action = "{{ url_for('add_role_action') }}";
@@ -181,26 +186,33 @@
         document.getElementById('roleModal').classList.remove('hidden');
     }
 
-    function openEditRoleModal(roleId, name, desc, isSystem) {
-        document.getElementById('roleModalTitle').innerHTML = `<i class="fa-solid fa-pen-to-square text-blue-400"></i> تعديل صلاحيات: ${name}`;
+    function openEditRoleModal(roleId, name, desc, isSystem, code) {
+        const loadVersion = ++roleLoadVersion;
+        document.getElementById('roleModalTitle').textContent = `تعديل صلاحيات: ${name}`;
         const form = document.getElementById('roleForm');
         form.action = `/roles/edit/${roleId}`;
         document.getElementById('role_name_input').value = name;
         document.getElementById('role_desc_input').value = desc || '';
-        document.getElementById('role_code_input').disabled = isSystem === 1;
+        document.getElementById('role_code_input').value = code;
+        document.getElementById('role_code_input').disabled = true;
+        document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
+        document.getElementById('roleModal').classList.add('hidden');
 
         // Fetch assigned permission IDs
         fetch(`/api/roles/${roleId}/permissions`)
-            .then(r => r.json())
+            .then(r => { if (!r.ok) throw new Error('permissions'); return r.json(); })
             .then(data => {
-                const assigned = new Set(data.permission_ids || []);
+                if (loadVersion !== roleLoadVersion) return;
+                if (!data.success || !Array.isArray(data.permission_ids)) throw new Error('permissions');
+                const assigned = new Set(data.permission_ids);
                 document.querySelectorAll('.perm-checkbox').forEach(cb => {
                     cb.checked = assigned.has(parseInt(cb.value));
                 });
                 document.getElementById('roleModal').classList.remove('hidden');
             })
             .catch(() => {
-                document.getElementById('roleModal').classList.remove('hidden');
+                if (loadVersion !== roleLoadVersion) return;
+                Swal.fire('تعذر تحميل الصلاحيات', 'لم تُفتح نافذة التعديل. أعد المحاولة بعد التحقق من الاتصال والصلاحية.', 'error');
             });
     }
 
@@ -230,6 +242,7 @@
                 f.method = 'POST';
                 f.action = `/roles/delete/${roleId}`;
                 document.body.appendChild(f);
+                prepareManagerForm(f);
                 f.submit();
             }
         });

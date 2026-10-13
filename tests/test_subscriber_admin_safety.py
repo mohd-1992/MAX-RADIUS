@@ -59,6 +59,8 @@ def fixture():
     db.execute("INSERT INTO wisp_subscribers(id,username,password,full_name,package_id,service_type,status,balance,extra_quota_mb,snap_volume_quota_mb,last_renewed_at,expires_at) VALUES(1,'fixture-user','fixture-password','اختبار',1,'hotspot','active',100,5,123,'2026-10-10 12:00:00','2026-11-01 12:00:31')")
     db.execute("INSERT INTO wisp_vouchers VALUES(1,'fixture-card','كرت اختبار',100,1)")
     db.commit()
+    from visibility_fixture import install_fixture_visibility
+    install_fixture_visibility(app, ns)
     return app,db,ns
 
 class SubscriberSafetyTests(unittest.TestCase):

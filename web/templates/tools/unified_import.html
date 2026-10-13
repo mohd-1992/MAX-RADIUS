@@ -992,21 +992,21 @@
                     </p>
 
                     <div class="space-y-2.5">
-                        <a href="{{ url_for('download_sample_template', type='vouchers') }}" class="w-full px-4 py-3 bg-[#070b14] hover:bg-emerald-950/30 text-slate-200 hover:text-emerald-300 border border-slate-800 hover:border-emerald-500/40 rounded-xl text-xs font-bold transition flex items-center justify-between group">
+                        {% if can_access_endpoint('download_sample_template') %}<a href="{{ url_for('download_sample_template', type='vouchers') }}" class="w-full px-4 py-3 bg-[#070b14] hover:bg-emerald-950/30 text-slate-200 hover:text-emerald-300 border border-slate-800 hover:border-emerald-500/40 rounded-xl text-xs font-bold transition flex items-center justify-between group">
                             <div class="flex items-center gap-2.5">
                                 <i class="fa-solid fa-file-excel text-emerald-400 text-base"></i>
                                 <span>قالب كروت الهوتسبوت (.xlsx)</span>
                             </div>
                             <i class="fa-solid fa-arrow-down text-slate-500 group-hover:text-emerald-400 transition text-xs"></i>
-                        </a>
+                        </a>{% endif %}
 
-                        <a href="{{ url_for('download_sample_template', type='subscribers') }}" class="w-full px-4 py-3 bg-[#070b14] hover:bg-purple-950/30 text-slate-200 hover:text-purple-300 border border-slate-800 hover:border-purple-500/40 rounded-xl text-xs font-bold transition flex items-center justify-between group">
+                        {% if can_access_endpoint('download_sample_template') %}<a href="{{ url_for('download_sample_template', type='subscribers') }}" class="w-full px-4 py-3 bg-[#070b14] hover:bg-purple-950/30 text-slate-200 hover:text-purple-300 border border-slate-800 hover:border-purple-500/40 rounded-xl text-xs font-bold transition flex items-center justify-between group">
                             <div class="flex items-center gap-2.5">
                                 <i class="fa-solid fa-file-excel text-purple-400 text-base"></i>
                                 <span>قالب المشتركين الثابتين (.xlsx)</span>
                             </div>
                             <i class="fa-solid fa-arrow-down text-slate-500 group-hover:text-purple-400 transition text-xs"></i>
-                        </a>
+                        </a>{% endif %}
                     </div>
                 </div>
 

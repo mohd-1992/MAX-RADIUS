@@ -189,7 +189,9 @@ def impersonate_manager(manager_id):
         return jsonify({'success': False, 'message': 'يرجى تسجيل الدخول أولاً.'}), 401
 
     # Super Admin Check: ID 1 or role superadmin or original_admin_id == 1
-    is_super = (current.get('id') == 1 or current.get('role_code') == 'superadmin' or session.get('original_admin_id') == 1)
+    original = get_manager_by_id(session['original_admin_id']) if session.get('original_admin_id') else current
+    is_super = bool(original and original.get('is_active') and not original.get('is_deleted')
+                    and (original.get('id') == 1 or original.get('role_code') == 'superadmin'))
     if not is_super:
         return jsonify({'success': False, 'message': 'عذراً، ميزة انتحال الشخصية متاحة فقط للمدير العام (Super Admin).'}), 403
 
@@ -197,7 +199,7 @@ def impersonate_manager(manager_id):
     if not target:
         return jsonify({'success': False, 'message': 'حساب المدير أو الموزع المطلوب غير موجود.'}), 404
 
-    if not target.get('is_active'):
+    if not target.get('is_active') or target.get('is_deleted'):
         return jsonify({'success': False, 'message': 'لا يمكن الدخول كحساب معطل.'}), 400
 
     # Save original admin id if not already set
@@ -218,22 +220,24 @@ def impersonate_manager(manager_id):
     })
 
 
-@auth_bp.route('/impersonate/exit', methods=['GET', 'POST'], endpoint="impersonate_exit")
+@auth_bp.route('/impersonate/exit', methods=['POST'], endpoint="impersonate_exit")
 
 def impersonate_exit():
-    original_id = session.pop('original_admin_id', None)
-    if original_id:
-        orig = get_manager_by_id(original_id)
-        if orig:
-            session['admin_id'] = orig['id']
-            session['admin_username'] = orig['username']
-            session['role_code'] = orig['role_code']
-            log_audit(orig['id'], orig['username'], 'IMPERSONATE_EXIT', 'security', f'Super Admin [{orig["username"]}] exited impersonation mode')
-            flash('تمت العودة إلى حساب المدير العام الأصلي بنجاح.', 'success')
-            return redirect(url_for('managers_page'))
-    
-    session['admin_id'] = 1
-    flash('تمت العودة إلى لوحة التحكم الرئيسية.', 'info')
-    return redirect(url_for('dashboard'))
+    original_id = session.get('original_admin_id')
+    if not original_id:
+        return jsonify(success=False, message='لا توجد جلسة انتحال للعودة منها.'), 403
+    orig = get_manager_by_id(original_id)
+    if not orig or not orig.get('is_active') or orig.get('is_deleted') or not (orig['id'] == 1 or orig.get('role_code') == 'superadmin'):
+        session.clear()
+        return redirect(url_for('login'))
+    session.pop('original_admin_id', None)
+    session['admin_id'] = orig['id']
+    session['admin_username'] = orig['username']
+    session['role_code'] = orig['role_code']
+    session.pop('manager', None)
+    session.pop('permissions', None)
+    log_audit(orig['id'], orig['username'], 'IMPERSONATE_EXIT', 'security', 'Returned to verified original administrator')
+    flash('تمت العودة إلى حساب المدير العام الأصلي بنجاح.', 'success')
+    return redirect(url_for('managers_page'))
 
 

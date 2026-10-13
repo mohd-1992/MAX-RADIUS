@@ -28,10 +28,10 @@
                 <i class="fa-solid fa-layer-group text-amber-400"></i>
                 <span>حزم الكروت</span>
             </a>
-            <a href="{{ url_for('new_voucher_design') }}" class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer active:scale-95">
+            {% if can_access_endpoint('new_voucher_design') %}<a href="{{ url_for('new_voucher_design') }}" class="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition flex items-center gap-2 cursor-pointer active:scale-95">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                 <span>إضافة تصميم جديد (Add New)</span>
-            </a>
+            </a>{% endif %}
         </div>
     </div>
 
@@ -103,9 +103,9 @@
                                     {% endif %}
                                 </div>
                                 <div>
-                                    <a href="{{ url_for('edit_voucher_design', design_id=d.id) }}" class="font-bold text-white hover:text-blue-400 transition text-sm flex items-center gap-2">
+                                    {% if can_access_endpoint('edit_voucher_design') %}<a href="{{ url_for('edit_voucher_design', design_id=d.id) }}" class="font-bold text-white hover:text-blue-400 transition text-sm flex items-center gap-2">
                                         <span>{{ d.name }}</span>
-                                    </a>
+                                    </a>{% endif %}
                                     <span class="text-[11px] text-slate-400 block mt-0.5 font-mono">ID: #{{ d.id }}</span>
                                 </div>
                             </div>
@@ -149,10 +149,10 @@
                         <td class="py-3.5 px-5 text-center">
                             <div class="flex items-center justify-center gap-1.5">
                                 <!-- تعديل -->
-                                <a href="{{ url_for('edit_voucher_design', design_id=d.id) }}" class="px-3 py-1.5 bg-blue-600/15 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5" title="تعديل التصميم والمواضع">
+                                {% if can_access_endpoint('edit_voucher_design') %}<a href="{{ url_for('edit_voucher_design', design_id=d.id) }}" class="px-3 py-1.5 bg-blue-600/15 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5" title="تعديل التصميم والمواضع">
                                     <i class="fa-solid fa-pen-to-square"></i>
                                     <span>تعديل</span>
-                                </a>
+                                </a>{% endif %}
 
                                 <!-- تكرار -->
                                 <button type="button" onclick="duplicateDesign({{ d.id }}, {{ d.name|tojson|forceescape }})" class="p-1.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs transition border border-slate-800 cursor-pointer" title="تكرار وإنشاء نسخة">
@@ -176,9 +176,9 @@
                             </div>
                             <h4 class="text-base font-bold text-white">لا توجد تصاميم كروت محفوظة حالياً</h4>
                             <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">ابدأ بإنشاء أول قالب كرت مخصص للشبكة مع إمكانية رفع الخلفيات وتوزيع النصوص</p>
-                            <a href="{{ url_for('new_voucher_design') }}" class="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition">
+                            {% if can_access_endpoint('new_voucher_design') %}<a href="{{ url_for('new_voucher_design') }}" class="inline-flex items-center gap-2 mt-4 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/30 transition">
                                 <i class="fa-solid fa-plus-circle"></i>إنشاء أول تصميم الآن
-                            </a>
+                            </a>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}

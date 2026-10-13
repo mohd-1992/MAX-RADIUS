@@ -181,9 +181,9 @@
             <a href="{{ url_for('nas') }}" class="px-4 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
                 إلغاء
             </a>
-            <button type="button" onclick="document.getElementById('editNasForm').submit()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2">
+            {% if has_permission('nas.manage') %}<button type="button" onclick="document.getElementById('editNasForm').submit()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2">
                 <i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات ومزامنة RADIUS
-            </button>
+            </button>{% endif %}
         </div>
     </div>
 
@@ -216,7 +216,7 @@
         </div>
 
         <!-- 2. Active Sessions on this Router -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-blue-500/40 transition flex flex-col justify-between">
+        {% if can_view_network_totals() %}<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-blue-500/40 transition flex flex-col justify-between">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-300">المشتركون المتصلون حالياً</span>
                 <div class="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-lg flex-shrink-0">
@@ -233,10 +233,10 @@
                     <span class="text-blue-400 font-bold">FreeRADIUS radacct</span>
                 </div>
             </div>
-        </div>
+        </div>{% endif %}
 
         <!-- 3. Total Download Traffic -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-emerald-500/40 transition flex flex-col justify-between">
+        {% if can_view_network_totals() %}<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-emerald-500/40 transition flex flex-col justify-between">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-300">إجمالي التنزيل (Download Rx)</span>
                 <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-lg flex-shrink-0">
@@ -250,10 +250,10 @@
                     <span class="text-emerald-400 font-bold">Inbound Traffic</span>
                 </div>
             </div>
-        </div>
+        </div>{% endif %}
 
         <!-- 4. Total Upload Traffic -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-sky-500/40 transition flex flex-col justify-between">
+        {% if can_view_network_totals() %}<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-sky-500/40 transition flex flex-col justify-between">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-300">إجمالي الرفع (Upload Tx)</span>
                 <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center text-lg flex-shrink-0">
@@ -267,7 +267,7 @@
                     <span class="text-sky-400 font-bold">Outbound Traffic</span>
                 </div>
             </div>
-        </div>
+        </div>{% endif %}
     </div>
 
     <!-- Hardware & Real-Time System Metrics Box -->
@@ -318,10 +318,10 @@
             </div>
 
             <!-- Active Sessions On Router -->
-            <div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136]">
+            {% if can_view_network_totals() %}<div class="bg-[#070b14] p-3.5 rounded-xl border border-[#162136]">
                 <span class="text-[11px] text-slate-400 block mb-1">المستخدمون النشطون (Hotspot / PPP)</span>
                 <span id="detailActiveUsers" class="font-bold text-purple-400 text-sm font-mono block">{{ status_info.active_users or 0 }} مستخدم</span>
-            </div>
+            </div>{% endif %}
         </div>
 
         <!-- CPU & RAM Bars -->
@@ -374,7 +374,7 @@
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         <!-- Left: Edit Form (7 cols) -->
-        <div class="lg:col-span-7 space-y-6">
+        {% if has_permission('nas.manage') %}<div class="lg:col-span-7 space-y-6">
             <form id="editNasForm" method="POST" action="{{ url_for('edit_nas_action', nas_id=device.id) }}" class="space-y-5">
                 <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4 shadow-sm">
                     <h3 class="font-bold text-white text-sm flex items-center gap-2 border-b border-[#1c2840] pb-2.5">
@@ -448,7 +448,7 @@
                     </div>
                 </div>
             </form>
-        </div>
+        </div>{% endif %}
 
         <!-- Right: MikroTik Terminal Setup & Active Sessions (5 cols) -->
         <div class="lg:col-span-5 space-y-6">
@@ -479,7 +479,7 @@
             </div>
 
             <!-- 2. Active Sessions Table on this Router -->
-            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
+            {% if can_view_network_totals() %}<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-3">
                 <div class="flex items-center justify-between border-b border-[#1c2840] pb-2.5">
                     <h3 class="font-bold text-white text-sm flex items-center gap-2">
                         <i class="fa-solid fa-tower-broadcast text-blue-400"></i>الجلسات النشطة على هذا الراوتر
@@ -509,7 +509,7 @@
                     </div>
                     {% endfor %}
                 </div>
-            </div>
+            </div>{% endif %}
         </div>
     </div>
 </div>
@@ -518,6 +518,7 @@
 {% block scripts %}
 <script>
     function updateRouterScriptLive() {
+        if (!document.getElementById('customRadiusIp')) return;
         const ip = document.getElementById('customRadiusIp').value.trim() || '192.168.1.100';
         const coaPort = "{{ device.coa_port or 3799 }}";
         const secret = "{{ device.secret }}";

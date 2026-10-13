@@ -84,9 +84,9 @@
 
         <div class="flex items-center gap-2 self-end md:self-center">
             {% if subscriber.is_online and has_permission('subscribers.disconnect') %}
-            <button onclick="disconnectUser({{ subscriber.username|string|tojson|forceescape }})" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
+            {% if can_access_account_action('disconnect', 'subscriber') %}<button onclick="disconnectUser({{ subscriber.username|string|tojson|forceescape }})" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                 <i class="fa-solid fa-power-off"></i>فصل الجلسة (CoA)
-            </button>
+            </button>{% endif %}
             {% endif %}
             <a href="{{ url_for('subscribers') }}" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition border border-slate-700">
                 رجوع
@@ -124,11 +124,11 @@
                 <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ invoices|length }}</span>
             </button>
             {% endif %}
-            <button onclick="switchTab('audit')" id="tab-btn-audit" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
+            {% if has_permission('system.audit_logs') %}<button onclick="switchTab('audit')" id="tab-btn-audit" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-shield-halved text-sm"></i>
                 <span>سجل التعديلات</span>
                 <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ audit_logs|length }}</span>
-            </button>
+            </button>{% endif %}
             <button onclick="switchTab('analytics')" id="tab-btn-analytics" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-chart-line text-sm"></i>
                 <span>الرسم البياني</span>
@@ -312,10 +312,10 @@
                             <span class="text-slate-400">المنشئ / المدير:</span>
                             <strong class="text-white">{{ subscriber.created_by or 'الإدارة المركزية (Super Admin)' }}</strong>
                         </div>
-                        <div class="flex items-center justify-between">
+                        {% if has_permission('invoices.view') or has_permission('wallets.manage') %}<div class="flex items-center justify-between">
                             <span class="text-slate-400">رصيد المحفظة:</span>
                             <strong class="text-emerald-400 font-bold font-mono">{{ subscriber.balance or '0.00' }} {{ currency_symbol }}</strong>
-                        </div>
+                        </div>{% endif %}
                     </div>
                     <div class="space-y-2.5">
                         <div class="flex items-center justify-between">
@@ -489,7 +489,7 @@
     </div>
 
     <!-- TAB 4: INVOICES LOG (سجل الفواتير) -->
-    <div id="tab-pane-invoices" class="tab-pane hidden space-y-6">
+    {% if has_permission('invoices.view') %}<div id="tab-pane-invoices" class="tab-pane hidden space-y-6">
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">
             <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
                 <h3 class="font-bold text-white text-sm flex items-center gap-2">
@@ -546,10 +546,10 @@
             </div>
             {% endif %}
         </div>
-    </div>
+    </div>{% endif %}
 
     <!-- TAB 5: AUDIT LOG (سجل التعديلات) -->
-    <div id="tab-pane-audit" class="tab-pane hidden space-y-6">
+    {% if has_permission('system.audit_logs') %}<div id="tab-pane-audit" class="tab-pane hidden space-y-6">
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">
             <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
                 <div>
@@ -602,7 +602,7 @@
             </div>
             {% endif %}
         </div>
-    </div>
+    </div>{% endif %}
 
     <!-- TAB 6: USAGE ANALYTICS CHART (الرسم البياني) -->
     <div id="tab-pane-analytics" class="tab-pane hidden space-y-6">

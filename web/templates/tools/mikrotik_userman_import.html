@@ -168,10 +168,10 @@
             </div>
         </div>
         <div class="flex items-center gap-2">
-            <a href="{{ url_for('database_migration_studio') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-2 border border-slate-700">
+            {% if can_access_endpoint('database_migration_studio') %}<a href="{{ url_for('database_migration_studio') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-2 border border-slate-700">
                 <i class="fa-solid fa-arrow-right"></i>
                 <span>استوديو الترحيل العام</span>
-            </a>
+            </a>{% endif %}
         </div>
     </div>
 

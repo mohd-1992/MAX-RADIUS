@@ -56,6 +56,10 @@ from core.time_service import (
 
 logger = logging.getLogger('subscribers_bp')
 
+from web.access_policy import filter_account_money
+
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one, owner_id, generation_owner
+
 subscribers_bp = Blueprint('subscribers_bp', __name__)
 
 @subscribers_bp.before_request
@@ -90,7 +94,7 @@ def subscribers():
     subs = get_subscribers(search=search, service_type=stype, status=status, package_id=package_id if package_id else None)
     status_counts = get_subscriber_status_counts(search=search, service_type=stype, package_id=package_id if package_id else None)
     packages = query_all('SELECT id, name, service_type, price FROM wisp_packages WHERE is_active = 1 ORDER BY service_type, price ASC')
-    return render_template('subscribers.html', subscribers=subs, packages=packages, q=search, type=stype, status=status, status_counts=status_counts, package_id=package_id)
+    return render_template('subscribers.html', subscribers=[filter_account_money(row) for row in subs], packages=packages, q=search, type=stype, status=status, status_counts=status_counts, package_id=package_id)
 
 
 @subscribers_bp.route('/subscribers/create', methods=['GET', 'POST'], endpoint="subscriber_create_page")
@@ -248,7 +252,7 @@ def subscriber_details(sub_id):
     analytics = get_user_usage_analytics(sub['username'])
 
     return render_template('subscriber_details.html',
-                           subscriber=sub,
+                           subscriber=filter_account_money(sub),
                            total_download=total_download,
                            total_upload=total_upload,
                            total_used_str=total_used_str,
@@ -259,7 +263,7 @@ def subscriber_details(sub_id):
                            is_expired=is_expired,
                            sessions=sessions,
                            invoices=invoices,
-                           audit_logs=audit_logs,
+                           audit_logs=audit_logs if has_permission('system.audit_logs') else [],
                            analytics=analytics,
                            analytics_json=json.dumps(analytics, default=str),
                            packages=packages)

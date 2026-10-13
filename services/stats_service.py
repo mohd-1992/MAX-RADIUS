@@ -63,6 +63,8 @@ _LAST_ACTIVATION_SYNC = 0
 from concurrent.futures import ThreadPoolExecutor
 
 
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one
+
 def _fetch_single_container_stats(cname):
     conn = None
     try:

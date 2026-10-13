@@ -53,18 +53,18 @@
             <p class="text-xs text-slate-400 mt-1">توليد دفعات الكروت، تعديل الحزم وربط الباقات بـ FreeRADIUS، واستعراض محتويات الحزمة بالنقر على اسمها</p>
         </div>
         <div class="flex items-center gap-2.5 flex-wrap">
-            <a href="{{ url_for('sales_reports') }}" class="px-3.5 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+            {% if can_access_endpoint('sales_reports') %}{% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports') }}" class="px-3.5 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-receipt"></i>
                 <span>سجل المبيعات</span>
-            </a>
-            <a href="{{ url_for('card_designer') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
+            </a>{% endif %}{% endif %}
+            {% if can_access_endpoint('card_designer') %}{% if can_access_endpoint('card_designer') %}<a href="{{ url_for('card_designer') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-palette text-pink-400"></i>
                 <span>تصاميم الكروت</span>
-            </a>
-            <button type="button" onclick="openGenerateModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+            </a>{% endif %}{% endif %}
+            {% if can_access_endpoint('generate_vouchers_action') %}<button type="button" onclick="openGenerateModal()" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                 <span>توليد حزمة جديدة</span>
-            </button>
+            </button>{% endif %}
         </div>
     </div>
 
@@ -84,7 +84,7 @@
         </div>
         <div class="flex gap-2">
             <select name="reseller_id" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-                <option value="">جميع الموزعين</option>
+                <option value="">{% if is_reseller_scope() %}حسابي فقط{% else %}جميع الموزعين{% endif %}</option>
                 {% for r in resellers %}
                 <option value="{{ r.id }}" {% if request.args.get('reseller_id') == r.id|string %}selected{% endif %}>{{ r.name }}</option>
                 {% endfor %}
@@ -100,7 +100,7 @@
     {% set total_unused_count = batches|map(attribute='unused_count')|sum if batches else 0 %}
     {% set total_active_count = batches|map(attribute='active_count')|sum if batches else 0 %}
     {% set total_expired_count = batches|map(attribute='expired_count')|sum if batches else 0 %}
-    
+
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <!-- إجمالي الحزم -->
         <div class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-[#1c2840] shadow-sm flex items-center justify-between">
@@ -179,37 +179,37 @@
                     <span>قائمة الإجراءات المجمعة</span>
                     <span id="bulkBatchesMenuCount" class="text-blue-400 font-mono font-bold">0 حزمة</span>
                 </div>
-                
+
                 <!-- إجراء 1: الحذف (Delete) -->
                 <div class="py-1">
-                    <button type="button" onclick="openBulkDeleteBatchesModal()" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
+                    {% if can_access_endpoint('batches_bulk_action', {'action': 'delete'}) %}<button type="button" onclick="openBulkDeleteBatchesModal()" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
                         <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
                         <span>حذف الحزم المحددة (Delete)</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
 
                 <!-- إجراء 2: تغيير الباقة (Change Package) -->
                 <div class="py-1">
-                    <button type="button" onclick="openBulkChangePackageModal()" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                    {% if can_access_endpoint('batches_bulk_action', {'action': 'change_package'}) %}<button type="button" onclick="openBulkChangePackageModal()" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
                         <i class="fa-solid fa-layer-group text-blue-400 w-4 text-center"></i>
                         <span>تغيير باقة الحزم المحددة</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
 
                 <!-- إجراء 3: تعيين الموزع (Assign Reseller) -->
                 <div class="py-1">
-                    <button type="button" onclick="openBulkAssignResellerModal()" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                    {% if not is_reseller_scope() %}{% if can_access_endpoint('batches_bulk_action', {'action': 'assign_reseller'}) %}<button type="button" onclick="openBulkAssignResellerModal()" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
                         <i class="fa-solid fa-user-tag text-purple-400 w-4 text-center"></i>
                         <span>تعيين / نقل لموزع</span>
-                    </button>
+                    </button>{% endif %}{% endif %}
                 </div>
 
                 <!-- إجراء 4: تصدير كروت الحزم المحددة (Export Vouchers) -->
                 <div class="py-1">
-                    <button type="button" onclick="bulkExportBatches()" class="w-full text-right px-3.5 py-2 text-emerald-400 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
+                    {% if can_access_endpoint('batches_bulk_action', {'action': 'export'}) %}<button type="button" onclick="bulkExportBatches()" class="w-full text-right px-3.5 py-2 text-emerald-400 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
                         <i class="fa-solid fa-file-excel text-emerald-500 w-4 text-center"></i>
                         <span>تصدير كروت الحزم المحددة (CSV)</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
             </div>
         </div>
@@ -249,10 +249,10 @@
                         </td>
                         <!-- اسم الحزمة (رابط الانتقال للصفحة الجديدة) -->
                         <td class="py-3.5 px-5">
-                            <a href="{{ url_for('view_batch_details', batch_id=b.id, q=q) if q else url_for('view_batch_details', batch_id=b.id) }}" class="font-bold text-white hover:text-blue-400 transition flex items-center gap-2" onclick="event.stopPropagation()">
+                            {% if can_access_endpoint('view_batch_details') %}{% if can_access_endpoint('view_batch_details') %}<a href="{{ url_for('view_batch_details', batch_id=b.id, q=q) if q else url_for('view_batch_details', batch_id=b.id) }}" class="font-bold text-white hover:text-blue-400 transition flex items-center gap-2" onclick="event.stopPropagation()">
                                 <i class="fa-solid fa-folder text-blue-400"></i>
                                 <span>{{ b.name }}</span>
-                            </a>
+                            </a>{% endif %}{% endif %}
                             <div class="text-xs font-mono text-blue-400 mr-6 mt-0.5">{{ b.batch_number }}</div>
                         </td>
                         <!-- الباقة -->
@@ -284,24 +284,24 @@
                         <td class="py-3.5 px-5 text-center" onclick="event.stopPropagation()">
                             <div class="flex items-center justify-center gap-1.5">
                                 <!-- تعديل الحزمة -->
-                                <button type="button" onclick="openEditBatchModal({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.package_id|tojson|forceescape }})" class="px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="تعديل الحزمة والباقة">
+                                {% if can_access_endpoint('edit_batch_action') %}<button type="button" onclick="openEditBatchModal({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.package_id|tojson|forceescape }})" class="px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="تعديل الحزمة والباقة">
                                     <i class="fa-solid fa-pen-to-square"></i><span class="hidden sm:inline">تعديل</span>
-                                </button>
+                                </button>{% endif %}
                                 <!-- طباعة مع اختيار التصميم -->
-                                <button type="button" 
+                                {% if can_access_endpoint('print_cards') %}<button type="button"
                                         data-batch-id="{{ b.id }}"
                                         data-batch-name="{{ b.name }}"
                                         data-package-name="{{ b.package_name }}"
                                         data-card-count="{{ b.card_count or 0 }}"
                                         onclick="handlePrintBtnClick(this)"
-                                        class="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" 
+                                        class="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer"
                                         title="طباعة الحزمة واختيار قالب التصميم">
                                     <i class="fa-solid fa-print"></i>
-                                </button>
+                                </button>{% endif %}
                                 <!-- حذف الحزمة -->
-                                <button type="button" onclick="confirmDeleteBatch({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.batch_number|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الحزمة">
+                                {% if can_access_endpoint('delete_batch_action') %}<button type="button" onclick="confirmDeleteBatch({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.batch_number|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الحزمة">
         <i class="fa-solid fa-trash"></i>
-    </button>
+    </button>{% endif %}
                             </div>
                         </td>
                     </tr>
@@ -391,6 +391,7 @@
                     </div>
                 </div>
             </div>
+            {% if issue_policy %}<div class="rounded-xl p-3 bg-blue-500/10 text-blue-300">صيغة الكروت محددة من الإدارة: بادئة {{ issue_policy.prefix or 'بدون' }}، طول {{ issue_policy.total_length }}، {{ 'أرقام' if issue_policy.char_type == 'numbers' else 'أرقام وحروف' }}. <span class="block">تطبق تلقائيًا على الكروت الجديدة.</span></div>{% else %}
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="block text-slate-300 font-semibold mb-1">صيغة الكرت</label>
@@ -438,18 +439,20 @@
                 </div>
             </div>
             <div>
-                <label class="block text-slate-300 font-semibold mb-1">تخصيص لموزع / نقطة بيع (اختياري)</label>
+                <label class="block text-slate-300 font-semibold mb-1">{% if is_reseller_scope() %}حساب الشراء (يُخصم من محفظتك){% else %}تخصيص لموزع / نقطة بيع (اختياري){% endif %}</label>
                 <select name="reseller_id" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
-                    <option value="">بدون موزع (المخزون الرئيسي للشبكة)</option>
+                    {% if not is_reseller_scope() %}<option value="">بدون موزع (المخزون الرئيسي للشبكة)</option>{% endif %}
                     {% for r in resellers %}
-                    <option value="{{ r.id }}">{{ r.name }} (رصيده: {{ r.balance }} {{ currency_symbol }})</option>
+                    <option value="{{ r.id }}">{{ r.name }} {% if has_permission('managers.billing') %}(رصيده: {{ r.balance }} {{ currency_symbol }}){% endif %}</option>
                     {% endfor %}
                 </select>
             </div>
             <div>
-                <label class="block text-slate-300 font-semibold mb-1">اسم الحزمة / الدفعة <span class="text-slate-500 font-normal">(اختياري - يولد تلقائياً إذا ترك فارغاً)</span></label>
-                <input type="text" name="name" placeholder="مثال: كروت فئة 5 {{ currency_symbol }} - دفعة رمضان (أو اتركه فارغاً)" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none">
+                <label class="flex items-center gap-2 text-slate-300 font-semibold mb-2"><input id="batchAutoName" type="checkbox" name="auto_name" value="1" checked class="rounded border-slate-700"> اسم تلقائي للحزمة</label>
+                <p class="text-xs text-slate-400 mb-2">اسم الباقة — عدد الكروت — اسم مستخدم الموزع عند تخصيصها له — #رقم الحزمة</p>
+                <div id="batchCustomNameWrap" class="hidden"><label for="batchCustomName" class="block text-slate-300 font-semibold mb-1">اسم مخصص</label><input id="batchCustomName" type="text" name="name" disabled class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"></div>
             </div>
+            {% endif %}
             <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
                 <button type="button" onclick="closeModal('generateModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
                 <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer">توليد وتصدير لـ RADIUS</button>
@@ -511,16 +514,16 @@
         </div>
 
         <div class="flex items-center justify-between pt-3 border-t border-[#1c2840]">
-            <a href="{{ url_for('voucher_designs_list') }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1">
+            {% if can_access_endpoint('voucher_designs_list') %}{% if can_access_endpoint('voucher_designs_list') %}<a href="{{ url_for('voucher_designs_list') }}" target="_blank" class="text-xs text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1">
                 <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
                 <span>إدارة وتصميم كروت جديدة</span>
-            </a>
+            </a>{% endif %}{% endif %}
             <div class="flex items-center gap-2">
                 <button type="button" onclick="closeModal('selectPrintTemplateModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
-                <button type="button" onclick="confirmOpenPrintWindow()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
+                {% if can_access_endpoint('print_cards') %}<button type="button" onclick="confirmOpenPrintWindow()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
                     <i class="fa-solid fa-print"></i>
                     <span>فتح صفحة الطباعة</span>
-                </button>
+                </button>{% endif %}
             </div>
         </div>
     </div>
@@ -528,6 +531,16 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded',()=> {
+ const auto=document.getElementById('batchAutoName');if(!auto)return;
+ auto.addEventListener('change',()=> {
+  document.getElementById('batchCustomNameWrap').classList.toggle('hidden',auto.checked);
+  const custom=document.getElementById('batchCustomName');custom.disabled=auto.checked;custom.required=!auto.checked;
+ });
+});
+</script>
+
 <script>
     function openGenerateModal() {
         if (window.clearBatchModalValidationErrors) {
@@ -538,6 +551,7 @@
     }
 
     function handleFormatTypeChange() {
+        if (!document.getElementById('format_type')) return;
         const formatType = document.getElementById('format_type').value;
         const sameWrapper = document.getElementById('same_user_pass_wrapper');
         const sameCheckbox = document.getElementById('same_user_pass');
@@ -572,7 +586,7 @@
             }
         }
     }
-    
+
     function openEditBatchModal(id, name, pkgId) {
         document.getElementById('editBatchForm').action = `/vouchers/batch/edit/${id}`;
         document.getElementById('edit_batch_name').value = name;
@@ -580,11 +594,11 @@
         document.getElementById('editBatchModal').classList.remove('hidden');
     }
 
-    function closeModal(id) { 
+    function closeModal(id) {
         if (id === 'generateModal' && window.clearBatchModalValidationErrors) {
             window.clearBatchModalValidationErrors();
         }
-        document.getElementById(id).classList.add('hidden'); 
+        document.getElementById(id).classList.add('hidden');
     }
 
     // ==============================================================
@@ -636,7 +650,7 @@
         }
 
         function showFieldError(field, customMsg) {
-            const errorContainer = document.getElementById(field.id + '_error') || 
+            const errorContainer = document.getElementById(field.id + '_error') ||
                                    document.getElementById(field.name + '_error');
             const msg = customMsg || getArabicErrorMessage(field);
 
@@ -655,7 +669,7 @@
             field.classList.remove('border-rose-500', 'focus:border-rose-500', 'ring-1', 'ring-rose-500/40');
             field.classList.add('border-slate-700', 'focus:border-blue-500');
 
-            const errorContainer = document.getElementById(field.id + '_error') || 
+            const errorContainer = document.getElementById(field.id + '_error') ||
                                    document.getElementById(field.name + '_error');
             if (errorContainer) {
                 errorContainer.classList.add('hidden');
@@ -872,7 +886,7 @@
     function openBulkDeleteBatchesModal() {
         const ids = getSelectedBatchIds();
         if (!ids.length) return;
-        
+
         closeBulkBatchesDropdown();
         Swal.fire({
             title: 'حذف الحزم المحددة جماعياً',
@@ -1038,15 +1052,16 @@
             </div>
             <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
                 <button type="button" onclick="closeModal('bulkChangePackageModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
-                <button type="button" onclick="submitBulkChangePackage()" id="submitBulkPkgBtn" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
+                {% if can_access_endpoint('batches_bulk_action', {'action': 'change_package'}) %}<button type="button" onclick="submitBulkChangePackage()" id="submitBulkPkgBtn" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
                     <i class="fa-solid fa-check"></i>
                     <span>تطبيق وتحديث FreeRADIUS</span>
-                </button>
+                </button>{% endif %}
             </div>
         </div>
     </div>
 </div>
 
+{% if not is_reseller_scope() %}
 <!-- Modal: تعيين موزع للحزم المحددة جماعياً -->
 <div id="bulkAssignResellerModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl w-[95%] sm:w-full max-w-md p-6 shadow-2xl space-y-4">
@@ -1072,12 +1087,13 @@
             </div>
             <div class="flex justify-end gap-3 pt-3 border-t border-[#1c2840]">
                 <button type="button" onclick="closeModal('bulkAssignResellerModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
-                <button type="button" onclick="submitBulkAssignReseller()" id="submitBulkResellerBtn" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
+                {% if can_access_endpoint('batches_bulk_action', {'action': 'assign_reseller'}) %}<button type="button" onclick="submitBulkAssignReseller()" id="submitBulkResellerBtn" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
                     <i class="fa-solid fa-check"></i>
                     <span>حفظ ونقل الحزم</span>
-                </button>
+                </button>{% endif %}
             </div>
         </div>
     </div>
 </div>
+{% endif %}
 {% endblock %}

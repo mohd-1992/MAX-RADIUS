@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}كروت الإصدار السريع{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-5">
+ <h1 class="text-xl font-bold text-white">كروت الإصدار #{{ issue.id }}</h1>
+ <p class="text-sm text-slate-400">{{ issue.created_at }} · {{ issue.card_count }} كرت · مبلغ الخصم {{ issue.amount }} {{ currency_symbol }}</p>
+ <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 space-y-4">
+  <div class="flex flex-wrap gap-3">{% if can_access_endpoint('quick_cards_history') %}<a href="{{ url_for('quick_cards_history') }}" class="rounded-xl bg-slate-800 px-4 py-3 text-white">سجل الإصدار</a>{% endif %}{% if cards and can_access_endpoint('quick_cards_print') %}<form method="post" action="{{ url_for('quick_cards_print',issue_id=issue.id) }}" target="_blank" class="flex flex-wrap gap-2"><label for="quick_design" class="sr-only">تصميم الطباعة</label><select id="quick_design" name="design_id" class="bg-[#070b14] border border-slate-700 rounded-xl p-2 text-white"><option value="">التصميم الافتراضي</option>{% for d in designs %}<option value="{{ d.id }}">{{ d.name }}</option>{% endfor %}</select><button class="rounded-xl bg-blue-600 px-4 py-3 text-white"><i class="fa-solid fa-print ml-1"></i>طباعة / حفظ PDF</button></form>{% endif %}</div>
+  <div class="overflow-x-auto"><table class="w-full text-right text-sm"><thead class="text-slate-400"><tr><th class="p-3">اسم المستخدم</th><th class="p-3">كلمة المرور</th><th class="p-3">الحالة</th><th class="p-3">نسخ</th></tr></thead><tbody class="text-slate-300">{% for c in cards %}<tr class="border-t border-slate-800"><td class="p-3 font-mono" dir="ltr">{{ c.username }}</td><td class="p-3 font-mono" dir="ltr">{{ c.password or c.pin_code }}</td><td class="p-3">{{ {'unused':'جديد','active':'مستخدم','expired':'منتهي','disabled':'موقوف','recharged':'مستهلك للشحن'}.get(c.status,c.status) }}</td><td class="p-3"><button type="button" class="copy-quick-card bg-slate-800 rounded-lg px-3 py-2" data-user="{{ c.username }}" data-password="{{ c.password or c.pin_code }}"><i class="fa-solid fa-copy"></i><span class="sr-only">نسخ بيانات الكرت</span></button></td></tr>{% else %}<tr><td colspan="4" class="p-8 text-center text-slate-400">كروت الإصدار حُذفت؛ بقي سجل العملية للتتبع.</td></tr>{% endfor %}</tbody></table></div>
+  <p id="copyMessage" class="text-sm text-slate-400" role="status" aria-live="polite"></p>
+ </div>
+</div><script src="{{ url_for('static',filename='quick-cards.js') }}"></script>
+{% endblock %}

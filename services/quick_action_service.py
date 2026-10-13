@@ -25,6 +25,8 @@ from services.voucher_service import calculate_package_expiration
 from services.quota_service import calculate_cycle_usage_and_rollover, record_session_baselines
 from services.renewal_settlement_service import settle_cycle_operation
 
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one
+
 def format_mb_or_gb(mb):
     if not mb:
         return "0 MB"

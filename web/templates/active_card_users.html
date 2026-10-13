@@ -21,9 +21,9 @@
                 <i class="fa-solid fa-table-columns text-emerald-400"></i>
                 <span>تخصيص الأعمدة</span>
             </button>
-            <a href="{{ url_for('card_inspect') }}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-2">
+            {% if can_access_endpoint('card_inspect') %}<a href="{{ url_for('card_inspect') }}" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-2">
                 <i class="fa-solid fa-magnifying-glass text-sky-400"></i>فحص كرت
-            </a>
+            </a>{% endif %}
             <a href="{{ url_for('vouchers') }}" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 transition flex items-center gap-2">
                 <i class="fa-solid fa-layer-group"></i>إدارة الحزم
             </a>
@@ -219,10 +219,10 @@
                             <span>تصفية</span>
                         </button>
                         {% if q or batch_id or package_id or (status and status != 'active') %}
-                        <a href="{{ url_for('active_card_users') }}" class="sales-pill-inactive px-3 py-2 bg-[#11192b] hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-bold border border-[#1c2840] transition flex items-center gap-1 shrink-0" title="إلغاء التصفية">
+                        {% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users') }}" class="sales-pill-inactive px-3 py-2 bg-[#11192b] hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl text-xs font-bold border border-[#1c2840] transition flex items-center gap-1 shrink-0" title="إلغاء التصفية">
                             <i class="fa-solid fa-rotate-left text-xs"></i>
                             <span class="hidden sm:inline">إعادة ضبط</span>
-                        </a>
+                        </a>{% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -261,58 +261,58 @@
                 
                 <!-- المجموعة 1: الحذف (الأول) -->
                 <div class="py-1">
-                    <button type="button" onclick="bulkAction('delete')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
+                    {% if can_access_account_action('delete', 'voucher') %}<button type="button" onclick="bulkAction('delete')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
                         <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
                         <span>حذف الكروت المحددة</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
 
                 <!-- المجموعة 2: الصلاحية والباقات -->
                 <div class="py-1">
-                    <button type="button" onclick="bulkAction('extend')" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                    {% if can_access_account_action('extend-time', 'voucher') %}<button type="button" onclick="bulkAction('extend')" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
                         <span>تمديد الصلاحية</span>
-                    </button>
-                    <button type="button" onclick="bulkAction('terminate')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                    </button>{% endif %}
+                    {% if can_access_account_action('terminate', 'voucher') %}<button type="button" onclick="bulkAction('terminate')" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
                         <span>إنهاء الاشتراك وتصفير الكوتا</span>
-                    </button>
-                    <button type="button" onclick="bulkAction('renew')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                    </button>{% endif %}
+                    {% if can_access_account_action('renew', 'voucher') %}<button type="button" onclick="bulkAction('renew')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-arrows-rotate text-emerald-400 w-4 text-center"></i>
                         <span>تجديد الباقة الحالية</span>
-                    </button>
-                    <button type="button" onclick="bulkAction('change-pkg')" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
+                    </button>{% endif %}
+                    {% if can_access_account_action('change-package', 'voucher') %}<button type="button" onclick="bulkAction('change-pkg')" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-layer-group text-indigo-400 w-4 text-center"></i>
                         <span>تغيير باقة المحدد</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
 
                 <!-- المجموعة 3: الكوتا -->
                 <div class="py-1">
-                    <button type="button" onclick="bulkAction('add-quota')" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
+                    {% if can_access_account_action('add-quota', 'voucher') %}<button type="button" onclick="bulkAction('add-quota')" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-database text-sky-400 w-4 text-center"></i>
                         <span>إضافة رصيد كوتا (Data Quota)</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
 
                 <!-- المجموعة 4: الرصيد والمحفظة -->
                 <div class="py-1">
-                    <button type="button" onclick="bulkAction('add-wallet')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                    {% if can_access_account_action('add-wallet', 'voucher') %}<button type="button" onclick="bulkAction('add-wallet')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-wallet text-emerald-400 w-4 text-center"></i>
                         <span>إيداع رصيد مالي بالكرت</span>
-                    </button>
-                    <button type="button" onclick="bulkAction('deduct-wallet')" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
+                    </button>{% endif %}
+                    {% if can_access_account_action('deduct-wallet', 'voucher') %}<button type="button" onclick="bulkAction('deduct-wallet')" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-money-bill-transfer text-amber-400 w-4 text-center"></i>
                         <span>سحب / تصحيح رصيد مالي</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
 
                 <!-- المجموعة 5: الجلسات والإنهاء -->
                 <div class="py-1">
-                    <button type="button" onclick="bulkAction('disconnect')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                    {% if can_access_account_action('disconnect', 'voucher') %}<button type="button" onclick="bulkAction('disconnect')" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                         <i class="fa-solid fa-power-off text-rose-400 w-4 text-center"></i>
                         <span>قطع الاتصال الفوري (Kick CoA)</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
             </div>
         </div>
@@ -379,10 +379,10 @@
                                 </div>
                                 <!-- مجموعة 1: الصلاحية والباقة -->
                                 <div class="py-1">
-                                    <button onclick="openExtendModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.expires_at|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if can_access_account_action('extend-time', 'voucher') %}<button onclick="openExtendModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.expires_at|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
                                         <span>تمديد الصلاحية</span>
-                                    </button>
+                                    </button>{% endif %}
                                     <button type="button" 
                                             data-action="disable-account" 
                                             data-id="{{ c.id }}" 
@@ -396,54 +396,54 @@
                                             <span>{% if c.status in ('suspended','disabled') %}تنشيط الحساب{% else %}إيقاف الحساب{% endif %}</span>
                                         </div>
                                     </button>
-                                    <button onclick="confirmRenew('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.package_name|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if can_access_account_action('renew', 'voucher') %}<button onclick="confirmRenew('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.package_name|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-arrows-rotate text-emerald-400 w-4 text-center"></i>
                                         <span>تجديد الباقة</span>
-                                    </button>
-                                    <button onclick="openChangePackageModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.package_id|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
+                                    </button>{% endif %}
+                                    {% if can_access_account_action('change-package', 'voucher') %}<button onclick="openChangePackageModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.package_id|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-indigo-300 hover:bg-indigo-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-layer-group text-indigo-400 w-4 text-center"></i>
                                         <span>تغيير الباقة</span>
-                                    </button>
+                                    </button>{% endif %}
                                 </div>
                                 <!-- مجموعة 2: الكوتا وسجل الاستهلاك -->
                                 <div class="py-1">
-                                    <button onclick="openAddQuotaModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if can_access_account_action('add-quota', 'voucher') %}<button onclick="openAddQuotaModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-database text-sky-400 w-4 text-center"></i>
                                         <span>إضافة رصيد تحميل</span>
-                                    </button>
-                                    <button onclick="openUsageHistoryModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition">
+                                    </button>{% endif %}
+                                    {% if can_access_account_action('usage-history', 'voucher') %}<button onclick="openUsageHistoryModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-chart-line text-purple-400 w-4 text-center"></i>
                                         <span>سجل الاستهلاك</span>
-                                    </button>
+                                    </button>{% endif %}
                                 </div>
                                 <!-- مجموعة 3: المحفظة المالية -->
                                 <div class="py-1">
-                                    <button onclick="openAddWalletModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.balance or 0|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if can_access_account_action('add-wallet', 'voucher') %}<button onclick="openAddWalletModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.balance or 0|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-wallet text-emerald-400 w-4 text-center"></i>
                                         <span>إضافة رصيد مالي</span>
-                                    </button>
-                                    <button onclick="openDeductWalletModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.balance or 0|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
+                                    </button>{% endif %}
+                                    {% if can_access_account_action('deduct-wallet', 'voucher') %}<button onclick="openDeductWalletModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.balance or 0|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-amber-300 hover:bg-amber-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-money-bill-transfer text-amber-400 w-4 text-center"></i>
                                         <span>سحب رصيد مالي</span>
-                                    </button>
+                                    </button>{% endif %}
                                 </div>
                                 <!-- مجموعة 4: قطع الاتصال الفوري -->
                                 <div class="py-1">
-                                    <button onclick="confirmDisconnect('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if can_access_account_action('disconnect', 'voucher') %}<button onclick="confirmDisconnect('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-power-off text-rose-400 w-4 text-center"></i>
                                         <span>قطع الاتصال</span>
-                                    </button>
+                                    </button>{% endif %}
                                 </div>
                                 <!-- الإجراءات النهائية -->
                                 <div class="py-1">
-                                    <button onclick="confirmTerminate('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
+                                    {% if can_access_account_action('terminate', 'voucher') %}<button onclick="confirmTerminate('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-300 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-ban text-rose-400 w-4 text-center"></i>
                                         <span>إنهاء الاشتراك</span>
-                                    </button>
-                                    <button onclick="confirmDelete('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
+                                    </button>{% endif %}
+                                    {% if can_access_account_action('delete', 'voucher') %}<button onclick="confirmDelete('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold">
                                         <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
                                         <span>حذف الكرت</span>
-                                    </button>
+                                    </button>{% endif %}
                                 </div>
                             </div>
                         </td>
@@ -452,9 +452,9 @@
                         <td class="py-3.5 px-4 col-username whitespace-nowrap min-w-[150px]">
                             <div class="flex items-center gap-2">
                                 <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 {% if c.is_online %}bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse{% else %}bg-slate-600{% endif %}"></span>
-                                <a href="{{ url_for('active_card_user_details', card_id=c.id) }}" class="font-bold font-mono text-emerald-400 hover:text-emerald-300 transition" onclick="event.stopPropagation()">
+                                {% if can_access_endpoint('active_card_user_details') %}<a href="{{ url_for('active_card_user_details', card_id=c.id) }}" class="font-bold font-mono text-emerald-400 hover:text-emerald-300 transition" onclick="event.stopPropagation()">
                                     {{ c.username }}
-                                </a>
+                                </a>{% endif %}
                             </div>
                             <span class="text-[10px] text-slate-500 font-mono block mt-0.5">S/N: {{ c.serial_number or '-' }}</span>
                         </td>
@@ -591,10 +591,10 @@
 
                         <!-- 11. الحزمة الأصلية -->
                         <td class="py-3.5 px-4 text-xs text-slate-300 col-batch hidden whitespace-nowrap min-w-[140px]">
-                            <a href="{{ url_for('view_batch_details', batch_id=c.batch_id) }}" class="hover:text-blue-400 transition font-semibold text-slate-200 flex items-center gap-1" onclick="event.stopPropagation()">
+                            {% if can_access_endpoint('view_batch_details') %}<a href="{{ url_for('view_batch_details', batch_id=c.batch_id) }}" class="hover:text-blue-400 transition font-semibold text-slate-200 flex items-center gap-1" onclick="event.stopPropagation()">
                                 <i class="fa-solid fa-folder text-blue-400 text-xs"></i>
                                 <span>{{ c.batch_name }}</span>
-                            </a>
+                            </a>{% endif %}
                             <div class="text-[10px] font-mono text-slate-500">{{ c.batch_number }}</div>
                         </td>
 
@@ -654,13 +654,13 @@
             <div class="flex items-center gap-1.5">
                 <!-- First Page -->
                 {% if page > 1 %}
-                <a href="{{ url_for('active_card_users', page=1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition" title="الصفحة الأولى">
+                {% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users', page=1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition" title="الصفحة الأولى">
                     <i class="fa-solid fa-angles-right"></i>
-                </a>
-                <a href="{{ url_for('active_card_users', page=page-1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition flex items-center gap-1">
+                </a>{% endif %}
+                {% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users', page=page-1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition flex items-center gap-1">
                     <i class="fa-solid fa-chevron-right text-[10px]"></i>
                     <span>السابق</span>
-                </a>
+                </a>{% endif %}
                 {% endif %}
 
                 <!-- Page indicator -->
@@ -670,13 +670,13 @@
 
                 <!-- Next Page -->
                 {% if page < total_pages %}
-                <a href="{{ url_for('active_card_users', page=page+1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition flex items-center gap-1">
+                {% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users', page=page+1, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition flex items-center gap-1">
                     <span>التالي</span>
                     <i class="fa-solid fa-chevron-left text-[10px]"></i>
-                </a>
-                <a href="{{ url_for('active_card_users', page=total_pages, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition" title="الصفحة الأخيرة">
+                </a>{% endif %}
+                {% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users', page=total_pages, q=q, batch_id=batch_id, package_id=package_id, status=status) }}" class="p-2 px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition" title="الصفحة الأخيرة">
                     <i class="fa-solid fa-angles-left"></i>
-                </a>
+                </a>{% endif %}
                 {% endif %}
             </div>
         </div>

@@ -59,7 +59,7 @@ def get_current_manager():
             SELECT m.*, r.name as role_name, r.code as role_code
             FROM wisp_managers m
             JOIN wisp_roles r ON m.role_id = r.id
-            WHERE m.id = ? AND m.is_active = 1
+            WHERE m.id = ? AND m.is_active = 1 AND COALESCE(m.is_deleted, 0) = 0
         ''', (admin_id,))
         return manager
     except Exception:
@@ -108,8 +108,19 @@ def has_permission(permission_code, manager=None):
         return True
         
     # 2. Check Role Permissions
-    user_perms = get_manager_permissions(role_id=manager.get('role_id'))
-    return permission_code in user_perms
+    # Share the role lookup within this HTTP request only. A following request
+    # always reads the current DB grants, including for an existing login session.
+    from flask import g, has_request_context
+    role_id = manager.get('role_id')
+    if has_request_context():
+        cache = g.setdefault('_max_role_permissions', {})
+        if role_id not in cache:
+            cache[role_id] = get_manager_permissions(role_id=role_id)
+        user_perms = cache[role_id]
+    else:
+        user_perms = get_manager_permissions(role_id=role_id)
+    aliases = {'settings_manage': 'system.settings', 'settings.manage': 'system.settings'}
+    return aliases.get(permission_code, permission_code) in {aliases.get(code, code) for code in user_perms}
 
 def login_required(f):
     """Route decorator requiring authenticated admin/manager session."""

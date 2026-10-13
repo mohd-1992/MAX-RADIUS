@@ -274,6 +274,12 @@ def init_database():
                     heal_database_schema()
                 except Exception as e:
                     print(f"[Schema Healer Auto-Run Notice]: {e}")
+                from database.permission_catalog import install_permission_catalog
+                with db_session() as c:
+                    install_permission_catalog(c)
+                from database.quick_card_schema import install_quick_card_schema
+                with db_session() as c:
+                    install_quick_card_schema(c)
                 return
         except DatabaseUnavailableError:
             raise

@@ -14,7 +14,7 @@
                 const url = new URL(input instanceof Request ? input.url : input, window.location.href);
                 const method = (options.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
                 if (url.origin === window.location.origin && method === 'POST' &&
-                    (url.pathname.startsWith('/api/actions/') || url.pathname.startsWith('/api/subscribers/') || url.pathname.startsWith('/api/vouchers/') || url.pathname.startsWith('/vouchers/'))) {
+                    (url.pathname.startsWith('/api/actions/') || url.pathname.startsWith('/api/subscribers/') || url.pathname.startsWith('/api/vouchers/') || url.pathname.startsWith('/vouchers/') || url.pathname.startsWith('/managers/') || url.pathname.startsWith('/api/reseller-wallets/') || url.pathname === '/profile/update')) {
                     const headers = new Headers(options.headers || (input instanceof Request ? input.headers : undefined));
                     headers.set('X-CSRF-Token', document.querySelector('meta[name="csrf-token"]').content);
                     options = { ...options, headers };
@@ -69,10 +69,10 @@
         body, input, button, select, textarea, table, th, td, h1, h2, h3, h4, h5, h6, p, a, label, optgroup, option {
             font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         }
-        body { 
-            font-family: 'Tajawal', sans-serif !important; 
-            transition: background-color 0.25s ease, color 0.25s ease; 
-            -webkit-tap-highlight-color: transparent; 
+        body {
+            font-family: 'Tajawal', sans-serif !important;
+            transition: background-color 0.25s ease, color 0.25s ease;
+            -webkit-tap-highlight-color: transparent;
         }
         .font-mono, [class*="font-mono"] {
             font-family: 'Tajawal', sans-serif !important;
@@ -800,7 +800,7 @@
             background-color: #10b981 !important;
             border-color: #059669 !important;
         }
-        
+
         /* Checkbox checked color */
         input[type="checkbox"]:checked {
             background-color: #10b981 !important;
@@ -942,7 +942,7 @@
         /* ========================================================== */
         /* Universal Form Controls, Alignment & Contrast System       */
         /* ========================================================== */
-        
+
         /* 1. Form Inputs & Selects Standardization */
         input[type="text"],
         input[type="password"],
@@ -1047,8 +1047,8 @@
             justify-content: space-between;
             gap: 0.75rem;
         }
-    
-        
+
+
         /* ========================================================== */
         /* Universal Hover & Contrast Neutralizer                      */
         /* ========================================================== */
@@ -1111,7 +1111,7 @@
         html.theme-light [class*="hover:text-white"]:hover:not(.btn-primary):not(.btn-success):not(.btn-danger):not(.btn-indigo):not(.btn-purple):not([class*="bg-blue-600"]):not([class*="bg-emerald-600"]):not([class*="bg-rose-600"]) {
             color: #0f172a !important;
         }
-    
+
         /* ========================================================== */
         /* Fluid Glassmorphic SaaS Notification Engine (Top-Left)     */
         /* ========================================================== */
@@ -1487,7 +1487,7 @@
                     الرئيسية
                 </div>
                 <!-- 1. لوحة التحكم (Dashboard) -->
-                <a href="{{ url_for('dashboard') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'dashboard' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                {% if can_access_endpoint('dashboard') %}<a href="{{ url_for('dashboard') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'dashboard' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'dashboard' %}bg-blue-500 text-white{% else %}bg-blue-500/10 text-blue-400{% endif %}">
                             <i class="fa-solid fa-chart-pie"></i>
@@ -1495,18 +1495,18 @@
                         <span>لوحة التحكم</span>
                     </div>
                     <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold">Live</span>
-                </a>
+                </a>{% endif %}
             </div>
 
             <!-- القسم: المشتركون والمبيعات -->
-            <div class="space-y-1">
+            {% if can_access_endpoint('subscribers') or can_access_endpoint('invoices') or can_access_endpoint('loyalty_rewards_page') or can_access_endpoint('vouchers') or can_access_endpoint('active_card_users') or can_access_endpoint('card_inspect') or can_access_endpoint('card_designer') or can_access_endpoint('quick_cards_page') or can_access_endpoint('quick_cards_history') or can_access_endpoint('packages') or can_access_endpoint('sales_reports') %}<div class="space-y-1">
                 <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     المشتركون والمبيعات
                 </div>
 
                 <!-- 2. إدارة المشتركين (Subscribers) -> [قائمة منسدلة] -->
                 {% set sub_active = request.endpoint in ['subscribers', 'invoices', 'subscriber_details'] %}
-                <div class="space-y-1">
+                {% if can_access_endpoint('subscribers') or can_access_endpoint('invoices') or can_access_endpoint('loyalty_rewards_page') %}<div class="space-y-1">
                     <button onclick="toggleMenu('subscribersMenu', 'subscribersArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if sub_active %}text-emerald-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if sub_active %}bg-emerald-500 text-white{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
@@ -1518,35 +1518,35 @@
                     </button>
                     <div id="subscribersMenu" class="{% if not sub_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
                         <!-- المشتركين -->
-                        <a href="{{ url_for('subscribers') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'subscribers' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('subscribers') %}<a href="{{ url_for('subscribers') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'subscribers' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'subscribers' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>المشتركين</span>
                             </div>
                             <i class="fa-solid fa-arrow-left text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- فواتير المشتركين -->
-                        <a href="{{ url_for('invoices') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'invoices' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('invoices') %}<a href="{{ url_for('invoices') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'invoices' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'invoices' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>فواتير المشتركين</span>
                             </div>
                             <i class="fa-solid fa-receipt text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- نقاط ومكافآت الولاء -->
-                        <a href="{{ url_for('loyalty_rewards_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'loyalty_rewards_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('loyalty_rewards_page') %}<a href="{{ url_for('loyalty_rewards_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'loyalty_rewards_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'loyalty_rewards_page' %}bg-amber-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>نقاط ومكافآت الولاء</span>
                             </div>
                             <i class="fa-solid fa-gift text-[9px] text-amber-400"></i>
-                        </a>
+                        </a>{% endif %}
                     </div>
-                </div>
+                </div>{% endif %}
 
                 <!-- 3. نظام الكروت (Vouchers) -> [قائمة منسدلة] -->
-                {% set voucher_active = request.endpoint in ['vouchers', 'view_batch_details', 'active_card_users', 'active_card_user_details', 'card_inspect', 'card_designer'] %}
-                <div class="space-y-1">
+                {% set voucher_active = request.endpoint.rsplit('.', 1)[-1] in ['vouchers', 'view_batch_details', 'active_card_users', 'active_card_user_details', 'card_inspect', 'card_designer', 'quick_cards_page', 'quick_cards_history', 'quick_cards_details'] %}
+                {% if can_access_endpoint('vouchers') or can_access_endpoint('active_card_users') or can_access_endpoint('card_inspect') or can_access_endpoint('card_designer') or can_access_endpoint('quick_cards_page') or can_access_endpoint('quick_cards_history') %}<div class="space-y-1">
                     <button onclick="toggleMenu('vouchersMenu', 'vouchersArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if voucher_active %}text-amber-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if voucher_active %}bg-amber-500 text-white{% else %}bg-amber-500/10 text-amber-400{% endif %}">
@@ -1558,52 +1558,68 @@
                     </button>
                     <div id="vouchersMenu" class="{% if not voucher_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
                         <!-- إدارة الكروت (الحزم) -->
-                        <a href="{{ url_for('vouchers') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['vouchers', 'view_batch_details'] %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('vouchers') %}<a href="{{ url_for('vouchers') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['vouchers', 'view_batch_details'] %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint in ['vouchers', 'view_batch_details'] %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>إدارة الكروت (الحزم)</span>
-                            </div>
+
+
+                    </div>
                             <i class="fa-solid fa-boxes-stacked text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- مشتركون الكروت -->
-                        <a href="{{ url_for('active_card_users') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['active_card_users', 'active_card_user_details'] %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['active_card_users', 'active_card_user_details'] %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint in ['active_card_users', 'active_card_user_details'] %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>مشتركون الكروت</span>
                             </div>
                             <i class="fa-solid fa-id-card text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- فحص كرت -->
-                        <a href="{{ url_for('card_inspect') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'card_inspect' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('card_inspect') %}<a href="{{ url_for('card_inspect') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'card_inspect' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'card_inspect' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>فحص كرت</span>
                             </div>
                             <i class="fa-solid fa-magnifying-glass text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- تصاميم الكروت -->
-                        <a href="{{ url_for('card_designer') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'card_designer' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('card_designer') %}<a href="{{ url_for('card_designer') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'card_designer' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'card_designer' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>تصاميم الكروت</span>
                             </div>
                             <i class="fa-solid fa-palette text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
+                        {% if can_access_endpoint('quick_cards_page') %}<a href="{{ url_for('quick_cards_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint.rsplit('.', 1)[-1] in ['quick_cards_page', 'quick_cards_details'] %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint.rsplit('.', 1)[-1] in ['quick_cards_page', 'quick_cards_details'] %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>إصدار كروت سريع</span>
+                            </div>
+                            <i class="fa-solid fa-ticket text-[9px] text-slate-600"></i>
+                        </a>{% endif %}
+                        {% if can_access_endpoint('quick_cards_history') and not can_access_endpoint('quick_cards_page') %}<a href="{{ url_for('quick_cards_history') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint.rsplit('.', 1)[-1] in ['quick_cards_history', 'quick_cards_details'] %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint.rsplit('.', 1)[-1] in ['quick_cards_history', 'quick_cards_details'] %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>سجل الإصدار السريع</span>
+                            </div>
+                            <i class="fa-solid fa-clock-rotate-left text-[9px] text-slate-600"></i>
+                        </a>{% endif %}
                     </div>
-                </div>
+                </div>{% endif %}
 
                                 <!-- 4. الباقات والسرعات (Packages) -->
-                <a href="{{ url_for('packages') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint in ['packages', 'package_details'] %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                {% if can_access_endpoint('packages') %}<a href="{{ url_for('packages') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint in ['packages', 'package_details'] %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint in ['packages', 'package_details'] %}bg-amber-500 text-white{% else %}bg-amber-500/10 text-amber-400{% endif %}">
                             <i class="fa-solid fa-bolt"></i>
                         </div>
                         <span>الباقات والسرعات</span>
                     </div>
-                </a>
+                </a>{% endif %}
 
                 <!-- 5. المبيعات والتقارير المالية (Sales & Financial Reports) -->
-                <a href="{{ url_for('sales_reports') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'sales_reports' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'sales_reports' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'sales_reports' %}bg-emerald-500 text-white shadow-sm shadow-emerald-500/20{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
                             <i class="fa-solid fa-chart-line"></i>
@@ -1613,18 +1629,18 @@
                     {% if request.endpoint == 'sales_reports' %}
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                     {% endif %}
-                </a>
-            </div>
+                </a>{% endif %}
+            </div>{% endif %}
 
             <!-- القسم: الإدارة والشبكة -->
-            <div class="space-y-1">
+            {% if can_access_endpoint('managers_page') or can_access_endpoint('reseller_wallets_page') or can_access_endpoint('roles_page') or can_access_endpoint('manager_invoices_page') or can_access_endpoint('reseller_issue_settings') or can_access_endpoint('nas') or can_access_endpoint('l2tp_tunnels_page') or can_access_endpoint('coverage_map_page') %}<div class="space-y-1">
                 <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     الإدارة والشبكة
                 </div>
 
                 <!-- 5. المدراء والموزعين (Managers & Resellers) -> [قائمة منسدلة] -->
-                {% set managers_active = request.endpoint in ['managers_page', 'roles_page', 'manager_statement_page', 'manager_invoices_page', 'resellers', 'reseller_wallets_page'] %}
-                <div class="space-y-1">
+                {% set managers_active = request.endpoint.rsplit('.', 1)[-1] in ['managers_page', 'roles_page', 'manager_statement_page', 'manager_invoices_page', 'resellers', 'reseller_wallets_page', 'reseller_issue_settings'] %}
+                {% if can_access_endpoint('managers_page') or can_access_endpoint('reseller_wallets_page') or can_access_endpoint('roles_page') or can_access_endpoint('manager_invoices_page') or can_access_endpoint('reseller_issue_settings') %}<div class="space-y-1">
                     <button onclick="toggleMenu('managersMenu', 'managersArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if managers_active %}text-purple-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if managers_active %}bg-purple-500 text-white{% else %}bg-purple-500/10 text-purple-400{% endif %}">
@@ -1636,43 +1652,51 @@
                     </button>
                     <div id="managersMenu" class="{% if not managers_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
                         <!-- المدراء والموزعين -->
-                        <a href="{{ url_for('managers_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['managers_page', 'manager_statement_page', 'resellers'] %}subnav-active{% endif %}">
+                        {% if has_permission('managers.view') %}{% if can_access_endpoint('managers_page') %}<a href="{{ url_for('managers_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['managers_page', 'manager_statement_page', 'resellers'] %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint in ['managers_page', 'manager_statement_page'] %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>المدراء والموزعين</span>
-                            </div>
+
+                    </div>
                             <i class="fa-solid fa-user-tie text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}{% endif %}
                         <!-- محافظ الموزعين الرقمية -->
-                        <a href="{{ url_for('reseller_wallets_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'reseller_wallets_page' %}subnav-active{% endif %}">
+                        {% if has_permission('managers.view') %}{% if can_access_endpoint('reseller_wallets_page') %}<a href="{{ url_for('reseller_wallets_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'reseller_wallets_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'reseller_wallets_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>محافظ الموزعين والتحويل</span>
                             </div>
                             <i class="fa-solid fa-wallet text-[9px] text-emerald-400"></i>
-                        </a>
+                        </a>{% endif %}{% endif %}
                         <!-- صلاحيات المدراء -->
-                        <a href="{{ url_for('roles_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'roles_page' %}subnav-active{% endif %}">
+                        {% if has_permission('roles.manage') %}{% if can_access_endpoint('roles_page') %}<a href="{{ url_for('roles_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'roles_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'roles_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>صلاحيات المدراء</span>
                             </div>
                             <i class="fa-solid fa-shield-halved text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}{% endif %}
                         <!-- فواتير وحسابات المدراء -->
-                        <a href="{{ url_for('manager_invoices_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'manager_invoices_page' %}subnav-active{% endif %}">
+                        {% if has_permission('managers.billing') %}{% if can_access_endpoint('manager_invoices_page') %}<a href="{{ url_for('manager_invoices_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'manager_invoices_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'manager_invoices_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>فواتير وحسابات المدراء</span>
                             </div>
                             <i class="fa-solid fa-file-invoice-dollar text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}{% endif %}
+                        {% if can_access_endpoint('reseller_issue_settings') %}<a href="{{ url_for('reseller_issue_settings') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint.rsplit('.', 1)[-1] == 'reseller_issue_settings' %}subnav-active{% endif %}">
+                            <div class="flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint.rsplit('.', 1)[-1] == 'reseller_issue_settings' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
+                                <span>إعدادات كروت الموزعين</span>
+                            </div>
+                            <i class="fa-solid fa-sliders text-[9px] text-slate-600"></i>
+                        </a>{% endif %}
                     </div>
-                </div>
+                </div>{% endif %}
 
                 <!-- 6. أجهزة الميكروتيك (NAS) -> [قائمة منسدلة] -->
                 {% set nas_active = request.endpoint in ['nas', 'coverage_map_page'] %}
-                <div class="space-y-1">
+                {% if can_access_endpoint('nas') or can_access_endpoint('l2tp_tunnels_page') or can_access_endpoint('coverage_map_page') %}<div class="space-y-1">
                     <button onclick="toggleMenu('nasMenu', 'nasArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if nas_active %}text-indigo-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if nas_active %}bg-indigo-500 text-white{% else %}bg-indigo-500/10 text-indigo-400{% endif %}">
@@ -1684,57 +1708,57 @@
                     </button>
                     <div id="nasMenu" class="{% if not nas_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
                         <!-- أجهزة الميكروتيك -->
-                        <a href="{{ url_for('nas') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'nas' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('nas') %}<a href="{{ url_for('nas') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'nas' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'nas' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>أجهزة الـ NAS</span>
                             </div>
                             <i class="fa-solid fa-server text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- روترات الموزعين (L2TP/IPsec VPN) -->
                         {% if has_feature('vpn_tunnels') %}
-                        <a href="{{ url_for('l2tp_tunnels_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'l2tp_tunnels_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('l2tp_tunnels_page') %}<a href="{{ url_for('l2tp_tunnels_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'l2tp_tunnels_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'l2tp_tunnels_page' %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>أنفاق VPN (L2TP / WireGuard)</span>
                             </div>
                             <i class="fa-solid fa-bolt text-[10px] text-amber-400"></i>
-                        </a>
+                        </a>{% endif %}
                         {% endif %}
                         <!-- خريطة الأبراج والتغطية -->
                         {% if has_feature('gis_map') %}
-                        <a href="{{ url_for('coverage_map_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'coverage_map_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('coverage_map_page') %}<a href="{{ url_for('coverage_map_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'coverage_map_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'coverage_map_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>خريطة الأبراج والتغطية (GIS)</span>
                             </div>
                             <i class="fa-solid fa-map-location-dot text-[9px] text-emerald-400"></i>
-                        </a>
+                        </a>{% endif %}
                         {% endif %}
                     </div>
-                </div>
-            </div>
+                </div>{% endif %}
+            </div>{% endif %}
 
             <!-- القسم: العمليات والخدمات -->
-            <div class="space-y-1">
+            {% if can_access_endpoint('notifications_center_page') or can_access_endpoint('whatsapp_dashboard') or can_access_endpoint('automation_rules_page') or can_access_endpoint('hotspot_generator_page') or can_access_endpoint('autoheal_page') or can_access_endpoint('radius_simulator_page') or can_access_endpoint('traffic_analytics_page') or can_access_endpoint('database_maintenance_page') or can_access_endpoint('import_data_page') or can_access_endpoint('system_services_page') or can_access_endpoint('backups_page') or can_access_endpoint('system_update_page') or can_access_endpoint('settings') or can_access_endpoint('license_status_page') %}<div class="space-y-1">
                 <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     العمليات والخدمات
                 </div>
 
                 <!-- 7. مركز الإشعارات والربط (Notifications) -->
-                <a href="{{ url_for('notifications_center_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'notifications_center_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                {% if can_access_endpoint('notifications_center_page') %}<a href="{{ url_for('notifications_center_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'notifications_center_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'notifications_center_page' %}bg-sky-500 text-white{% else %}bg-sky-500/10 text-sky-400{% endif %}">
                             <i class="fa-brands fa-telegram"></i>
                         </div>
                         <span>مركز الإشعارات والربط</span>
                     </div>
-                </a>
+                </a>{% endif %}
 
                 <!-- 7.1 بوت وخدمات الواتساب الذكية (WhatsApp Bot) -->
                 {% if has_feature('whatsapp_gateway') %}
                 {% set wa_active = request.endpoint in ['whatsapp_dashboard', 'whatsapp_templates_page', 'whatsapp_broadcast_page', 'whatsapp_logs_page', 'whatsapp_simulator_page'] %}
-                <a href="{{ url_for('whatsapp_dashboard') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if wa_active %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                {% if can_access_endpoint('whatsapp_dashboard') %}<a href="{{ url_for('whatsapp_dashboard') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if wa_active %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if wa_active %}bg-emerald-500 text-white{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
                             <i class="fa-brands fa-whatsapp text-sm"></i>
@@ -1742,24 +1766,24 @@
                         <span>بوت وخدمات الواتساب</span>
                     </div>
                     <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">جديد</span>
-                </a>
+                </a>{% endif %}
                 {% endif %}
 
                 <!-- 8. محرك الأتمتة والمهام (Automation) -->
                 {% if has_feature('automation_rules') %}
-                <a href="{{ url_for('automation_rules_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'automation_rules_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                {% if can_access_endpoint('automation_rules_page') %}<a href="{{ url_for('automation_rules_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'automation_rules_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'automation_rules_page' %}bg-purple-500 text-white{% else %}bg-purple-500/10 text-purple-400{% endif %}">
                             <i class="fa-solid fa-wand-magic-sparkles"></i>
                         </div>
                         <span>محرك الأتمتة والمهام</span>
                     </div>
-                </a>
+                </a>{% endif %}
                 {% endif %}
 
                 <!-- 9. الأدوات (Tools) -> [قائمة منسدلة] -->
                 {% set tools_active = request.endpoint in ['backups_page', 'system_services_page', 'import_data_page', 'database_maintenance_page', 'autoheal_page', 'radius_simulator_page', 'traffic_analytics_page', 'accounting_archiver_page', 'database_migration_studio', 'mikrotik_userman_import_page', 'system_update_page', 'hotspot_generator_page'] %}
-                <div class="space-y-1">
+                {% if can_access_endpoint('hotspot_generator_page') or can_access_endpoint('autoheal_page') or can_access_endpoint('radius_simulator_page') or can_access_endpoint('traffic_analytics_page') or can_access_endpoint('database_maintenance_page') or can_access_endpoint('import_data_page') or can_access_endpoint('system_services_page') or can_access_endpoint('backups_page') or can_access_endpoint('system_update_page') %}<div class="space-y-1">
                     <button onclick="toggleMenu('toolsMenu', 'toolsArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if tools_active %}text-cyan-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if tools_active %}bg-cyan-500 text-white{% else %}bg-cyan-500/10 text-cyan-400{% endif %}">
@@ -1771,106 +1795,106 @@
                     </button>
                     <div id="toolsMenu" class="{% if not tools_active %}hidden{% endif %} bg-[#070b14] rounded-xl p-1.5 space-y-0.5 mr-2 border border-[#162136]">
                         <!-- إدارة بوابة المشتركين -->
-                        <a href="{{ url_for('hotspot_generator_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'hotspot_generator_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('hotspot_generator_page') %}<a href="{{ url_for('hotspot_generator_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'hotspot_generator_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'hotspot_generator_page' %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>إدارة بوابة المشتركين</span>
                             </div>
                             <i class="fa-solid fa-users-gear text-[10px] text-cyan-400"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- 1. التعافي التلقائي والمراقب الآلي -->
                         {% if has_feature('autoheal') %}
-                        <a href="{{ url_for('autoheal_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'autoheal_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('autoheal_page') %}<a href="{{ url_for('autoheal_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'autoheal_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'autoheal_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>التعافي والمراقب الآلي</span>
                             </div>
                             <i class="fa-solid fa-heart-pulse text-[10px] text-emerald-400"></i>
-                        </a>
+                        </a>{% endif %}
                         {% endif %}
                         <!-- 2. محاكي ومختبر الراديوس -->
                         {% if has_feature('radius_simulator') %}
-                        <a href="{{ url_for('radius_simulator_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'radius_simulator_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('radius_simulator_page') %}<a href="{{ url_for('radius_simulator_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'radius_simulator_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'radius_simulator_page' %}bg-purple-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>مختبر ومحاكي الراديوس</span>
                             </div>
                             <i class="fa-solid fa-flask-vial text-[10px] text-purple-400"></i>
-                        </a>
+                        </a>{% endif %}
                         {% endif %}
                         <!-- 4. محلل حركة البيانات وساعات الذروة -->
                         {% if has_feature('traffic_analytics') %}
-                        <a href="{{ url_for('traffic_analytics_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'traffic_analytics_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('traffic_analytics_page') %}<a href="{{ url_for('traffic_analytics_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'traffic_analytics_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'traffic_analytics_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>محلل الباندوث وساعات الذروة</span>
                             </div>
                             <i class="fa-solid fa-chart-simple text-[10px] text-emerald-400"></i>
-                        </a>
+                        </a>{% endif %}
                         {% endif %}
 <!-- 6. صيانة قاعدة البيانات -->
-                        <a href="{{ url_for('database_maintenance_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'database_maintenance_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('database_maintenance_page') %}<a href="{{ url_for('database_maintenance_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'database_maintenance_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'database_maintenance_page' %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>صيانة قاعدة البيانات</span>
                             </div>
                             <i class="fa-solid fa-broom-ball text-[10px] text-cyan-400"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- مركز استيراد وترحيل البيانات -->
-                        <a href="{{ url_for('import_data_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['import_data_page', 'database_migration_studio', 'mikrotik_userman_import_page'] %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('import_data_page') %}<a href="{{ url_for('import_data_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint in ['import_data_page', 'database_migration_studio', 'mikrotik_userman_import_page'] %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint in ['import_data_page', 'database_migration_studio', 'mikrotik_userman_import_page'] %}bg-cyan-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>مركز استيراد وترحيل البيانات</span>
                             </div>
                             <i class="fa-solid fa-file-import text-[10px] text-cyan-400"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- 8. خدمات ومحركات النظام -->
-                        <a href="{{ url_for('system_services_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'system_services_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('system_services_page') %}<a href="{{ url_for('system_services_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'system_services_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'system_services_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>خدمات النظام</span>
                             </div>
                             <i class="fa-solid fa-microchip text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- 9. النسخ الاحتياطي -->
-                        <a href="{{ url_for('backups_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'backups_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('backups_page') %}<a href="{{ url_for('backups_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'backups_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'backups_page' %}bg-blue-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>النسخ الاحتياطي</span>
                             </div>
                             <i class="fa-solid fa-database text-[9px] text-slate-600"></i>
-                        </a>
+                        </a>{% endif %}
                         <!-- 10. تحديث وترقية النظام -->
-                        <a href="{{ url_for('system_update_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'system_update_page' %}subnav-active{% endif %}">
+                        {% if can_access_endpoint('system_update_page') %}<a href="{{ url_for('system_update_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'system_update_page' %}subnav-active{% endif %}">
                             <div class="flex items-center gap-2">
                                 <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'system_update_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
                                 <span>تحديث وترقية النظام</span>
                             </div>
                             <i class="fa-solid fa-cloud-arrow-up text-[10px] text-emerald-400"></i>
-                        </a>
+                        </a>{% endif %}
                     </div>
-                </div>
+                </div>{% endif %}
 
                 <!-- 10. الإعدادات (Settings) -->
-                <a href="{{ url_for('settings') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'settings' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                {% if can_access_endpoint('settings') %}<a href="{{ url_for('settings') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'settings' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'settings' %}bg-slate-500 text-white{% else %}bg-slate-500/10 text-slate-400{% endif %}">
                             <i class="fa-solid fa-gear"></i>
                         </div>
                         <span>الإعدادات العامة</span>
                     </div>
-                </a>
+                </a>{% endif %}
 
                 <!-- 11. الترخيص والاشتراك (License) -->
-                <a href="{{ url_for('license_status_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'license_status_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                {% if can_access_endpoint('license_status_page') %}<a href="{{ url_for('license_status_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'license_status_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'license_status_page' %}bg-emerald-500 text-white{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
                             <i class="fa-solid fa-shield-halved"></i>
                         </div>
                         <span>الترخيص وتأمين النظام</span>
                     </div>
-                </a>
-            </div>
+                </a>{% endif %}
+            </div>{% endif %}
 
         </div>
 
@@ -1898,10 +1922,10 @@
                 </div>
                 <span>أنت تتصفح النظام حالياً بصلاحيات وحساب: <span class="underline decoration-slate-950 font-black">{{ current_manager.full_name }} (@{{ current_manager.username }})</span> — <span class="bg-slate-950/20 px-2 py-0.5 rounded font-bold">{{ current_manager.role_name }}</span></span>
             </div>
-            <a href="{{ url_for('impersonate_exit') }}" class="px-3.5 py-1.5 bg-slate-950 hover:bg-slate-900 text-amber-400 rounded-xl text-xs font-black transition flex items-center gap-2 shadow hover:scale-105 active:scale-95 flex-shrink-0">
+            <form method="post" action="{{ url_for('impersonate_exit') }}"><button type="submit" class="px-3.5 py-1.5 bg-slate-950 hover:bg-slate-900 text-amber-400 rounded-xl text-xs font-black transition flex items-center gap-2 shadow hover:scale-105 active:scale-95 flex-shrink-0">
                 <i class="fa-solid fa-arrow-right-from-bracket"></i>
                 <span>العودة لحسابي الأصلي</span>
-            </a>
+            </button></form>
         </div>
         {% endif %}
 
@@ -1935,12 +1959,12 @@
                 </div>
 
                 <!-- CoA Status Pill (Real & Synchronized) -->
-                <div id="topCoaPill" class="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold hidden lg:flex items-center gap-1.5 shadow-sm transition" title="منفذ RFC 5176 لإرسال أوامر فصل الجلسات وتعديل السرعات لراوترات MikroTik">
+                {% if can_access_endpoint('api_coa_status') %}<div id="topCoaPill" class="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold hidden lg:flex items-center gap-1.5 shadow-sm transition" title="منفذ RFC 5176 لإرسال أوامر فصل الجلسات وتعديل السرعات لراوترات MikroTik">
                     <span id="topCoaDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                     <i class="fa-solid fa-tower-broadcast text-[11px] text-emerald-400"></i>
                     <span id="topCoaLabel" class="font-mono">CoA RFC 5176 (:{{ default_coa_port|default('3799') }})</span>
-                    <span id="topCoaNasBadge" class="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono">{% if nas_count %}{{ nas_count }} NAS{% else %}0 NAS{% endif %}</span>
-                </div>
+                    {% if not is_reseller_scope() and has_permission('nas.view') %}<span id="topCoaNasBadge" class="bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono">{% if nas_count %}{{ nas_count }} NAS{% else %}0 NAS{% endif %}</span>{% endif %}
+                </div>{% endif %}
 
                 <!-- Light / Dark Theme Switcher Button -->
                 <button onclick="toggleTheme()" id="themeToggleBtn" title="تبديل وضع الثيم (نهاري / ليلي)" class="px-2.5 py-1.5 bg-[#070b14] hover:bg-slate-800 rounded-xl text-xs font-semibold transition border border-slate-700/60 flex items-center gap-2 shadow-sm cursor-pointer">
@@ -1986,10 +2010,10 @@
                                 <span>تعديل الملف الشخصي</span>
                             </button>
                             {% if session.get('original_admin_id') %}
-                            <a href="{{ url_for('impersonate_exit') }}" class="w-full text-right px-4 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition flex items-center gap-2.5 font-bold">
+                            <form method="post" action="{{ url_for('impersonate_exit') }}"><button type="submit" class="w-full text-right px-4 py-2 text-xs text-amber-400 hover:bg-amber-500/10 transition flex items-center gap-2.5 font-bold">
                                 <i class="fa-solid fa-arrow-right-from-bracket text-amber-400 text-sm w-4 text-center"></i>
                                 <span>العودة لحسابي الأصلي</span>
-                            </a>
+                            </button></form>
                             {% endif %}
                         </div>
 
@@ -2027,7 +2051,7 @@
             {% endif %}
         {% endwith %}
 
-        {% if is_over_quota %}
+        {% if is_over_quota and not is_reseller_scope() and has_permission('system.settings') %}
         <!-- Over Quota Active Sessions Banner -->
         <div class="bg-gradient-to-r from-amber-950/90 via-rose-950/90 to-amber-950/90 border-y border-amber-500/40 text-amber-200 px-4 py-3 shadow-xl backdrop-blur-md">
             <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-sm">
@@ -2055,10 +2079,10 @@
                     </div>
                 </div>
                 <div class="flex items-center gap-2 shrink-0">
-                    <a href="{{ url_for('license_status_page') }}" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-md flex items-center gap-1.5 active:scale-95">
+                    {% if can_access_endpoint('license_status_page') %}<a href="{{ url_for('license_status_page') }}" class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-md flex items-center gap-1.5 active:scale-95">
                         <i class="fa-solid fa-arrow-up-right-from-square"></i>
                         <span>ترقية سعة الترخيص</span>
-                    </a>
+                    </a>{% endif %}
                 </div>
             </div>
         </div>
@@ -2066,7 +2090,8 @@
 
         <!-- Main Body Content -->
         <main class="flex-grow {% block container_class %}max-w-7xl{% endblock %} mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full">
-            {% block content %}{% endblock %}
+            {% if is_reseller_scope() %}<div class="mb-4 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm text-blue-400">البيانات المعروضة تخص حسابك وكروتك فقط، والعمليات المتاحة تحددها صلاحياتك.</div>{% endif %}
+                    {% block content %}{% endblock %}
         </main>
 
         <!-- Footer -->
@@ -2154,6 +2179,7 @@
 
         // Real-time CoA RFC 5176 Status Synchronizer
         function syncCoaStatus() {
+            {% if not can_access_endpoint('api_coa_status') %}return;{% endif %}
             fetch('/api/coa/status')
                 .then(r => r.json())
                 .then(data => {
@@ -2223,7 +2249,7 @@
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
-            
+
             <form id="profileForm" onsubmit="submitProfileForm(event)" class="p-5 space-y-4">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div class="space-y-1 sm:col-span-2">
@@ -2391,10 +2417,10 @@
                 const nowClient = Date.now();
                 const elapsed = nowClient - clientInitTime;
                 const currentEpochMs = serverTimeMs ? (serverTimeMs + elapsed) : nowClient;
-                
+
                 try {
                     const dateObj = new Date(currentEpochMs);
-                    
+
                     const timeFormatter = new Intl.DateTimeFormat('en-GB', {
                         timeZone: timezoneName,
                         hour: '2-digit',
@@ -2402,7 +2428,7 @@
                         second: '2-digit',
                         hour12: false
                     });
-                    
+
                     const dateFormatter = new Intl.DateTimeFormat('en-CA', {
                         timeZone: timezoneName,
                         year: 'numeric',
@@ -2412,7 +2438,7 @@
 
                     const timeEl = document.getElementById('topLiveClockTime');
                     const dateEl = document.getElementById('topLiveClockDate');
-                    
+
                     if (timeEl) timeEl.textContent = timeFormatter.format(dateObj);
                     if (dateEl) dateEl.textContent = dateFormatter.format(dateObj);
                 } catch (e) {
@@ -2430,7 +2456,7 @@
     </script>
     {% block scripts %}{% endblock %}
 
-    
+
     <!-- ========================================================== -->
     <!-- Fluid SaaS Notification & Universal Confirmation Engine    -->
     <!-- ========================================================== -->

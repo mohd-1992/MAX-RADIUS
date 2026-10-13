@@ -8,7 +8,8 @@
     <!-- ========================================================== -->
     <!-- 0. تنبيه توفر تحديث جديد للنظام (Persistent Update Alert) -->
     <!-- ========================================================== -->
-    <div id="system-update-banner" class="hidden relative overflow-hidden bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border-2 border-cyan-500/60 shadow-lg shadow-cyan-500/10 transition-all duration-300 animate-fadeIn">
+    {% if not is_reseller_scope() and has_permission('system.settings') %}
+<div id="system-update-banner" class="hidden relative overflow-hidden bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border-2 border-cyan-500/60 shadow-lg shadow-cyan-500/10 transition-all duration-300 animate-fadeIn">
         <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div class="flex items-center gap-3.5">
                 <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-600 via-teal-600 to-blue-600 flex items-center justify-center text-white text-xl shadow-md shadow-cyan-500/30 flex-shrink-0 border border-cyan-400/30">
@@ -29,13 +30,14 @@
                 </div>
             </div>
             <div class="flex items-center w-full md:w-auto justify-end flex-shrink-0">
-                <a href="{{ url_for('system_update_page') }}" class="btn-primary w-full md:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-95" style="background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important; color: #ffffff !important;">
+                {% if can_access_endpoint('system_update_page') %}{% if can_access_endpoint('system_update_page') %}<a href="{{ url_for('system_update_page') }}" class="btn-primary w-full md:w-auto px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-95" style="background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important; color: #ffffff !important;">
                     <i class="fa-solid fa-cloud-arrow-up text-xs" style="color: #ffffff !important;"></i>
                     <span style="color: #ffffff !important; font-weight: 800;">ترقية وتحديث النظام الآن</span>
-                </a>
+                </a>{% endif %}{% endif %}
             </div>
         </div>
     </div>
+{% endif %}
 
     <!-- ========================================================== -->
     <!-- 1. ترويسة الترحيب والإجراءات السريعة (Welcome & Quick Launcher) -->
@@ -74,22 +76,22 @@
 
             <!-- Quick Action Launcher: Balanced 2x2 on Mobile, 4 in row on Desktop -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full xl:w-auto flex-shrink-0">
-                <a href="{{ url_for('vouchers') }}" class="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 text-center">
+                {% if can_access_endpoint('vouchers') %}{% if has_permission('vouchers.generate') %}<a href="{{ url_for('vouchers') }}" class="px-3.5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-blue-600/20 active:scale-95 text-center">
                     <i class="fa-solid fa-wand-magic-sparkles text-white"></i>
                     <span>توليد كروت</span>
-                </a>
-                <a href="{{ url_for('subscribers') }}" class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-indigo-600/20 active:scale-95 text-center">
+                </a>{% endif %}{% endif %}
+                {% if can_access_endpoint('subscribers') %}{% if has_permission('subscribers.create') %}<a href="{{ url_for('subscribers') }}" class="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-indigo-600/20 active:scale-95 text-center">
                     <i class="fa-solid fa-user-plus text-white"></i>
                     <span>إضافة مشترك</span>
-                </a>
-                <a href="{{ url_for('card_inspect') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-xs active:scale-95 text-center">
+                </a>{% endif %}{% endif %}
+                {% if can_access_endpoint('card_inspect') %}{% if can_access_endpoint('card_inspect') %}<a href="{{ url_for('card_inspect') }}" class="px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-xs active:scale-95 text-center">
                     <i class="fa-solid fa-magnifying-glass text-sky-400"></i>
                     <span>فحص كارت</span>
-                </a>
-                <a href="{{ url_for('resellers') }}" class="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-emerald-600/20 active:scale-95 text-center">
+                </a>{% endif %}{% endif %}
+                {% if can_access_endpoint('resellers') %}{% if has_permission('managers.billing') %}<a href="{{ url_for('resellers') }}" class="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-2 shadow-sm shadow-emerald-600/20 active:scale-95 text-center">
                     <i class="fa-solid fa-wallet text-white"></i>
                     <span>شحن موزع</span>
-                </a>
+                </a>{% endif %}{% endif %}
             </div>
         </div>
     </div>
@@ -97,7 +99,8 @@
     <!-- ========================================================== -->
     <!-- 2. إحصائيات مشتركي كروت الإنترنت (Hotspot Card Subscribers) -->
     <!-- ========================================================== -->
-    <div>
+    {% if has_permission('vouchers.view') %}
+<div>
         <div class="flex items-center justify-between mb-3 px-1">
             <h3 class="text-sm font-extrabold text-slate-200 flex items-center gap-2">
                 <i class="fa-solid fa-ticket text-blue-400"></i>
@@ -120,9 +123,9 @@
                 </div>
                 <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
                     <span>إجمالي الكروت المفعلة</span>
-                    <a href="{{ url_for('active_card_users') }}" class="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1">
+                    {% if can_access_endpoint('active_card_users') %}{% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users') }}" class="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1">
                         سجل المشتركين <i class="fa-solid fa-arrow-left text-[10px]"></i>
-                    </a>
+                    </a>{% endif %}{% endif %}
                 </div>
             </div>
 
@@ -139,9 +142,9 @@
                 </div>
                 <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
                     <span>كروت سارية الصلاحية</span>
-                    <a href="{{ url_for('active_card_users') }}" class="text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1">
+                    {% if can_access_endpoint('active_card_users') %}{% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users') }}" class="text-indigo-400 hover:text-indigo-300 font-bold flex items-center gap-1">
                         مشتركو الكروت <i class="fa-solid fa-arrow-left text-[10px]"></i>
-                    </a>
+                    </a>{% endif %}{% endif %}
                 </div>
             </div>
 
@@ -180,13 +183,14 @@
                 </div>
                 <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
                     <span>استنفدوا الكوتا أو الوقت</span>
-                    <a href="{{ url_for('sales_reports') }}" class="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1">
+                    {% if can_access_endpoint('sales_reports') %}{% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports') }}" class="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1">
                         التقارير <i class="fa-solid fa-arrow-left text-[10px]"></i>
-                    </a>
+                    </a>{% endif %}{% endif %}
                 </div>
             </div>
         </div>
     </div>
+{% endif %}
 
     <!-- ========================================================== -->
     <!-- 3. إحصائيات المشتركين والشبكة العامة (Network & PPPoE)        -->
@@ -202,7 +206,8 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <!-- 1. المشتركون المنزليون -->
-            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+            {% if not is_reseller_scope() and has_permission('subscribers.view') %}
+<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
                 <div class="flex items-start justify-between">
                     <div>
                         <span class="text-xs font-bold text-slate-400 block mb-1">المشتركون المنزليون (PPPoE)</span>
@@ -214,12 +219,14 @@
                 </div>
                 <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
                     <span>متصل الآن: <strong id="stat-online-subs" class="text-emerald-400 font-bold font-mono">{{ metrics.online_subscriber_devices|default(metrics.online_subscribers) }}</strong> جهاز (<span id="stat-online-sub-users" class="font-mono">{{ metrics.online_subscribers }}</span> مشترك)</span>
-                    <a href="{{ url_for('subscribers') }}" class="text-purple-400 hover:text-purple-300 font-bold">إدارة المشتركين</a>
+                    {% if can_access_endpoint('subscribers') %}<a href="{{ url_for('subscribers') }}" class="text-purple-400 hover:text-purple-300 font-bold">إدارة المشتركين</a>{% endif %}
                 </div>
             </div>
+{% endif %}
 
             <!-- 2. إجمالي الأجهزة المتصلة -->
-            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+            {% if can_view_network_totals() %}
+<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
                 <div class="flex items-start justify-between">
                     <div>
                         <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي الأجهزة المتصلة</span>
@@ -235,13 +242,15 @@
                     </div>
                 </div>
                 <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
-                    <span id="stat-sessions-sub-breakdown">{{ metrics.voucher_summary.online_devices|default(metrics.voucher_summary.online) }} هوتسبوت + {{ metrics.online_subscriber_devices|default(metrics.online_subscribers) }} برودباند</span>
-                    <span class="text-emerald-400 font-mono font-bold text-[11px]">(<span id="stat-total-unique-users">{{ metrics.total_unique_online|default(metrics.online_subscribers + metrics.voucher_summary.online_cards) }}</span> مستخدم)</span>
+                    <span id="stat-sessions-sub-breakdown">{{ metrics.voucher_summary.online_devices|default(metrics.voucher_summary.online) }} {% if is_reseller_scope() %}أجهزة كروتك{% else %}هوتسبوت + {{ metrics.online_subscriber_devices|default(metrics.online_subscribers) }} برودباند{% endif %}</span>
+                    <span class="text-emerald-400 font-mono font-bold text-[11px]">(<span id="stat-total-unique-users">{{ metrics.total_unique_online|default((metrics.online_subscribers|default(0)) + (metrics.voucher_summary.online_cards|default(0))) }}</span> مستخدم)</span>
                 </div>
             </div>
+{% endif %}
 
             <!-- 3. استهلاك البيانات العام -->
-            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+            {% if can_view_network_totals() %}
+<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
                 <div class="flex items-start justify-between">
                     <div>
                         <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي استهلاك البيانات</span>
@@ -257,9 +266,11 @@
                     <span class="text-sky-400 font-semibold"><i class="fa-solid fa-cloud-arrow-up ml-1"></i>رفع: <strong id="stat-traffic-in" class="font-mono">{{ metrics.traffic_in_str }}</strong></span>
                 </div>
             </div>
+{% endif %}
 
             <!-- 4. راوترات ومحطات البث -->
-            <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+            {% if not is_reseller_scope() and has_permission('nas.view') %}
+<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
                 <div class="flex items-start justify-between">
                     <div>
                         <span class="text-xs font-bold text-slate-400 block mb-1">أجهزة MikroTik و NAS</span>
@@ -271,16 +282,18 @@
                 </div>
                 <div class="flex items-center justify-between text-xs text-slate-400 font-medium mt-4 pt-3 border-t border-[#1c2840]">
                     <span class="text-emerald-400 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>جاهزة لاستقبال CoA</span>
-                    <a href="{{ url_for('nas') }}" class="text-amber-400 hover:text-amber-300 font-bold">إدارة الراوترات</a>
+                    {% if can_access_endpoint('nas') %}<a href="{{ url_for('nas') }}" class="text-amber-400 hover:text-amber-300 font-bold">إدارة الراوترات</a>{% endif %}
                 </div>
             </div>
+{% endif %}
         </div>
     </div>
 
     <!-- ========================================================== -->
     <!-- 4. استهلاك موارد السيرفر (Hardware Metrics)                  -->
     <!-- ========================================================== -->
-    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+    {% if not is_reseller_scope() and has_permission('system.view_services') %}
+<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1c2840] pb-3">
             <div>
                 <h4 class="text-sm sm:text-base font-extrabold text-white flex items-center gap-2.5">
@@ -367,11 +380,13 @@
             {% endfor %}
         </div>
     </div>
+{% endif %}
 
     <!-- ========================================================== -->
     <!-- 5. بطاقة حالة الاتصال بالإنترنت وسرعة الاستجابة (Ping)      -->
     <!-- ========================================================== -->
-    <div class="bg-[#0b0f19] p-5 sm:p-6 rounded-2xl border border-[#1c2840] shadow-sm relative overflow-hidden">
+    {% if not is_reseller_scope() and has_permission('nas.view') %}
+<div class="bg-[#0b0f19] p-5 sm:p-6 rounded-2xl border border-[#1c2840] shadow-sm relative overflow-hidden">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-5">
             <!-- Right: Status Indicator & Info -->
             <div class="flex items-center gap-4">
@@ -410,11 +425,13 @@
             </div>
         </div>
     </div>
+{% endif %}
 
     <!-- ========================================================== -->
     <!-- 6. بطاقات معلومات وحالة النظام العامة (System Status Cards)  -->
     <!-- ========================================================== -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    {% if not is_reseller_scope() and has_permission('system.view_services') %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- 1. مدة عمل النظام (System Uptime) -->
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:border-blue-500/40 transition flex flex-col justify-between">
             <div class="flex items-center justify-between">
@@ -488,13 +505,15 @@
             </div>
         </div>
     </div>
+{% endif %}
 
     <!-- ========================================================== -->
     <!-- 7. المخططات البيانية المدمجة (Compact Traffic & Sales)       -->
     <!-- ========================================================== -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <!-- Traffic Chart -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm">
+        {% if can_view_network_totals() %}
+<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h4 class="font-extrabold text-white text-sm sm:text-base flex items-center gap-2.5">
@@ -509,9 +528,11 @@
                 <canvas id="trafficChart"></canvas>
             </div>
         </div>
+{% endif %}
 
         <!-- Sales Chart -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm">
+        {% if can_access_endpoint('sales_reports') %}
+<div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h4 class="font-extrabold text-white text-sm sm:text-base flex items-center gap-2.5">
@@ -526,12 +547,14 @@
                 <canvas id="salesChart"></canvas>
             </div>
         </div>
+{% endif %}
     </div>
 
     <!-- ========================================================== -->
     <!-- 8. آخر التفعيلات والعمليات (Latest Activations & Operations) -->
     <!-- ========================================================== -->
-    <div id="latestOperationsSection" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+    {% if not is_reseller_scope() and has_permission('system.audit_logs') %}
+<div id="latestOperationsSection" class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
         <div class="p-5 border-b border-[#1c2840] flex items-center justify-between flex-wrap gap-4">
             <div>
                 <h4 class="font-extrabold text-white flex items-center gap-2 text-sm sm:text-base">
@@ -541,12 +564,12 @@
                 <p class="text-xs text-slate-400 mt-0.5 font-medium">سجل أحدث 5 عمليات تفعيل كروت، تجديد اشتراكات، شحن أرصدة، وإضافة مشتركين</p>
             </div>
             <div class="flex items-center gap-2">
-                <a href="{{ url_for('sales_reports') }}" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-1.5">
+                {% if can_access_endpoint('sales_reports') %}{% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports') }}" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 text-emerald-400 border border-emerald-500/30 transition flex items-center gap-1.5">
                     <i class="fa-solid fa-chart-column"></i>تقارير المبيعات
-                </a>
-                <a href="{{ url_for('active_card_users') }}" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 transition flex items-center gap-1.5">
+                </a>{% endif %}{% endif %}
+                {% if can_access_endpoint('active_card_users') %}{% if can_access_endpoint('active_card_users') %}<a href="{{ url_for('active_card_users') }}" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 transition flex items-center gap-1.5">
                     <i class="fa-solid fa-id-card"></i>مشتركو الكروت
-                </a>
+                </a>{% endif %}{% endif %}
             </div>
         </div>
 
@@ -609,6 +632,7 @@
             </table>
         </div>
     </div>
+{% endif %}
 </div>
 {% endblock %}
 
@@ -1018,6 +1042,7 @@
     // Asynchronously Check for System Updates
     async function checkSystemUpdatesBanner() {
         try {
+            {% if not has_permission('system.settings') %}return;{% endif %}
             const res = await fetch('/api/tools/system-update/check');
             const data = await res.json();
             if (data && data.success && data.has_update) {

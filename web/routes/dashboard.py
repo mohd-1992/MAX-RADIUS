@@ -56,6 +56,10 @@ from core.time_service import (
 
 logger = logging.getLogger('dashboard_bp')
 
+from web.access_policy import filter_dashboard_metrics, can_view_network_totals
+
+from core.ownership import scoped_query_all as query_all, scoped_query_one as query_one, owner_id, generation_owner
+
 dashboard_bp = Blueprint('dashboard_bp', __name__)
 
 
@@ -64,14 +68,14 @@ dashboard_bp = Blueprint('dashboard_bp', __name__)
 @dashboard_bp.route('/dashboard', endpoint="dashboard")
 
 def dashboard():
-    metrics = get_dashboard_metrics()
-    traffic_chart = get_traffic_chart_data()
-    sales_chart = get_sales_chart_data()
-    routers = query_all('SELECT * FROM wisp_nas_devices LIMIT 4')
-    internet_status = get_internet_ping()
-    system_uptime = get_system_uptime_str()
+    metrics = filter_dashboard_metrics(get_dashboard_metrics())
+    traffic_chart = get_traffic_chart_data() if can_view_network_totals() else dict(labels=[], download=[], upload=[])
+    sales_chart = get_sales_chart_data() if has_permission('invoices.view') and has_permission('detail.invoices.sales_view') else dict(labels=[], sales=[])
+    routers = query_all('SELECT id, name, ip_address, nas_type FROM wisp_nas_devices LIMIT 4') if owner_id() is None and has_permission('nas.view') else []
+    internet_status = get_internet_ping() if owner_id() is None and has_permission('nas.view') else None
+    system_uptime = get_system_uptime_str() if owner_id() is None and has_permission('system.view_services') else None
     server_timezone = get_configured_timezone_name()
-    latest_operations = get_latest_system_operations(limit=5)
+    latest_operations = get_latest_system_operations(limit=5) if owner_id() is None and has_permission('system.audit_logs') else []
     system_version = APP_VERSION_FULL
     
     return render_template('dashboard.html',
@@ -89,10 +93,10 @@ def dashboard():
 @dashboard_bp.route('/api/dashboard/live-metrics', endpoint="api_dashboard_live_metrics")
 
 def api_dashboard_live_metrics():
-    metrics = get_dashboard_metrics()
-    internet_status = get_internet_ping()
-    system_uptime = get_system_uptime_str()
-    latest_operations = get_latest_system_operations(limit=5)
+    metrics = filter_dashboard_metrics(get_dashboard_metrics())
+    internet_status = get_internet_ping() if owner_id() is None and has_permission('nas.view') else None
+    system_uptime = get_system_uptime_str() if owner_id() is None and has_permission('system.view_services') else None
+    latest_operations = get_latest_system_operations(limit=5) if owner_id() is None and has_permission('system.audit_logs') else []
     return jsonify({
         'success': True,
         'metrics': metrics,

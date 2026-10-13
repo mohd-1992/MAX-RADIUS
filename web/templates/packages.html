@@ -16,10 +16,10 @@
             <p class="text-xs text-slate-400 mt-1">تحديد سرعات MikroTik-Rate-Limit، الكوتا، الصلاحية، الأسعار، وإجراء تعديلات جماعية فورية</p>
         </div>
         <div class="flex items-center gap-2.5 flex-wrap">
-            {% if has_permission('packages.manage') %}<a href="{{ url_for('new_package_page') }}" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+            {% if has_permission('packages.manage') %}{% if can_access_endpoint('new_package_page') %}<a href="{{ url_for('new_package_page') }}" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-plus-circle"></i>
                 <span>إنشاء باقة جديدة</span>
-            </a>{% endif %}
+            </a>{% endif %}{% endif %}
         </div>
     </div>
 
@@ -189,43 +189,43 @@
                 
                 <!-- المجموعة 1: الحذف -->
                 <div class="py-1">
-                    <button type="button" onclick="confirmBulkDelete()" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'delete'}) %}<button type="button" onclick="confirmBulkDelete()" class="w-full text-right px-3.5 py-2 text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer">
                         <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i>
                         <span>حذف الباقات المحددة</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
 
                 <!-- المجموعة 2: تفعيل / تعطيل -->
                 <div class="py-1">
-                    <button type="button" onclick="executeBulkAction('activate')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'activate'}) %}<button type="button" onclick="executeBulkAction('activate')" class="w-full text-right px-3.5 py-2 text-emerald-300 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
                         <i class="fa-solid fa-circle-check text-emerald-400 w-4 text-center"></i>
                         <span>تفعيل الباقات المحددة (Activate)</span>
-                    </button>
-                    <button type="button" onclick="executeBulkAction('deactivate')" class="w-full text-right px-3.5 py-2 text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                    </button>{% endif %}
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'deactivate'}) %}<button type="button" onclick="executeBulkAction('deactivate')" class="w-full text-right px-3.5 py-2 text-slate-300 hover:bg-slate-700 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
                         <i class="fa-solid fa-circle-pause text-slate-400 w-4 text-center"></i>
                         <span>تعطيل الباقات المحددة (Deactivate)</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
 
                 <div class="py-1">
-                    <button type="button" onclick="openBulkSetting('update_rollover')" class="w-full text-right px-3.5 py-2 hover:bg-blue-600 flex items-center gap-2.5"><i class="fa-solid fa-arrows-rotate"></i>ترحيل الرصيد</button>
-                    <button type="button" onclick="openBulkSetting('update_loyalty')" class="w-full text-right px-3.5 py-2 hover:bg-blue-600 flex items-center gap-2.5"><i class="fa-solid fa-star"></i>نقاط الولاء</button>
-                    <button type="button" onclick="openBulkSetting('update_portal_visibility')" class="w-full text-right px-3.5 py-2 hover:bg-blue-600 flex items-center gap-2.5"><i class="fa-solid fa-eye"></i>الظهور في لوحة المشترك</button>
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'update_rollover'}) %}<button type="button" onclick="openBulkSetting('update_rollover')" class="w-full text-right px-3.5 py-2 hover:bg-blue-600 flex items-center gap-2.5"><i class="fa-solid fa-arrows-rotate"></i>ترحيل الرصيد</button>{% endif %}
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'update_loyalty'}) %}<button type="button" onclick="openBulkSetting('update_loyalty')" class="w-full text-right px-3.5 py-2 hover:bg-blue-600 flex items-center gap-2.5"><i class="fa-solid fa-star"></i>نقاط الولاء</button>{% endif %}
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'update_portal_visibility'}) %}<button type="button" onclick="openBulkSetting('update_portal_visibility')" class="w-full text-right px-3.5 py-2 hover:bg-blue-600 flex items-center gap-2.5"><i class="fa-solid fa-eye"></i>الظهور في لوحة المشترك</button>{% endif %}
                 </div>
                 <!-- المجموعة 3: الأسعار والصلاحية والخدمة -->
                 <div class="py-1">
-                    <button type="button" onclick="openBulkPriceModal()" class="w-full text-right px-3.5 py-2 text-blue-300 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'update_price'}) %}<button type="button" onclick="openBulkPriceModal()" class="w-full text-right px-3.5 py-2 text-blue-300 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
                         <i class="fa-solid fa-tags text-blue-400 w-4 text-center"></i>
                         <span>تعديل الأسعار جماعياً (Update Price)</span>
-                    </button>
-                    <button type="button" onclick="openBulkValidityModal()" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                    </button>{% endif %}
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'update_validity'}) %}<button type="button" onclick="openBulkValidityModal()" class="w-full text-right px-3.5 py-2 text-purple-300 hover:bg-purple-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
                         <i class="fa-solid fa-calendar-days text-purple-400 w-4 text-center"></i>
                         <span>تعديل الصلاحية جماعياً (Validity)</span>
-                    </button>
-                    <button type="button" onclick="openBulkTypeModal()" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
+                    </button>{% endif %}
+                    {% if can_access_endpoint('packages_bulk_action', {'action': 'update_service_type'}) %}<button type="button" onclick="openBulkTypeModal()" class="w-full text-right px-3.5 py-2 text-sky-300 hover:bg-sky-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer">
                         <i class="fa-solid fa-sliders text-sky-400 w-4 text-center"></i>
                         <span>تغيير نوع الخدمة (Service Type)</span>
-                    </button>
+                    </button>{% endif %}
                 </div>
             </div>
         </div>
@@ -364,13 +364,13 @@
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </a>
                                 <!-- Clone / Duplicate -->
-                                <button type="button" onclick="clonePackage({{ p.id|tojson|forceescape }}, {{ p.name|tojson|forceescape }})" class="p-1.5 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 rounded-lg text-xs transition border border-purple-500/20 cursor-pointer" title="نسخ الباقة">
+                                {% if can_access_endpoint('clone_package_action') %}<button type="button" onclick="clonePackage({{ p.id|tojson|forceescape }}, {{ p.name|tojson|forceescape }})" class="p-1.5 bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 rounded-lg text-xs transition border border-purple-500/20 cursor-pointer" title="نسخ الباقة">
                                     <i class="fa-solid fa-copy"></i>
-                                </button>
+                                </button>{% endif %}
                                 <!-- Delete Single -->
-                                <button type="button" onclick="confirmDeletePackage({{ p.id|tojson|forceescape }}, {{ p.name|tojson|forceescape }})" class="p-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 rounded-lg text-xs transition border border-rose-500/20 cursor-pointer" title="حذف الباقة">
+                                {% if can_access_endpoint('delete_package_action') %}<button type="button" onclick="confirmDeletePackage({{ p.id|tojson|forceescape }}, {{ p.name|tojson|forceescape }})" class="p-1.5 bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 rounded-lg text-xs transition border border-rose-500/20 cursor-pointer" title="حذف الباقة">
                                     <i class="fa-solid fa-trash"></i>
-                                </button>
+                                </button>{% endif %}
                             </div>
                         </td>
                     </tr>
@@ -382,9 +382,9 @@
                             </div>
                             <h3 class="text-base font-bold text-white">لا توجد باقات معرفة حتى الآن</h3>
                             <p class="text-xs text-slate-500 mt-1 mb-4">ابدأ بإنشاء باقات وسرعات MikroTik مع مزامنة FreeRADIUS</p>
-                            <a href="{{ url_for('new_package_page') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition">
+                            {% if can_access_endpoint('new_package_page') %}<a href="{{ url_for('new_package_page') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition">
                                 <i class="fa-solid fa-plus-circle"></i>إنشاء أول باقة
-                            </a>
+                            </a>{% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -526,12 +526,12 @@
                         <i class="fa-solid fa-gear"></i>عرض وتعديل
                     </a>
                     <div class="flex items-center gap-1.5">
-                        <button type="button" onclick="clonePackage({{ p.id|tojson|forceescape }}, {{ p.name|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-purple-900/60 text-slate-400 hover:text-purple-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="نسخ وتكرار الباقة">
+                        {% if can_access_endpoint('clone_package_action') %}<button type="button" onclick="clonePackage({{ p.id|tojson|forceescape }}, {{ p.name|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-purple-900/60 text-slate-400 hover:text-purple-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="نسخ وتكرار الباقة">
                             <i class="fa-solid fa-copy"></i>
-                        </button>
-                        <button type="button" onclick="confirmDeletePackage({{ p.id|tojson|forceescape }}, {{ p.name|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الباقة">
+                        </button>{% endif %}
+                        {% if can_access_endpoint('delete_package_action') %}<button type="button" onclick="confirmDeletePackage({{ p.id|tojson|forceescape }}, {{ p.name|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الباقة">
                             <i class="fa-solid fa-trash"></i>
-                        </button>
+                        </button>{% endif %}
                     </div>
                 </div>
             </div>
@@ -544,9 +544,9 @@
                     <h3 class="text-lg font-bold text-white">لا توجد باقات مطابقة للبحث</h3>
                     <p class="text-xs text-slate-400 mt-1">ابدأ بإنشاء باقات وسرعات MikroTik مع مزامنة FreeRADIUS</p>
                 </div>
-                <a href="{{ url_for('new_package_page') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition">
+                {% if can_access_endpoint('new_package_page') %}<a href="{{ url_for('new_package_page') }}" class="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition">
                     <i class="fa-solid fa-plus-circle"></i>إنشاء باقة جديدة الآن
-                </a>
+                </a>{% endif %}
             </div>
             {% endfor %}
         </div>
@@ -593,7 +593,7 @@
 
         <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#1c2840]">
             <button onclick="closeModal('bulkPriceModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
-            <button onclick="submitBulkPrice()" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 cursor-pointer">تطبيق التعديل</button>
+            {% if can_access_endpoint('packages_bulk_action', {'action': 'update_price'}) %}<button onclick="submitBulkPrice()" class="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 cursor-pointer">تطبيق التعديل</button>{% endif %}
         </div>
     </div>
 </div>
@@ -633,7 +633,7 @@
 
         <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#1c2840]">
             <button onclick="closeModal('bulkValidityModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
-            <button onclick="submitBulkValidity()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-500/25 cursor-pointer">تطبيق الصلاحية</button>
+            {% if can_access_endpoint('packages_bulk_action', {'action': 'update_validity'}) %}<button onclick="submitBulkValidity()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-purple-500/25 cursor-pointer">تطبيق الصلاحية</button>{% endif %}
         </div>
     </div>
 </div>
@@ -666,7 +666,7 @@
 
         <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#1c2840]">
             <button onclick="closeModal('bulkTypeModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
-            <button onclick="submitBulkType()" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-sky-500/25 cursor-pointer">تطبيق التغيير</button>
+            {% if can_access_endpoint('packages_bulk_action', {'action': 'update_service_type'}) %}<button onclick="submitBulkType()" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-sky-500/25 cursor-pointer">تطبيق التغيير</button>{% endif %}
         </div>
     </div>
 </div>
