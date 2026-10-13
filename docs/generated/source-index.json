@@ -497,7 +497,7 @@
     },
     {
       "file": "core/rbac.py",
-      "sha256": "290b93afc48dbd7a30b3e86268e15b11d42fd463bf3a4fbaf12d0c59982b72b9",
+      "sha256": "96f54008727f0973d06800f6c04cb152c24d02b507256c89ead34d1473e6139b",
       "imports": [
         "database.db",
         "flask",
@@ -522,42 +522,42 @@
         },
         {
           "name": "is_authenticated",
-          "line": 68,
+          "line": 81,
           "kind": "FunctionDef"
         },
         {
           "name": "get_manager_permissions",
-          "line": 72,
+          "line": 85,
           "kind": "FunctionDef"
         },
         {
           "name": "has_permission",
-          "line": 95,
+          "line": 108,
           "kind": "FunctionDef"
         },
         {
           "name": "login_required",
-          "line": 125,
+          "line": 138,
           "kind": "FunctionDef"
         },
         {
           "name": "decorated_function",
-          "line": 128,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "require_permission",
           "line": 141,
           "kind": "FunctionDef"
         },
         {
+          "name": "require_permission",
+          "line": 154,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "decorator",
-          "line": 150,
+          "line": 163,
           "kind": "FunctionDef"
         },
         {
           "name": "decorated_function",
-          "line": 152,
+          "line": 165,
           "kind": "FunctionDef"
         }
       ]

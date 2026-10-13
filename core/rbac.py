@@ -50,10 +50,21 @@ def get_current_manager():
     Returns the currently authenticated manager/admin object from database,
     or None if no valid active session exists.
     """
+    from flask import g, has_request_context, request
+    if not has_request_context():
+        return None
     admin_id = session.get('admin_id')
     if not admin_id:
+        g.pop('_max_current_manager', None)
         return None
-        
+
+    # Bind to the actual request as well as the login identity. Never reuse a
+    # database snapshot across requests, even inside a retained app context.
+    current_request = request._get_current_object()
+    cached = g.get('_max_current_manager')
+    if cached is not None and cached[0] is current_request and cached[1] == admin_id:
+        return dict(cached[2]) if cached[2] is not None else None
+
     try:
         manager = query_one('''
             SELECT m.*, r.name as role_name, r.code as role_code
@@ -61,9 +72,11 @@ def get_current_manager():
             JOIN wisp_roles r ON m.role_id = r.id
             WHERE m.id = ? AND m.is_active = 1 AND COALESCE(m.is_deleted, 0) = 0
         ''', (admin_id,))
-        return manager
     except Exception:
-        return None
+        manager = None
+    # Missing/inactive accounts and read failures remain denied for this request.
+    g._max_current_manager = (current_request, admin_id, manager)
+    return dict(manager) if manager is not None else None
 
 def is_authenticated():
     """Returns True if a manager is currently authenticated."""
