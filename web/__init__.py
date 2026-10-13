@@ -199,8 +199,10 @@ def create_app(config=None):
             try:
                 settings_rows = query_all('SELECT `key`, `value` FROM wisp_system_settings')
                 settings = {r['key']: r['value'] for r in settings_rows}
+                global_settings_available = True
             except Exception:
                 settings = {}
+                global_settings_available = False
 
             network_name = settings.get('network_name') or settings.get('company_name') or settings.get('isp_name') or 'MAX RADIUS'
             network_logo = settings.get('network_logo', '').strip()
@@ -267,6 +269,7 @@ def create_app(config=None):
                 lic_stat = {k: v for k, v in lic_stat.items() if k in ('plan_tier',)}
             return {
                 'settings': settings,
+                'global_settings_available': global_settings_available,
                 'network_name': network_name,
                 'company_name': network_name,
                 'isp_name': network_name,

@@ -4603,7 +4603,7 @@
     },
     {
       "file": "web/__init__.py",
-      "sha256": "74b01a1fc5dc6f0e44a2f4f06c1b03516cf106ba367042b1c7197b61cc7b7833",
+      "sha256": "8716dceea964b27c7d0e06f34e6a4413984820faaa04fc115877d6484829895d",
       "imports": [
         "core.config",
         "core.license_security",
@@ -4658,17 +4658,17 @@
         },
         {
           "name": "handle_exception",
-          "line": 335,
+          "line": 338,
           "kind": "FunctionDef"
         },
         {
           "name": "handle_blueprint_url_build_error",
-          "line": 375,
+          "line": 378,
           "kind": "FunctionDef"
         },
         {
           "name": "recover_reset_service",
-          "line": 419,
+          "line": 422,
           "kind": "FunctionDef"
         }
       ]

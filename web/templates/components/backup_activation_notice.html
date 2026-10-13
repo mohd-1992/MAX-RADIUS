@@ -1,0 +1,23 @@
+{% if global_settings_available|default(false)
+      and not is_reseller_scope()
+      and can_access_endpoint('backups_page')
+      and can_access_endpoint('api_backup_settings')
+      and settings.get('backup_auto_enabled', false)|string|lower not in ['1', 'true', 'yes', 'on'] %}
+<div id="backup-activation-notice" role="status" class="bg-[#0b0f19] p-4 sm:p-5 rounded-2xl border border-amber-500/40 shadow-sm">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex items-start gap-3">
+            <div class="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <i class="fa-solid fa-shield-halved text-amber-400 text-lg" aria-hidden="true"></i>
+            </div>
+            <div>
+                <h3 class="text-sm sm:text-base font-extrabold text-amber-400">النسخ الاحتياطي التلقائي غير مفعّل</h3>
+                <p class="text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed">فعّل جدولة النسخ الاحتياطي لحفظ نسخة من بيانات النظام بشكل دوري، وحدد أوقات النسخ ومكان الحفظ.</p>
+            </div>
+        </div>
+        <a href="{{ url_for('backups_page') }}" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-bold flex-shrink-0 transition">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+            إعدادات النسخ الاحتياطي
+        </a>
+    </div>
+</div>
+{% endif %}
