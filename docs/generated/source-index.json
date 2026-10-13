@@ -2341,7 +2341,7 @@
     },
     {
       "file": "services/import_state_service.py",
-      "sha256": "ceaa9aa53ccc31f6eff2ba295d2839220d8f98825a1bd83d3ec384eb717ba3b4",
+      "sha256": "0333f7ef870a1985f4670591df0eaa86e6dc0cdd82ebf167c37c30f9786bc42e",
       "imports": [
         "core.radius_sync",
         "database.db"
@@ -2373,18 +2373,23 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "historical_accounting_values",
+          "name": "imported_profile_plan",
           "line": 89,
           "kind": "FunctionDef"
         },
         {
+          "name": "historical_accounting_values",
+          "line": 101,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "imported_radius_checks",
-          "line": 99,
+          "line": 111,
           "kind": "FunctionDef"
         },
         {
           "name": "ensure_import_package_radius",
-          "line": 108,
+          "line": 120,
           "kind": "FunctionDef"
         }
       ]
@@ -2932,7 +2937,7 @@
     },
     {
       "file": "services/mikrotik_userman_importer.py",
-      "sha256": "295f8635a1f7e6c1530ada7a4d3db84a18495d2c04e5fca8cd76bec5c2c7d665",
+      "sha256": "3cf2256b176c79301ef46aa45391f79758fb3f1c52e337d09915e4c05edd846e",
       "imports": [
         "core.mikrotik_api",
         "database.db",

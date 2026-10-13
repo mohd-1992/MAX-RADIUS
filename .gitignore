@@ -110,3 +110,4 @@ reports/
 !tests/quick_cards_mariadb.py
 
 !tests/test_manager_wallet_receipts.py
+!tests/test_import_release_consistency.py

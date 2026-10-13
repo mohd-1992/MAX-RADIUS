@@ -80,10 +80,22 @@ def imported_state(row, plan, now, preserve_history):
                     or (uptime_limit > 0 and seconds >= uptime_limit * 60)):
         status = 'expired'
     if row.get('disabled'):
-        status = 'suspended'
+        status = 'disabled'
     return dict(status=status, first_used_at=first, expires_at=expiry,
                 last_renewed_at=first, history=history,
                 upload_bytes=up_bytes, download_bytes=down_bytes, uptime_seconds=seconds)
+
+
+def imported_profile_plan(existing_plan, source_profile):
+    """Source limits belong to imported account snapshots, not existing customers."""
+    plan = dict(existing_plan)
+    for source, target in (('quota_mb', 'volume_quota_mb'), ('uptime_mins', 'uptime_limit_mins'),
+                           ('validity_value', 'validity_value'), ('validity_unit', 'validity_unit'),
+                           ('override_shared_users', 'simultaneous_sessions'),
+                           ('rate_down', 'rate_download'), ('rate_up', 'rate_upload'), ('price', 'price')):
+        if source_profile.get(source) is not None:
+            plan[target] = source_profile[source]
+    return plan
 
 
 def historical_accounting_values(username, state, now, mac=''):

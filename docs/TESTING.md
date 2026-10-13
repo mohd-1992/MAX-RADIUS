@@ -1,4 +1,6 @@
 # الفحوص ومستويات الإثبات
+
+اتساق الاستيراد والإصدار: `python -m unittest discover -s tests -p test_import_release_consistency.py`؛6حالات دون تطبيق أو DB أو NAS. تثبت أن حساب المصدر المعطل يبقى disabled ومرفوضًا، وأن حد المصدر يغذي snapshot المستورد مع حفظ باقة قائمة مفتوحة، واحترام صفر المصدر والقيمة المجهولة والرصيد المتبقي/المستنفد. لا تثبت السحب على دفعات أو تشغيل الاستيراد المالي الحي.
 فحص قائمة المشتركين: `python -m unittest discover -s tests -p test_subscriber_list_safety.py -v`؛ 15 حالة معزولة لاستهلاك الدورة وخطوط الأساس والكوتا المفتوحة وIDs المكررة وتهريب الأزرار والصلاحية، وتشغيل JavaScript الحقيقي للأزرار والمعاينة في Node.
 
 فحص حماية إدارة المشتركين: `python -m unittest discover -s tests -p test_subscriber_admin_safety.py -v`؛ 18 حالة معزولة للصلاحيات وCSRF ومعاملات الإضافة والتعديل والمحفظة وحماية العقد. راجع [إدارة المشتركين](SUBSCRIBERS.md).

@@ -15,7 +15,7 @@ import datetime
 from database.db import get_connection, is_mysql_conn, adapt_query, query_all, query_one, execute_write, log_audit
 from core.mikrotik_api import RouterOSApiProtocol
 from services.import_state_service import (present_value, import_now, imported_state,
-    historical_accounting_values, imported_radius_checks, ensure_import_package_radius)
+    historical_accounting_values, imported_radius_checks, ensure_import_package_radius, imported_profile_plan)
 
 # Helper: parse human-readable bandwidth (e.g. '1M', '512k', '10M/10M', '1048576') -> (rx_kbps, tx_kbps)
 def parse_mikrotik_rate_limit(rate_str):
@@ -667,6 +667,8 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
                 else:
                     pkg_id = package_map[p_name]
                     if p_quota > 0:
+                        # Zero is an explicit unlimited package. Preserve existing contracts;
+                        # imported accounts receive the source quota in their own snapshots.
                         cur.execute("UPDATE wisp_packages SET volume_quota_mb = ? WHERE id = ? AND volume_quota_mb IS NULL".replace('?', '%s' if is_mysql_conn(db) else '?'), (p_quota, pkg_id))
 
             # Fallback default package
@@ -781,13 +783,7 @@ def execute_userman_import(parsed_data, target_type='vouchers', fallback_package
 
             pkg_name_actual = package_names.get(pkg_id, uprofile)
             prof_info = profiles_dict.get(uprofile, {})
-            plan = dict(plans_by_id[pkg_id])
-            for source, target in (('quota_mb', 'volume_quota_mb'), ('uptime_mins', 'uptime_limit_mins'),
-                                   ('validity_value', 'validity_value'), ('validity_unit', 'validity_unit'),
-                                   ('override_shared_users', 'simultaneous_sessions'),
-                                   ('rate_down', 'rate_download'), ('rate_up', 'rate_upload'), ('price', 'price')):
-                if prof_info.get(source) is not None:
-                    plan[target] = prof_info[source]
+            plan = imported_profile_plan(plans_by_id[pkg_id], prof_info)
             state = imported_state(u, plan, now_dt, import_consumption)
             radcheck_bulk.extend(imported_radius_checks(uname, upass, state))
             if mac:
