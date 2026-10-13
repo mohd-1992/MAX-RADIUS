@@ -2,6 +2,10 @@
 
 {% block title %}مركز استيراد وترحيل البيانات | MAX RADIUS{% endblock %}
 
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='userman-progress.css') }}?v=20261013-ui">
+{% endblock %}
+
 {% block content %}
 <style>
     /* ========================================================= */
@@ -1044,7 +1048,7 @@
 <!-- SweetAlert2 Vendor -->
 <script src="{{ url_for('static', filename='vendor/sweetalert2/sweetalert2.all.min.js') }}"></script>
 
-<script src="{{ url_for('static', filename='userman-progress.js') }}"></script>
+<script src="{{ url_for('static', filename='userman-progress.js') }}?v=20261013-ui"></script>
 <script>
 const SYSTEM_CURRENCY = "{{ currency_symbol }}";
 /* ========================================================================= */

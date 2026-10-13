@@ -1,0 +1,44 @@
+/* Scoped to User Manager progress: keep other system dialogs unchanged. */
+.swal2-popup.um-dialog {
+    --um-bg: #0b0f19; --um-panel: #111827; --um-border: #26334b;
+    --um-text: #e2e8f0; --um-muted: #94a3b8; --um-accent: #38bdf8;
+    --um-soft: rgba(56,189,248,.09); --um-gradient: linear-gradient(90deg,#2563eb,#06b6d4);
+    width: 520px; max-width: calc(100vw - 32px); padding: 28px;
+    border: 1px solid var(--um-border); border-radius: 24px;
+    background: var(--um-bg); color: var(--um-text); font-family: Tajawal,sans-serif;
+    box-shadow: 0 24px 70px rgba(0,0,0,.28); box-sizing: border-box;
+}
+html.theme-light .swal2-popup.um-dialog {
+    --um-bg: #fff; --um-panel: #f8fafc; --um-border: #e2e8f0;
+    --um-text: #0f172a; --um-muted: #64748b; --um-accent: #0284c7;
+    box-shadow: 0 24px 70px rgba(15,23,42,.14);
+}
+.swal2-popup.um-import { --um-accent: #a78bfa; --um-soft: rgba(139,92,246,.09); --um-gradient: linear-gradient(90deg,#4f46e5,#a855f7); }
+html.theme-light .swal2-popup.um-import { --um-accent: #7c3aed; }
+.um-dialog .um-title { padding: 0; font-size: 24px; line-height: 1.5; color: var(--um-text); }
+.um-dialog .um-content { margin: 14px 0 0; padding: 0; overflow: visible; color: var(--um-muted); font-size: 16px; }
+.um-phase { color: var(--um-accent); font-size: 14px; font-weight: 700; margin-bottom: 20px; }
+#um-stage { margin: 0 0 22px; color: var(--um-text); line-height: 1.7; overflow-wrap: anywhere; }
+.um-meter-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:10px; font-size:14px; }
+#um-percent { color:var(--um-accent); font-size:22px; font-variant-numeric:tabular-nums; }
+#um-progress { display:block; width:100%; height:12px; border:0; border-radius:999px; overflow:hidden; appearance:none; background:var(--um-panel); accent-color:var(--um-accent); }
+#um-progress::-webkit-progress-bar { background:var(--um-panel); border-radius:999px; }
+#um-progress::-webkit-progress-value { background:var(--um-gradient); border-radius:999px; transition:width .3s ease; }
+#um-progress::-moz-progress-bar { background:var(--um-gradient); border-radius:999px; }
+#um-progress:indeterminate { background:var(--um-soft); }
+#um-progress:indeterminate::-webkit-progress-bar { background:var(--um-gradient); opacity:.45; animation:um-pulse 1.5s ease-in-out infinite alternate; }
+#um-count { margin:12px 0 20px; font-size:14px; font-variant-numeric:tabular-nums; }
+.um-stats { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; margin-bottom:20px; }
+.um-stats[hidden] { display:none; }
+.um-stat { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:12px; border:1px solid var(--um-border); border-radius:14px; background:var(--um-panel); font-size:14px; }
+.um-stat strong { color:var(--um-text); font-size:20px; overflow-wrap:anywhere; min-width:0; }
+.um-notice { display:flex; align-items:flex-start; gap:10px; text-align:right; padding:14px; border:1px solid var(--um-border); border-radius:14px; background:var(--um-soft); font-size:14px; line-height:1.8; }
+.um-info { flex:0 0 20px; width:20px; height:20px; line-height:20px; border:1px solid var(--um-accent); border-radius:50%; text-align:center; color:var(--um-accent); margin-top:3px; font-family:sans-serif; }
+.um-dialog .um-actions { width:100%; margin:22px 0 0; }
+.um-cancel { min-height:46px; width:100%; padding:10px 20px; border:1px solid var(--um-border); border-radius:14px; background:var(--um-panel); color:var(--um-text); font:700 16px Tajawal,sans-serif; cursor:pointer; }
+.um-cancel:hover { border-color:var(--um-accent); background:var(--um-soft); }
+.um-cancel:focus-visible { outline:3px solid var(--um-accent); outline-offset:3px; }
+.um-cancel:disabled { opacity:.65; cursor:wait; }
+@keyframes um-pulse { to { opacity:.2; } }
+@media(max-width:480px) { .swal2-popup.um-dialog { padding:22px 18px; } .um-dialog .um-title { font-size:22px; } .um-stat { padding:10px; } }
+@media(prefers-reduced-motion:reduce) { #um-progress::-webkit-progress-value { transition:none; } #um-progress:indeterminate::-webkit-progress-bar { animation:none; } }

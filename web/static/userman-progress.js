@@ -22,13 +22,17 @@
         active = true;
         let id = resumeId || null, cancelWanted = false, cancelSent = false, terminal = false;
         const numeric = value => Number(value || 0).toLocaleString('ar');
-        const light = document.documentElement.classList.contains('theme-light');
         const popup = Swal.fire({title:kind === 'fetch' ? 'سحب بيانات User Manager' : 'تنفيذ الاستيراد',
-            background:light ? '#ffffff' : '#0b0f19',color:light ? '#0f172a' : '#e2e8f0',cancelButtonColor:'#64748b',
-            html:'<div dir="rtl"><p id="um-stage" role="status" aria-live="polite">جاري بدء العملية…</p>' +
-                '<progress id="um-progress" max="100" style="width:100%;height:20px;accent-color:#2563eb"></progress>' +
-                '<p id="um-count" style="margin-top:12px"></p><p id="um-stats"></p>' +
-                '<small id="um-note">'+(kind === 'fetch' ? 'السحب للمعاينة فقط؛ لا تُزرع الكروت في هذه المرحلة.' : 'الإلغاء يوقف ما لم يُنفذ؛ الدفعات المحفوظة تبقى في النظام.')+'</small></div>',
+            customClass:{popup:'um-dialog um-'+kind, title:'um-title', htmlContainer:'um-content', actions:'um-actions', cancelButton:'um-cancel'},
+            buttonsStyling:false,
+            html:'<div class="um-body" dir="rtl"><div class="um-phase">'+(kind === 'fetch' ? 'الخطوة الأولى · الاتصال والمعاينة' : 'الخطوة الثانية · استيراد البيانات')+'</div>'+
+                '<p id="um-stage" role="status" aria-live="polite">جاري بدء العملية…</p>' +
+                '<div class="um-meter-heading"><span>تقدم العملية</span><strong id="um-percent">جارٍ التجهيز</strong></div>'+
+                '<progress id="um-progress" max="100" aria-label="تقدم العملية"></progress>' +
+                '<p id="um-count"></p><div id="um-stats" class="um-stats"'+(kind==='fetch'?' hidden':'')+'>'+[
+                    ['created_users','أُنشئ'],['updated_users','حُدّث'],['skipped_users','تُخطي'],['ignored_expired_users','استُبعد منتهي']
+                ].map(([key,label])=>'<div class="um-stat"><span>'+label+'</span><strong id="um-stat-'+key+'">0</strong></div>').join('')+'</div>'+
+                '<div class="um-notice"><span class="um-info" aria-hidden="true">i</span><span id="um-note">'+(kind === 'fetch' ? 'السحب للمعاينة فقط؛ لا تُزرع الكروت في هذه المرحلة.' : 'الإلغاء يوقف ما لم يُنفذ؛ الدفعات المحفوظة تبقى في النظام.')+'</span></div></div>',
             showConfirmButton:false, showCancelButton:true, cancelButtonText:'إلغاء العملية',
             allowOutsideClick:false, allowEscapeKey:false,
             didOpen:() => Swal.getCancelButton().addEventListener('click',async event => {
@@ -52,12 +56,14 @@
                 const {job} = await request(base+id);
                 document.getElementById('um-stage').textContent = job.message || stages[job.stage] || 'متابعة العملية';
                 const bar = document.getElementById('um-progress');
-                if (job.percent === null) bar.removeAttribute('value'); else bar.value = job.percent;
+                if (job.percent == null) bar.removeAttribute('value'); else bar.value = job.percent;
+                document.getElementById('um-percent').textContent = job.percent == null ? 'جارٍ القراءة' : numeric(job.percent)+'٪';
                 document.getElementById('um-count').textContent = job.total == null ? 'بانتظار عدد سجلات المصدر' :
                     numeric(job.processed)+' من '+numeric(job.total)+(job.percent == null ? '' : ' — '+numeric(job.percent)+'٪');
                 const stats = job.stats || {};
-                document.getElementById('um-stats').textContent = kind === 'import' ?
-                    'أُنشئ: '+numeric(stats.created_users)+' | حُدّث: '+numeric(stats.updated_users)+' | تُخطي: '+numeric(stats.skipped_users)+' | استُبعد منتهي: '+numeric(stats.ignored_expired_users) : '';
+                if (kind === 'import') for (const key of ['created_users','updated_users','skipped_users','ignored_expired_users']) {
+                    document.getElementById('um-stat-'+key).textContent = numeric(stats[key]);
+                }
                 if (job.state === 'completed') {
                     terminal = true;
                     const value = await request(base+id+'/result');

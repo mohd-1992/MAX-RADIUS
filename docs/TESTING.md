@@ -49,3 +49,6 @@
 الإصدار السريع: `python -m unittest discover -s tests -p test_quick_cards.py` يغطي الإصدار والمرجع المتكرر والتراجع والملكية والصيغ والإعدادات وحماية HTTP/CSRF. `tests/quick_cards_mariadb.py` يستعمل إعداد fixture معزول من reseller_ownership_mariadb.py فقط، ويتطلب OWNERSHIP_REGRESSION_DATABASE باسم max_ownership_regression_… وقاعدة فارغة، ولا يعيد تنفيذ اختبار الملكية القديم. يغطي شراءين متزامنين بنفس المرجع، نقص الرصيد، فشل الإيصال، صيغة الإصدار، وإعادة الطباعة. لا يشغل التطبيق أو NAS.
 
 اختبار test_manager_wallet_receipts.py معزول: خصم مرجع واحد، رفض القيم والسبب وCSRF، عرض السند دون أثر مالي، escaping، ووجود النموذج في كتلة المحتوى. test_reseller_ownership.py يشمل منع قراءة سند الطرف الآخر ومنع خصم الموزع.
+
+
+تنسيق تقدم User Manager: الفحص المصطنع في work/userman-progress-ui-20261013/browser-check.js يغطي نافذتي السحب والاستيراد في الثيمين بعروض320/390/1280، والإلغاء المؤكد وعدم التجاوز الأفقي. يستخدم SweetAlert والخط وCSS وJS الفعلية، ويستبدل fetch ببيانات محاكاة؛ لا ينفذ عمليات عملاء. اختبارات الخدمة13 عبر `python -m unittest tests.test_userman_progress -q`. فحوص النشر HTTP تتحقق من وصول CSS والواجهة ومسارات القراءة وحماية CSRF دون بدء مهمة.
