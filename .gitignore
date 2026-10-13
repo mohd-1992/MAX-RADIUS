@@ -115,3 +115,4 @@ reports/
 !tests/first_use_policy_integration.py
 !tests/test_import_loyalty_fixes.py
 !tests/import_loyalty_mariadb_regression.py
+!tests/test_license_activation.py

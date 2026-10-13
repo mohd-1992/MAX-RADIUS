@@ -14,6 +14,17 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 
+AUTH_ERROR_CODES = frozenset(('enrollment_required', 'enrollment_token_invalid',
+    'enrollment_token_expired', 'enrollment_license_unavailable', 'enrollment_binding_mismatch',
+    'enrollment_blocked', 'enrollment_instance_limit', 'enrollment_key_mismatch'))
+
+
+class LicenseAuthenticationError(ValueError):
+    def __init__(self, code):
+        self.code = code
+        super().__init__(code)
+
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
 
@@ -94,6 +105,15 @@ def exchange(server_url, payload, storage, public_pem):
         response = opener.open(req, timeout=6)
     except urllib.error.HTTPError as exc:
         # Unauthenticated requests are not revocations and must never modify local state.
+        if exc.code == 401:
+            try:
+                code = json.loads(exc.read(4096)).get('error')
+            except (ValueError, AttributeError):
+                code = None
+            finally:
+                exc.close()
+            if isinstance(code, str) and code in AUTH_ERROR_CODES:
+                raise LicenseAuthenticationError(code) from exc
         raise ValueError('License server rejected instance authentication: HTTP ' + str(exc.code)) from exc
     with response:
         raw = response.read(1048577)

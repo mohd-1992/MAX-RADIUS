@@ -123,7 +123,7 @@
     },
     {
       "file": "core/license_protocol.py",
-      "sha256": "561416128b2413ca8362617492e2fd6646b7f7565c68fb0ec0af884f1f4b72ba",
+      "sha256": "b3499b434555dc3acb2bb016713a23eb1023c56619da59b393e0cec76d90facc",
       "imports": [
         "cryptography.hazmat.primitives",
         "cryptography.hazmat.primitives.asymmetric.ed25519",
@@ -132,43 +132,53 @@
       ],
       "definitions": [
         {
+          "name": "LicenseAuthenticationError",
+          "line": 22,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "__init__",
+          "line": 23,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "canonical",
-          "line": 17,
+          "line": 28,
           "kind": "FunctionDef"
         },
         {
           "name": "instance_key",
-          "line": 21,
+          "line": 32,
           "kind": "FunctionDef"
         },
         {
           "name": "instance_public_key",
-          "line": 41,
+          "line": 52,
           "kind": "FunctionDef"
         },
         {
           "name": "validate_server_url",
-          "line": 46,
+          "line": 57,
           "kind": "FunctionDef"
         },
         {
           "name": "SecureRedirect",
-          "line": 55,
+          "line": 66,
           "kind": "ClassDef"
         },
         {
           "name": "redirect_request",
-          "line": 56,
+          "line": 67,
           "kind": "FunctionDef"
         },
         {
           "name": "verify_response",
-          "line": 61,
+          "line": 72,
           "kind": "FunctionDef"
         },
         {
           "name": "exchange",
-          "line": 85,
+          "line": 96,
           "kind": "FunctionDef"
         }
       ]
@@ -2537,7 +2547,7 @@
     },
     {
       "file": "services/license_guard_service.py",
-      "sha256": "7edbcb0bfaab5c8cdcb05b94da57e759027fda40b4ed825c549dc4285e002c68",
+      "sha256": "35f846332c84828dd6377044383a68d05e1bfbf9912b08e0da92f113461eaefd",
       "imports": [
         "core.config",
         "core.hardware_fingerprint",
@@ -2641,37 +2651,37 @@
         },
         {
           "name": "_apply_verified_package_to_db",
-          "line": 861,
+          "line": 875,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_license_heartbeat_with_server",
-          "line": 946,
+          "line": 960,
           "kind": "FunctionDef"
         },
         {
           "name": "start_license_heartbeat_daemon",
-          "line": 1071,
+          "line": 1085,
           "kind": "FunctionDef"
         },
         {
           "name": "_worker",
-          "line": 1076,
+          "line": 1090,
           "kind": "FunctionDef"
         },
         {
           "name": "publish_radius_license_state",
-          "line": 1091,
+          "line": 1105,
           "kind": "FunctionDef"
         },
         {
           "name": "start_radius_license_state_daemon",
-          "line": 1122,
+          "line": 1136,
           "kind": "FunctionDef"
         },
         {
           "name": "worker",
-          "line": 1126,
+          "line": 1140,
           "kind": "FunctionDef"
         }
       ]

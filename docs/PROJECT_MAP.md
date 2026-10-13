@@ -28,3 +28,5 @@
 للبحث المحدد: `python scripts/project_tools.py index` ثم `python scripts/project_tools.py find action_renew_package`. أسماء الاختبارات وأوامرها في [TESTING](TESTING.md).
 
 سياسة الكروت عند أول استخدام وحصة دورة المشترك: [FIRST_USE_POLICY](FIRST_USE_POLICY.md)، المثبت [first_use_policy.py](../database/first_use_policy.py)، والتثبيت قبل الرد في license-capacity-postauth.conf.
+
+اعتماد المفتاح ضمن التفعيل: [LICENSE_ENROLLMENT](LICENSE_ENROLLMENT.md). خادم الإصدار مشروع منفصل؛ مكونات الإصدار المتأثرة محفوظة في deploy/license-server.

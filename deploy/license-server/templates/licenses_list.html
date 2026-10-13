@@ -1,0 +1,1114 @@
+{% extends "base.html" %}
+
+{% block title %}إدارة التراخيص المصدرة{% endblock %}
+{% block header_title %}إدارة التراخيص المشفرة (Issued Cryptographic Licenses){% endblock %}
+{% block header_subtitle %}قائمة بجميع التراخيص الموقعة رقمياً بتقنية Ed25519 مع إمكانية التعديل، التمديد، والترقية الفورية{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Filters, Stats & Search Bar -->
+    <div class="bg-[#0b0f19] border border-[#162136] rounded-3xl p-5 shadow-xl space-y-4">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            <!-- Filter Pills -->
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ url_for('licenses_list', status='all', q=search_query) }}" class="px-4 py-2 rounded-2xl text-xs font-bold transition-all {% if current_status == 'all' %}bg-indigo-600 text-white font-black shadow-lg shadow-indigo-500/25{% else %}bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]{% endif %}">
+                    الكل ({{ counts.all }})
+                </a>
+                <a href="{{ url_for('licenses_list', status='active', q=search_query) }}" class="px-4 py-2 rounded-2xl text-xs font-bold transition-all {% if current_status == 'active' %}bg-emerald-600 text-white font-black shadow-lg shadow-emerald-500/25{% else %}bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]{% endif %}">
+                    نشطة وسارية 🟢 ({{ counts.active }})
+                </a>
+                <a href="{{ url_for('licenses_list', status='suspended', q=search_query) }}" class="px-4 py-2 rounded-2xl text-xs font-bold transition-all {% if current_status == 'suspended' %}bg-amber-600 text-white font-black shadow-lg shadow-amber-500/25{% else %}bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]{% endif %}">
+                    معلقة ⏸️ ({{ counts.suspended }})
+                </a>
+                <a href="{{ url_for('licenses_list', status='revoked', q=search_query) }}" class="px-4 py-2 rounded-2xl text-xs font-bold transition-all {% if current_status == 'revoked' %}bg-rose-600 text-white font-black shadow-lg shadow-rose-500/25{% else %}bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]{% endif %}">
+                    ملغية 🚫 ({{ counts.revoked }})
+                </a>
+                <a href="{{ url_for('licenses_list', status='expired', q=search_query) }}" class="px-4 py-2 rounded-2xl text-xs font-bold transition-all {% if current_status == 'expired' %}bg-slate-600 text-white font-black shadow-lg shadow-slate-500/25{% else %}bg-[#070b14] text-slate-400 hover:text-white border border-[#162136]{% endif %}">
+                    منتهية ⏳ ({{ counts.expired }})
+                </a>
+            </div>
+
+            <!-- Search Field & Issue Button -->
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <form method="GET" action="{{ url_for('licenses_list') }}" class="relative flex-1 md:w-64">
+                    <input type="hidden" name="status" value="{{ current_status }}">
+                    <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                    <input type="text" name="q" value="{{ search_query }}" placeholder="بحث برقم الترخيص، العميل، البصمة..." class="w-full bg-[#070b14] border border-[#162136] rounded-2xl pr-10 pl-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition font-bold">
+                </form>
+
+                <a href="{{ url_for('license_generator') }}" class="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-indigo-500/20 transition-all flex items-center gap-2 whitespace-nowrap">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                    <span>إصدار جديد</span>
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Bulk Actions Floating / Top Bar -->
+    <div id="bulkActionBar" class="hidden transition-all duration-300 bg-gradient-to-r from-[#11192e] via-[#16213e] to-[#0f172a] border border-indigo-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-black text-sm border border-indigo-500/30">
+                <span id="selectedCountBadge">0</span>
+            </div>
+            <div>
+                <h4 class="text-xs font-black text-white">تم تحديد <span id="selectedCountText" class="text-indigo-400 font-mono text-sm">0</span> ترخيص</h4>
+                <p class="text-[11px] text-slate-400">اختر إجراءً جماعياً لتطبيقه وإعادة التوقيع الرقمي وبث التحديثات فورياً</p>
+            </div>
+        </div>
+        
+        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            <!-- تمديد جماعي -->
+            <button type="button" onclick="openBulkExtendModal()" class="px-3.5 py-2 rounded-xl bg-teal-500/15 hover:bg-teal-500 text-teal-300 hover:text-white border border-teal-500/30 text-xs font-black transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>تمديد جماعي</span>
+            </button>
+
+            <!-- تعديل السعات -->
+            <button type="button" onclick="openBulkQuotaModal()" class="px-3.5 py-2 rounded-xl bg-purple-500/15 hover:bg-purple-500 text-purple-300 hover:text-white border border-purple-500/30 text-xs font-black transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-sliders"></i>
+                <span>ترقية السعات</span>
+            </button>
+
+            <!-- تفعيل جماعي -->
+            <button type="button" onclick="executeBulkStatus('activate')" class="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-black transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-play"></i>
+                <span>تفعيل</span>
+            </button>
+
+            <!-- تعليق جماعي -->
+            <button type="button" onclick="executeBulkStatus('suspend')" class="px-3.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-white border border-amber-500/30 text-xs font-black transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-pause"></i>
+                <span>تعليق</span>
+            </button>
+
+            <!-- حظر جماعي -->
+            <button type="button" onclick="executeBulkStatus('revoke')" class="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-black transition flex items-center gap-1.5 shadow-sm">
+                <i class="fa-solid fa-ban"></i>
+                <span>حظر</span>
+            </button>
+
+            <!-- إلغاء التحديد -->
+            <button type="button" onclick="clearAllLicenseSelections()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition">
+                إلغاء
+            </button>
+        </div>
+    </div>
+
+    <!-- Licenses Table -->
+    <div class="bg-[#0b0f19] border border-[#162136] rounded-3xl overflow-hidden shadow-xl">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right text-xs">
+                <thead>
+                    <tr class="bg-[#070b14] border-b border-[#162136] text-slate-400 font-black">
+                        <th class="py-4 px-3 w-10 text-center">
+                            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAllLicenses(this)" class="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-[#1c2840] focus:ring-0 cursor-pointer">
+                        </th>
+                        <th class="py-4 px-6">رقم الترخيص / العميل</th>
+                        <th class="py-4 px-6">بصمة العتاد والنسخة</th>
+                        <th class="py-4 px-6">النوع والباقة</th>
+                        <th class="py-4 px-6">الحدود والسعة</th>
+                        <th class="py-4 px-6">الصلاحية والانتهاء</th>
+                        <th class="py-4 px-6">الحالة</th>
+                        <th class="py-4 px-6 text-center">إجراءات التحكم</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-[#162136]">
+                    {% if licenses %}
+                    {% for lic in licenses %}
+                    <tr class="hover:bg-[#131c30]/50 transition-colors">
+                        <td class="py-4 px-3 text-center">
+                            <input type="checkbox" value="{{ lic.id }}" data-lic-id="{{ lic.license_id }}" data-client="{{ lic.client_name }}" onchange="handleLicenseSelect()" class="lic-checkbox w-4 h-4 rounded text-indigo-600 bg-slate-900 border-[#1c2840] focus:ring-0 cursor-pointer">
+                        </td>
+                        
+                        <!-- License ID & Client -->
+                        <td class="py-4 px-6">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-mono font-black text-white text-xs">{{ lic.license_id }}</span>
+                                </div>
+                                <p class="text-slate-300 font-bold flex items-center gap-1.5">
+                                    <i class="fa-solid fa-user text-[10px] text-indigo-400"></i>
+                                    <span>{{ lic.client_name }}</span>
+                                </p>
+                            </div>
+                        </td>
+
+                        <!-- Hardware & Instance Binding -->
+                        <td class="py-4 px-6 font-mono text-[11px]">
+                            <div class="space-y-1">
+                                <p class="text-slate-300"><span class="text-slate-500 font-sans text-[10px]">عتاد:</span> {{ lic.hardware_id }}</p>
+                                {% if lic.instance_id and lic.instance_id != 'ANY' %}
+                                <p class="text-cyan-400"><span class="text-slate-500 font-sans text-[10px]">نسخة:</span> {{ lic.instance_id }}</p>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] font-sans">أي نسخة (Unlocked)</span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Tier & Type -->
+                        <td class="py-4 px-6">
+                            <div class="space-y-1">
+                                <span class="px-2.5 py-1 rounded-xl bg-indigo-500/15 text-indigo-300 text-[10px] font-black border border-indigo-500/20">
+                                    {{ lic.plan_tier }}
+                                </span>
+                                <p class="text-[10px] text-slate-400 font-bold">
+                                    {% if lic.license_type == 'multi_tenant' %}
+                                    <span class="text-emerald-400">متعدد الأنظمة ({{ lic.max_instances }} سيرفر)</span>
+                                    {% else %}
+                                    <span>نظام فردي (Single Instance)</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </td>
+
+                        <!-- Limits -->
+                        <td class="py-4 px-6 font-mono text-xs">
+                            <div class="space-y-1">
+                                <p class="text-slate-200"><b class="text-indigo-400">{{ "ترخيص قديم" if lic.max_active_sessions is none else ("غير محدود" if lic.max_active_sessions == 0 else "{:,}".format(lic.max_active_sessions)) }}</b> جلسة متصلة</p>
+                                <p class="text-slate-400 text-[11px]"><b class="text-slate-300">{{ lic.max_nas }}</b> راوتر / NAS</p>
+                            </div>
+                        </td>
+
+                        <!-- Expiration & Days Left -->
+                        <td class="py-4 px-6">
+                            <div class="space-y-1.5">
+                                <p class="font-mono text-slate-200 text-xs">{{ lic.expires_at[:10] }}</p>
+                                {% if lic.is_expired %}
+                                <span class="text-rose-400 font-black text-[10px]">منتهي الصلاحية</span>
+                                {% else %}
+                                <span class="text-emerald-400 font-bold text-[10px]">{{ lic.days_left }} يوم متبقي</span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Status Badge -->
+                        <td class="py-4 px-6">
+                            {% if lic.status == 'active' %}
+                            <span class="px-3 py-1 rounded-xl bg-emerald-500/15 text-emerald-400 text-[10px] font-black border border-emerald-500/30">نشط 🟢</span>
+                            {% elif lic.status == 'suspended' %}
+                            <span class="px-3 py-1 rounded-xl bg-amber-500/15 text-amber-400 text-[10px] font-black border border-amber-500/30">معلق ⏸️</span>
+                            {% elif lic.status == 'revoked' %}
+                            <span class="px-3 py-1 rounded-xl bg-rose-500/15 text-rose-400 text-[10px] font-black border border-rose-500/30">ملغي 🚫</span>
+                            {% else %}
+                            <span class="px-3 py-1 rounded-xl bg-slate-500/15 text-slate-400 text-[10px] font-black border border-slate-500/30">{{ lic.status }}</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Controls -->
+                        <td class="py-4 px-6 text-center">
+                            <div class="flex items-center justify-center gap-1.5">
+                                
+                                <!-- Copy/View Token -->
+                                <button onclick="viewTokenModal(this)" data-activation-id="{{ lic.id }}" data-license-id="{{ lic.license_id }}" data-client-name="{{ lic.client_name }}" title="عرض ونسخ كود التفعيل" class="w-8 h-8 rounded-xl bg-indigo-500/15 hover:bg-indigo-500 text-indigo-400 hover:text-white flex items-center justify-center transition-all text-xs">
+                                    <i class="fa-solid fa-code"></i>
+                                </button>
+
+                                <!-- Download .lic file -->
+                                <a href="{{ url_for('download_license_file', lic_id=lic.id) }}" title="تحميل ملف الترخيص (.lic)" class="w-8 h-8 rounded-xl bg-blue-500/15 hover:bg-blue-500 text-blue-400 hover:text-white flex items-center justify-center transition-all text-xs">
+                                    <i class="fa-solid fa-download"></i>
+                                </a>
+
+                                <!-- Extend Validity Button -->
+                                <button onclick="openExtendModal('{{ lic.id }}', '{{ lic.license_id }}', '{{ lic.client_name }}', '{{ lic.expires_at[:10] }}')" title="تمديد وتجديد الصلاحية" class="w-8 h-8 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-white flex items-center justify-center transition-all text-xs">
+                                    <i class="fa-solid fa-calendar-plus"></i>
+                                </button>
+
+                                <!-- Comprehensive Edit & Upgrade Button -->
+                                <button 
+                                    onclick="openEditLicenseModal(this)" 
+                                    data-id="{{ lic.id }}"
+                                    data-licid="{{ lic.license_id }}"
+                                    data-client="{{ lic.client_name }}"
+                                    data-tier="{{ lic.plan_tier }}"
+                                    data-type="{{ lic.license_type }}"
+                                    data-hwid="{{ lic.hardware_id }}"
+                                    data-inst="{{ lic.instance_id }}"
+                                    data-sessions="{{ lic.max_active_sessions if lic.max_active_sessions is not none else "" }}"
+                                    data-subs="{{ lic.max_subscribers or 0 }}"
+                                    data-nas="{{ lic.max_nas }}"
+                                    data-managers="{{ lic.max_managers }}"
+                                    data-instances="{{ lic.max_instances }}"
+                                    data-expires="{{ lic.expires_at[:10] if lic.expires_at else '' }}"
+                                    data-features="{{ lic.features_json | default('{}') | forceescape }}"
+                                    data-notes="{{ lic.notes | default('') | forceescape }}"
+                                    title="تعديل شامل للترخيص والميزات والسعة" 
+                                    class="w-8 h-8 rounded-xl bg-purple-500/15 hover:bg-purple-500 text-purple-400 hover:text-white flex items-center justify-center transition-all text-xs">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+
+                                <!-- Reset HWID / Transfer License -->
+                                <button onclick="openResetHWIDModal('{{ lic.id }}', '{{ lic.license_id }}', '{{ lic.hardware_id }}', '{{ lic.instance_id }}', '{{ lic.client_name }}', '{{ lic.expires_at[:10] if lic.expires_at }}')" title="نقل الترخيص إلى سيرفر أو جهاز جديد (تغيير بصمة العتاد) 🔄" class="w-8 h-8 rounded-xl bg-cyan-500/20 hover:bg-cyan-500 text-cyan-300 hover:text-white border border-cyan-500/40 flex items-center justify-center transition-all text-xs shadow-sm">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                </button>
+
+                                {% if lic.status == 'active' %}
+                                <!-- Suspend Button -->
+                                <form method="POST" action="{{ url_for('license_quick_action', lic_id=lic.id) }}" onsubmit="return confirmAction(event, 'تعليق الترخيص', 'هل تريد إيقاف وتعليق هذا الترخيص فورياً عن بعد؟')">
+                                    <input type="hidden" name="action" value="suspend">
+                                    <button type="submit" title="تعليق الترخيص مؤقتاً" class="w-8 h-8 rounded-xl bg-amber-500/15 hover:bg-amber-500 text-amber-400 hover:text-white flex items-center justify-center transition-all text-xs">
+                                        <i class="fa-solid fa-pause"></i>
+                                    </button>
+                                </form>
+                                {% elif lic.status == 'suspended' %}
+                                <!-- Re-activate Button -->
+                                <form method="POST" action="{{ url_for('license_quick_action', lic_id=lic.id) }}">
+                                    <input type="hidden" name="action" value="activate">
+                                    <button type="submit" title="إعادة تفعيل الترخيص" class="w-8 h-8 rounded-xl bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-white flex items-center justify-center transition-all text-xs">
+                                        <i class="fa-solid fa-play"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                <!-- Revoke Button -->
+                                {% if lic.status != 'revoked' %}
+                                <form method="POST" action="{{ url_for('license_quick_action', lic_id=lic.id) }}" onsubmit="return confirmAction(event, 'إلغاء وحظر الترخيص', 'هل أنت متأكد من إلغاء وحظر هذا الترخيص نهائياً؟')">
+                                    <input type="hidden" name="action" value="revoke">
+                                    <button type="submit" title="إلغاء الترخيص نهائياً" class="w-8 h-8 rounded-xl bg-rose-500/15 hover:bg-rose-500 text-rose-400 hover:text-white flex items-center justify-center transition-all text-xs">
+                                        <i class="fa-solid fa-ban"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+
+                                <!-- Delete Record -->
+                                <form method="POST" action="{{ url_for('license_quick_action', lic_id=lic.id) }}" onsubmit="return confirmAction(event, 'حذف الترخيص', 'هل تريد حذف سجل هذا الترخيص نهائياً؟')">
+                                    <input type="hidden" name="action" value="delete">
+                                    <button type="submit" title="حذف السجل" class="w-8 h-8 rounded-xl bg-[#162136] hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-all text-xs">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </form>
+
+                            </div>
+                        </td>
+
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="py-16 text-center text-slate-500">
+                            <i class="fa-solid fa-key text-3xl text-slate-600 mb-3 block"></i>
+                            <span class="text-sm">لم يتم العثور على أي تراخيص مطابقة.</span>
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- View Token Modal -->
+<div id="tokenModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-3xl w-full max-w-xl p-6 sm:p-8 space-y-5 shadow-2xl relative">
+        <div class="flex items-center justify-between border-b border-[#162136] pb-4">
+            <div>
+                <h3 class="text-sm font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-code text-indigo-400"></i>
+                    <span>كود تفعيل الترخيص (Base64 Token)</span>
+                </h3>
+                <p id="tokenModalClient" class="text-xs text-slate-400 font-bold mt-1"></p>
+            </div>
+            <button onclick="closeTokenModal()" class="text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="space-y-2">
+            <label class="block text-xs font-bold text-slate-300">انسخ هذا الكود للعميل لتفعيل النظام مباشرة:</label>
+            <textarea id="tokenTextarea" rows="6" readonly class="w-full bg-[#070b14] border border-[#162136] rounded-2xl p-4 text-[11px] font-mono text-emerald-400 focus:outline-none select-all"></textarea>
+        </div>
+
+        <div class="flex items-center gap-3 pt-2">
+            <button onclick="copyTokenText()" class="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-indigo-500/25 transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-copy"></i>
+                <span id="copyBtnText">نسخ الكود إلى الحافظة</span>
+            </button>
+            <button type="button" onclick="closeTokenModal()" class="px-6 py-3 bg-[#162136] hover:bg-slate-700 text-slate-300 rounded-2xl text-xs font-bold transition-all">
+                إغلاق
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Extend Modal -->
+<div id="extendModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-3xl w-full max-w-md p-6 sm:p-8 space-y-5 shadow-2xl relative">
+        <div class="flex items-center justify-between border-b border-[#162136] pb-4">
+            <h3 class="text-sm font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-calendar-plus text-emerald-400"></i>
+                <span>تمديد وتجديد الترخيص عبر الهواء (OTA)</span>
+            </h3>
+            <button onclick="closeExtendModal()" class="text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <form id="extendForm" method="POST" action="" class="space-y-4">
+            <input type="hidden" name="action" value="extend">
+            <div class="bg-[#070b14] p-3 rounded-2xl border border-[#162136] text-xs space-y-1">
+                <p class="text-slate-400">الترخيص: <b id="extendModalLic" class="text-white font-mono"></b></p>
+                <p class="text-slate-400">تاريخ الانتهاء الحالي: <b id="extendModalExp" class="text-emerald-400 font-mono"></b></p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-black text-slate-300 mb-2">مدة التمديد الإضافية (بالأيام)</label>
+                <select name="extra_days" class="w-full bg-[#070b14] border border-[#162136] rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold">
+                    <option value="30">شهر واحد إضافي (30 يوم)</option>
+                    <option value="90">3 أشهر إضافية (90 يوم)</option>
+                    <option value="180">6 أشهر إضافية (180 يوم)</option>
+                    <option value="365" selected>سنة كاملة إضافية (365 يوم)</option>
+                    <option value="730">سنتان إضافيتان (730 يوم)</option>
+                </select>
+            </div>
+
+            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-emerald-500/25 transition-all">
+                تأكيد التمديد وإعادة التوقيع OTA
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Comprehensive License Edit Modal -->
+<div id="editLicenseModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-3xl w-full max-w-2xl sm:max-w-3xl my-auto p-5 sm:p-7 space-y-5 shadow-2xl relative max-h-[92vh] flex flex-col">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-[#162136] pb-4 flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 text-lg font-black">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-black text-white flex items-center gap-2">
+                        <span>تعديل شامل للترخيص والميزات والسعة</span>
+                    </h3>
+                    <p class="text-[11px] text-slate-400 font-mono mt-0.5">
+                        <span id="editModalLicIdBadge" class="text-indigo-400 font-bold"></span> 
+                        <span class="text-slate-500">•</span> 
+                        <span id="editModalClientBadge" class="text-slate-300"></span>
+                    </p>
+                </div>
+            </div>
+            <button onclick="closeEditLicenseModal()" class="w-8 h-8 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center text-sm transition">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Scrollable Form Body -->
+        <form id="editLicenseForm" method="POST" action="" class="space-y-5 overflow-y-auto pr-1 flex-1 text-right" dir="rtl">
+            <input type="hidden" name="action" value="edit_license_full">
+            <input type="hidden" name="feat_form_submitted" value="1">
+            
+            <!-- 1. Client & Tier -->
+            <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 space-y-3">
+                <div class="flex items-center gap-2 text-xs font-black text-indigo-400 border-b border-[#162136] pb-2">
+                    <i class="fa-solid fa-user-gear"></i>
+                    <span>بيانات العميل والباقة</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">اسم العميل / الشبكة</label>
+                        <input type="text" name="client_name" id="editModalClientName" required class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">باقة النظام (Tier)</label>
+                        <select name="plan_tier" id="editModalPlanTier" class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-indigo-500">
+                            <option value="Starter">Starter (بداية)</option>
+                            <option value="Standard">Standard (قياسية)</option>
+                            <option value="Professional">Professional (احترافية)</option>
+                            <option value="Enterprise">Enterprise (شركات ومؤسسات)</option>
+                            <option value="Ultimate">Ultimate (غير محدودة)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">نوع الترخيص</label>
+                        <select name="license_type" id="editModalLicenseType" class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-indigo-500">
+                            <option value="single">نظام فردي (Single Instance)</option>
+                            <option value="multi_tenant">متعدد الأنظمة (Multi-Tenant)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Server Binding -->
+            <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 space-y-3">
+                <div class="flex items-center justify-between border-b border-[#162136] pb-2">
+                    <div class="flex items-center gap-2 text-xs font-black text-cyan-400">
+                        <i class="fa-solid fa-server"></i>
+                        <span>كود تفعيل السيرفر / بصمة العتاد ومعرّف النسخة (Server Binding Code)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="switchToResetHWIDFromEdit()" class="text-[10px] font-bold text-cyan-300 hover:text-white px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-500/30 transition flex items-center gap-1.5 shadow-sm">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                            <span>فتح نافذة نقل الترخيص لسيرفر جديد 🔄</span>
+                        </button>
+                        <button type="button" onclick="document.getElementById('editModalServerBinding').value = 'ANY'" class="text-[10px] font-bold text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-slate-800 transition">تعيين ANY</button>
+                    </div>
+                </div>
+                <div>
+                    <input type="text" name="server_binding" id="editModalServerBinding" required placeholder="ألصق كود التفعيل الموحد MAX-XXXX / INST-XXXX أو بصمة العتاد أو ANY" class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-500 font-bold">
+                    <p class="text-[10px] text-slate-500 mt-1">يقبل كود التفعيل الموحد المنسوخ من العميل <code class="text-cyan-400">MAX-XXXX / INST-XXXX</code>، أو بصمة العتاد فقط، أو <code class="text-white">ANY</code>.</p>
+                </div>
+                <input type="hidden" name="hardware_id" id="editModalHWID" value="ANY">
+                <input type="hidden" name="instance_id" id="editModalInstanceId" value="ANY">
+            </div>
+
+            <!-- 3. Quotas & Limits -->
+            <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 space-y-3">
+                <div class="flex items-center gap-2 text-xs font-black text-emerald-400 border-b border-[#162136] pb-2">
+                    <i class="fa-solid fa-gauge-high"></i>
+                    <span>سقف السعة والحدود المسموحة (Quotas - يقبل أي رقم بحرية)</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">الجلسات المتصلة (Active Sessions)</label>
+                        <input type="number" name="max_active_sessions" id="editModalSessions" min="0" step="1" required placeholder="مثال: 500" class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-mono font-bold focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">الراوترات (Max NAS)</label>
+                        <input type="number" name="max_nas" id="editModalNas" min="0" step="1" required placeholder="مثال: 15" class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-mono font-bold focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">المدراء (Managers)</label>
+                        <input type="number" name="max_managers" id="editModalManagers" min="0" step="1" required class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-mono font-bold focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">الأنظمة (Tenants)</label>
+                        <input type="number" name="max_instances" id="editModalInstances" min="0" step="1" required class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-mono font-bold focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. Features & Capabilities -->
+            <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 space-y-3">
+                <div class="flex items-center justify-between border-b border-[#162136] pb-2">
+                    <div class="flex items-center gap-2 text-xs font-black text-amber-400">
+                        <i class="fa-solid fa-sparkles"></i>
+                        <span>الميزات والوحدات المفعلة (System Features)</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="toggleAllEditFeatures(true)" class="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 transition">تحديد الكل</button>
+                        <button type="button" onclick="toggleAllEditFeatures(false)" class="text-[10px] text-slate-400 hover:text-slate-300 font-bold px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 transition">إلغاء الكل</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_user_portal" id="feat_user_portal" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">بوابة المشتركين الذكية (Portal)</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_automation" id="feat_automation" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">قواعد الأتمتة والحظر الذكي</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_gis" id="feat_gis" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">خريطة الأبراج و GIS</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_autoheal" id="feat_autoheal" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">التعافي الذاتي (Auto-Heal)</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_archiver" id="feat_archiver" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">أرشيف المحاسبة والتنظيف</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_simulator" id="feat_simulator" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">محاكي راديوس (Simulator)</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_whatsapp" id="feat_whatsapp" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">رسائل الواتساب الآلية</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_analytics" id="feat_analytics" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">تحليلات الترافيك المباشرة</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_whitelabel" id="feat_whitelabel" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">العلامة البيضاء (White Label)</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_api" id="feat_api" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">واجهات البرمجة (REST API)</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_vpn_tunnels" id="feat_vpn_tunnels" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-indigo-300">أنفاق الـ VPN والربط (L2TP / WireGuard)</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_loyalty" id="feat_loyalty" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">نقاط ومكافآت الولاء (Loyalty Rewards)</span>
+                    </label>
+
+                    <label class="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#0b0f19] border border-[#1c2840] hover:border-indigo-500/40 transition cursor-pointer">
+                        <input type="checkbox" name="feat_card_designer" id="feat_card_designer" value="1" class="w-4 h-4 rounded text-indigo-600 focus:ring-0 bg-slate-900 border-[#1c2840]">
+                        <span class="text-[11px] font-bold text-slate-200">مصمم الكروت والطباعة المتقدم</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- 5. Validity & Expiry -->
+            <div class="bg-[#070b14] border border-[#162136] rounded-2xl p-4 space-y-3">
+                <div class="flex items-center gap-2 text-xs font-black text-teal-400 border-b border-[#162136] pb-2">
+                    <i class="fa-solid fa-calendar-days"></i>
+                    <span>صلاحية الترخيص وانتهاء التشغيل</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">خيار الصلاحية</label>
+                        <select name="validity_mode" id="editModalValidityMode" onchange="handleEditValidityChange(this.value)" class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-indigo-500">
+                            <option value="keep" selected>الإبقاء على تاريخ الانتهاء الحالي</option>
+                            <option value="extend">تمديد الصلاحية (+ أيام إضافية)</option>
+                            <option value="lifetime">ترقية إلى دائم مدى الحياة (Lifetime) 🟢</option>
+                            <option value="custom_date">تحديد تاريخ انتهاء مخصص</option>
+                        </select>
+                        <p class="text-[10px] text-slate-400 mt-1">تاريخ الانتهاء الحالي: <b id="editModalCurExpBadge" class="text-teal-400 font-mono"></b></p>
+                    </div>
+
+                    <div id="editModalExtendWrapper" class="hidden">
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">أيام التمديد الإضافية</label>
+                        <select name="extend_days" class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-indigo-500">
+                            <option value="30">+ شهر واحد (30 يوم)</option>
+                            <option value="90">+ 3 أشهر (90 يوم)</option>
+                            <option value="180">+ 6 أشهر (180 يوم)</option>
+                            <option value="365" selected>+ سنة كاملة (365 يوم)</option>
+                            <option value="730">+ سنتان (730 يوم)</option>
+                        </select>
+                    </div>
+
+                    <div id="editModalCustomDateWrapper" class="hidden">
+                        <label class="block text-[11px] font-bold text-slate-300 mb-1">تاريخ الانتهاء الجديد</label>
+                        <input type="date" name="custom_date" id="editModalCustomDate" class="w-full bg-[#0b0f19] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. Notes -->
+            <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">ملاحظات الترخيص</label>
+                <input type="text" name="notes" id="editModalNotes" placeholder="ملاحظات اختيارية عن العميل أو الترقية..." class="w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="pt-2 flex items-center gap-3">
+                <button type="submit" class="flex-1 py-3.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-teal-600 hover:from-purple-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-purple-500/25 transition-all">
+                    تأكيد التعديلات الشاملة وإعادة التوقيع الرقمي (OTA Sync)
+                </button>
+                <button type="button" onclick="closeEditLicenseModal()" class="px-5 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl text-xs font-bold transition">
+                    إلغاء
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Reset HWID / Transfer Modal -->
+<div id="resetHWIDModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-3xl w-full max-w-lg p-6 sm:p-8 space-y-5 shadow-2xl relative">
+        <div class="flex items-center justify-between border-b border-[#162136] pb-4">
+            <h3 class="text-sm font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-arrows-rotate text-cyan-400"></i>
+                <span>نقل الترخيص إلى سيرفر جديد (تغيير بصمة العتاد)</span>
+            </h3>
+            <button onclick="closeResetHWIDModal()" class="text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <!-- Subscription Preservation Summary Badge -->
+        <div class="bg-cyan-500/10 border border-cyan-500/30 rounded-2xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-300 font-bold">العميل: <b id="resetModalClientName" class="text-white"></b></span>
+                <span class="text-slate-300 font-bold">الترخيص: <code id="resetModalLicId" class="text-teal-400 font-mono"></code></span>
+            </div>
+            <div class="flex items-center justify-between text-xs pt-2 border-t border-cyan-500/20">
+                <span class="text-slate-300">الانتهاء المتبقي: <b id="resetModalExpDate" class="text-amber-300 font-mono"></b></span>
+                <span class="text-emerald-400 font-black text-[11px] flex items-center gap-1">
+                    <i class="fa-solid fa-shield-check"></i>
+                    <span>محفوظ بالكامل (لا يتم تصفير الأيام)</span>
+                </span>
+            </div>
+        </div>
+
+        <form id="resetHWIDForm" method="POST" action="" class="space-y-4">
+            <input type="hidden" name="action" value="reset_hwid">
+            
+            <div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <label class="block text-xs font-black text-slate-300">كود التفعيل / بصمة السيرفر الجديد</label>
+                    <button type="button" onclick="document.getElementById('resetModalBinding').value = 'ANY'" class="text-[10px] font-bold text-cyan-400 hover:text-cyan-300">تعيين ANY (فك القفل)</button>
+                </div>
+                <input type="text" name="new_server_binding" id="resetModalBinding" required placeholder="ألصق كود التفعيل الموحد أو بصمة العتاد الجديدة أو ANY" class="w-full bg-[#070b14] border border-[#162136] rounded-2xl px-4 py-2.5 text-xs text-white font-mono font-bold focus:outline-none focus:border-cyan-500">
+                <p class="text-[10px] text-slate-400 mt-1">ألصق كود التفعيل المنسوخ من شاشة لوحة تحكم السيرفر الجديد لنقل الترخيص إليه فوراً، أو اكتب <b class="text-cyan-400">ANY</b> لفك القفل.</p>
+                <input type="hidden" name="new_hardware_id" id="resetModalHWID" value="ANY">
+                <input type="hidden" name="new_instance_id" id="resetModalInstance" value="ANY">
+            </div>
+
+            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-cyan-500/25 transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+                <span>تأكيد نقل الترخيص وإعادة التوقيع الرقمي (OTA Sync)</span>
+            </button>
+        </form>
+</div>
+
+<!-- Bulk Extend Modal -->
+<div id="bulkExtendModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-3xl w-full max-w-md p-6 sm:p-8 space-y-5 shadow-2xl relative">
+        <div class="flex items-center justify-between border-b border-[#162136] pb-4">
+            <h3 class="text-sm font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-clock-rotate-left text-teal-400"></i>
+                <span>تمديد جماعي للتراخيص المحددة</span>
+            </h3>
+            <button onclick="closeBulkExtendModal()" class="text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-3 bg-teal-500/10 border border-teal-500/30 rounded-2xl text-xs text-teal-300 font-bold">
+            سيتم تمديد صلاحية <span id="bulkExtendCountNotice" class="font-black text-white text-sm">0</span> ترخيص دفعة واحدة، مع إعادة توقيعها وبث التحديث عبر الهواء OTA.
+        </div>
+
+        <form method="POST" action="{{ url_for('licenses_bulk_action') }}" class="space-y-4">
+            <input type="hidden" name="bulk_action" value="extend">
+            <input type="hidden" name="selected_ids_str" id="bulkExtendIdsInput" value="">
+            
+            <div>
+                <label class="block text-xs font-black text-slate-300 mb-2">عدد أيام التمديد الإضافية</label>
+                <select name="bulk_extend_days" class="w-full bg-[#070b14] border border-[#162136] rounded-2xl px-4 py-3 text-xs text-white font-bold focus:outline-none focus:border-teal-500">
+                    <option value="30">+ شهر واحد (30 يوم)</option>
+                    <option value="60">+ شهران (60 يوم)</option>
+                    <option value="90">+ 3 أشهر (90 يوم)</option>
+                    <option value="180">+ 6 أشهر (180 يوم)</option>
+                    <option value="365" selected>+ سنة كاملة (365 يوم)</option>
+                    <option value="730">+ سنتان (730 يوم)</option>
+                </select>
+            </div>
+
+            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-teal-500/25 transition-all">
+                تأكيد التمديد الجماعي وإعادة التوقيع
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Bulk Quota Modal -->
+<div id="bulkQuotaModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-3xl w-full max-w-md p-6 sm:p-8 space-y-5 shadow-2xl relative">
+        <div class="flex items-center justify-between border-b border-[#162136] pb-4">
+            <h3 class="text-sm font-black text-white flex items-center gap-2">
+                <i class="fa-solid fa-sliders text-purple-400"></i>
+                <span>ترقية وتعديل السعات جماعياً</span>
+            </h3>
+            <button onclick="closeBulkQuotaModal()" class="text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="p-3 bg-purple-500/10 border border-purple-500/30 rounded-2xl text-xs text-purple-300 font-bold">
+            سيتم زيادة السعات لعدد <span id="bulkQuotaCountNotice" class="font-black text-white text-sm">0</span> ترخيص محدد.
+        </div>
+
+        <form method="POST" action="{{ url_for('licenses_bulk_action') }}" class="space-y-4">
+            <input type="hidden" name="bulk_action" value="upgrade_quota">
+            <input type="hidden" name="selected_ids_str" id="bulkQuotaIdsInput" value="">
+            
+            <div>
+                <label class="block text-xs font-black text-slate-300 mb-1.5">إضافة سعة جلسات متصلة إضافية (+Sessions)</label>
+                <select name="bulk_sessions_add" class="w-full bg-[#070b14] border border-[#162136] rounded-2xl px-4 py-3 text-xs text-white font-bold focus:outline-none focus:border-purple-500">
+                    <option value="0">بدون تغيير الجلسات (+0)</option>
+                    <option value="100">+ 100 جلسة متصلة</option>
+                    <option value="250">+ 250 جلسة متصلة</option>
+                    <option value="500" selected>+ 500 جلسة متصلة</option>
+                    <option value="1000">+ 1,000 جلسة متصلة</option>
+                    <option value="2500">+ 2,500 جلسة متصلة</option>
+                    <option value="5000">+ 5,000 جلسة متصلة</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-black text-slate-300 mb-1.5">إضافة راوترات مايكروتك إضافية (+NAS)</label>
+                <select name="bulk_nas_add" class="w-full bg-[#070b14] border border-[#162136] rounded-2xl px-4 py-3 text-xs text-white font-bold focus:outline-none focus:border-purple-500">
+                    <option value="0" selected>بدون تغيير الراوترات (+0)</option>
+                    <option value="1">+ 1 راوتر إضافي</option>
+                    <option value="3">+ 3 راوترات إضافية</option>
+                    <option value="5">+ 5 راوترات إضافية</option>
+                    <option value="10">+ 10 راوترات إضافية</option>
+                </select>
+            </div>
+
+            <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-teal-600 hover:from-purple-500 hover:to-teal-500 text-white rounded-2xl text-xs font-black shadow-xl shadow-purple-500/25 transition-all">
+                تأكيد ترقية السعات الجماعية
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Standalone Generic Bulk Form (Activate, Suspend, Revoke) -->
+<form id="bulkActionGenericForm" method="POST" action="{{ url_for('licenses_bulk_action') }}" class="hidden">
+    <input type="hidden" name="bulk_action" id="bulkGenericActionInput" value="">
+    <input type="hidden" name="selected_ids_str" id="bulkGenericIdsInput" value="">
+</form>
+
+<script>
+    async function viewTokenModal(button) {
+        button.disabled = true;
+        try {
+            const response = await fetch('/licenses/' + button.dataset.activationId + '/activation-code', {
+                method: 'POST', headers: {'X-CSRF-Token': {{ csrf_token()|tojson }}}
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.message || 'تعذر تجهيز كود التفعيل');
+            document.getElementById('tokenModalClient').innerText = button.dataset.licenseId + " - " + button.dataset.clientName;
+            document.getElementById('tokenTextarea').value = data.token_b64;
+        document.getElementById('copyBtnText').innerText = 'نسخ الكود إلى الحافظة';
+        document.getElementById('tokenModal').classList.remove('hidden');
+        } catch (error) {
+            alert(error.message);
+        } finally { button.disabled = false; }
+    }
+    function closeTokenModal() {
+        document.getElementById('tokenModal').classList.add('hidden');
+    }
+    function copyTokenText() {
+        const textarea = document.getElementById('tokenTextarea');
+        textarea.select();
+        navigator.clipboard.writeText(textarea.value);
+        document.getElementById('copyBtnText').innerText = 'تم النسخ بنجاح! ✓';
+        setTimeout(() => {
+            document.getElementById('copyBtnText').innerText = 'نسخ الكود إلى الحافظة';
+        }, 3000);
+    }
+
+    function openExtendModal(id, licId, client, expDate) {
+        document.getElementById('extendForm').action = "/licenses/" + id + "/quick-action";
+        document.getElementById('extendModalLic').innerText = licId + " (" + client + ")";
+        document.getElementById('extendModalExp').innerText = expDate;
+        document.getElementById('extendModal').classList.remove('hidden');
+    }
+    function closeExtendModal() {
+        document.getElementById('extendModal').classList.add('hidden');
+    }
+
+    let currentEditingLic = {};
+
+    function openEditLicenseModal(btn) {
+        const d = btn.dataset;
+        currentEditingLic = {
+            id: d.id,
+            licId: d.licid || '',
+            hwid: d.hwid || 'ANY',
+            inst: d.inst || 'ANY',
+            client: d.client || '',
+            expires: d.expires || ''
+        };
+        document.getElementById('editLicenseForm').action = "/licenses/" + d.id + "/quick-action";
+        document.getElementById('editModalLicIdBadge').innerText = d.licid || '';
+        document.getElementById('editModalClientBadge').innerText = d.client || '';
+        document.getElementById('editModalClientName').value = d.client || '';
+        document.getElementById('editModalPlanTier').value = d.tier || 'Enterprise';
+        document.getElementById('editModalLicenseType').value = d.type || 'single';
+        
+        let combinedBinding = 'ANY';
+        const curH = (d.hwid || '').trim();
+        const curI = (d.inst || '').trim();
+        if (curH && curH !== 'ANY' && curI && curI !== 'ANY') {
+            combinedBinding = `${curH} / ${curI}`;
+        } else if (curH && curH !== 'ANY') {
+            combinedBinding = curH;
+        } else if (curI && curI !== 'ANY') {
+            combinedBinding = curI;
+        }
+        document.getElementById('editModalServerBinding').value = combinedBinding;
+        document.getElementById('editModalHWID').value = curH || 'ANY';
+        document.getElementById('editModalInstanceId').value = curI || 'ANY';
+        document.getElementById('editModalSessions').value = d.sessions || d.subs || 500;
+        document.getElementById('editModalNas').value = d.nas || 15;
+        document.getElementById('editModalManagers').value = d.managers || 5;
+        document.getElementById('editModalInstances').value = d.instances || 1;
+        document.getElementById('editModalNotes').value = d.notes || '';
+        
+        // Expiry
+        document.getElementById('editModalCurExpBadge').innerText = d.expires || 'غير محدد';
+        document.getElementById('editModalValidityMode').value = 'keep';
+        handleEditValidityChange('keep');
+
+        // Features checkboxes
+        let features = {};
+        try {
+            features = JSON.parse(d.features || '{}');
+        } catch(e) {
+            features = {};
+        }
+
+        const featMapping = {
+            'user_portal': 'feat_user_portal',
+            'automation_rules': 'feat_automation',
+            'gis_map': 'feat_gis',
+            'autoheal': 'feat_autoheal',
+            'accounting_archiver': 'feat_archiver',
+            'radius_simulator': 'feat_simulator',
+            'whatsapp_gateway': 'feat_whatsapp',
+            'traffic_analytics': 'feat_analytics',
+            'white_label': 'feat_whitelabel',
+            'api_access': 'feat_api',
+            'vpn_tunnels': 'feat_vpn_tunnels',
+            'loyalty_rewards': 'feat_loyalty',
+            'card_designer': 'feat_card_designer'
+        };
+
+        for (const [key, elemId] of Object.entries(featMapping)) {
+            const el = document.getElementById(elemId);
+            if (el) {
+                el.checked = (features[key] !== undefined) ? !!features[key] : true;
+            }
+        }
+
+        document.getElementById('editLicenseModal').classList.remove('hidden');
+    }
+
+    function closeEditLicenseModal() {
+        document.getElementById('editLicenseModal').classList.add('hidden');
+    }
+
+    function switchToResetHWIDFromEdit() {
+        if (!currentEditingLic.id) return;
+        closeEditLicenseModal();
+        openResetHWIDModal(
+            currentEditingLic.id,
+            currentEditingLic.licId,
+            currentEditingLic.hwid,
+            currentEditingLic.inst,
+            currentEditingLic.client,
+            currentEditingLic.expires
+        );
+    }
+
+    function handleEditValidityChange(mode) {
+        const extWrap = document.getElementById('editModalExtendWrapper');
+        const custWrap = document.getElementById('editModalCustomDateWrapper');
+        if (mode === 'extend') {
+            extWrap.classList.remove('hidden');
+            custWrap.classList.add('hidden');
+        } else if (mode === 'custom_date') {
+            extWrap.classList.add('hidden');
+            custWrap.classList.remove('hidden');
+        } else {
+            extWrap.classList.add('hidden');
+            custWrap.classList.add('hidden');
+        }
+    }
+
+    function toggleAllEditFeatures(val) {
+        const ids = [
+            'feat_user_portal', 'feat_automation', 'feat_gis', 'feat_autoheal',
+            'feat_archiver', 'feat_simulator', 'feat_whatsapp', 'feat_analytics',
+            'feat_whitelabel', 'feat_api', 'feat_vpn_tunnels', 'feat_loyalty', 'feat_card_designer'
+        ];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.checked = val;
+        });
+    }
+
+    // Backward compatibility wrapper
+    function openUpgradeModal(id, licId, client, subs, nas, inst) {
+        const btn = document.querySelector(`button[data-id="${id}"]`);
+        if (btn) {
+            openEditLicenseModal(btn);
+        }
+    }
+
+    function openResetHWIDModal(id, licId, curHw, curInst, clientName, expDate) {
+        document.getElementById('resetHWIDForm').action = "/licenses/" + id + "/quick-action";
+        let binding = 'ANY';
+        const ch = (curHw || '').trim();
+        const ci = (curInst || '').trim();
+        if (ch && ch !== 'ANY' && ci && ci !== 'ANY') {
+            binding = `${ch} / ${ci}`;
+        } else if (ch && ch !== 'ANY') {
+            binding = ch;
+        } else if (ci && ci !== 'ANY') {
+            binding = ci;
+        }
+        document.getElementById('resetModalBinding').value = binding;
+        document.getElementById('resetModalHWID').value = ch || 'ANY';
+        document.getElementById('resetModalInstance').value = ci || 'ANY';
+        if (document.getElementById('resetModalClientName')) {
+            document.getElementById('resetModalClientName').innerText = clientName || '';
+        }
+        if (document.getElementById('resetModalLicId')) {
+            document.getElementById('resetModalLicId').innerText = licId || '';
+        }
+        if (document.getElementById('resetModalExpDate')) {
+            document.getElementById('resetModalExpDate').innerText = expDate || 'دائم';
+        }
+        document.getElementById('resetHWIDModal').classList.remove('hidden');
+    }
+    function closeResetHWIDModal() {
+        document.getElementById('resetHWIDModal').classList.add('hidden');
+    }
+
+    function confirmAction(e, title, text) {
+        e.preventDefault();
+        const form = e.target;
+        Swal.fire({
+            title: title,
+            text: text,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#4f46e5',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'نعم، استمر',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+        return false;
+    }
+
+    // --- Bulk License Selection Handlers ---
+    function toggleSelectAllLicenses(masterCb) {
+        const checkboxes = document.querySelectorAll('.lic-checkbox');
+        checkboxes.forEach(cb => cb.checked = masterCb.checked);
+        handleLicenseSelect();
+    }
+
+    function handleLicenseSelect() {
+        const all = document.querySelectorAll('.lic-checkbox');
+        const checked = document.querySelectorAll('.lic-checkbox:checked');
+        const count = checked.length;
+        
+        const countBadge = document.getElementById('selectedCountBadge');
+        const countText = document.getElementById('selectedCountText');
+        const bar = document.getElementById('bulkActionBar');
+        const masterCb = document.getElementById('selectAllCheckbox');
+        
+        if (countBadge) countBadge.innerText = count;
+        if (countText) countText.innerText = count;
+        
+        if (count > 0) {
+            bar.classList.remove('hidden');
+        } else {
+            bar.classList.add('hidden');
+        }
+        
+        if (masterCb) {
+            masterCb.checked = (all.length > 0 && checked.length === all.length);
+            masterCb.indeterminate = (checked.length > 0 && checked.length < all.length);
+        }
+    }
+
+    function getSelectedLicenseIds() {
+        const checked = document.querySelectorAll('.lic-checkbox:checked');
+        return Array.from(checked).map(cb => cb.value);
+    }
+
+    function clearAllLicenseSelections() {
+        const masterCb = document.getElementById('selectAllCheckbox');
+        if (masterCb) {
+            masterCb.checked = false;
+            masterCb.indeterminate = false;
+        }
+        document.querySelectorAll('.lic-checkbox').forEach(cb => cb.checked = false);
+        handleLicenseSelect();
+    }
+
+    function openBulkExtendModal() {
+        const ids = getSelectedLicenseIds();
+        if (ids.length === 0) {
+            Swal.fire('تنبيه', 'يرجى تحديد ترخيص واحد على الأقل أولاً', 'warning');
+            return;
+        }
+        document.getElementById('bulkExtendIdsInput').value = ids.join(',');
+        document.getElementById('bulkExtendCountNotice').innerText = ids.length;
+        document.getElementById('bulkExtendModal').classList.remove('hidden');
+    }
+
+    function closeBulkExtendModal() {
+        document.getElementById('bulkExtendModal').classList.add('hidden');
+    }
+
+    function openBulkQuotaModal() {
+        const ids = getSelectedLicenseIds();
+        if (ids.length === 0) {
+            Swal.fire('تنبيه', 'يرجى تحديد ترخيص واحد على الأقل أولاً', 'warning');
+            return;
+        }
+        document.getElementById('bulkQuotaIdsInput').value = ids.join(',');
+        document.getElementById('bulkQuotaCountNotice').innerText = ids.length;
+        document.getElementById('bulkQuotaModal').classList.remove('hidden');
+    }
+
+    function closeBulkQuotaModal() {
+        document.getElementById('bulkQuotaModal').classList.add('hidden');
+    }
+
+    function executeBulkStatus(action) {
+        const ids = getSelectedLicenseIds();
+        if (ids.length === 0) {
+            Swal.fire('تنبيه', 'يرجى تحديد ترخيص واحد على الأقل أولاً', 'warning');
+            return;
+        }
+        
+        let title = '';
+        let text = '';
+        let confirmBtn = 'نعم، استمر';
+        let btnColor = '#4f46e5';
+        let icon = 'question';
+        
+        if (action === 'activate') {
+            title = `تفعيل ${ids.length} ترخيص دفعة واحدة`;
+            text = 'هل أنت متأكد من تفعيل وإلغاء تعليق كافة التراخيص المحددة؟';
+            confirmBtn = 'تفعيل التراخيص';
+            btnColor = '#10b981';
+            icon = 'info';
+        } else if (action === 'suspend') {
+            title = `تعليق مؤقت لعدد ${ids.length} ترخيص`;
+            text = 'هل أنت متأكد من إيقاف وتعليق عمل التراخيص المحددة وبث أمر الإيقاف عبر الهواء OTA؟';
+            confirmBtn = 'تعليق التراخيص';
+            btnColor = '#f59e0b';
+            icon = 'warning';
+        } else if (action === 'revoke') {
+            title = `إلغاء وحظر نهائي لعدد ${ids.length} ترخيص`;
+            text = 'تحذير أمني: سيتم إلغاء التراخيص نهائياً وإدراجها في حالة الحظر لمنعها من العمل نهائياً!';
+            confirmBtn = 'نعم، حظر وإلغاء نهائي';
+            btnColor = '#e11d48';
+            icon = 'error';
+        }
+        
+        Swal.fire({
+            title: title,
+            text: text,
+            icon: icon,
+            showCancelButton: true,
+            confirmButtonColor: btnColor,
+            cancelButtonColor: '#64748b',
+            confirmButtonText: confirmBtn,
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                document.getElementById('bulkGenericActionInput').value = action;
+                document.getElementById('bulkGenericIdsInput').value = ids.join(',');
+                document.getElementById('bulkActionGenericForm').submit();
+            }
+        });
+    }
+</script>
+{% endblock %}

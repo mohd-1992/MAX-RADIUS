@@ -757,6 +757,8 @@ def install_and_activate_license(license_str, master_server_url=DEFAULT_MASTER_S
         "license_mode": info.get('license_mode', 'unknown'),
         "system_uptime": "Activation"
     }
+    if isinstance(pkg_dict.get('enrollment_token'), str):
+        verify_payload['enrollment_token'] = pkg_dict['enrollment_token']
     
     try:
         res_json = authenticated_license_exchange(master_server_url, verify_payload, STORAGE_DIR, get_master_public_key_pem())
@@ -780,9 +782,21 @@ def install_and_activate_license(license_str, master_server_url=DEFAULT_MASTER_S
             remove_license_revocation(lic_id)
     except Exception as ex:
         logger.warning(f"[License Guard] Live activation ping notice: {ex}")
-        return False, 'تعذر التفعيل الآمن: تحقق من HTTPS واعتماد مفتاح اتصال النسخة في خادم التراخيص.'
+        messages = {
+            'enrollment_required': 'هذه النسخة تحتاج ملف تفعيل محدثًا. حمّل ملف الترخيص أو انسخ كود التفعيل مجددًا من لوحة التراخيص؛ سيُعتمد المفتاح تلقائيًا.',
+            'enrollment_token_invalid': 'ملف التفعيل استُخدم لنسخة أخرى أو لا يطابق الترخيص. حمّل ملف تفعيل جديدًا من لوحة التراخيص.',
+            'enrollment_token_expired': 'انتهت مهلة التفعيل الأولي لهذا الملف. حمّل ملف تفعيل جديدًا؛ مدة الترخيص نفسه لم تتغير.',
+            'enrollment_license_unavailable': 'خادم التراخيص رفض الاقتران لأن الترخيص غير متاح أو موقوف أو منتهي.',
+            'enrollment_binding_mismatch': 'ملف التفعيل مخصص لجهاز أو نسخة أخرى. راجع ربط الترخيص في اللوحة.',
+            'enrollment_blocked': 'هذه النسخة أو بصمتها موقوفة في خادم التراخيص؛ لا يمكن اعتماد مفتاحها.',
+            'enrollment_instance_limit': 'تم بلوغ عدد النسخ المسموح بها؛ لم يُعتمد مفتاح نسخة إضافية.',
+            'enrollment_key_mismatch': 'مفتاح النسخة لا يطابق المفتاح المعتمد. استعد مجلد storage الأصلي أو اطلب إعادة اعتماد المفتاح؛ لن يُستبدل تلقائيًا.'
+        }
+        if 'requires HTTPS' in str(ex):
+            return False, 'عنوان خادم التراخيص غير آمن. استخدم https://license.max-net.net بدل عنوان HTTP القديم.'
+        return False, messages.get(getattr(ex, 'code', None), 'تعذر الاتصال الآمن بخادم التراخيص أو التحقق من رده؛ راجع الاتصال وHTTPS وتوقيت الجهاز.')
 
-    raw_json = json.dumps(pkg_dict, ensure_ascii=False)
+    raw_json = json.dumps({k:v for k,v in pkg_dict.items() if k != 'enrollment_token'}, ensure_ascii=False)
     sig_b64 = pkg_dict.get('signature', '')
     
     # Save into wisp_license_info
