@@ -130,6 +130,7 @@ services:
   # ============================================================
   autoheal:
     image: willfarrell/autoheal:latest
+    pull_policy: always
     container_name: max_radius_autoheal
     restart: unless-stopped
     environment:

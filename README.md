@@ -31,6 +31,17 @@ curl -sSL https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/install.sh
 
 ---
 
+## تحديث صور الحاويات
+
+سحب المستودع بـ `git pull` يحدّث الملفات فقط. لتحديث صور تثبيت الإنتاج القائم، من مجلد التثبيت وبنفس ملفات Compose وoverride المستخدمة فيه:
+
+```bash
+docker compose -f docker-compose.production.yml pull
+docker compose -f docker-compose.production.yml up -d
+```
+
+سكربتا `install.sh` و`scripts/install.sh` ينفذان السحب قبل التشغيل بالفعل. خدمة Autoheal تستخدم `pull_policy: always` في ملفّي Compose لفحص صورتها المنشورة عند تشغيل الخدمة أيضًا؛ فشل الوصول إلى Registry قد يمنع إكمال التشغيل. هذه السياسة لا تشغّل تحديثًا دوريًا تلقائيًا.
+
 ## 🌟 Key Architecture & Capabilities
 
 - **High-Performance FreeRADIUS Core**:
