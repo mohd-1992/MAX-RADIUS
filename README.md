@@ -1,83 +1,59 @@
-# دليل المطور ومرجع المشروع
-ابدأ بـ [خريطة المشروع](docs/PROJECT_MAP.md)، [إعداد التطوير](docs/DEVELOPMENT.md)، و[تعليمات العملاء البرمجيين](AGENTS.md).
-مرجع البنية والقواعد والبيانات والواجهة والنشر والفحوص مرتبط بالخريطة. [الحالة المسجلة](docs/CURRENT_STATE.md) توضح آخر نتائج مؤكدة وحدودها.
+# MAX RADIUS
 
-الأداة المحلية: `python scripts/project_tools.py doctor` ثم `python scripts/project_tools.py index` و`python scripts/project_tools.py find <feature>`.
-المهارات المتخصصة في `.agents/skills/`. لا يلزم تحميل جميع الوثائق في كل مهمة.
+منظومة لإدارة شبكات WISP/ISP والمشتركين والكروت والموزعين، مع FreeRADIUS للمصادقة والمحاسبة وتكامل MikroTik.
 
----
+## الإصدار الحالي
 
-# MAX RADIUS - Next-Generation FreeRADIUS & MikroTik WISP ISP Platform 🚀
+**20261016-protected — Linux amd64**
 
-[![Website](https://img.shields.io/badge/Official%20Website-Live%20Demo-cyan.svg?style=flat&logo=google-chrome)](https://mohd-1992.github.io/MAX-RADIUS/)
-[![Docker Pulls](https://img.shields.io/badge/Docker-Hub-blue.svg?logo=docker)](https://hub.docker.com/u/mohd777)
-[![FreeRADIUS](https://img.shields.io/badge/FreeRADIUS-3.2-orange.svg)](https://freeradius.org/)
-[![MikroTik RouterOS](https://img.shields.io/badge/MikroTik-RouterOS%20v6%20%2F%20v7-red.svg)](https://mikrotik.com/)
-[![License](https://img.shields.io/badge/License-Proprietary-green.svg)]()
+- ملفات Python التشغيلية الخاصة بالتطبيق مجمّعة إلى وحدات ثنائية داخل صورة Web.
+- تحقق من توقيع الحزمة وبصمات ملفاتها عند بدء التشغيل.
+- نفس منطق التطبيق والراديوس الذي اختُبر، دون تغيير العمليات المالية ضمن هذا الإصدار.
+- التثبيت من صور جاهزة وحزمة تشغيل صغيرة؛ لا يحتاج تنزيل مصدر التطبيق أو بناءه على جهاز العميل.
+- يتضمن الإصلاحات السابقة للترخيص واعتماد مفتاح النسخة والاستيراد وسياسة أول استخدام.
 
-🌐 **الموقع الرسمي والدليل التفاعلي**: [https://mohd-1992.github.io/MAX-RADIUS/](https://mohd-1992.github.io/MAX-RADIUS/)
+[تنزيلات الإصدار](https://github.com/mohd-1992/MAX-RADIUS/releases/tag/20261016-protected) · [بيان الإصدار](release.json) · [الموقع الرسمي](https://max-net.net)
 
-MAX RADIUS is a carrier-grade, cloud-native Authentication, Authorization, and Accounting (AAA) & Billing platform built specifically for Wireless Internet Service Providers (WISP), Hotspot networks, and FTTH/Broadband operators.
+## التثبيت على Ubuntu / Debian
 
----
-
-## ⚡ Quick One-Line Automated Installation (Ubuntu 20.04 / 22.04 / 24.04)
-
-Deploy a complete production instance in under **2 minutes**:
+المتطلبات: خادم Linux بمعمارية x86_64/amd64، وصلاحية sudo، واتصال GitHub وDocker Hub. يثبت السكربت Docker إن لم يكن موجودًا؛ انتظار تنزيل حزمه يعتمد على سرعة الاتصال.
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/install.sh -o /tmp/max-radius-install.sh
+sudo bash /tmp/max-radius-install.sh
 ```
 
----
+بعد نجاح الفحص، افتح `http://SERVER_IP:5090`. يُجهز المنفذ 80 أيضًا إذا كان موقع Nginx الافتراضي متاحًا للنظام. في قاعدة جديدة فقط، حساب البداية `admin` وكلمة مروره `admin`؛ غيّرها عند أول دخول. حسابات النسخ القائمة لا يعاد تعيينها.
 
-## تحديث صور الحاويات
+ملفات التشغيل في `/opt/max-radius`، والبيانات والمفاتيح والنسخ الاحتياطية في `storage` وvolume قاعدة البيانات. لا تحذفها عند التحديث.
 
-سحب المستودع بـ `git pull` يحدّث الملفات فقط. لتحديث صور تثبيت الإنتاج القائم، من مجلد التثبيت وبنفس ملفات Compose وoverride المستخدمة فيه:
+## التحديث
 
-```bash
-docker compose -f docker-compose.production.yml pull
-docker compose -f docker-compose.production.yml up -d
-```
+شغّل أمر التثبيت نفسه لتحديث ملفات التشغيل وسحب الصور المحددة في بيان الإصدار، ثم إعادة إنشاء الخدمات. خذ نسخة احتياطية لبياناتك أولًا. لا تعتمد على `git pull` لتحديث الحاويات.
 
-سكربتا `install.sh` و`scripts/install.sh` ينفذان السحب قبل التشغيل بالفعل. خدمة Autoheal تستخدم `pull_policy: always` في ملفّي Compose لفحص صورتها المنشورة عند تشغيل الخدمة أيضًا؛ فشل الوصول إلى Registry قد يمنع إكمال التشغيل. هذه السياسة لا تشغّل تحديثًا دوريًا تلقائيًا.
+يحفظ المثبت نسخة من إعدادات التشغيل السابقة في `.install-backups`، ولا يحذف قاعدة البيانات أو يعيد ضبط حسابات الدخول. إذا كانت النسخة تستخدم ملفات Compose إضافية أو ربط ملفات مصدر، راجع إعداداتها قبل تشغيل المثبت القياسي.
 
-## 🌟 Key Architecture & Capabilities
-
-- **High-Performance FreeRADIUS Core**:
-  - Sub-millisecond CHAP, PAP, and MS-CHAPv2 authentication.
-  - Native dynamic quota countdown with Gigawords rollover (`Mikrotik-Total-Limit` & `Mikrotik-Total-Limit-Gigawords`).
-  - Arabic localized rejection messages mapped directly to MikroTik hotspot and user login screens.
-- **WISP & Reseller Hierarchy**:
-  - Multi-tier reseller wallets, batch generator, custom card templates, and POS integration.
-  - Granular RBAC permissions engine.
-- **Ultra-Fast Database Migration Engine**:
-  - Direct import from SAS4 and external MySQL radius databases (150,000+ records processed in sub-15 seconds).
-- **Embedded L2TP / IPsec VPN Concentrator**:
-  - Encrypted backhaul tunnels for connecting remote MikroTik routers over dynamic IPs / NAT.
-- **Automated Health & Defragmentation**:
-  - Engineering database audit and self-healing schema manager.
-
----
-
-## 🛠️ Manual Deployment via Docker Compose
+للإدارة اليدوية بعد التثبيت:
 
 ```bash
-git clone https://github.com/mohd-1992/MAX-RADIUS.git /opt/max-radius
 cd /opt/max-radius
-cp env.example .env
-docker compose -f docker-compose.production.yml pull
-docker compose -f docker-compose.production.yml up -d
+docker compose --env-file .env --env-file runtime-release.env -f docker-compose.production.yml ps
+docker exec max_radius_web python /opt/max-protection/verify.py
 ```
 
----
+تستخدم `runtime-release.env` معرفات الصور الثابتة بالإصدار، حتى لا يتبدل المحتوى اعتمادًا على اسم `latest` وحده. عند اعتماد إصدار أحدث استخدم المثبت لتحديث البيان وملف الصور معًا.
 
-## 🌐 Default Ports & Credentials
+## الوظائف
 
-| Service | Port / Protocol | Default Secret / Credentials |
-| :--- | :--- | :--- |
-| **Web Dashboard** | `80` & `5090` / TCP | `admin` / `admin123` |
-| **FreeRADIUS Auth** | `1812` / UDP | `max123` |
-| **FreeRADIUS Acct** | `1813` / UDP | `max123` |
-| **FreeRADIUS CoA/PoD** | `37990` / UDP | `max123` |
-| **L2TP VPN Server** | `1701` / UDP | Configured per tunnel |
+- إدارة المشتركين والباقات والكروت والحزم والطباعة والإصدار السريع.
+- إدارة الموزعين والمحافظ والشحن والخصم وسندات العمليات والصلاحيات.
+- استيراد SQL وExcel وUser Manager مع تقدم العملية وإلغائها وحماية التكرار.
+- تثبيت عقد الكرت غير المستخدم عند أول استخدام، وحفظ عقد المستخدم حتى التجديد.
+- لوحة المشترك والتجديد والسلفة والمكافآت حسب الصلاحيات والترخيص.
+- مصادقة ومحاسبة FreeRADIUS، وإدارة اتصال MikroTik وCoA والأنفاق.
+
+## حدود التوزيع
+
+حزمة التثبيت لا تحتوي أدوات الاختبار أو تقارير العمل أو ملفات Markdown أو مفاتيح المطور الخاصة. المفتاح العام للتحقق من الترخيص جزء مقصود من التشغيل. بيانات النسخة ومفاتيحها الخاصة تبقى خارج الصور.
+
+التغليف لا يحذف مصدرًا نُزّل سابقًا أو تاريخ Git، ولا يغير صلاحيات الوصول للمستودع. إزالة مصدر قديم من تثبيت قائم عملية منفصلة بعد التحقق من النسخ الاحتياطية وربط المجلدات. إصدارات Core وL2TP في هذه النشرة تحفظ محتواها السابق؛ التغيير الأساسي في التغليف والتوزيع.

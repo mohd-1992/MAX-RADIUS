@@ -37,7 +37,7 @@ services:
   # 2. FreeRADIUS Core
   # ============================================================
   freeradius:
-    image: mohd777/max-radius-core:latest
+    image: ${MAX_CORE_IMAGE:-mohd777/max-radius-core:latest}
     container_name: max_radius_core
     cap_add:
       - NET_ADMIN
@@ -71,7 +71,7 @@ services:
   # 3. WISP Web Dashboard
   # ============================================================
   wisp-web:
-    image: mohd777/max-radius-web:latest
+    image: ${MAX_WEB_IMAGE:-mohd777/max-radius-web:latest}
     container_name: max_radius_web
     restart: unless-stopped
     cap_add:
@@ -137,7 +137,7 @@ services:
   # 5. L2TP / VPN Server
   # ============================================================
   l2tp:
-    image: mohd777/max-radius-l2tp:latest
+    image: ${MAX_L2TP_IMAGE:-mohd777/max-radius-l2tp:latest}
     container_name: max_radius_l2tp
     restart: unless-stopped
     labels:

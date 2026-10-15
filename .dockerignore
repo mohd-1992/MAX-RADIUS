@@ -72,3 +72,32 @@ storage/keys/*
 # Repository instructions and skills are host development references.
 AGENTS.md
 .agents/
+
+# Private metadata and credentials, including future nested copies.
+HANDOFF.md
+private/
+.private/
+credentials/
+.credentials/
+**/*.private.*
+**/*-private.*
+**/*_private.*
+**/credentials*.xml
+**/credentials*.json
+**/credential*.env
+**/*private*.pem
+**/*private*.key
+**/license-instance.pem
+**/id_rsa
+**/id_ed25519
+**/*.p12
+**/*.pfx
+**/.ssh/**
+**/.docker/**
+storage/userman-jobs/
+
+# No documentation or runtime installer metadata belongs in the customer Web image.
+**/*.md
+release.json
+runtime-release.env
+.install-backups/

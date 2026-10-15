@@ -1,114 +1,76 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# MAX RADIUS - Automated One-Line Production Installer for Ubuntu / Debian
-# GitHub: https://github.com/mohd-1992/MAX-RADIUS
-# ==============================================================================
-
-set -e
-
-# Colors for terminal output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
-BOLD='\033[1m'
-
-TOKEN="${1:-$GITHUB_TOKEN}"
-if [ -n "$TOKEN" ]; then
-  REPO_URL="https://${TOKEN}@github.com/mohd-1992/MAX-RADIUS.git"
-else
-  REPO_URL="https://github.com/mohd-1992/MAX-RADIUS.git"
-fi
-
-INSTALL_DIR="/opt/max-radius"
-BRANCH="main"
-
-echo -e "${CYAN}${BOLD}"
-echo "=================================================================="
-echo "    __  ______  _  __   ____  ___    ____  Extended Engine        "
-echo "   /  |/  /   | | |/ /  / __ \/   |  / __ \/  _/ / / / ___/       "
-echo "  / /|_/ / /| | |   /  / /_/ / /| | / / / // / / / / /\__ \        "
-echo " / /  / / ___ |/   |  / _, _/ ___ |/ /_/ // / / /_/ /___/ /        "
-echo "/_/  /_/_/  |_/_/|_| /_/ |_/_/  |_/_____/___/ \____//____/         "
-echo "                                                                  "
-echo "       Next-Gen FreeRADIUS & MikroTik WISP ISP Platform           "
-echo "=================================================================="
-echo -e "${NC}"
-
-# Check Root Privileges
-if [ "$EUID" -ne 0 ]; then
-  echo -e "${RED}[ERROR] Please run this installation script as root (sudo bash).${NC}"
-  exit 1
-fi
-
-# Detect OS
-if [ -f /etc/os-release ]; then
-  . /etc/os-release
-  OS=$ID
-  OS_VER=$VERSION_ID
-else
-  echo -e "${RED}[ERROR] Cannot detect Linux distribution. Supported: Ubuntu 20.04+, Debian 11+${NC}"
-  exit 1
-fi
-
-echo -e "${BLUE}[1/6] Detected OS: ${BOLD}${OS} ${OS_VER}${NC}"
-
-# Safely handle Ubuntu unattended background upgrades and lock conflicts
-echo -e "${BLUE}[2/6] Preparing package manager & unlocking apt...${NC}"
-systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true
-systemctl kill --kill-who=all unattended-upgrades.service 2>/dev/null || true
-
-# Kill any lingering background apt/dpkg/unattended-upgrade processes
-pkill -9 -f unattended-upgr 2>/dev/null || true
-pkill -9 -f /usr/bin/apt 2>/dev/null || true
-pkill -9 -f /usr/bin/dpkg 2>/dev/null || true
-command -v killall &>/dev/null && killall -q -9 unattended-upgr apt apt-get dpkg 2>/dev/null || true
-sleep 1
-
-# If fuser is present, terminate process holding lock files
-for lockfile in /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock; do
-  command -v fuser &>/dev/null && fuser -k -9 "$lockfile" 2>/dev/null || true
-  rm -f "$lockfile" 2>/dev/null || true
-done
-
-# Wait for background package locks if still busy
-WAIT_LOCK_COUNT=0
-while command -v fuser &>/dev/null && (fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/cache/apt/archives/lock >/dev/null 2>&1); do
-  echo -e "${YELLOW}[INFO] Waiting for background system updates to release apt lock (${WAIT_LOCK_COUNT}s)...${NC}"
-  pkill -9 -f unattended-upgr 2>/dev/null || true
-  sleep 2
-  WAIT_LOCK_COUNT=$((WAIT_LOCK_COUNT+2))
-  if [ $WAIT_LOCK_COUNT -ge 30 ]; then
-    rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock 2>/dev/null || true
-    break
-  fi
-done
-
-dpkg --configure -a 2>/dev/null || true
-
+# MAX RADIUS: install prebuilt protected images; never clone application sources.
+set -Eeuo pipefail
+umask 077
+[[ $EUID -eq 0 ]] || { echo 'Run as root: sudo bash install.sh' >&2; exit 1; }
+INSTALL_DIR="${MAX_INSTALL_DIR:-/opt/max-radius}"
+MANIFEST_URL="${MAX_RELEASE_MANIFEST_URL:-https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/release.json}"
+[[ "$INSTALL_DIR" == /* && "$INSTALL_DIR" != / ]] || { echo 'Invalid installation directory' >&2; exit 1; }
+[[ -f /etc/os-release ]] || { echo 'Cannot detect operating system' >&2; exit 1; }
+. /etc/os-release
+case "$ID" in ubuntu|debian) ;; *) echo 'Supported: Ubuntu / Debian' >&2; exit 1;; esac
+case "$(uname -m)" in x86_64|amd64) ;; *) echo 'This release requires Linux amd64' >&2; exit 1;; esac
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -y -q -o DPkg::Lock::Timeout=60
-apt-get install -y -q -o DPkg::Lock::Timeout=60 curl wget git ufw jq unzip openssl ca-certificates gnupg lsb-release nginx
+nginx_default_existed=0
+[[ ! -f /etc/nginx/sites-available/default ]] || nginx_default_existed=1
 
-# Install Docker & Docker Compose Plugin if not installed
-echo -e "${BLUE}[3/6] Checking Docker & Docker Compose installation...${NC}"
-if ! command -v docker &> /dev/null; then
-  echo -e "${YELLOW}[INFO] Docker not found. Installing Docker Engine...${NC}"
+echo '[1/6] Preparing dependencies (waiting for package manager locks if needed)...'
+apt-get -o DPkg::Lock::Timeout=600 update -q
+apt-get -o DPkg::Lock::Timeout=600 install -y -q curl jq ca-certificates nginx iproute2
+if ! command -v docker >/dev/null; then
   curl -fsSL https://get.docker.com | sh
   systemctl enable --now docker
-else
-  echo -e "${GREEN}[OK] Docker is already installed: $(docker --version)${NC}"
 fi
+docker compose version >/dev/null || { echo 'Docker Compose v2 plugin is required' >&2; exit 1; }
 
-# Add invoking non-root user to docker group if applicable
-if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
-  usermod -aG docker "$SUDO_USER" 2>/dev/null || true
+echo '[2/6] Downloading verified runtime-only release...'
+stage=$(mktemp -d)
+trap 'rm -rf -- "$stage"' EXIT
+curl --fail --location --retry 3 --proto '=https' --tlsv1.2 "$MANIFEST_URL" -o "$stage/release.json"
+jq -e '.format == 1 and .platform == "linux/amd64" and (.release | test("^[A-Za-z0-9._-]+$")) and (.bundle.sha256 | test("^[a-f0-9]{64}$")) and (.bundle.url | startswith("https://github.com/mohd-1992/MAX-RADIUS/releases/download/")) and ([.images.web,.images.core,.images.l2tp] | all(test("^mohd777/max-radius-(web|core|l2tp)@sha256:[a-f0-9]{64}$")))' "$stage/release.json" >/dev/null
+release=$(jq -r .release "$stage/release.json")
+curl --fail --location --retry 3 --proto '=https' --tlsv1.2 "$(jq -r .bundle.url "$stage/release.json")" -o "$stage/runtime.tar.gz"
+printf '%s  %s\n' "$(jq -r .bundle.sha256 "$stage/release.json")" "$stage/runtime.tar.gz" | sha256sum -c - >/dev/null
+# Reject anything outside the exact distribution allowlist before extracting.
+while IFS= read -r member; do
+  case "$member" in docker-compose.production.yml|database/schema_mysql.sql|docker/l2tp/options.xl2tpd|storage/keys/master_public_key.pem|runtime-release.env) ;; *) echo 'Unexpected release member' >&2; exit 1;; esac
+done < <(tar -tzf "$stage/runtime.tar.gz")
+[[ $(tar -tzf "$stage/runtime.tar.gz" | wc -l) -eq 5 ]] || { echo 'Incomplete runtime release' >&2; exit 1; }
+tar --no-same-owner --no-same-permissions -xzf "$stage/runtime.tar.gz" -C "$stage"
+# Image references come from the validated manifest, never from a mutable latest tag.
+printf 'MAX_WEB_IMAGE=%s\nMAX_CORE_IMAGE=%s\nMAX_L2TP_IMAGE=%s\n' \
+  "$(jq -r .images.web "$stage/release.json")" "$(jq -r .images.core "$stage/release.json")" "$(jq -r .images.l2tp "$stage/release.json")" > "$stage/runtime-release.env"
+mkdir -p "$INSTALL_DIR"
+[[ -f "$INSTALL_DIR/.env" ]] || touch "$INSTALL_DIR/.env"
+compose=(docker compose --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" --env-file "$stage/runtime-release.env" -f "$stage/docker-compose.production.yml")
+"${compose[@]}" config --quiet
+"${compose[@]}" pull
+# Check the actual image before replacing configuration or recreating any service.
+web_image=$(jq -r .images.web "$stage/release.json")
+docker run --rm --network none --entrypoint python "$web_image" /opt/max-protection/verify.py
+
+echo '[3/6] Installing runtime configuration (preserving storage and database volumes)...'
+backup="$INSTALL_DIR/.install-backups/$(date -u +%Y%m%dT%H%M%SZ)-$$"
+mkdir -p "$backup"
+for file in docker-compose.production.yml runtime-release.env release.json .env; do
+  [[ ! -f "$INSTALL_DIR/$file" ]] || cp -p -- "$INSTALL_DIR/$file" "$backup/"
+done
+install -Dm644 "$stage/docker-compose.production.yml" "$INSTALL_DIR/docker-compose.production.yml"
+install -Dm644 "$stage/database/schema_mysql.sql" "$INSTALL_DIR/database/schema_mysql.sql"
+install -Dm644 "$stage/docker/l2tp/options.xl2tpd" "$INSTALL_DIR/docker/l2tp/options.xl2tpd"
+# Never replace a pre-existing public license key or any private instance keys.
+if [[ ! -f "$INSTALL_DIR/storage/keys/master_public_key.pem" ]]; then
+  install -Dm644 "$stage/storage/keys/master_public_key.pem" "$INSTALL_DIR/storage/keys/master_public_key.pem"
 fi
+install -m600 "$stage/runtime-release.env" "$INSTALL_DIR/runtime-release.env"
+install -m600 "$stage/release.json" "$INSTALL_DIR/release.json"
+mkdir -p "$INSTALL_DIR/storage/"{backups,uploads,logs,archive,l2tp}
+touch "$INSTALL_DIR/storage/l2tp/chap-secrets" "$INSTALL_DIR/storage/l2tp/pap-secrets"
+chmod 600 "$INSTALL_DIR/storage/l2tp/"*-secrets
+# Bundles contain no Web/Core Python sources and no customer credentials.
+# Existing source checkouts are not silently deleted; migrate them separately.
 
-# Ensure Kernel Parameters for High-Throughput RADIUS & L2TP
-echo -e "${BLUE}[4/6] Optimizing Kernel Parameters & IP Forwarding...${NC}"
+echo '[4/6] Configuring host networking...'
 cat << 'EOF' > /etc/sysctl.d/99-maxradius.conf
 net.ipv4.ip_forward = 1
 net.ipv4.conf.all.forwarding = 1
@@ -124,59 +86,14 @@ net.ipv4.udp_rmem_min = 16384
 net.ipv4.udp_wmem_min = 16384
 EOF
 sysctl --system -q 2>/dev/null || true
-
-# Prepare Installation Directory & Clone Repository
-echo -e "${BLUE}[5/6] Deploying MAX RADIUS codebase into ${INSTALL_DIR}...${NC}"
-if [ -d "$INSTALL_DIR/.git" ]; then
-  echo -e "${YELLOW}[INFO] Updating existing installation...${NC}"
-  cd "$INSTALL_DIR"
-  git fetch --all
-  git reset --hard "origin/$BRANCH"
-else
-  if [ -d "$INSTALL_DIR" ]; then
-    echo -e "${YELLOW}[INFO] Backing up existing directory...${NC}"
-    mv "$INSTALL_DIR" "${INSTALL_DIR}_backup_$(date +%s)"
-  fi
-  git clone -b "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
-  cd "$INSTALL_DIR"
+if command -v ufw >/dev/null && ufw status | grep -q 'Status: active'; then
+  for port in 80/tcp 5090/tcp 1812/udp 1813/udp 37990/udp 1701/udp; do ufw allow "$port" >/dev/null; done
 fi
 
-# Ensure storage directories exist with proper permissions
-mkdir -p "$INSTALL_DIR/storage/backups" "$INSTALL_DIR/storage/keys" "$INSTALL_DIR/storage/uploads" "$INSTALL_DIR/storage/logs" "$INSTALL_DIR/storage/archive" "$INSTALL_DIR/storage/l2tp" "$INSTALL_DIR/data"
-touch "$INSTALL_DIR/storage/l2tp/chap-secrets" "$INSTALL_DIR/storage/l2tp/pap-secrets" 2>/dev/null || true
-chmod 600 "$INSTALL_DIR/storage/l2tp/"*-secrets 2>/dev/null || true
-chmod -R 777 "$INSTALL_DIR/storage"
-
-# Create .env if not present
-if [ ! -f "$INSTALL_DIR/.env" ]; then
-  if [ -f "$INSTALL_DIR/env.example" ]; then
-    cp "$INSTALL_DIR/env.example" "$INSTALL_DIR/.env"
-  fi
-fi
-
-# Open Required Ports in UFW if active
-if command -v ufw &> /dev/null && ufw status | grep -q "Status: active"; then
-  echo -e "${YELLOW}[INFO] Configuring UFW firewall rules for RADIUS, Web, and L2TP...${NC}"
-  ufw allow 80/tcp comment "MAX RADIUS Web HTTP" 2>/dev/null || true
-  ufw allow 5090/tcp comment "MAX RADIUS Web Direct" 2>/dev/null || true
-  ufw allow 1812/udp comment "FreeRADIUS Auth" 2>/dev/null || true
-  ufw allow 1813/udp comment "FreeRADIUS Acct" 2>/dev/null || true
-  ufw allow 37990/udp comment "FreeRADIUS CoA/PoD" 2>/dev/null || true
-  ufw allow 1701/udp comment "L2TP VPN Server" 2>/dev/null || true
-  ufw allow 500/udp comment "IPSec IKE" 2>/dev/null || true
-  ufw allow 4500/udp comment "IPSec NAT-T" 2>/dev/null || true
-fi
-
-# Launch Docker Containers
-echo -e "${BLUE}[6/6] Pulling images and starting MAX RADIUS services...${NC}"
-docker compose -f docker-compose.production.yml pull
-docker compose -f docker-compose.production.yml up -d --remove-orphans
-
-# ------------------------------------------------------------
-# Configure Nginx Reverse Proxy (Port 80 alongside Port 5090)
-# ------------------------------------------------------------
-echo -e "${BLUE}[+] Configuring Nginx reverse proxy to open Port 80 alongside 5090...${NC}"
-mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+echo '[5/6] Starting services...'
+docker compose --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" --env-file "$INSTALL_DIR/runtime-release.env" -f "$INSTALL_DIR/docker-compose.production.yml" up -d --wait --wait-timeout 240
+# Preserve an unrelated/custom Nginx site instead of overwriting it.
+if [[ $nginx_default_existed -eq 0 ]] || grep -q 'MAX RADIUS' /etc/nginx/sites-available/default; then
 cat << 'NGINX_EOF' > /etc/nginx/sites-available/default
 # MAX RADIUS Nginx Reverse Proxy Configuration (Port 80 -> Port 5090)
 server {
@@ -215,43 +132,13 @@ nginx -t >/dev/null 2>&1 && systemctl reload nginx 2>/dev/null || systemctl rest
 systemctl enable nginx >/dev/null 2>&1 || true
 
 
-# Configure Host Kernel Routing for L2TP Subnet
+fi
+# Configure routing independently of the optional host HTTP proxy.
 ip route replace 192.168.44.0/24 via 172.18.0.10 2>/dev/null || true
 
-# Verify Database Schema Integrity
-echo -e "${BLUE}[+] Verifying database integrity...${NC}"
-for i in {1..25}; do
-  if docker exec max_radius_db mariadb-admin ping -h 127.0.0.1 -u root -prootpass &>/dev/null; then
-    break
-  fi
-  sleep 1
-done
-
-docker exec max_radius_db mariadb -u root -prootpass radius_wisp -e "
-  SET FOREIGN_KEY_CHECKS=0;
-  SOURCE /docker-entrypoint-initdb.d/01_schema.sql;
-  SET FOREIGN_KEY_CHECKS=1;
-" 2>/dev/null || true
-
-# Get Public Server IP
-SERVER_IP=$(curl -s -m 2 https://api.ipify.org || curl -s -m 2 https://ifconfig.me || hostname -I | awk '{print $1}')
-
-echo ""
-echo -e "${GREEN}${BOLD}==================================================================${NC}"
-echo -e "${GREEN}${BOLD}  🎉  MAX RADIUS Platform Installed & Started Successfully!       ${NC}"
-echo -e "${GREEN}${BOLD}==================================================================${NC}"
-echo ""
-echo -e "  🌐 ${BOLD}Web Dashboard:${NC}    http://${SERVER_IP}:5090  or  http://${SERVER_IP}"
-echo -e "  👤 ${BOLD}Default Admin:${NC}    admin"
-echo -e "  🔑 ${BOLD}Default Pass:${NC}     admin"
-echo ""
-echo -e "  🔒 ${BOLD}FreeRADIUS Auth:${NC}  Port 1812 / UDP (Secret: max123)"
-echo -e "  📊 ${BOLD}FreeRADIUS Acct:${NC}  Port 1813 / UDP (Secret: max123)"
-echo -e "  ⚡ ${BOLD}CoA / PoD Port:${NC}   Port 37990 / UDP"
-echo -e "  🛡️ ${BOLD}L2TP VPN Server:${NC}  Port 1701 / UDP"
-echo ""
-echo -e "  📂 ${BOLD}Install Location:${NC} ${INSTALL_DIR}"
-echo -e "  📋 ${BOLD}Logs & Status:${NC}    cd ${INSTALL_DIR} && docker compose -f docker-compose.production.yml ps"
-echo ""
-echo -e "${CYAN}Tip: Change the default admin password upon initial login.${NC}"
-echo -e "${GREEN}==================================================================${NC}"
+echo '[6/6] Verifying protected runtime...'
+docker exec max_radius_web python /opt/max-protection/verify.py
+SERVER_IP=$(hostname -I | awk '{print $1}')
+printf '\nMAX RADIUS release %s installed. Dashboard: http://%s:5090\n' "$release" "$SERVER_IP"
+printf 'Existing storage, credentials and database volumes were preserved.\n'
+printf 'Initial administrator credentials apply only to a fresh database; change them after first login.\n'

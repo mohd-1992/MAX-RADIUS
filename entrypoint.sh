@@ -13,4 +13,5 @@ mkdir -p /app/storage/backups /app/storage/uploads /app/storage/logs
 # Ensure direct container-level route for L2TP subnet to L2TP container
 ip route replace 192.168.44.0/24 via 172.18.0.10 2>/dev/null || true
 
-exec python run.py
+python /opt/max-protection/verify.py
+exec python -c "from run import main; main()"
