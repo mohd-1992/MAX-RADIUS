@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "release": "20261016-protected",
+  "release": "20261016-protected-r1",
   "platform": "linux/amd64",
   "images": {
     "web": "mohd777/max-radius-web@sha256:c84b9ba82ee1007962b162b63e917cc3d16647b5d3ef94e676ecb0d8a9f05a61",
@@ -8,7 +8,7 @@
     "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7"
   },
   "bundle": {
-    "url": "https://github.com/mohd-1992/MAX-RADIUS/releases/download/20261016-protected/max-radius-runtime-20261016-protected.tar.gz",
-    "sha256": "38e5438da5b510d65625e49e9dd2222dcf324ad78ada4c923eee74c089880a2c"
+    "url": "https://github.com/mohd-1992/MAX-RADIUS/releases/download/20261016-protected-r1/max-radius-runtime-20261016-protected-r1.tar.gz",
+    "sha256": "4928bd66e5939ad50fa4ad838e0d4f737eb878a747047e920cdd436e214a13b6"
   }
 }

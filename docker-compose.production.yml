@@ -22,7 +22,7 @@ services:
       - mariadb_data:/var/lib/mysql
       - ./database/schema_mysql.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -prootpass || exit 1"]
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mariadb --protocol=TCP -h 127.0.0.1 -u\"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -N -e 'SELECT 1' >/dev/null 2>&1"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -43,7 +43,8 @@ services:
       - NET_ADMIN
     restart: unless-stopped
     depends_on:
-      - mariadb
+      mariadb:
+        condition: service_healthy
     environment:
       DB_HOST: mariadb
       DB_PORT: 3306
@@ -77,8 +78,10 @@ services:
     cap_add:
       - NET_ADMIN
     depends_on:
-      - mariadb
-      - freeradius
+      mariadb:
+        condition: service_healthy
+      freeradius:
+        condition: service_started
     environment:
       - RADIUS_HOST=freeradius
       - RADIUS_HEALTH_SECRET=${RADIUS_HEALTH_SECRET:-max123}
