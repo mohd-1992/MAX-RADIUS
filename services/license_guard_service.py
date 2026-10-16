@@ -10,6 +10,7 @@ import json
 import time
 import logging
 import datetime
+import math
 import urllib.request
 import urllib.error
 from pathlib import Path
@@ -306,6 +307,8 @@ def check_and_update_monotonic_time():
         if row and row.get('value'):
             try:
                 last_epoch = float(row['value'])
+                if not math.isfinite(last_epoch):
+                    return False, 'سجل حماية وقت الترخيص غير صالح.'
                 if now_epoch < (last_epoch - 300):
                     logger.error(f"[License Guard] Clock rollback detected! Current: {now_epoch}, Last: {last_epoch}")
                     return False, "تم اكتشاف تراجع في ساعة وتاريخ السيرفر (Clock Rollback). تم قفل النظام لحماية الترخيص."
@@ -325,6 +328,48 @@ def check_and_update_monotonic_time():
         logger.warning(f"[License Guard] Monotonic check notice: {e}")
         return False, 'تعذر التحقق من سجل وقت الترخيص.'
     return True, ""
+
+
+def _recover_clock_after_verified_heartbeat(response, license_id):
+    """Use only a fresh, request-bound response returned by license_protocol.exchange.
+
+    NTP, HTTP Date and the unsigned server_time string cannot reset this guard.
+    The host clock must already agree with the issuer; this never sets the clock,
+    changes a license, or extends its expiry. A concurrent guard update wins.
+    """
+    if (response.get('license_id') != license_id or response.get('valid') is not True
+            or response.get('status') not in ('active', 'over_quota')
+            or response.get('remote_action') in ('suspend', 'revoke', 'unlicensed')):
+        return False
+    issued, expires = response.get('issued_epoch'), response.get('expires_epoch')
+    now = time.time()
+    if (type(issued) not in (int, float) or type(expires) not in (int, float)
+            or not math.isfinite(issued) or not math.isfinite(expires)
+            or not 0 < expires - issued <= 120 or not issued - 30 <= now < expires):
+        return False
+    row = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = 'license_monotonic_timestamp'")
+    if not row or not row.get('value'):
+        return False
+    try:
+        previous = float(row['value'])
+    except (ValueError, TypeError):
+        return False
+    if not math.isfinite(previous) or previous - now <= 300:
+        return False
+    # CAS preserves a newer observation from another process; never reset unconditionally.
+    execute_write("UPDATE wisp_system_settings SET `value` = ? "
+                  "WHERE `key` = 'license_monotonic_timestamp' AND `value` = ?",
+                  (str(now), row['value']))
+    current = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = 'license_monotonic_timestamp'")
+    try:
+        current_epoch = float(current['value']) if current else float('nan')
+    except (TypeError, ValueError):
+        return False
+    if not math.isfinite(current_epoch) or current_epoch > time.time() + 300:
+        return False
+    clear_license_cache()
+    logger.warning('License clock guard recovered after a fresh authenticated issuer confirmation.')
+    return True
 
 def _build_default_license_dict(status="unlicensed", status_text="", message="", valid=False, subs_count=0, nas_count=0, active_sessions_count=0):
     active_err = (active_sessions_count < 0)
@@ -1039,6 +1084,7 @@ def sync_license_heartbeat_with_server(max_retries=3):
                     return False, "تم إشعار النظام بحظر أو حذف الترخيص من قِبل المطور"
             
             # 2. Server confirmed active license -> Update heartbeat and clear grace
+            _recover_clock_after_verified_heartbeat(res_json, lic['license_id'])
             remove_license_revocation(lic['license_id'])
             execute_write("UPDATE wisp_license_info SET last_heartbeat_at = CURRENT_TIMESTAMP, status = 'active' WHERE id = %s" if is_mysql else "UPDATE wisp_license_info SET last_heartbeat_at = CURRENT_TIMESTAMP, status = 'active' WHERE id = ?", (lic['id'],))
             
@@ -1060,14 +1106,8 @@ def sync_license_heartbeat_with_server(max_retries=3):
                 except Exception as e_ota:
                     logger.warning(f"[License Guard] Failed applying OTA license update: {e_ota}")
             
-            # Record server time for anti-clock-rollback
-            server_time_str = res_json.get('server_time')
-            if server_time_str:
-                try:
-                    st_epoch = datetime.datetime.fromisoformat(server_time_str.replace('Z', '')).timestamp()
-                    check_and_update_monotonic_time()
-                except Exception:
-                    pass
+            # Keep advancing normally; recovery above uses signed epoch fields only.
+            check_and_update_monotonic_time()
                     
             clear_license_cache()
             logger.info(f"[License Guard] Heartbeat synced successfully on attempt {attempt}.")

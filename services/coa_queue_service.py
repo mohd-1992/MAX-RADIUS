@@ -197,7 +197,7 @@ def _disconnect_account_sessions(username, nas_ip=None):
                 time.sleep(.2)
 
 
-def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None, require_accounting_stop=False):
+def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None, require_accounting_stop=False, lifecycle_stop=False):
     """ACK requests removal; verified NAS absence confirms it. Never invent Stop."""
     resolved_ip, secret, coa_port, api_port, api_user, api_pass = _resolve_nas_credentials(nas_ip)
     target_nas_ip = resolved_ip or nas_ip or '127.0.0.1'
@@ -222,7 +222,25 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
             res.update(success=True, status='nas_confirmed_absent')
         else:
             path, original = matches[0]
-            _counter_verified_disconnect(username, radacctid, target_nas_ip, session_id, framed_ip, mac_address)
+            if lifecycle_stop:
+                if original.get('radius') != 'true':
+                    raise RuntimeError('Lifecycle target is not a verified RADIUS session')
+                # Expiry needs a real Stop, not a financial counter seal. FastTrack
+                # may prevent freezing traffic, but must not keep expired users online.
+                client = RadiusCoaClient(target_nas_ip, secret, coa_port, timeout=1.8)
+                client.disconnect_user(username=username, framed_ip=framed_ip,
+                                       session_id=session_id, mac_address=mac_address)
+                remaining = _select_nas_session(_nas_inventory(ros, username), session_id, framed_ip, mac_address)
+                if remaining:
+                    # Delete only the previously verified generation, never an
+                    # account-wide selector or a replacement login.
+                    if len(remaining) != 1 or remaining[0][0] != path or remaining[0][1].get('.id') != original.get('.id'):
+                        raise RuntimeError('NAS session generation changed')
+                    replies = ros.talk_raw([path + '/remove', '=.id=' + original['.id']])
+                    if not any(kind == '!done' for kind, _ in replies) or any(kind in ('!trap', '!fatal') for kind, _ in replies):
+                        raise RuntimeError('NAS rejected lifecycle disconnect')
+            else:
+                _counter_verified_disconnect(username, radacctid, target_nas_ip, session_id, framed_ip, mac_address)
             for attempt in range(3):
                 after = _nas_inventory(ros, username)
                 remaining = _select_nas_session(after, session_id, framed_ip, mac_address)
@@ -238,6 +256,13 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
         stopped = query_one('SELECT acctstoptime,acctterminatecause FROM radacct WHERE radacctid=%s AND username=%s',
                             (radacctid, username)) if radacctid else None
         synthetic = ('Admin-Reset-CoA','Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')
+        if lifecycle_stop and radacctid:
+            for _ in range(10):
+                if stopped and stopped.get('acctstoptime') and stopped.get('acctterminatecause') not in synthetic:
+                    break
+                time.sleep(.1)
+                stopped = query_one('SELECT acctstoptime,acctterminatecause FROM radacct WHERE radacctid=%s AND username=%s',
+                                    (radacctid, username))
         final = bool(stopped and stopped.get('acctstoptime') and stopped.get('acctterminatecause') not in synthetic)
         res['accounting_final'] = final
         if not final:
@@ -285,8 +310,15 @@ def _process_coa_task(task):
                 framed_ip, mac_address = sess.get('framedipaddress'), sess.get('callingstationid')
             if radacctid or session_id:
                 # Disconnecting a specific identified session
-                res = _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid,
-                    require_accounting_stop=bool(task.get('require_accounting_stop')))
+                if task.get('lifecycle_kind'):
+                    with _disconnect_account_guard(username):
+                        if not lifecycle_disconnect_still_required(task):
+                            return {'success': True, 'status': 'cancelled_after_state_change'}
+                        res = _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid,
+                            require_accounting_stop=bool(task.get('require_accounting_stop')), lifecycle_stop=True)
+                else:
+                    res = _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid,
+                        require_accounting_stop=bool(task.get('require_accounting_stop')))
             else:
                 # Disconnecting the user entirely: process each active session independently
                 from database.db import query_all

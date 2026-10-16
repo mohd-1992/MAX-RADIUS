@@ -3,6 +3,7 @@ import base64
 import datetime
 import hashlib
 import json
+import math
 import os
 import secrets
 import time
@@ -81,9 +82,10 @@ def verify_response(envelope, request_payload, public_pem):
     if response.get('request_hash') != hashlib.sha256(canonical(request_payload)).hexdigest():
         raise ValueError('License response request hash mismatch')
     now = time.time()
-    if not isinstance(response.get('issued_epoch'), (int,float)) or not isinstance(response.get('expires_epoch'), (int,float)):
+    if any(type(response.get(n)) not in (int,float) or not math.isfinite(response[n])
+           for n in ('issued_epoch', 'expires_epoch')):
         raise ValueError('Missing response validity interval')
-    if response['issued_epoch'] > now + 30 or response['expires_epoch'] <= now or response['expires_epoch'] - response['issued_epoch'] > 120:
+    if response['issued_epoch'] > now + 30 or response['expires_epoch'] <= now or not 0 < response['expires_epoch'] - response['issued_epoch'] <= 120:
         raise ValueError('Expired license response')
     if type(response.get('valid')) is not bool or response.get('status') not in (
         'active','over_quota','revoked','suspended','blacklisted','hwid_mismatch','unlicensed','expired','instance_limit'):

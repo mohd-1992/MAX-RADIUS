@@ -11,6 +11,24 @@ MANIFEST_URL="${MAX_RELEASE_MANIFEST_URL:-https://raw.githubusercontent.com/mohd
 case "$ID" in ubuntu|debian) ;; *) echo 'Supported: Ubuntu / Debian' >&2; exit 1;; esac
 case "$(uname -m)" in x86_64|amd64) ;; *) echo 'This release requires Linux amd64' >&2; exit 1;; esac
 export DEBIAN_FRONTEND=noninteractive
+# Establish real host time before TLS downloads or creating license time records.
+# Never step a live installation's clock automatically: refuse and leave it intact.
+ensure_host_time() {
+  command -v timedatectl >/dev/null || { echo 'A synchronized host clock is required (timedatectl unavailable).' >&2; return 1; }
+  [[ $(timedatectl show -p NTPSynchronized --value 2>/dev/null) != yes ]] || return 0
+  if command -v docker >/dev/null && [[ $(docker inspect --format '{{.State.Running}}' max_radius_web 2>/dev/null || true) == true ]]; then
+    echo 'Host clock is not synchronized. Existing services were left unchanged; synchronize the host before retrying.' >&2
+    return 1
+  fi
+  timedatectl set-ntp true || { echo 'Enable a host NTP service before installing MAX RADIUS.' >&2; return 1; }
+  for ((attempt=0; attempt<30; attempt++)); do
+    [[ $(timedatectl show -p NTPSynchronized --value 2>/dev/null) != yes ]] || return 0
+    sleep 2
+  done
+  echo 'Host NTP synchronization was not confirmed within 60 seconds; installation stopped without starting services.' >&2
+  return 1
+}
+ensure_host_time
 nginx_default_existed=0
 [[ ! -f /etc/nginx/sites-available/default ]] || nginx_default_existed=1
 
