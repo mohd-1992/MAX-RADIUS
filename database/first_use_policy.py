@@ -5,6 +5,8 @@ The marker is separate from Accounting-Start: a lost Start must not change a
 contract that has already been sent to a NAS. No historical ledger is repriced.
 """
 
+from database.schema_objects import ensure_schema_object
+
 FIELDS = ('price', 'cost', 'volume_quota_mb', 'rate_download', 'rate_upload', 'rate_limit_str')
 
 FREEZE_SQL = """CREATE OR REPLACE FUNCTION fn_freeze_voucher_policy(p_username VARCHAR(64))
@@ -42,6 +44,16 @@ def install_first_use_policy(conn):
     try:
         cur.execute("SHOW COLUMNS FROM wisp_vouchers LIKE 'policy_frozen_at'")
         first_install = not cur.fetchone()
+        # PIN aliases need an indexed point lookup in the accounting trigger.
+        cur.execute("SHOW INDEX FROM wisp_vouchers WHERE Column_name='pin_code' AND Seq_in_index=1")
+        if not cur.fetchone():
+            cur.execute('SELECT @@SESSION.lock_wait_timeout AS pin_index_lock_timeout')
+            previous_timeout = int(cur.fetchone()['pin_index_lock_timeout'])
+            try:
+                cur.execute('SET SESSION lock_wait_timeout=2')
+                cur.execute('CREATE INDEX idx_voucher_pin ON wisp_vouchers(pin_code)')
+            finally:
+                cur.execute(f'SET SESSION lock_wait_timeout={previous_timeout}')
         if first_install:
             cur.execute('ALTER TABLE wisp_vouchers ADD policy_frozen_at DATETIME NULL')
         for field, definition in (
@@ -62,10 +74,12 @@ def install_first_use_policy(conn):
                 OR EXISTS(SELECT 1 FROM wisp_voucher_sales s WHERE s.voucher_id=v.id))""")
             cur.execute('UPDATE wisp_vouchers SET ' + ','.join('snap_'+f+'=NULL' for f in FIELDS)
                         + ' WHERE policy_frozen_at IS NULL')
-        cur.execute("""UPDATE wisp_subscribers s JOIN wisp_packages p ON p.id=s.package_id
-          SET s.snap_volume_quota_mb=COALESCE(p.volume_quota_mb,0)
-          WHERE s.snap_volume_quota_mb IS NULL""")
-        cur.execute(FREEZE_SQL)
+        cur.execute('SELECT 1 FROM wisp_subscribers WHERE snap_volume_quota_mb IS NULL LIMIT 1')
+        if cur.fetchone():
+            cur.execute("""UPDATE wisp_subscribers s JOIN wisp_packages p ON p.id=s.package_id
+              SET s.snap_volume_quota_mb=COALESCE(p.volume_quota_mb,0)
+              WHERE s.snap_volume_quota_mb IS NULL""")
+        ensure_schema_object(cur, FREEZE_SQL)
         assignments = '\n'.join('SET NEW.snap_'+f+'=NULL;' for f in FIELDS)
         missing = '\n'.join(
             f'SET NEW.snap_{f}=COALESCE(NEW.snap_{f},(SELECT {f} FROM wisp_packages WHERE id=NEW.package_id),{default});'
@@ -73,7 +87,7 @@ def install_first_use_policy(conn):
         missing += """SET NEW.snap_rate_limit_str=COALESCE(NEW.snap_rate_limit_str,
           (SELECT r.value FROM radgroupreply r JOIN wisp_packages p ON p.name=r.groupname
             WHERE p.id=NEW.package_id AND LOWER(r.attribute)='mikrotik-rate-limit' ORDER BY r.id DESC LIMIT 1),'0/0');"""
-        cur.execute("""CREATE OR REPLACE TRIGGER trg_voucher_first_policy_insert
+        ensure_schema_object(cur, """CREATE OR REPLACE TRIGGER trg_voucher_first_policy_insert
           BEFORE INSERT ON wisp_vouchers FOR EACH ROW BEGIN
           IF NEW.status IN ('unused','suspended','disabled') AND NEW.first_used_at IS NULL AND NEW.last_renewed_at IS NULL
             AND NEW.expires_at IS NULL AND NEW.policy_frozen_at IS NULL THEN
@@ -83,7 +97,7 @@ def install_first_use_policy(conn):
           SET NEW.policy_frozen_at=COALESCE(NEW.policy_frozen_at,NEW.first_used_at,NEW.last_renewed_at,CURRENT_TIMESTAMP);
           END IF; END""")
         protected = '\n'.join('SET NEW.snap_'+f+'=OLD.snap_'+f+';' for f in FIELDS)
-        cur.execute("""CREATE OR REPLACE TRIGGER trg_voucher_first_policy_update
+        ensure_schema_object(cur, """CREATE OR REPLACE TRIGGER trg_voucher_first_policy_update
           BEFORE UPDATE ON wisp_vouchers FOR EACH ROW BEGIN
           IF OLD.policy_frozen_at IS NOT NULL AND COALESCE(@max_radius_import,0)=1 THEN
           """ + protected + """
@@ -98,7 +112,7 @@ def install_first_use_policy(conn):
           SET NEW.policy_frozen_at=COALESCE(NEW.policy_frozen_at,NEW.first_used_at,NEW.last_renewed_at,CURRENT_TIMESTAMP);
           END IF; END""")
         for operation in ('INSERT', 'UPDATE'):
-            cur.execute(f"""CREATE OR REPLACE TRIGGER trg_subscriber_quota_{operation.lower()}
+            ensure_schema_object(cur, f"""CREATE OR REPLACE TRIGGER trg_subscriber_quota_{operation.lower()}
               BEFORE {operation} ON wisp_subscribers FOR EACH ROW BEGIN
               IF NEW.snap_volume_quota_mb IS NULL THEN
                 SET NEW.snap_volume_quota_mb=COALESCE((SELECT volume_quota_mb FROM wisp_packages WHERE id=NEW.package_id),0);

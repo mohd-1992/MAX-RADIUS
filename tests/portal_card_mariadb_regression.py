@@ -93,11 +93,15 @@ def state(table, i):
 # Run actual decorated billing paths, using clone Docker health and real SQL locks.
 for kind, status in [('voucher', 'unused'), ('voucher', 'active'), ('voucher', 'expired'), ('subscriber', 'active')]:
     table, i, u = account(kind, status)
+    original = state(table, i)
+    expected_quota = original['snap_volume_quota_mb']
+    if expected_quota is None:
+        expected_quota = query_one('SELECT volume_quota_mb FROM wisp_packages WHERE id=?', (packages[0],))['volume_quota_mb']
     result = P.renew_or_change_package(u, packages[0])
     row = state(table, i)
     check(kind + '_' + status + '_renew', result[0] and float(row['balance']) == 80 and row['status'] == 'active')
     if kind == 'voucher':
-        check('renew_preserves_quota_snapshot', row['snap_volume_quota_mb'] == 55 and row['snap_uptime_limit_mins'] == 12)
+        check('renew_preserves_quota_snapshot', row['snap_volume_quota_mb'] == expected_quota and row['snap_uptime_limit_mins'] == 12)
         check('renew_sale_once', query_one('SELECT COUNT(*) n FROM wisp_voucher_sales WHERE voucher_id=?', (i,))['n'] == 1)
     time.sleep(1.2)
     result = P.renew_or_change_package(u, packages[1])

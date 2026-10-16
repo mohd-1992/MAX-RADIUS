@@ -1,4 +1,6 @@
 """Verified license lease and transaction-serialized RADIUS capacity reservations."""
+from database.schema_objects import ensure_schema_object, schema_object_matches
+
 ACTIVE_SESSION_PREDICATE = "acctstoptime IS NULL AND COALESCE(acctupdatetime,acctstarttime) >= NOW() - INTERVAL 5 MINUTE"
 PENDING_RESERVATION_PREDICATE = "radacctid IS NULL AND expires_at > NOW()"
 CAPACITY_COUNT_SQL = f"""SELECT
@@ -128,15 +130,25 @@ def install_capacity_schema(conn):
     with conn.cursor() as cur:
         cur.execute(SCHEMA_SQL)
         cur.execute("INSERT IGNORE INTO wisp_license_runtime_state(id) VALUES(1)")
-        cur.execute("UPDATE wisp_license_runtime_state SET is_valid=0,valid_until=NULL WHERE id=1")
         cur.execute("SHOW COLUMNS FROM wisp_session_reservations")
         columns={r['Field'] for r in cur.fetchall()}
         for name,spec in [('radacctid','BIGINT NULL'),('nasportid',"VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT ''")]:
             if name not in columns:
                 cur.execute(f"ALTER TABLE wisp_session_reservations ADD COLUMN {name} {spec}")
-        cur.execute('DROP TRIGGER IF EXISTS trg_radpostauth_reserve_capacity')
-        cur.execute(CHECK_SQL)
-        cur.execute(RESERVE_SQL)
-        cur.execute(resource_limit_trigger('wisp_nas_devices','max_nas',15))
-        cur.execute(resource_limit_trigger('wisp_managers','max_managers',10))
+        cur.execute("SELECT TRIGGER_NAME FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME='trg_radpostauth_reserve_capacity'")
+        obsolete = bool(cur.fetchone())
+        definitions = (CHECK_SQL, RESERVE_SQL,
+                       resource_limit_trigger('wisp_nas_devices','max_nas',15),
+                       resource_limit_trigger('wisp_managers','max_managers',10))
+        changed = obsolete or any(not schema_object_matches(cur, d) for d in definitions)
+        # A genuine capacity migration invalidates the old lease BEFORE its first
+        # DDL commit, including failed/partially applied migrations. A no-op never
+        # extends or clears an existing bounded lease.
+        if changed:
+            cur.execute("UPDATE wisp_license_runtime_state SET is_valid=0,valid_until=NULL WHERE id=1")
+            conn.commit()
+        if obsolete:
+            cur.execute('DROP TRIGGER trg_radpostauth_reserve_capacity')
+        for definition in definitions:
+            ensure_schema_object(cur, definition)
     conn.commit()

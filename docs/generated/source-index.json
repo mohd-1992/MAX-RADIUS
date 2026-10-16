@@ -123,7 +123,7 @@
     },
     {
       "file": "core/license_protocol.py",
-      "sha256": "b3499b434555dc3acb2bb016713a23eb1023c56619da59b393e0cec76d90facc",
+      "sha256": "b04d4ea7e13f869e01f126bc767f1d29161fdeb8ff1ca7ce5e2873aa40976be7",
       "imports": [
         "cryptography.hazmat.primitives",
         "cryptography.hazmat.primitives.asymmetric.ed25519",
@@ -133,52 +133,52 @@
       "definitions": [
         {
           "name": "LicenseAuthenticationError",
-          "line": 22,
+          "line": 23,
           "kind": "ClassDef"
         },
         {
           "name": "__init__",
-          "line": 23,
+          "line": 24,
           "kind": "FunctionDef"
         },
         {
           "name": "canonical",
-          "line": 28,
+          "line": 29,
           "kind": "FunctionDef"
         },
         {
           "name": "instance_key",
-          "line": 32,
+          "line": 33,
           "kind": "FunctionDef"
         },
         {
           "name": "instance_public_key",
-          "line": 52,
+          "line": 53,
           "kind": "FunctionDef"
         },
         {
           "name": "validate_server_url",
-          "line": 57,
+          "line": 58,
           "kind": "FunctionDef"
         },
         {
           "name": "SecureRedirect",
-          "line": 66,
+          "line": 67,
           "kind": "ClassDef"
         },
         {
           "name": "redirect_request",
-          "line": 67,
+          "line": 68,
           "kind": "FunctionDef"
         },
         {
           "name": "verify_response",
-          "line": 72,
+          "line": 73,
           "kind": "FunctionDef"
         },
         {
           "name": "exchange",
-          "line": 96,
+          "line": 98,
           "kind": "FunctionDef"
         }
       ]
@@ -768,14 +768,15 @@
     },
     {
       "file": "database/cycle_safety.py",
-      "sha256": "54567bd92561b20acdf2b2dd2c2d802999e150795f34ff292bea3cd32ba8c27a",
+      "sha256": "af9d4608fa32a1ba843df4a33f0f9938db10df20a4a02bdc7f3b242c74cefbf0",
       "imports": [
-        "database.nas_session_safety"
+        "database.nas_session_safety",
+        "database.schema_objects"
       ],
       "definitions": [
         {
           "name": "install_cycle_safety",
-          "line": 11,
+          "line": 13,
           "kind": "FunctionDef"
         }
       ]
@@ -921,31 +922,34 @@
     },
     {
       "file": "database/first_use_policy.py",
-      "sha256": "d4f439d738747d0c7f3682a94ee69bb9e2f9d9b2ddb884e210fbb6754e7ff105",
-      "imports": [],
+      "sha256": "60fcec620b8f3d208fa73054657e047cb7df3c1a1a9e240d14521f7cd2409f94",
+      "imports": [
+        "database.schema_objects"
+      ],
       "definitions": [
         {
           "name": "install_first_use_policy",
-          "line": 39,
+          "line": 41,
           "kind": "FunctionDef"
         }
       ]
     },
     {
       "file": "database/license_capacity.py",
-      "sha256": "ae1cce95eb22df4847cdc815182ee59b010b84519f3f47a784f3aff23e4f795b",
+      "sha256": "6a3fd34b4a95eb47e55ba7f70450434e1103aa30bc73952ba469eaede3a19ee0",
       "imports": [
-        "database.cycle_safety"
+        "database.cycle_safety",
+        "database.schema_objects"
       ],
       "definitions": [
         {
           "name": "resource_limit_trigger",
-          "line": 103,
+          "line": 105,
           "kind": "FunctionDef"
         },
         {
           "name": "install_capacity_schema",
-          "line": 125,
+          "line": 127,
           "kind": "FunctionDef"
         }
       ]
@@ -972,12 +976,14 @@
     },
     {
       "file": "database/nas_session_safety.py",
-      "sha256": "1d92a601d465bbe070304843a9726e2ee23c223d6ea9c1a42de29abb34eacdf6",
-      "imports": [],
+      "sha256": "7867bbbd5e96d63bcdd306132b844a51a86cd194a4c64080f037d5399f3223a9",
+      "imports": [
+        "database.schema_objects"
+      ],
       "definitions": [
         {
           "name": "install_nas_session_safety",
-          "line": 3,
+          "line": 6,
           "kind": "FunctionDef"
         }
       ]
@@ -1015,24 +1021,57 @@
     },
     {
       "file": "database/schema_healer.py",
-      "sha256": "25bade50670ecdfb78cfe952611d8f198c77df5c972c50cd5d1d3138aef6a4aa",
+      "sha256": "cef557bf31c8b0c0fa9b28cfc86d8f5d4cd94e01dba804a8ed7589b735319297",
       "imports": [
         "database.db",
         "database.first_use_policy",
         "database.license_capacity",
         "database.loyalty_schema",
         "database.maintenance_jobs",
+        "database.schema_objects",
         "database.voucher_sales_schema"
       ],
       "definitions": [
         {
           "name": "install_accounting_triggers",
-          "line": 380,
+          "line": 407,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_ensure_cycle_start_default",
+          "line": 430,
           "kind": "FunctionDef"
         },
         {
           "name": "heal_database_schema",
-          "line": 413,
+          "line": 443,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "database/schema_objects.py",
+      "sha256": "8ce6a33319602a8371c338395704de340205c3e332b8aa5f40aa824702b02a54",
+      "imports": [],
+      "definitions": [
+        {
+          "name": "_definition_tokens",
+          "line": 13,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_existing_definition",
+          "line": 42,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "ensure_schema_object",
+          "line": 61,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "schema_object_matches",
+          "line": 90,
           "kind": "FunctionDef"
         }
       ]
@@ -1288,7 +1327,7 @@
     },
     {
       "file": "services/autoheal_service.py",
-      "sha256": "d727351a3974d3ca5a1492593718db812817c03280d2cad1f78b71ef8895f221",
+      "sha256": "170e6d52c1d698918a94e67846cb131de61cc3a92b29fc78205921cf7f80216a",
       "imports": [
         "core.time_service",
         "core.watchdog",
@@ -1322,58 +1361,63 @@
           "kind": "FunctionDef"
         },
         {
+          "name": "fleet_rank",
+          "line": 116,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "_get_fallback_container_fleet",
-          "line": 213,
+          "line": 228,
           "kind": "FunctionDef"
         },
         {
           "name": "_allowed_container",
-          "line": 233,
+          "line": 248,
           "kind": "FunctionDef"
         },
         {
           "name": "inspect_container_details",
-          "line": 236,
+          "line": 251,
           "kind": "FunctionDef"
         },
         {
           "name": "get_live_container_logs",
-          "line": 246,
+          "line": 261,
           "kind": "FunctionDef"
         },
         {
           "name": "restart_system_container",
-          "line": 266,
+          "line": 281,
           "kind": "FunctionDef"
         },
         {
           "name": "probe_all_network_ports",
-          "line": 282,
+          "line": 297,
           "kind": "FunctionDef"
         },
         {
           "name": "run_deep_system_diagnostic",
-          "line": 344,
+          "line": 359,
           "kind": "FunctionDef"
         },
         {
           "name": "get_zombie_session_timeout",
-          "line": 483,
+          "line": 498,
           "kind": "FunctionDef"
         },
         {
           "name": "set_zombie_session_timeout",
-          "line": 493,
+          "line": 508,
           "kind": "FunctionDef"
         },
         {
           "name": "purge_stale_zombie_sessions",
-          "line": 510,
+          "line": 525,
           "kind": "FunctionDef"
         },
         {
           "name": "get_autoheal_dashboard_full",
-          "line": 559,
+          "line": 574,
           "kind": "FunctionDef"
         }
       ]
@@ -1807,7 +1851,7 @@
     },
     {
       "file": "services/coa_queue_service.py",
-      "sha256": "dc6b0674354edbc9ff5f5e1b8a05cda957d543179b64ad446b12088b13f53e9c",
+      "sha256": "ae20fb7d89090d8f4ad1ec7b8ce140e0ca7353f521fcf7a2487bcfca65a4a7af",
       "imports": [
         "collections",
         "contextlib",
@@ -1868,47 +1912,47 @@
         },
         {
           "name": "_process_coa_task",
-          "line": 254,
+          "line": 279,
           "kind": "FunctionDef"
         },
         {
           "name": "_task_key",
-          "line": 357,
+          "line": 389,
           "kind": "FunctionDef"
         },
         {
           "name": "_enqueue",
-          "line": 361,
+          "line": 393,
           "kind": "FunctionDef"
         },
         {
           "name": "_coa_worker_loop",
-          "line": 376,
+          "line": 408,
           "kind": "FunctionDef"
         },
         {
           "name": "start_coa_worker",
-          "line": 396,
+          "line": 428,
           "kind": "FunctionDef"
         },
         {
           "name": "enqueue_disconnect",
-          "line": 409,
+          "line": 441,
           "kind": "FunctionDef"
         },
         {
           "name": "enqueue_speed_change",
-          "line": 437,
+          "line": 469,
           "kind": "FunctionDef"
         },
         {
           "name": "enqueue_bulk_disconnect",
-          "line": 460,
+          "line": 492,
           "kind": "FunctionDef"
         },
         {
           "name": "get_coa_queue_status",
-          "line": 476,
+          "line": 508,
           "kind": "FunctionDef"
         }
       ]
@@ -2547,7 +2591,7 @@
     },
     {
       "file": "services/license_guard_service.py",
-      "sha256": "35f846332c84828dd6377044383a68d05e1bfbf9912b08e0da92f113461eaefd",
+      "sha256": "f9a0ba3a5b08f0a84903ee07458d000fd1e7e0edb1b9a9d8f5aac997d135503f",
       "imports": [
         "core.config",
         "core.hardware_fingerprint",
@@ -2561,127 +2605,132 @@
       "definitions": [
         {
           "name": "clear_license_cache",
-          "line": 33,
+          "line": 34,
           "kind": "FunctionDef"
         },
         {
           "name": "ensure_license_tables",
-          "line": 37,
+          "line": 38,
           "kind": "FunctionDef"
         },
         {
           "name": "is_license_blacklisted",
-          "line": 161,
+          "line": 162,
           "kind": "FunctionDef"
         },
         {
           "name": "record_license_revocation",
-          "line": 173,
+          "line": 174,
           "kind": "FunctionDef"
         },
         {
           "name": "remove_license_revocation",
-          "line": 187,
+          "line": 188,
           "kind": "FunctionDef"
         },
         {
           "name": "get_current_active_sessions_count",
-          "line": 200,
+          "line": 201,
           "kind": "FunctionDef"
         },
         {
           "name": "get_pending_reservations_count",
-          "line": 246,
+          "line": 247,
           "kind": "FunctionDef"
         },
         {
           "name": "get_current_system_counts",
-          "line": 273,
+          "line": 274,
           "kind": "FunctionDef"
         },
         {
           "name": "get_consumed_license_seats",
-          "line": 289,
+          "line": 290,
           "kind": "FunctionDef"
         },
         {
           "name": "check_and_update_monotonic_time",
-          "line": 297,
+          "line": 298,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_recover_clock_after_verified_heartbeat",
+          "line": 333,
           "kind": "FunctionDef"
         },
         {
           "name": "_build_default_license_dict",
-          "line": 329,
+          "line": 374,
           "kind": "FunctionDef"
         },
         {
           "name": "get_active_license_status",
-          "line": 387,
+          "line": 432,
           "kind": "FunctionDef"
         },
         {
           "name": "has_license_feature",
-          "line": 620,
+          "line": 665,
           "kind": "FunctionDef"
         },
         {
           "name": "check_active_session_quota",
-          "line": 633,
+          "line": 678,
           "kind": "FunctionDef"
         },
         {
           "name": "check_subscriber_quota",
-          "line": 659,
+          "line": 704,
           "kind": "FunctionDef"
         },
         {
           "name": "check_nas_quota",
-          "line": 664,
+          "line": 709,
           "kind": "FunctionDef"
         },
         {
           "name": "check_manager_quota",
-          "line": 683,
+          "line": 728,
           "kind": "FunctionDef"
         },
         {
           "name": "install_and_activate_license",
-          "line": 710,
+          "line": 755,
           "kind": "FunctionDef"
         },
         {
           "name": "_apply_verified_package_to_db",
-          "line": 875,
+          "line": 920,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_license_heartbeat_with_server",
-          "line": 960,
+          "line": 1005,
           "kind": "FunctionDef"
         },
         {
           "name": "start_license_heartbeat_daemon",
-          "line": 1085,
+          "line": 1125,
           "kind": "FunctionDef"
         },
         {
           "name": "_worker",
-          "line": 1090,
+          "line": 1130,
           "kind": "FunctionDef"
         },
         {
           "name": "publish_radius_license_state",
-          "line": 1105,
+          "line": 1145,
           "kind": "FunctionDef"
         },
         {
           "name": "start_radius_license_state_daemon",
-          "line": 1136,
+          "line": 1176,
           "kind": "FunctionDef"
         },
         {
           "name": "worker",
-          "line": 1140,
+          "line": 1180,
           "kind": "FunctionDef"
         }
       ]
@@ -4279,7 +4328,7 @@
     },
     {
       "file": "services/voucher_service.py",
-      "sha256": "300a4f3eefd65ea5a170d8825bfa7dbdb2e97d6a959a8bfa6079844013836972",
+      "sha256": "4c56acbcc74c0bf111a38cc40e546fa51d57d7d5499dca28f5fdb057b21b93d5",
       "imports": [
         "contextlib",
         "core.ownership",
@@ -4391,17 +4440,17 @@
         },
         {
           "name": "policy",
-          "line": 630,
+          "line": 641,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_voucher_sales",
-          "line": 789,
+          "line": 800,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_voucher_activations",
-          "line": 822,
+          "line": 833,
           "kind": "FunctionDef"
         }
       ]

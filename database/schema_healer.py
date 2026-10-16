@@ -8,6 +8,7 @@ and triggers whenever an old backup is restored or when new features are deploye
 """
 
 import sys
+from database.schema_objects import ensure_schema_object
 from database.db import get_connection, is_mysql_conn, adapt_query
 
 # Schema Definition Registry
@@ -264,6 +265,8 @@ CREATE TRIGGER trg_radacct_activate_voucher AFTER INSERT ON radacct
 FOR EACH ROW
 BEGIN
     DECLARE v_id INT DEFAULT NULL;
+    DECLARE v_lookup_id INT DEFAULT NULL;
+    DECLARE v_package_id INT DEFAULT NULL;
     DECLARE v_batch_id INT DEFAULT NULL;
     DECLARE v_batch_name VARCHAR(100) DEFAULT NULL;
     DECLARE v_serial_number VARCHAR(100) DEFAULT NULL;
@@ -289,28 +292,52 @@ BEGIN
         IF v_policy_result=0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Voucher policy unavailable'; END IF;
     END IF;
     
-    SELECT v.id, v.batch_id, b.name, v.serial_number,
-           p.name, COALESCE(v.snap_price, p.price), COALESCE(v.snap_cost, p.cost), v.reseller_id,
-           COALESCE(v.snap_validity_value, v.snap_validity_days, p.validity_value, p.validity_days, 30),
-           COALESCE(v.snap_validity_unit, p.validity_unit, 'days'),
-           COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb, 0),
-           COALESCE(v.snap_uptime_limit_mins, p.uptime_limit_mins, 0),
-           COALESCE(v.snap_rate_download, p.rate_download),
-           COALESCE(v.snap_rate_upload, p.rate_upload),
-           COALESCE(v.snap_simultaneous_sessions, p.simultaneous_sessions, 1),
-           COALESCE(v.snap_mikrotik_group, p.mikrotik_group)
-    INTO v_id, v_batch_id, v_batch_name, v_serial_number,
-         v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id,
-         v_val, v_unit, v_quota, v_uptime,
-         v_r_down, v_r_up, v_simul, v_mgroup
-    FROM wisp_vouchers v
-    JOIN wisp_packages p ON v.package_id = p.id
-    JOIN wisp_voucher_batches b ON v.batch_id = b.id
-    WHERE (LOWER(v.username) = LOWER(NEW.username) OR v.pin_code = NEW.username)
-      AND v.status = 'unused'
-      AND COALESCE(@max_radius_import, 0) = 0
-    LIMIT 1 FOR UPDATE;
-    
+    -- Resolve username first, then legacy PIN, using their indexes.
+    -- Read the current contract under a primary-key lock, not a metadata join.
+    IF COALESCE(@max_radius_import, 0) = 0 THEN
+        SELECT id INTO v_lookup_id FROM wisp_vouchers
+        WHERE username = NEW.username LIMIT 1;
+        IF v_lookup_id IS NULL THEN
+            SELECT id INTO v_lookup_id FROM wisp_vouchers
+            WHERE pin_code = NEW.username LIMIT 1;
+        END IF;
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_id = NULL;
+            SELECT id, package_id, batch_id, serial_number,
+                   snap_price, snap_cost, reseller_id,
+                   COALESCE(snap_validity_value, snap_validity_days), snap_validity_unit,
+                   snap_volume_quota_mb, snap_uptime_limit_mins,
+                   snap_rate_download, snap_rate_upload,
+                   snap_simultaneous_sessions, snap_mikrotik_group
+            INTO v_id, v_package_id, v_batch_id, v_serial_number,
+                 v_pkg_price, v_pkg_cost, v_reseller_id, v_val, v_unit,
+                 v_quota, v_uptime, v_r_down, v_r_up, v_simul, v_mgroup
+            FROM wisp_vouchers
+            WHERE id = v_lookup_id AND status = 'unused'
+            FOR UPDATE;
+        END;
+    END IF;
+
+    IF v_id IS NOT NULL THEN
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_id = NULL;
+            SELECT b.name, p.name, COALESCE(v_pkg_price, p.price),
+                   COALESCE(v_pkg_cost, p.cost),
+                   COALESCE(v_val, p.validity_value, p.validity_days, 30),
+                   COALESCE(v_unit, p.validity_unit, 'days'),
+                   COALESCE(v_quota, p.volume_quota_mb, 0),
+                   COALESCE(v_uptime, p.uptime_limit_mins, 0),
+                   COALESCE(v_r_down, p.rate_download),
+                   COALESCE(v_r_up, p.rate_upload),
+                   COALESCE(v_simul, p.simultaneous_sessions, 1),
+                   COALESCE(v_mgroup, p.mikrotik_group)
+            INTO v_batch_name, v_pkg_name, v_pkg_price, v_pkg_cost,
+                 v_val, v_unit, v_quota, v_uptime, v_r_down, v_r_up, v_simul, v_mgroup
+            FROM wisp_packages p JOIN wisp_voucher_batches b ON b.id = v_batch_id
+            WHERE p.id = v_package_id;
+        END;
+    END IF;
+
     IF v_id IS NOT NULL THEN
         IF v_val <= 0 THEN
             SET v_exp_date = NULL;
@@ -396,18 +423,21 @@ def install_accounting_triggers(conn):
             ('trg_radacct_release_reservation_insert', TRIGGER_RESERVATION_RELEASE_INSERT_SQL),
             ('trg_radacct_release_reservation_update', TRIGGER_RESERVATION_RELEASE_UPDATE_SQL)
         ):
-            if maria:
-                cur.execute(sql.replace('CREATE TRIGGER', 'CREATE OR REPLACE TRIGGER', 1))
-            else:
-                cur.execute(f'DROP TRIGGER IF EXISTS {name}')
-                cur.execute(sql)
-            cur.execute('SELECT ACTION_STATEMENT FROM information_schema.TRIGGERS '
-                        'WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME=%s', (name,))
-            row = cur.fetchone()
-            normalize = lambda text: re.sub(r'\s+', ' ', text.strip().rstrip(';')).strip()
-            expected = sql.split('FOR EACH ROW', 1)[1]
-            if not row or normalize(row['ACTION_STATEMENT']) != normalize(expected):
-                raise RuntimeError(f'Trigger verification failed: {name}')
+            ensure_schema_object(cur, sql, maria=maria)
+
+
+
+def _ensure_cycle_start_default(cur, table):
+    """Avoid an exclusive metadata lock when the deployed default is already NULL."""
+    if table not in ('wisp_vouchers', 'wisp_subscribers'):
+        raise ValueError('Unexpected cycle table')
+    cur.execute(f"SHOW COLUMNS FROM `{table}` LIKE 'last_renewed_at'")
+    column = cur.fetchone()
+    if not column:
+        raise RuntimeError('Cycle start column is missing')
+    default = column.get('Default') if isinstance(column, dict) else column[4]
+    if default is not None:
+        cur.execute(f"ALTER TABLE {table} ALTER COLUMN last_renewed_at SET DEFAULT NULL")
 
 
 def heal_database_schema(backfill=True, install_triggers=True):
@@ -420,6 +450,9 @@ def heal_database_schema(backfill=True, install_triggers=True):
         conn = get_connection()
         is_mysql = is_mysql_conn(conn)
         cur = conn.cursor()
+
+        if is_mysql:
+            cur.execute('SET SESSION lock_wait_timeout=2')
 
         from database.loyalty_schema import ensure_loyalty_schema
         ensure_loyalty_schema(conn)
@@ -464,34 +497,26 @@ def heal_database_schema(backfill=True, install_triggers=True):
         # Preserve the first session as the first cycle; defaults must not timestamp unused accounts.
         if is_mysql:
             for table in ('wisp_vouchers', 'wisp_subscribers'):
-                cur.execute(f"ALTER TABLE {table} ALTER COLUMN last_renewed_at SET DEFAULT NULL")
+                _ensure_cycle_start_default(cur, table)
             conn.commit()
 
         # 3. Backfill missing global sequence IDs
         try:
             if is_mysql and backfill:
-                cur.execute("""
-                    INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
-                    SELECT 'subscriber', id, NOW() FROM wisp_subscribers WHERE global_seq_id IS NULL
-                    ON DUPLICATE KEY UPDATE seq_id = seq_id
-                """)
-                cur.execute("""
-                    UPDATE wisp_subscribers s
-                    JOIN wisp_global_sequence g ON g.entity_type = 'subscriber' AND g.entity_id = s.id
-                    SET s.global_seq_id = g.seq_id
-                    WHERE s.global_seq_id IS NULL
-                """)
-                cur.execute("""
-                    INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
-                    SELECT 'voucher', id, NOW() FROM wisp_vouchers WHERE global_seq_id IS NULL
-                    ON DUPLICATE KEY UPDATE seq_id = seq_id
-                """)
-                cur.execute("""
-                    UPDATE wisp_vouchers v
-                    JOIN wisp_global_sequence g ON g.entity_type = 'voucher' AND g.entity_id = v.id
-                    SET v.global_seq_id = g.seq_id
-                    WHERE v.global_seq_id IS NULL
-                """)
+                for table, entity in (('wisp_subscribers', 'subscriber'), ('wisp_vouchers', 'voucher')):
+                    cur.execute(f'SELECT 1 FROM {table} WHERE global_seq_id IS NULL LIMIT 1')
+                    if not cur.fetchone():
+                        continue
+                    cur.execute(f"""
+                        INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
+                        SELECT '{entity}', id, NOW() FROM {table} WHERE global_seq_id IS NULL
+                        ON DUPLICATE KEY UPDATE seq_id = seq_id
+                    """)
+                    cur.execute(f"""
+                        UPDATE {table} a
+                        JOIN wisp_global_sequence g ON g.entity_type = '{entity}' AND g.entity_id = a.id
+                        SET a.global_seq_id = g.seq_id WHERE a.global_seq_id IS NULL
+                    """)
                 conn.commit()
         except Exception as e:
             print(f"[Schema Healer] Sequence backfill notice: {e}")
@@ -505,21 +530,46 @@ def heal_database_schema(backfill=True, install_triggers=True):
         try:
             if is_mysql and backfill:
                 cur.execute("""
-                    UPDATE wisp_vouchers v
-                    JOIN wisp_packages p ON v.package_id = p.id
-                    SET v.snap_price = IFNULL(v.snap_price, p.price),
-                        v.snap_cost = IFNULL(v.snap_cost, p.cost),
-                        v.snap_volume_quota_mb = IFNULL(v.snap_volume_quota_mb, p.volume_quota_mb),
-                        v.snap_uptime_limit_mins = IFNULL(v.snap_uptime_limit_mins, p.uptime_limit_mins),
-                        v.snap_validity_value = IFNULL(v.snap_validity_value, p.validity_value),
-                        v.snap_validity_unit = IFNULL(v.snap_validity_unit, p.validity_unit),
-                        v.snap_validity_days = IFNULL(v.snap_validity_days, p.validity_days),
-                        v.snap_rate_download = IFNULL(v.snap_rate_download, p.rate_download),
-                        v.snap_rate_upload = IFNULL(v.snap_rate_upload, p.rate_upload),
-                        v.snap_simultaneous_sessions = IFNULL(v.snap_simultaneous_sessions, p.simultaneous_sessions),
-                        v.snap_mikrotik_group = IFNULL(v.snap_mikrotik_group, p.mikrotik_group)
-                    WHERE v.snap_price IS NULL OR v.snap_price = 0.00
+                    SELECT 1 FROM wisp_vouchers v JOIN wisp_packages p ON p.id=v.package_id
+                    WHERE (v.snap_price IS NULL OR v.snap_price=0.00) AND (
+                      (v.snap_uptime_limit_mins IS NULL AND p.uptime_limit_mins IS NOT NULL)
+                      OR (v.snap_validity_value IS NULL AND p.validity_value IS NOT NULL)
+                      OR (v.snap_validity_unit IS NULL AND p.validity_unit IS NOT NULL)
+                      OR (v.snap_validity_days IS NULL AND p.validity_days IS NOT NULL)
+                      OR (v.snap_simultaneous_sessions IS NULL AND p.simultaneous_sessions IS NOT NULL)
+                      OR (v.snap_mikrotik_group IS NULL AND p.mikrotik_group IS NOT NULL)
+                      OR ((v.policy_frozen_at IS NOT NULL
+                           OR v.status NOT IN ('unused','suspended','disabled')
+                           OR v.first_used_at IS NOT NULL OR v.last_renewed_at IS NOT NULL
+                           OR v.expires_at IS NOT NULL) AND (
+                        (v.snap_price IS NULL)
+                        OR (v.snap_cost IS NULL)
+                        OR (v.snap_volume_quota_mb IS NULL)
+                        OR (v.snap_rate_download IS NULL)
+                        OR (v.snap_rate_upload IS NULL)))
+                      OR (v.policy_frozen_at IS NULL AND (
+                        v.status NOT IN ('unused','suspended','disabled')
+                        OR v.first_used_at IS NOT NULL OR v.last_renewed_at IS NOT NULL
+                        OR v.expires_at IS NOT NULL))
+                    ) LIMIT 1
                 """)
+                if cur.fetchone():
+                    cur.execute("""
+                        UPDATE wisp_vouchers v
+                        JOIN wisp_packages p ON v.package_id = p.id
+                        SET v.snap_price = IFNULL(v.snap_price, p.price),
+                            v.snap_cost = IFNULL(v.snap_cost, p.cost),
+                            v.snap_volume_quota_mb = IFNULL(v.snap_volume_quota_mb, p.volume_quota_mb),
+                            v.snap_uptime_limit_mins = IFNULL(v.snap_uptime_limit_mins, p.uptime_limit_mins),
+                            v.snap_validity_value = IFNULL(v.snap_validity_value, p.validity_value),
+                            v.snap_validity_unit = IFNULL(v.snap_validity_unit, p.validity_unit),
+                            v.snap_validity_days = IFNULL(v.snap_validity_days, p.validity_days),
+                            v.snap_rate_download = IFNULL(v.snap_rate_download, p.rate_download),
+                            v.snap_rate_upload = IFNULL(v.snap_rate_upload, p.rate_upload),
+                            v.snap_simultaneous_sessions = IFNULL(v.snap_simultaneous_sessions, p.simultaneous_sessions),
+                            v.snap_mikrotik_group = IFNULL(v.snap_mikrotik_group, p.mikrotik_group)
+                        WHERE v.snap_price IS NULL OR v.snap_price = 0.00
+                    """)
                 conn.commit()
         except Exception as e:
             print(f"[Schema Healer] Snap backfill notice: {e}")

@@ -592,24 +592,16 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
         with db_session() as conn:
             cursor = conn.cursor()
             lock_clause = "FOR UPDATE" if is_mysql_conn(conn) else ""
-            sql = adapt_query(f'''
-                SELECT v.*, 
-                       p.name as package_name, p.price, p.cost,
-                       p.validity_value, p.validity_unit, p.validity_days,
-                       p.volume_quota_mb, p.uptime_limit_mins,
-                       p.rate_download, p.rate_upload, p.burst_download, p.burst_upload,
-                       p.burst_threshold_down, p.burst_threshold_up, p.burst_time,
-                       p.priority, p.min_download, p.min_upload,
-                       p.simultaneous_sessions, p.mikrotik_group,
-                       b.name as batch_name, b.id as batch_id
-                FROM wisp_vouchers v
-                JOIN wisp_packages p ON v.package_id = p.id
-                JOIN wisp_voucher_batches b ON v.batch_id = b.id
-                WHERE LOWER(v.username) = LOWER(?) OR v.pin_code = ?
-                LIMIT 1 {lock_clause}
-            ''', conn)
-
-            cursor.execute(sql, (username, username))
+            # Resolve identity before locking: never lock a username/PIN join scan.
+            username_predicate = 'username = ?' if is_mysql_conn(conn) else 'LOWER(username) = LOWER(?)'
+            cursor.execute(adapt_query('SELECT id FROM wisp_vouchers WHERE ' + username_predicate + ' LIMIT 1', conn), (username,))
+            identity = cursor.fetchone()
+            if not identity:
+                cursor.execute(adapt_query('SELECT id FROM wisp_vouchers WHERE pin_code = ? LIMIT 1', conn), (username,))
+                identity = cursor.fetchone()
+            if not identity:
+                return False
+            cursor.execute(adapt_query('SELECT * FROM wisp_vouchers WHERE id = ? ' + lock_clause, conn), (identity['id'],))
             card = cursor.fetchone()
             if not card:
                 return False
@@ -620,11 +612,30 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
             if card['status'] != 'unused':
                 return False
 
+            # Metadata is read separately; the voucher remains locked by primary key.
+            cursor.execute(adapt_query('''
+                SELECT
+                       p.name as package_name, p.price, p.cost,
+                       p.validity_value, p.validity_unit, p.validity_days,
+                       p.volume_quota_mb, p.uptime_limit_mins,
+                       p.rate_download, p.rate_upload, p.burst_download, p.burst_upload,
+                       p.burst_threshold_down, p.burst_threshold_up, p.burst_time,
+                       p.priority, p.min_download, p.min_upload,
+                       p.simultaneous_sessions, p.mikrotik_group,
+                       b.name as batch_name, b.id as batch_id
+                FROM wisp_packages p JOIN wisp_voucher_batches b ON b.id = ?
+                WHERE p.id = ?
+            ''', conn), (card['batch_id'], card['package_id']))
+            metadata = cursor.fetchone()
+            if not metadata:
+                return False
+            card.update(dict(metadata))
+
             if is_mysql_conn(conn):
                 cursor.execute('SELECT fn_freeze_voucher_policy(%s) AS result', (card['username'],))
                 if cursor.fetchone()['result'] not in (2, 3):
                     raise ValueError('Voucher policy unavailable')
-                cursor.execute('SELECT * FROM wisp_vouchers WHERE id=%s', (card['id'],))
+                cursor.execute('SELECT * FROM wisp_vouchers WHERE id=%s FOR UPDATE', (card['id'],))
                 card.update(dict(cursor.fetchone()))
 
             def policy(field, default=None):

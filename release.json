@@ -1,14 +1,14 @@
 {
   "format": 1,
-  "release": "20261016-clock-expiry-r1",
+  "release": "20261016-voucher-lock-r10",
   "platform": "linux/amd64",
   "images": {
-    "web": "mohd777/max-radius-web@sha256:f52719f2ce8ef7c4d3fff58b065b5b3e91f48d96b51ae1e41b1f10c4f03c412a",
+    "web": "mohd777/max-radius-web@sha256:dc0bfce378226c69d3baf7450753385f06beac753061069be3c8c6cde6822837",
     "core": "mohd777/max-radius-core@sha256:4d609e0c03a32be6a979dfd110ccd10d8c8ceda72c3495a1c4734de653f42d59",
     "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7"
   },
   "bundle": {
-    "url": "https://github.com/mohd-1992/MAX-RADIUS/releases/download/20261016-clock-expiry-r1/max-radius-runtime-20261016-clock-expiry-r1.tar.gz",
-    "sha256": "23654eb9f26af48b27116759956a8585a20805cff9e966f188302366c67fa9de"
+    "url": "https://github.com/mohd-1992/MAX-RADIUS/releases/download/20261016-voucher-lock-r10/max-radius-runtime-20261016-voucher-lock-r10.tar.gz",
+    "sha256": "d5084418ebeda86655e326f8d9b807724bd4532863d4d428b21b3e523783bd25"
   }
 }

@@ -1,5 +1,7 @@
 """Database guards shared by account writers and RADIUS cycle transitions."""
 
+from database.schema_objects import ensure_schema_object
+
 GUARD_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS wisp_renewal_guards (
  username VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci PRIMARY KEY,
@@ -45,13 +47,13 @@ def install_cycle_safety(conn):
                     END IF;
                   END IF;
                 END"""
-                if maria:
-                    sql = sql.replace('CREATE TRIGGER', 'CREATE OR REPLACE TRIGGER', 1)
-                else:
-                    cur.execute('DROP TRIGGER IF EXISTS ' + name)
-                cur.execute(sql)
-            cur.execute(f"UPDATE {table} SET status='suspended' WHERE status='disabled'")
-            cur.execute(f"UPDATE {table} SET pause_reason='إيقاف سابق أو مستورد' WHERE status='suspended' AND pause_reason=''")
+                ensure_schema_object(cur, sql, maria=maria)
+            cur.execute(f"SELECT 1 FROM {table} WHERE status='disabled' LIMIT 1")
+            if cur.fetchone():
+                cur.execute(f"UPDATE {table} SET status='suspended' WHERE status='disabled'")
+            cur.execute(f"SELECT 1 FROM {table} WHERE status='suspended' AND pause_reason='' LIMIT 1")
+            if cur.fetchone():
+                cur.execute(f"UPDATE {table} SET pause_reason='إيقاف سابق أو مستورد' WHERE status='suspended' AND pause_reason=''")
     conn.commit()
     from database.nas_session_safety import install_nas_session_safety
     install_nas_session_safety(conn)

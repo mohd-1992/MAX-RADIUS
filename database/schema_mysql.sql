@@ -145,6 +145,8 @@ DELIMITER ;;
 FOR EACH ROW
 BEGIN
     DECLARE v_id INT DEFAULT NULL;
+    DECLARE v_lookup_id INT DEFAULT NULL;
+    DECLARE v_package_id INT DEFAULT NULL;
     DECLARE v_batch_id INT DEFAULT NULL;
     DECLARE v_batch_name VARCHAR(100) DEFAULT NULL;
     DECLARE v_serial_number VARCHAR(100) DEFAULT NULL;
@@ -169,28 +171,52 @@ BEGIN
         IF v_policy_result=0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Voucher policy unavailable'; END IF;
     END IF;
     
-    SELECT v.id, v.batch_id, b.name, v.serial_number,
-           p.name, COALESCE(v.snap_price, p.price), COALESCE(v.snap_cost, p.cost), v.reseller_id,
-           COALESCE(v.snap_validity_value, v.snap_validity_days, p.validity_value, p.validity_days, 30),
-           COALESCE(v.snap_validity_unit, p.validity_unit, 'days'),
-           COALESCE(v.snap_volume_quota_mb, p.volume_quota_mb, 0),
-           COALESCE(v.snap_uptime_limit_mins, p.uptime_limit_mins, 0),
-           COALESCE(v.snap_rate_download, p.rate_download),
-           COALESCE(v.snap_rate_upload, p.rate_upload),
-           COALESCE(v.snap_simultaneous_sessions, p.simultaneous_sessions, 1),
-           COALESCE(v.snap_mikrotik_group, p.mikrotik_group)
-    INTO v_id, v_batch_id, v_batch_name, v_serial_number,
-         v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id,
-         v_val, v_unit, v_quota, v_uptime,
-         v_r_down, v_r_up, v_simul, v_mgroup
-    FROM wisp_vouchers v
-    JOIN wisp_packages p ON v.package_id = p.id
-    JOIN wisp_voucher_batches b ON v.batch_id = b.id
-    WHERE (LOWER(v.username) = LOWER(NEW.username) OR v.pin_code = NEW.username)
-      AND v.status = 'unused'
-      AND COALESCE(@max_radius_import, 0) = 0
-    LIMIT 1 FOR UPDATE;
-    
+    -- Resolve username first, then legacy PIN, using their indexes.
+    -- Read the current contract under a primary-key lock, not a metadata join.
+    IF COALESCE(@max_radius_import, 0) = 0 THEN
+        SELECT id INTO v_lookup_id FROM wisp_vouchers
+        WHERE username = NEW.username LIMIT 1;
+        IF v_lookup_id IS NULL THEN
+            SELECT id INTO v_lookup_id FROM wisp_vouchers
+            WHERE pin_code = NEW.username LIMIT 1;
+        END IF;
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_id = NULL;
+            SELECT id, package_id, batch_id, serial_number,
+                   snap_price, snap_cost, reseller_id,
+                   COALESCE(snap_validity_value, snap_validity_days), snap_validity_unit,
+                   snap_volume_quota_mb, snap_uptime_limit_mins,
+                   snap_rate_download, snap_rate_upload,
+                   snap_simultaneous_sessions, snap_mikrotik_group
+            INTO v_id, v_package_id, v_batch_id, v_serial_number,
+                 v_pkg_price, v_pkg_cost, v_reseller_id, v_val, v_unit,
+                 v_quota, v_uptime, v_r_down, v_r_up, v_simul, v_mgroup
+            FROM wisp_vouchers
+            WHERE id = v_lookup_id AND status = 'unused'
+            FOR UPDATE;
+        END;
+    END IF;
+
+    IF v_id IS NOT NULL THEN
+        BEGIN
+            DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_id = NULL;
+            SELECT b.name, p.name, COALESCE(v_pkg_price, p.price),
+                   COALESCE(v_pkg_cost, p.cost),
+                   COALESCE(v_val, p.validity_value, p.validity_days, 30),
+                   COALESCE(v_unit, p.validity_unit, 'days'),
+                   COALESCE(v_quota, p.volume_quota_mb, 0),
+                   COALESCE(v_uptime, p.uptime_limit_mins, 0),
+                   COALESCE(v_r_down, p.rate_download),
+                   COALESCE(v_r_up, p.rate_upload),
+                   COALESCE(v_simul, p.simultaneous_sessions, 1),
+                   COALESCE(v_mgroup, p.mikrotik_group)
+            INTO v_batch_name, v_pkg_name, v_pkg_price, v_pkg_cost,
+                 v_val, v_unit, v_quota, v_uptime, v_r_down, v_r_up, v_simul, v_mgroup
+            FROM wisp_packages p JOIN wisp_voucher_batches b ON b.id = v_batch_id
+            WHERE p.id = v_package_id;
+        END;
+    END IF;
+
     IF v_id IS NOT NULL THEN
         IF v_val <= 0 THEN
             SET v_exp_date = NULL;
@@ -936,6 +962,7 @@ CREATE TABLE `wisp_vouchers` (
   UNIQUE KEY `idx_voucher_username` (`username`),
   KEY `idx_voucher_batch` (`batch_id`),
   KEY `idx_voucher_package` (`package_id`),
+  KEY `idx_voucher_pin` (`pin_code`),
   KEY `idx_voucher_status` (`status`),
   KEY `idx_voucher_status_id` (`status`,`id` DESC),
   CONSTRAINT `fk_voucher_batch` FOREIGN KEY (`batch_id`) REFERENCES `wisp_voucher_batches` (`id`) ON DELETE CASCADE,

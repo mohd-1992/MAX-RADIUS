@@ -109,7 +109,22 @@ def get_container_fleet_status():
     if not project:
         return _get_fallback_container_fleet('تعذر تحديد منظومة الحاويات؛ لن يتم التحكم بحاويات أخرى')
     if project:
-        by_service = {c.get('Labels', {}).get('com.docker.compose.service'): c for c in raw_list if c.get('Labels', {}).get('com.docker.compose.project') == project}
+        # A retained rollback container keeps its Compose labels. Prefer this
+        # process for its service, then a running/healthy instance; Docker list
+        # order must never make a stopped backup the target of live controls.
+        by_service = {}
+        def fleet_rank(container):
+            return (container.get('Id') == (current or {}).get('Id'),
+                    container.get('State') == 'running',
+                    '(healthy)' in container.get('Status', '').lower(),
+                    container.get('Created', 0))
+        for container in raw_list:
+            labels = container.get('Labels', {})
+            if labels.get('com.docker.compose.project') != project:
+                continue
+            role = labels.get('com.docker.compose.service')
+            if role not in by_service or fleet_rank(container) > fleet_rank(by_service[role]):
+                by_service[role] = container
         for default, role in zip(MONITORED_CONTAINER_NAMES, ('autoheal', 'freeradius', 'wisp-web', 'mariadb', 'l2tp')):
             aliases = {'freeradius': 'radius_core', 'wisp-web': 'web', 'mariadb': 'db'}
             match = by_service.get(role) or by_service.get(aliases.get(role))

@@ -1,3 +1,7 @@
-The MAX tenant uses this controller for metadata reads and journal-authorized factory-reset stop/start of its radius_core only. Other tenants retain their read-only proxy.
+# تكامل التحكم المستضاف المحدود
 
-Deploy factory_fleet_proxy.py to /opt/saas-manager-next/factory_fleet_proxy.py and reset-controller.conf to /etc/systemd/system/max-panel-fleet@max.service.d/reset-controller.conf, then run systemctl daemon-reload and systemctl restart max-panel-fleet@max.service. The existing tenant socket must remain in place. Do not mount an unrestricted Docker socket in the hosted web container.
+هذه مكونات تكامل مع اللوحة المركزية، وليست كاملsaas-manager-next أوDocker socket عامة. factory_fleet_proxy.py وreset-controller.conf يمثلان المتحكم الخاص التاريخي لماكس. مسار التشغيل والـoverride الفعليان يُؤخذان منsystemd على الهدف، وتفاصيلهما في المرجع المحلي الخاص المذكور في [ENVIRONMENTS](../../docs/ENVIRONMENTS.md).
+
+المصدر العام للوحة حاليًا يدعمmetadata وstart/stop لراديوس المستأجر المسجل فقط، ضمنjournal إعادة المصنع وملكيةCompose وDB. لذلك وصف جميع المستأجرين الآخرين بأنهمread-only لم يعد وصفًا عامًا دقيقًا. لا يسمحexec/restart أوالتحكم بالويب/DB/النقل المشترك أو مستأجر آخر.
+
+أي تثبيت أو تبديلservice/drop-in أوإعادة تشغيل مهمة نشر منفصلة تتطلب هدفًا مصرحًا ونسخة رجوع وفحصmetadata/حجب أسرار. لا تغيرjournal لمنح إذن، ولا تركبsocket المضيف العامة، ولا تنفذstop/start لمجرد جرد التوثيق.

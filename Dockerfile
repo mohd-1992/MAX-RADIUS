@@ -13,7 +13,7 @@ COPY run.py entrypoint.sh ./
 COPY core/ ./core/
 COPY services/ ./services/
 COPY web/ ./web/
-COPY database/db.py database/schema_healer.py database/schema_mysql.sql ./database/
+COPY database/db.py database/schema_healer.py database/schema_objects.py database/schema_mysql.sql ./database/
 COPY database/freeradius_standard.sql database/wisp_extensions.sql database/seed_data.sql ./database/
 COPY database/license_capacity.py database/maintenance_jobs.py ./database/
 COPY database/permission_catalog.py database/quick_card_schema.py database/first_use_policy.py ./database/
