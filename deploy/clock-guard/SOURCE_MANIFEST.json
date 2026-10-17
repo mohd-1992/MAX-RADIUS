@@ -1,0 +1,31 @@
+{
+  "format": 4,
+  "release": "20261017-clock-license-r13",
+  "runtime_host_files": [
+    "clock_ready.py",
+    "managed_files.py",
+    "active_files.py",
+    "manage.py",
+    "99-max-radius-clock-ready.conf"
+  ],
+  "host_activation": "explicit opt-in; no automatic Docker restart",
+  "sha256": {
+    "99-max-radius-clock-ready.conf": "c18ee0f3e158a6db88c49c6c69f1c875eb7b5533104c278aa0398d118e4daf27",
+    "active_files.py": "2c106b6bb00438d29169505d3ba6841ad9aa2c2b476e1ae0430e8890709ca7f8",
+    "clock_ready.py": "fb26a7fa8877a505f3d70f67cf3c6fcdf941bd8c641eb2f6ab83b32d89dcd377",
+    "fixture_probe.py": "e251d12a92d5b7a6d1dae501f247df5f58d0fb978e6a6691d3d5eb3c2b025db3",
+    "linux_checks.py": "2d3e4b712172336cc9520c6c1721c2f5dd2fd36431e1834cd44239c6c1cfb3ea",
+    "manage.py": "031535d904924472d327fe0907fecb4d8eee9cc8e65993b69f357fae97281bf3",
+    "managed_files.py": "58492d9a707b47572745020aa01133309ddd2afdbe5c37647bd02b7e2e135763",
+    "power-safe.override.example.yml": "53b8d4f76bd906787fe3bb0ad4a22d72485274e96389102503066ddedb55d464",
+    "README.md": "2c60623792ecf44ee1dbd3887b097e68af8de0b3ba043c1c1543d38421a624b3",
+    "run_linux_fixture.py": "3f32e59a7987963ca7fdf83094f4b0b658d8e181a71bf7edd2fa87ad964a3337",
+    "test_active_files.py": "97ca602b9c425023f24c2ad35739b6848cd28e4a57e8ce4d65a037beecb29baa",
+    "test_clock_authority.py": "3ad5ed46000112be3c350ecf0f6930ccf7bb16bbf716ad76bc2422f4a75926a4",
+    "test_clock_ready.py": "27012e2a50806fa86d90bd13e0c8b71ac1b9551d013782fbb488cd84a411e735",
+    "test_manage.py": "984218f5ae162ce125e71fe356c62a1be48f023972daad880d0dda3e14625223",
+    "test_managed_files.py": "5138329788d8aca37fbcffea3597ad2003a59f70cec5fcea1c56a206c3314a1d",
+    "test_power_files.py": "b9f20e3e0e6a9b5727a46d53a3d92d1c4736a1872a4f37b5af9ffccc4cd3b866",
+    "test_server_clock.cjs": "086e32dbc3cd52170b11bfacbb3d5f17e67972c96db304259c8975e4b8304a26"
+  }
+}

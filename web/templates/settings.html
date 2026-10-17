@@ -320,7 +320,7 @@
 
                     <div>
                         <label class="block text-xs font-bold text-slate-200 mb-1.5">
-                            اختر المنطقة الزمنية لسيرفر الراديوس ونظام المحاسبة <span class="text-rose-400">*</span>
+                            اختر المنطقة الزمنية لعرض الأوقات <span class="text-rose-400">*</span>
                         </label>
                         <select name="timezone" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white font-medium focus:border-blue-500">
                             <option value="Asia/Riyadh" {% if tz == 'Asia/Riyadh' %}selected{% endif %}>🇸🇦 السعودية / الكويت / قطر (Asia/Riyadh - UTC+3)</option>
@@ -342,7 +342,7 @@
                     <div class="p-3.5 bg-[#070b14] rounded-xl border border-[#162136] text-xs text-slate-300 flex items-start gap-2.5">
                         <i class="fa-solid fa-circle-info text-blue-400 text-sm mt-0.5 flex-shrink-0"></i>
                         <span class="leading-relaxed">
-                            هذا الإعداد يضمن دقة تسجيل أوقات بدء وانتهاء الجلسات في جدول <code class="text-amber-400 font-mono">radacct</code>، وحساب انتهاء الصلاحيات بدقة متناهية لمنع استهلاك الخدمة بعد انتهائها.
+                            هذا الإعداد يغيّر عرض الأوقات فقط. تغيير المنطقة الزمنية لا يغيّر استهلاك الكرت أو موعد انتهائه.
                         </span>
                     </div>
                 </div>
@@ -370,9 +370,9 @@
                         <button type="button" onclick="triggerNtpSync()" id="ntpSyncBtn"
                                 class="w-full py-2.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
                             <i class="fa-solid fa-rotate text-xs"></i>
-                            <span>مزامنة التوقيت عبر NTP الآن</span>
+                            <span>فحص توافق الوقت عبر NTP</span>
                         </button>
-                        <p class="text-[10px] text-slate-500 text-center" id="ntpStatusText">مزامنة دورية تلقائية مع خوادم pool.ntp.org</p>
+                        <p class="text-[10px] text-slate-500 text-center" id="ntpStatusText">مرجع الوقت ساعة المضيف؛ NTP للفحص فقط</p>
                     </div>
                 </div>
             </div>
@@ -702,6 +702,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='server-clock.js') }}"></script>
 <script>
     // Tab switching logic with URL Hash persistence
     function switchSettingsTab(tabName) {
@@ -739,16 +740,12 @@
             switchSettingsTab(hash);
         }
 
-        // Live Clock Ticker
-        setInterval(function() {
-            const clockEl = document.getElementById('liveClockDisplay');
-            if (clockEl) {
-                const now = new Date();
-                const timeStr = now.toLocaleTimeString('en-GB');
-                const dateStr = now.toISOString().slice(0, 10);
-                clockEl.innerText = `${dateStr} ${timeStr}`;
-            }
-        }, 1000);
+        refreshServerClock();
+        setInterval(renderServerClock, 1000);
+        setInterval(refreshServerClock, 60000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) refreshServerClock();
+        });
     });
 
     // Currency update handlers
@@ -782,40 +779,42 @@
         }
     }
 
-    // NTP Time Sync Trigger
-    function triggerNtpSync() {
+    // Advance a server anchor using elapsed time, never the browser wall clock.
+    let settingsClock = null;
+    function renderServerClock() {
+        const el = document.getElementById('liveClockDisplay');
+        if (!el) return;
+        try { el.textContent = settingsClock ? settingsClock.text() : 'الوقت غير متاح'; }
+        catch (_) { el.textContent = 'الوقت غير متاح'; }
+    }
+    function acceptServerClock(status) {
+        settingsClock = MaxServerClock.create(status.timestamp_ms, status.timezone);
+        renderServerClock();
+    }
+    async function refreshServerClock() {
+        try {
+            const response = await fetch('/api/time/status', {signal: AbortSignal.timeout(10000)});
+            if (!response.ok) throw new Error('Unavailable');
+            const result = await response.json();
+            acceptServerClock(result.data);
+        } catch (_) { settingsClock = null; renderServerClock(); }
+    }
+    async function triggerNtpSync() {
         const btn = document.getElementById('ntpSyncBtn');
         const statusText = document.getElementById('ntpStatusText');
-        if (!btn) return;
-
+        if (!btn || btn.disabled) return;
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-xs"></i> <span>جاري مزامنة الوقت...</span>';
-        
-        fetch('/api/time/sync', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                statusText.innerHTML = '<span class="text-emerald-400 font-bold"><i class="fa-solid fa-check ml-1"></i>تمت المزامنة بنجاح مع ' + (data.data?.active_server || 'NTP Server') + '</span>';
-                if (data.data?.time_str) {
-                    const clock = document.getElementById('liveClockDisplay');
-                    if (clock) clock.innerText = data.data.time_str;
-                }
-            } else {
-                statusText.innerHTML = '<span class="text-amber-400 font-bold">' + (data.message || 'فشلت المزامنة') + '</span>';
-            }
-        })
-        .catch(err => {
-            statusText.innerHTML = '<span class="text-rose-400 font-bold">خطأ في الاتصال بالخادم</span>';
-        })
-        .finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-rotate text-xs"></i> <span>مزامنة التوقيت عبر NTP الآن</span>';
-        });
+        try {
+            const response = await fetch('/api/time/sync', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                signal: AbortSignal.timeout(25000)
+            });
+            if (!response.ok) throw new Error('Unavailable');
+            const result = await response.json();
+            acceptServerClock(result.data);
+            statusText.textContent = result.message || 'اكتمل فحص الوقت';
+        } catch (_) { statusText.textContent = 'تعذر فحص الوقت؛ لم يتم تغيير الساعة'; }
+        finally { btn.disabled = false; }
     }
 
     // Audit logs quick filter

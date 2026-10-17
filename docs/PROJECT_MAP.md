@@ -34,3 +34,6 @@
 سياسة الكروت عند أول استخدام وحصة دورة المشترك: [FIRST_USE_POLICY](FIRST_USE_POLICY.md)، المثبت [first_use_policy.py](../database/first_use_policy.py)، والتثبيت قبل الرد في license-capacity-postauth.conf.
 
 اعتماد المفتاح ضمن التفعيل: [LICENSE_ENROLLMENT](LICENSE_ENROLLMENT.md). خادم الإصدار مشروع منفصل؛ مكونات الإصدار المتأثرة محفوظة في deploy/license-server.
+
+
+إصلاحات الوقت وجاهزية الترخيص وأدوات وقاية المضيف الاختيارية: [TIME_AND_STARTUP](TIME_AND_STARTUP.md). الاختبارات والوصول العام والتراجع دون restart موثقة هناك؛أدواتتصحيححوادثالعملاءليستضمنالتوزيع.

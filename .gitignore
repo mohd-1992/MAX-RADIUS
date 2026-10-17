@@ -157,4 +157,7 @@ credentials/
 # Distribution manifests are maintained in Git; runtime copies stay on the host.
 /runtime-release.env
 !/tests/test_batch_exports.py
+!/tests/test_license_startup_retry.py
+!/tests/test_license_clock_recovery.py
 /.install-backups/
+!/tests/test_runtime_distribution.py

@@ -1173,21 +1173,41 @@ def publish_radius_license_state():
          lease_until.replace(tzinfo=None)))
 
 
+def _run_radius_license_state_worker():
+    """Retry startup failures promptly; a failed attempt never renews a lease.
+
+    Docker restart policies do not enforce Compose dependency readiness at boot.
+    Probe the configured DB before running the existing schema verifier, and use
+    a bounded backoff until a verified publication succeeds. Healthy refreshes
+    retain the existing 30-second cadence and 90-second signed-package bound.
+    """
+    ready = False
+    retry_seconds = 2
+    first_publication = True
+    while True:
+        try:
+            if not ready:
+                query_one('SELECT 1 AS license_database_ready')
+                from database.schema_healer import heal_database_schema
+                if not heal_database_schema(backfill=False):
+                    raise RuntimeError('Capacity schema is not ready')
+                ready = True
+            publish_radius_license_state()
+            if first_publication:
+                logger.info('RADIUS license state first verified publication completed.')
+                first_publication = False
+            retry_seconds = 2
+            delay = 30
+        except Exception as exc:
+            delay = retry_seconds
+            retry_seconds = min(retry_seconds * 2, 10)
+            logger.error('RADIUS license lease refresh failed; retry in %ss: %s', delay, exc)
+        time.sleep(delay)
+
+
 def start_radius_license_state_daemon():
     import threading
     if any(t.name == 'RadiusLicenseLeaseWorker' and t.is_alive() for t in threading.enumerate()):
         return
-    def worker():
-        ready = False
-        while True:
-            try:
-                if not ready:
-                    from database.schema_healer import heal_database_schema
-                    if not heal_database_schema(backfill=False):
-                        raise RuntimeError('Capacity schema is not ready')
-                    ready = True
-                publish_radius_license_state()
-            except Exception as exc:
-                logger.error('RADIUS license lease refresh failed: %s', exc)
-            time.sleep(30)
-    threading.Thread(target=worker, daemon=True, name='RadiusLicenseLeaseWorker').start()
+    threading.Thread(target=_run_radius_license_state_worker, daemon=True,
+                     name='RadiusLicenseLeaseWorker').start()

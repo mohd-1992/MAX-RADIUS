@@ -6,7 +6,7 @@ services:
   # 1. MariaDB Database
   # ============================================================
   mariadb:
-    image: mariadb:10.11
+    image: ${MAX_DB_IMAGE:-mariadb:10.11}
     container_name: max_radius_db
     restart: unless-stopped
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=512M --innodb-flush-log-at-trx-commit=2 --innodb-log-file-size=64M
@@ -120,7 +120,7 @@ services:
   # 4. Autoheal
   # ============================================================
   autoheal:
-    image: willfarrell/autoheal:latest
+    image: ${MAX_AUTOHEAL_IMAGE:-willfarrell/autoheal:latest}
     pull_policy: always
     container_name: max_radius_autoheal
     restart: unless-stopped

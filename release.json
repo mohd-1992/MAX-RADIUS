@@ -1,14 +1,19 @@
 {
   "format": 1,
-  "release": "20261017-unified-r12",
+  "release": "20261017-clock-license-r13",
   "platform": "linux/amd64",
   "images": {
-    "web": "mohd777/max-radius-web@sha256:0136dd3833fe2bec0af781f3809a8016dc330361d339fb6becdfbdb7f6fdb0f3",
+    "web": "mohd777/max-radius-web@sha256:683c3f4f0045c70b6c6fedff89a8e11a0dc9a603aff52dbe7814a3d430bfef06",
     "core": "mohd777/max-radius-core@sha256:4d609e0c03a32be6a979dfd110ccd10d8c8ceda72c3495a1c4734de653f42d59",
-    "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7"
+    "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
+    "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+    "autoheal": "willfarrell/autoheal@sha256:f8adb7a2343aaeaa2757561b52428ebf9d3bb8e304d0f7a77fd13de395610504"
+  },
+  "host_tools": {
+    "clock_guard": "v1"
   },
   "bundle": {
-    "url": "https://github.com/mohd-1992/MAX-RADIUS/releases/download/20261017-unified-r12/max-radius-runtime-20261017-unified-r12.tar.gz",
-    "sha256": "f9155e07ce67cc72d743e3c3cb6795940b0db5f8a17517478ec11998730d566e"
+    "url": "https://github.com/mohd-1992/MAX-RADIUS/releases/download/20261017-clock-license-r13/max-radius-runtime-20261017-clock-license-r13.tar.gz",
+    "sha256": "bd77dd596a23c7977d368de3176db8bc76a14c9f163c50bf8ee2577b53af9f8b"
   }
 }

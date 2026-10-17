@@ -106,3 +106,8 @@ R9 يختلف عن R8 في وحدة autoheal_service الثنائية فقط و�
 ## علاج الساعة وفصل دورة الحياة — 2026-10-16
 اختبار tests/test_license_clock_recovery.py معزول دون التطبيق/DB/NAS:13اختبارًا، منها توقيع Ed25519 فعلي وربط الطلب ورفض replay/الوقت غير المحدود والحالة المحظورة/المنتهية وفشل الاتصال وCAS متزامن وتكامل heartbeat. tests/test_expiry_disconnect_stop.py:8اختبارات لعدم اشتراط freeze عند انتهاء دورة الحياة، هوية RADIUS، CoA/API ورفض تبدل generation وعدم اختلاق Stop وبقاء مسار التسوية المالية. لا تساوي هذه mocks تجربة RouterOS كاملة. اختبارا activation6 وNAS scheduler1 أُعيدا.
 فحوص الحاوية المجمعة والتوقيع/غياب المصادر و5حالات shell للمثبت وفحص MariaDB معزول على10.10.10.7 محفوظة محليًا في PRIVATE: clock-recovery-release-20261016. لا يُشغّل المثبت الكامل ضمن اختبارات shell؛ تستخدم أدوات NTP/Docker مصطنعة ولا تغير ساعة المضيف. فحص MariaDB يحفظ عدادات fixture ويثبت رفض إعادة الضبط عند الحالة المنتهية؛ لا يتصل بخادم الترخيص الحقيقي ولا يفعّل نسخة.
+
+
+## R13 — الوقت والترخيص وحزمة التشغيل
+
+راجع [TIME_AND_STARTUP](TIME_AND_STARTUP.md). فحوص deploy/clock-guard/test_*.py مستقلة،وفحص test_manage يستخدمsystemdبديلًاومجلداتمؤقتة. test_runtime_distribution.py يثبتعقدحزمR12/R13ورفضالمساراتوالروابطوالتكرار. license-startup14وlicense-clock13وساعةJavaScriptمحددة؛لاتستوردالتطبيقلإنشاءفهرسولاتستخدمبياناتعميللهذهالفحوص.

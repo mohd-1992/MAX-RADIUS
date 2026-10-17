@@ -1,0 +1,22 @@
+'use strict';
+const assert = require('node:assert/strict');
+const {create} = require('../../web/static/server-clock.js');
+let tests = 0;
+function check(fn) { fn(); tests++; }
+const epoch = Date.parse('2026-10-17T00:00:00Z');
+check(() => assert.equal(create(epoch,'Asia/Aden',()=>0).text(),'2026-10-17 03:00:00'));
+check(() => assert.equal(create(epoch,'Asia/Kathmandu',()=>0).text(),'2026-10-17 05:45:00'));
+check(() => assert.equal(create(epoch,'Pacific/Pago_Pago',()=>0).text(),'2026-10-16 13:00:00'));
+check(() => assert.equal(create(epoch,'+03:00',()=>0).text(),'2026-10-17 03:00:00'));
+check(() => assert.equal(create(epoch,'-05:30',()=>0).text(),'2026-10-16 18:30:00'));
+check(() => assert.throws(()=>create(NaN,'UTC')));
+check(() => assert.throws(()=>create(epoch,undefined,()=>0)));
+check(() => assert.throws(()=>create(epoch,'+24:99',()=>0)));
+check(() => assert.throws(()=>create(epoch,'invalid/zone',()=>0)));
+check(() => {let elapsed=100;const c=create(epoch,'UTC',()=>elapsed);elapsed+=2000;assert.equal(c.text(),'2026-10-17 00:00:02');});
+check(() => {const old=Date.now;Date.now=()=>0;try {assert.equal(create(epoch,'UTC',()=>0).text(),'2026-10-17 00:00:00');}finally{Date.now=old;}});
+check(() => {let elapsed=0;const c=create(epoch,'UTC',()=>elapsed);elapsed=120001;assert.throws(()=>c.text());});
+check(() => {let elapsed=1;const c=create(epoch,'UTC',()=>elapsed);elapsed=0;assert.throws(()=>c.text());});
+check(() => {let elapsed=0;const c=create(Date.parse('2026-03-08T06:59:59Z'),'America/New_York',()=>elapsed);assert.equal(c.text(),'2026-03-08 01:59:59');elapsed=2000;assert.equal(c.text(),'2026-03-08 03:00:01');});
+check(() => {assert.equal(create(Date.parse('2026-11-01T05:30:00Z'),'America/New_York',()=>0).text(),'2026-11-01 01:30:00');assert.equal(create(Date.parse('2026-11-01T06:30:00Z'),'America/New_York',()=>0).text(),'2026-11-01 01:30:00');});
+console.log(JSON.stringify({success:true,tests}));

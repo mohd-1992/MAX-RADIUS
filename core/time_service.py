@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-"""
-Core NTP Time Synchronization & Dynamic Timezone Engine for MAX RADIUS.
-Provides:
-1. Periodic background NTP synchronization with authoritative pools (pool.ntp.org, time.google.com, etc.).
-2. Accurate clock offset calculation to ensure tamper-proof timestamps for accounting, sessions, and billing.
-3. Dynamic database-backed Timezone resolution (e.g. Asia/Aden, Asia/Riyadh, Africa/Cairo).
-4. Helper functions to obtain localized datetime objects, ISO strings, and timezone-aware timestamps.
+"""Host-clock authority and display timezone helpers.
+
+NTP probes report agreement only; they never adjust application/host time.
+Database and FreeRADIUS storage retain their fixed +03:00 contract.
 """
 
 import os
@@ -14,6 +11,7 @@ import time
 import datetime
 import threading
 import logging
+import math
 
 try:
     from zoneinfo import ZoneInfo
@@ -47,10 +45,13 @@ NTP_SERVERS = [
 
 # Global State for NTP Synchronization
 _TIME_LOCK = threading.Lock()
-_NTP_OFFSET_SECONDS = 0.0      # Offset to add to time.time()
+_NTP_OFFSET_SECONDS = 0.0      # Diagnostic only; never applied to timestamps
 _IS_NTP_SYNCED = False
 _LAST_NTP_SYNC_TIME = None
 _NTP_SERVER_USED = None
+_LAST_NTP_PROBE_MONOTONIC = None
+NTP_AGREEMENT_SECONDS = 2.0
+NTP_PROBE_MAX_AGE_SECONDS = 7200
 _NTP_WORKER_THREAD = None
 _NTP_WORKER_RUNNING = False
 
@@ -65,22 +66,26 @@ def get_db_storage_timezone():
 
 
 def get_db_storage_now():
-    """Returns the current real datetime (NTP corrected) in the DB storage timezone."""
+    """Returns the current real datetime (host clock) in the DB storage timezone."""
     utc_now = get_real_utc_now()
     return utc_now.astimezone(get_db_storage_timezone())
 
 
 def sync_ntp_time(timeout=2.5):
     """
-    Queries trusted NTP servers to calculate the local clock offset.
+    Diagnose host/NTP agreement without setting any clock or applying an offset.
+    Success means a finite probe within two seconds, not kernel NTP verification.
     Returns:
         tuple: (success: bool, offset_seconds: float, server_used: str, msg: str)
     """
-    global _NTP_OFFSET_SECONDS, _IS_NTP_SYNCED, _LAST_NTP_SYNC_TIME, _NTP_SERVER_USED
+    global _NTP_OFFSET_SECONDS, _IS_NTP_SYNCED, _LAST_NTP_SYNC_TIME, _NTP_SERVER_USED, _LAST_NTP_PROBE_MONOTONIC
+
+    with _TIME_LOCK:
+        _IS_NTP_SYNCED = False
 
     if not NTPLIB_AVAILABLE:
-        logger.warning("ntplib is not installed; falling back to host system clock.")
-        return False, 0.0, None, "ntplib library not available"
+        logger.warning("Diagnostic NTP probe unavailable: ntplib is not installed.")
+        return False, 0.0, None, "فحص NTP غير متاح؛ المرجع هو ساعة المضيف"
 
     client = ntplib.NTPClient()
     for server in NTP_SERVERS:
@@ -90,26 +95,31 @@ def sync_ntp_time(timeout=2.5):
             
             # response.offset is the clock offset in seconds: (true_time - system_time)
             offset = float(response.offset)
+            if not math.isfinite(offset):
+                raise ValueError("Nonfinite diagnostic NTP offset")
             
             with _TIME_LOCK:
                 _NTP_OFFSET_SECONDS = offset
-                _IS_NTP_SYNCED = True
+                _IS_NTP_SYNCED = abs(offset) <= NTP_AGREEMENT_SECONDS
                 _LAST_NTP_SYNC_TIME = datetime.datetime.now(datetime.timezone.utc)
                 _NTP_SERVER_USED = server
+                _LAST_NTP_PROBE_MONOTONIC = time.monotonic()
 
-            offset_ms = offset * 1000.0
-            logger.info(f"NTP Time Sync Successful via [{server}]. Clock Offset: {offset_ms:+.2f} ms ({offset:+.4f} s)")
-            return True, offset, server, f"Synchronized with {server} (Offset: {offset_ms:+.2f} ms)"
+            agrees = abs(offset) <= NTP_AGREEMENT_SECONDS
+            logger.info("Diagnostic NTP probe: agrees=%s offset_seconds=%.4f", agrees, offset)
+            message = ("ساعة المضيف متوافقة مع فحص NTP" if agrees else
+                       "يوجد فرق بين ساعة المضيف وفحص NTP؛ لم يغير الفحص الوقت")
+            return agrees, offset, server, message
         except Exception as e:
             logger.debug(f"NTP query to {server} failed: {e}")
             continue
 
-    logger.warning("All NTP pool queries timed out or failed. Retaining current clock state.")
-    return False, _NTP_OFFSET_SECONDS, _NTP_SERVER_USED, "Could not reach any NTP server"
+    logger.warning("All diagnostic NTP queries failed; no clock changes made.")
+    return False, _NTP_OFFSET_SECONDS, _NTP_SERVER_USED, "تعذر الوصول إلى خوادم فحص NTP؛ لم يتم تغيير الوقت"
 
 
 def _ntp_sync_worker_loop(interval_seconds=3600):
-    """Background worker daemon that periodically updates the NTP clock offset."""
+    """Background diagnostic probe; never changes the application clock."""
     global _NTP_WORKER_RUNNING
     logger.info(f"Starting background NTP sync worker (Interval: {interval_seconds}s)...")
     
@@ -156,18 +166,18 @@ def stop_ntp_sync_worker():
 
 
 def get_ntp_offset():
-    """Returns the current NTP clock offset in seconds."""
+    """Return the last diagnostic offset; callers must not apply it to time."""
     with _TIME_LOCK:
         return _NTP_OFFSET_SECONDS
 
 
 def get_real_timestamp():
-    """Returns the NTP-corrected Unix timestamp (float seconds)."""
-    return time.time() + get_ntp_offset()
+    """Return the host Unix epoch, with no independent application offset."""
+    return time.time()
 
 
 def get_real_utc_now():
-    """Returns a timezone-aware UTC datetime corrected by NTP."""
+    """Return host time as a timezone-aware UTC datetime."""
     real_ts = get_real_timestamp()
     return datetime.datetime.fromtimestamp(real_ts, tz=datetime.timezone.utc)
 
@@ -218,7 +228,7 @@ def get_configured_timezone_name(force_refresh=False):
 
 def update_system_timezone(new_tz_name):
     """
-    Dynamically updates the active timezone in memory, DB session offsets, and environment.
+    Update display timezone only; preserve host clock and fixed DB storage offset.
     """
     global _CACHED_TIMEZONE_NAME
     if not new_tz_name or not isinstance(new_tz_name, str):
@@ -294,7 +304,7 @@ def get_system_timezone(tz_name=None):
 
 def get_system_now(tz_name=None):
     """
-    Returns the current real datetime (NTP corrected), localized to the system's configured timezone.
+    Returns the current real datetime (host clock), localized to the system's configured timezone.
     """
     utc_now = get_real_utc_now()
     target_tz = get_system_timezone(tz_name)
@@ -315,7 +325,7 @@ def get_db_cutoff_str(timeout_minutes=5):
     try:
         now_dt = get_db_storage_now()
     except Exception:
-        now_dt = datetime.datetime.now()
+        now_dt = datetime.datetime.fromtimestamp(time.time(), datetime.timezone.utc).astimezone(get_db_storage_timezone())
     return (now_dt - datetime.timedelta(minutes=int(timeout_minutes))).strftime('%Y-%m-%d %H:%M:%S')
 
 
@@ -393,6 +403,9 @@ def get_time_sync_status():
         is_synced = _IS_NTP_SYNCED
         last_sync = _LAST_NTP_SYNC_TIME
         server_used = _NTP_SERVER_USED
+        probe_at = _LAST_NTP_PROBE_MONOTONIC
+    probe_age = max(0.0, time.monotonic() - probe_at) if probe_at is not None else None
+    is_synced = bool(is_synced and probe_age is not None and probe_age <= NTP_PROBE_MAX_AGE_SECONDS)
 
     tz_name = get_configured_timezone_name()
     now_dt = get_system_now(tz_name)
@@ -401,9 +414,13 @@ def get_time_sync_status():
     date_only_str = now_dt.strftime('%Y-%m-%d')
     timestamp_ms = int(now_dt.timestamp() * 1000)
     
-    last_sync_str = last_sync.strftime('%Y-%m-%d %H:%M:%S UTC') if last_sync else 'لم تتم المزامنة بعد'
+    last_sync_str = last_sync.strftime('%Y-%m-%d %H:%M:%S UTC') if last_sync else 'لم يتم فحص NTP بعد'
 
     return {
+        'clock_source': 'host',
+        'ntp_role': 'diagnostic',
+        'offset_applied': False,
+        'ntp_probe_age_seconds': round(probe_age, 3) if probe_age is not None else None,
         'ntp_synced': is_synced,
         'ntp_server': server_used or 'pool.ntp.org',
         'ntp_offset_seconds': round(offset_sec, 6),
@@ -414,5 +431,5 @@ def get_time_sync_status():
         'time_str': time_only_str,
         'date_str': date_only_str,
         'timestamp_ms': timestamp_ms,
-        'utc_now': get_real_utc_now().strftime('%Y-%m-%d %H:%M:%S UTC')
+        'utc_now': now_dt.astimezone(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     }

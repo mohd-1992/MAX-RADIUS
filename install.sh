@@ -5,6 +5,8 @@ umask 077
 [[ $EUID -eq 0 ]] || { echo 'Run as root: sudo bash install.sh' >&2; exit 1; }
 INSTALL_DIR="${MAX_INSTALL_DIR:-/opt/max-radius}"
 MANIFEST_URL="${MAX_RELEASE_MANIFEST_URL:-https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/release.json}"
+CLOCK_GUARD="${MAX_CLOCK_GUARD:-off}"
+case "$CLOCK_GUARD" in off|enable) ;; *) echo 'MAX_CLOCK_GUARD must be off or enable' >&2; exit 1;; esac
 [[ "$INSTALL_DIR" == /* && "$INSTALL_DIR" != / ]] || { echo 'Invalid installation directory' >&2; exit 1; }
 [[ -f /etc/os-release ]] || { echo 'Cannot detect operating system' >&2; exit 1; }
 . /etc/os-release
@@ -16,7 +18,7 @@ export DEBIAN_FRONTEND=noninteractive
 ensure_host_time() {
   command -v timedatectl >/dev/null || { echo 'A synchronized host clock is required (timedatectl unavailable).' >&2; return 1; }
   [[ $(timedatectl show -p NTPSynchronized --value 2>/dev/null) != yes ]] || return 0
-  if command -v docker >/dev/null && [[ $(docker inspect --format '{{.State.Running}}' max_radius_web 2>/dev/null || true) == true ]]; then
+  if command -v docker >/dev/null && [[ -n $(docker ps -q 2>/dev/null || true) ]]; then
     echo 'Host clock is not synchronized. Existing services were left unchanged; synchronize the host before retrying.' >&2
     return 1
   fi
@@ -34,7 +36,7 @@ nginx_default_existed=0
 
 echo '[1/6] Preparing dependencies (waiting for package manager locks if needed)...'
 apt-get -o DPkg::Lock::Timeout=600 update -q
-apt-get -o DPkg::Lock::Timeout=600 install -y -q curl jq ca-certificates nginx iproute2
+apt-get -o DPkg::Lock::Timeout=600 install -y -q curl jq ca-certificates nginx iproute2 python3
 if ! command -v docker >/dev/null; then
   curl -fsSL https://get.docker.com | sh
   systemctl enable --now docker
@@ -46,18 +48,37 @@ stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 curl --fail --location --retry 3 --proto '=https' --tlsv1.2 "$MANIFEST_URL" -o "$stage/release.json"
 jq -e '.format == 1 and .platform == "linux/amd64" and (.release | test("^[A-Za-z0-9._-]+$")) and (.bundle.sha256 | test("^[a-f0-9]{64}$")) and (.bundle.url | startswith("https://github.com/mohd-1992/MAX-RADIUS/releases/download/")) and ([.images.web,.images.core,.images.l2tp] | all(test("^mohd777/max-radius-(web|core|l2tp)@sha256:[a-f0-9]{64}$")))' "$stage/release.json" >/dev/null
+jq -e '((.images.database // "legacy") | . == "legacy" or test("^mariadb@sha256:[a-f0-9]{64}$")) and ((.images.autoheal // "legacy") | . == "legacy" or test("^willfarrell/autoheal@sha256:[a-f0-9]{64}$"))' "$stage/release.json" >/dev/null
 release=$(jq -r .release "$stage/release.json")
 curl --fail --location --retry 3 --proto '=https' --tlsv1.2 "$(jq -r .bundle.url "$stage/release.json")" -o "$stage/runtime.tar.gz"
 printf '%s  %s\n' "$(jq -r .bundle.sha256 "$stage/release.json")" "$stage/runtime.tar.gz" | sha256sum -c - >/dev/null
-# Reject anything outside the exact distribution allowlist before extracting.
-while IFS= read -r member; do
-  case "$member" in docker-compose.production.yml|database/schema_mysql.sql|docker/l2tp/options.xl2tpd|storage/keys/master_public_key.pem|runtime-release.env) ;; *) echo 'Unexpected release member' >&2; exit 1;; esac
-done < <(tar -tzf "$stage/runtime.tar.gz")
-[[ $(tar -tzf "$stage/runtime.tar.gz" | wc -l) -eq 5 ]] || { echo 'Incomplete runtime release' >&2; exit 1; }
+# Validate exact paths, regular-file types and unique membership before extraction.
+# Legacy R12 bundles remain supported; host tools are explicitly declared in R13.
+host_tools=$(jq -r '.host_tools.clock_guard // "none"' "$stage/release.json")
+python3 - "$stage/runtime.tar.gz" "$host_tools" <<'BUNDLE_CHECK'
+import sys, tarfile
+allowed = {'docker-compose.production.yml', 'database/schema_mysql.sql',
+           'docker/l2tp/options.xl2tpd', 'storage/keys/master_public_key.pem',
+           'runtime-release.env'}
+if sys.argv[2] == 'v1':
+    allowed.update('host/clock-guard/' + name for name in (
+        'clock_ready.py', 'managed_files.py', 'active_files.py', 'manage.py',
+        '99-max-radius-clock-ready.conf'))
+elif sys.argv[2] != 'none':
+    raise SystemExit('Unsupported host tools version')
+with tarfile.open(sys.argv[1]) as archive:
+    members = archive.getmembers()
+    if (len(members) != len(allowed) or {m.name for m in members} != allowed
+            or any(not m.isfile() or m.size > 64 * 1024 * 1024 for m in members)):
+        raise SystemExit('Unexpected, duplicate or incomplete release members')
+BUNDLE_CHECK
 tar --no-same-owner --no-same-permissions -xzf "$stage/runtime.tar.gz" -C "$stage"
 # Image references come from the validated manifest, never from a mutable latest tag.
 printf 'MAX_WEB_IMAGE=%s\nMAX_CORE_IMAGE=%s\nMAX_L2TP_IMAGE=%s\n' \
   "$(jq -r .images.web "$stage/release.json")" "$(jq -r .images.core "$stage/release.json")" "$(jq -r .images.l2tp "$stage/release.json")" > "$stage/runtime-release.env"
+printf 'MAX_DB_IMAGE=%s\nMAX_AUTOHEAL_IMAGE=%s\n' \
+  "$(jq -r '.images.database // "mariadb:10.11"' "$stage/release.json")" \
+  "$(jq -r '.images.autoheal // "willfarrell/autoheal:latest"' "$stage/release.json")" >> "$stage/runtime-release.env"
 mkdir -p "$INSTALL_DIR"
 [[ -f "$INSTALL_DIR/.env" ]] || touch "$INSTALL_DIR/.env"
 compose=(docker compose --project-directory "$INSTALL_DIR" --env-file "$INSTALL_DIR/.env" --env-file "$stage/runtime-release.env" -f "$stage/docker-compose.production.yml")
@@ -82,6 +103,17 @@ if [[ ! -f "$INSTALL_DIR/storage/keys/master_public_key.pem" ]]; then
 fi
 install -m600 "$stage/runtime-release.env" "$INSTALL_DIR/runtime-release.env"
 install -m600 "$stage/release.json" "$INSTALL_DIR/release.json"
+if [[ "$host_tools" == v1 ]]; then
+  for file in clock_ready.py managed_files.py active_files.py manage.py 99-max-radius-clock-ready.conf; do
+    install -Dm644 "$stage/host/clock-guard/$file" "$INSTALL_DIR/host/clock-guard/$file"
+  done
+fi
+if [[ "$CLOCK_GUARD" == enable ]]; then
+  [[ "$host_tools" == v1 ]] || { echo 'This release does not include clock guard management' >&2; exit 1; }
+  # Explicit host-wide opt-in: daemon-reload only, never restart Docker or change NTP.
+  python3 "$INSTALL_DIR/host/clock-guard/manage.py" enable \
+    --journal "/var/lib/max-radius-clock-guard/$release"
+fi
 mkdir -p "$INSTALL_DIR/storage/"{backups,uploads,logs,archive,l2tp}
 touch "$INSTALL_DIR/storage/l2tp/chap-secrets" "$INSTALL_DIR/storage/l2tp/pap-secrets"
 chmod 600 "$INSTALL_DIR/storage/l2tp/"*-secrets

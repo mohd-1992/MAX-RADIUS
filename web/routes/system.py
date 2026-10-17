@@ -820,8 +820,7 @@ def api_time_status():
 
 def api_time_sync():
     success, offset, server, msg = sync_ntp_time(timeout=3.0)
-    if success:
-        reload_backup_schedule()
+    # Diagnostic only: no clock, database or scheduler changes.
     status = get_time_sync_status()
     return jsonify({'success': success, 'message': msg, 'data': status})
 

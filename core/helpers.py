@@ -87,7 +87,7 @@ def assign_sequential_ids(items, id_key='sequential_id', start=1):
     return items
 
 def get_system_time(tz_name=None):
-    """Returns current NTP-corrected localized datetime object for the configured timezone."""
+    """Return the host-clock instant localized to the configured timezone."""
     try:
         from core.time_service import get_system_now
         return get_system_now(tz_name)
