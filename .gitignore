@@ -112,6 +112,10 @@ reports/
 !tests/test_manager_wallet_receipts.py
 !tests/test_import_release_consistency.py
 !tests/test_userman_progress.py
+!tests/test_userman_evidence.py
+!tests/userman_rootfix_mariadb.py
+!tests/userman_cancel_ui.cjs
+!tests/run_userman_rootfix_lab.py
 !tests/first_use_policy_integration.py
 !tests/test_import_loyalty_fixes.py
 !tests/import_loyalty_mariadb_regression.py
@@ -152,4 +156,5 @@ credentials/
 
 # Distribution manifests are maintained in Git; runtime copies stay on the host.
 /runtime-release.env
+!/tests/test_batch_exports.py
 /.install-backups/

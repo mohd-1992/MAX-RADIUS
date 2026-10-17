@@ -24,6 +24,9 @@ class JobTests(unittest.TestCase):
         gate=patch.object(jobs,'import_gate',return_value=nullcontext());gate.start();self.addCleanup(gate.stop)
         self.module=types.ModuleType('services.mikrotik_userman_importer')
         self.p2=patch.dict(sys.modules,{'services.mikrotik_userman_importer':self.module});self.p2.start();self.addCleanup(self.p2.stop)
+        self.rollback=patch('services.userman_import_journal.rollback_import',return_value={
+            'state':'cancelled','reverted_entries':1,'retained_entries':0,'rollback_complete':True})
+        self.rollback_mock=self.rollback.start();self.addCleanup(self.rollback.stop)
     def wait(self,ident):
         deadline=time.monotonic()+3
         while time.monotonic()<deadline:
@@ -73,6 +76,21 @@ class JobTests(unittest.TestCase):
         job=jobs.start_import(7,{'source_job_id':source},'fixture');state=self.wait(job['id'])
         self.assertEqual(state['state'],'cancelled');self.assertEqual(state['processed'],200)
         self.assertEqual(state['stats']['created_users'],200);self.assertEqual(len(calls),2)
+        self.assertTrue(state['rollback_complete']);self.rollback_mock.assert_called_once_with(job['id'])
+
+    def test_cancel_retains_changed_accounts_and_can_resume_without_apply(self):
+        source=self.seed();calls=[];self.module.execute_userman_import=self.engine(calls,cancel_after=2)
+        self.rollback_mock.return_value={'state':'cancelled_partial','reverted_entries':1,'retained_entries':1,'rollback_complete':False}
+        job=jobs.start_import(7,{'source_job_id':source},'fixture');state=self.wait(job['id'])
+        self.assertEqual(state['state'],'cancelled_partial')
+        jobs.cancel(job['id'],7);state=self.wait(job['id'])
+        self.assertEqual(state['state'],'cancelled_partial');self.assertEqual(len(calls),2)
+
+    def test_cancel_completed_import_is_explicit_rollback_only(self):
+        source=self.seed(1);calls=[];self.module.execute_userman_import=self.engine(calls)
+        job=jobs.start_import(7,{'source_job_id':source},'fixture');self.wait(job['id'])
+        jobs.cancel(job['id'],7);state=self.wait(job['id'])
+        self.assertEqual(state['state'],'cancelled');self.assertEqual(calls,[1])
     def test_fetch_cancellation_stops_worker(self):
         entered=threading.Event()
         def fetch(*args,**kw):
@@ -105,7 +123,7 @@ class StreamTests(unittest.TestCase):
         import datetime,re
         tree=ast.parse((ROOT/'services/mikrotik_userman_importer.py').read_text(encoding='utf-8'))
         self.ns={'datetime':datetime,'re':re,'time':time,'present_value':lambda p,k,d=None:p[k] if p.get(k) is not None else d}
-        wanted={'fetch_userman_via_api','parse_mikrotik_rate_limit','parse_mikrotik_bytes_to_mb','parse_mikrotik_uptime_to_mins','parse_mikrotik_validity','parse_shared_users','extract_quota_from_name'}
+        wanted={'fetch_userman_via_api','parse_mikrotik_rate_limit','parse_mikrotik_bytes_to_mb','parse_mikrotik_uptime_to_mins','parse_mikrotik_uptime_seconds','parse_mikrotik_validity','parse_shared_users','extract_quota_from_name'}
         module=ast.Module(body=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in wanted],type_ignores=[])
         exec(compile(module,'stream','exec'),self.ns)
         class Client:
@@ -136,6 +154,11 @@ class StreamTests(unittest.TestCase):
         self.client.replies=iter([['!trap','=message=permission denied'],['!done']])
         with self.assertRaises(RuntimeError):self.ns['fetch_userman_via_api']('192.0.2.1','fixture','fixture',progress=lambda **v:None)
         self.assertTrue(self.client.closed)
+
+    def test_original_uptime_preserves_seconds(self):
+        for value,seconds in [('59s',59),('1m1s',61),('1d02:03:04',93784),('0',0)]:
+            self.assertEqual(self.ns['parse_mikrotik_uptime_seconds'](value),seconds)
+        with self.assertRaises(ValueError):self.ns['parse_mikrotik_uptime_seconds']('bad-time')
 
 class ResetCoordinationTests(unittest.TestCase):
     def test_import_is_denied_during_factory_reset(self):

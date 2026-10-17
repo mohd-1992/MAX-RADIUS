@@ -1080,3 +1080,15 @@ BEGIN
     END IF;
 END;;
 DELIMITER ;
+
+-- Durable User Manager import receipts. No existing account/data rewrite.
+CREATE TABLE IF NOT EXISTS wisp_userman_import_batches (
+ job_id CHAR(32) NOT NULL, batch_no INT NOT NULL,
+ source_hash CHAR(64) NOT NULL, PRIMARY KEY(job_id,batch_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS wisp_userman_import_journal (
+ job_id CHAR(32) NOT NULL, kind VARCHAR(24) NOT NULL,
+ identity_key VARCHAR(128) NOT NULL, before_json LONGTEXT NOT NULL,
+ after_json LONGTEXT NOT NULL, state VARCHAR(24) NOT NULL DEFAULT 'applied',
+ PRIMARY KEY(job_id,kind,identity_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

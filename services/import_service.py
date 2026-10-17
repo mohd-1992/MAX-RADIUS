@@ -334,6 +334,11 @@ def validate_import_data(raw_rows, import_type='vouchers', default_reseller_id=N
     if not raw_rows:
         return False, ["الملف لا يحتوي على أي صفوف بيانات للاستيراد."], []
 
+    exported = any('export_format' in r for r in raw_rows)
+    if exported:
+        from services.batch_restore_service import validate_workbook
+        return validate_workbook(raw_rows, import_type, default_reseller_id)
+
     # Preload all packages into lookup dict (by exact name, lower name, and ID)
     pkg_rows = query_all("SELECT * FROM wisp_packages")
     pkgs_by_name = {}
@@ -492,6 +497,10 @@ def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='a
     """
     if not cleaned_rows:
         return False, "لا توجد بيانات صالحة للإدخال.", None
+
+    if any('export_format' in r for r in cleaned_rows):
+        from services.batch_restore_service import restore_workbook
+        return restore_workbook(cleaned_rows, batch_name, admin_username)
 
     total_count = len(cleaned_rows)
 

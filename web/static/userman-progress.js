@@ -5,7 +5,7 @@
     const base = '/api/tools/mikrotik-import/jobs/';
     const stages = {connecting:'الاتصال بالراوتر', profiles:'قراءة البروفايلات وحدود الباقات',
         users:'سحب الكروت من User Manager', preparing_preview:'تجهيز البروفايلات والعينات وتقرير المعاينة',
-        preparing:'تجهيز الاستيراد', importing:'استيراد الدفعات وحفظ بياناتها', completed:'اكتملت العملية'};
+        preparing:'تجهيز الاستيراد', importing:'استيراد الدفعات وحفظ بياناتها', rolling_back:'التراجع الآمن عن الاستيراد', completed:'اكتملت العملية'};
     async function request(url, method, data) {
         const headers = {'Content-Type':'application/json'};
         const token = document.querySelector('meta[name="csrf-token"]')?.content || document.querySelector('input[name="csrf_token"]')?.value;
@@ -20,7 +20,7 @@
     async function run(kind, payload, resumeId) {
         if (active) throw new Error('توجد عملية قيد المتابعة.');
         active = true;
-        let id = resumeId || null, cancelWanted = false, cancelSent = false, terminal = false;
+        let id = resumeId || null, cancelWanted = false, cancelSent = false, terminal = false, retainReference = false;
         const numeric = value => Number(value || 0).toLocaleString('ar');
         const popup = Swal.fire({title:kind === 'fetch' ? 'سحب بيانات User Manager' : 'تنفيذ الاستيراد',
             customClass:{popup:'um-dialog um-'+kind, title:'um-title', htmlContainer:'um-content', actions:'um-actions', cancelButton:'um-cancel'},
@@ -30,16 +30,16 @@
                 '<div class="um-meter-heading"><span>تقدم العملية</span><strong id="um-percent">جارٍ التجهيز</strong></div>'+
                 '<progress id="um-progress" max="100" aria-label="تقدم العملية"></progress>' +
                 '<p id="um-count"></p><div id="um-stats" class="um-stats"'+(kind==='fetch'?' hidden':'')+'>'+[
-                    ['created_users','أُنشئ'],['updated_users','حُدّث'],['skipped_users','تُخطي'],['ignored_expired_users','استُبعد منتهي']
+                    ['created_users','أُنشئ'],['updated_users','حُدّث'],['skipped_users','تُخطي'],['ignored_expired_users','استُبعد منتهي'],['review_required_users','يحتاج مراجعة']
                 ].map(([key,label])=>'<div class="um-stat"><span>'+label+'</span><strong id="um-stat-'+key+'">0</strong></div>').join('')+'</div>'+
-                '<div class="um-notice"><span class="um-info" aria-hidden="true">i</span><span id="um-note">'+(kind === 'fetch' ? 'السحب للمعاينة فقط؛ لا تُزرع الكروت في هذه المرحلة.' : 'الإلغاء يوقف ما لم يُنفذ؛ الدفعات المحفوظة تبقى في النظام.')+'</span></div></div>',
+                '<div class="um-notice"><span class="um-info" aria-hidden="true">i</span><span id="um-note">'+(kind === 'fetch' ? 'السحب للمعاينة فقط؛ لا تُزرع الكروت في هذه المرحلة.' : 'الإلغاء يعكس أثر الاستيراد الآمن؛ الحالات ذات الاستخدام أو التغييرات الأحدث تُحفظ للمراجعة.')+'</span></div></div>',
             showConfirmButton:false, showCancelButton:true, cancelButtonText:'إلغاء العملية',
             allowOutsideClick:false, allowEscapeKey:false,
             didOpen:() => Swal.getCancelButton().addEventListener('click',async event => {
                 event.preventDefault();event.stopImmediatePropagation();
                 cancelWanted = true;
                 const button = Swal.getCancelButton(); if (button) {button.disabled = true; button.textContent = 'جارٍ الإلغاء…';}
-                document.getElementById('um-note').textContent = 'أُرسل طلب الإلغاء؛ ننتظر توقف القراءة أو تراجع الدفعة الحالية بأمان.';
+                document.getElementById('um-note').textContent = 'أُرسل طلب الإلغاء؛ ننتظر توقف القراءة أو التراجع الآمن عن دفعات الاستيراد.';
                 try {
                     if (id && !cancelSent) {await request(base+id+'/cancel','POST',{}); cancelSent = true;}
                 } catch (error) {
@@ -61,7 +61,7 @@
                 document.getElementById('um-count').textContent = job.total == null ? 'بانتظار عدد سجلات المصدر' :
                     numeric(job.processed)+' من '+numeric(job.total)+(job.percent == null ? '' : ' — '+numeric(job.percent)+'٪');
                 const stats = job.stats || {};
-                if (kind === 'import') for (const key of ['created_users','updated_users','skipped_users','ignored_expired_users']) {
+                if (kind === 'import') for (const key of ['created_users','updated_users','skipped_users','ignored_expired_users','review_required_users']) {
                     document.getElementById('um-stat-'+key).textContent = numeric(stats[key]);
                 }
                 if (job.state === 'completed') {
@@ -69,10 +69,11 @@
                     const value = await request(base+id+'/result');
                     Swal.close(); return value.data;
                 }
-                if (['cancelled','failed','interrupted'].includes(job.state)) {
+                if (['cancelled','cancelled_partial','failed','interrupted'].includes(job.state)) {
                     terminal = true;
+                    retainReference = kind === 'import' && ['cancelled_partial','failed','interrupted'].includes(job.state);
                     const error = new Error(job.message || 'لم تكتمل العملية.');
-                    error.cancelled = job.state === 'cancelled';error.stats = stats;
+                    error.cancelled = ['cancelled','cancelled_partial'].includes(job.state);error.stats = stats;
                     Swal.close();throw error;
                 }
                 await new Promise(resolve => setTimeout(resolve,1000));
@@ -83,7 +84,7 @@
             throw error;
         } finally {
             active = false;
-            if (terminal) sessionStorage.removeItem('userman-active-job');
+            if (terminal && !retainReference) sessionStorage.removeItem('userman-active-job');
         }
     }
     window.UsermanProgress = {
@@ -96,9 +97,10 @@
         try {pending=JSON.parse(sessionStorage.getItem('userman-active-job'));} catch (_) {return;}
         if (!pending || !/^[a-f0-9]{32}$/.test(pending.id) || !['fetch','import'].includes(pending.kind)) return;
         const choice=await Swal.fire({title:'متابعة عملية سابقة',text:'يمكن متابعة حالتها أو إلغاؤها؛ لن تُعاد عملية السحب أو الاستيراد.',
-            showCancelButton:true,confirmButtonText:'متابعة الحالة',cancelButtonText:'لاحقًا'});
-        if (!choice.isConfirmed) return;
+            showCancelButton:true,showDenyButton:pending.kind==='import',confirmButtonText:'متابعة الحالة',denyButtonText:'إلغاء وتراجع آمن',cancelButtonText:'لاحقًا'});
+        if (!choice.isConfirmed && !choice.isDenied) return;
         try {
+            if (choice.isDenied) await request(base+pending.id+'/cancel','POST',{});
             const data=await run(pending.kind,{},pending.id);
             if (pending.kind==='fetch') window.renderMikrotikPreview(data,'سحب مكتمل من الراوتر');
             else {

@@ -783,13 +783,14 @@
     },
     {
       "file": "database/db.py",
-      "sha256": "ff1f8919bdae334f41cb6e267a23100bf7f5a9f2f9f2af634bb6c593d8b46a85",
+      "sha256": "10581c6512ed3aefd6072c64aa91887146032a8dc80ce00d4490eaf022d4a914",
       "imports": [
         "contextlib",
         "core.config",
         "database.permission_catalog",
         "database.quick_card_schema",
         "database.schema_healer",
+        "database.userman_import_schema",
         "pymysql.cursors"
       ],
       "definitions": [
@@ -1072,6 +1073,18 @@
         {
           "name": "schema_object_matches",
           "line": 90,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "database/userman_import_schema.py",
+      "sha256": "046a5b6711cf59dd300766da11919578215bf311ecfc431ec4b022e6256e1ccc",
+      "imports": [],
+      "definitions": [
+        {
+          "name": "install_userman_import_schema",
+          "line": 4,
           "kind": "FunctionDef"
         }
       ]
@@ -1705,6 +1718,90 @@
       ]
     },
     {
+      "file": "services/batch_export_service.py",
+      "sha256": "f05ece17ff7740aa93c0399ea2efed84deecb7bc676a13c4c5565f48d901a492",
+      "imports": [
+        "core.rate_limit",
+        "database.db",
+        "decimal",
+        "openpyxl.styles",
+        "openpyxl.utils",
+        "pathlib",
+        "playwright.sync_api",
+        "services.import_state_service",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "batch_download_name",
+          "line": 25,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "export_snapshot",
+          "line": 35,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "rows",
+          "line": 46,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "delta",
+          "line": 59,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "make_workbook",
+          "line": 91,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "validate_export_row",
+          "line": 144,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "render_pdf",
+          "line": 187,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "asset",
+          "line": 202,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "services/batch_restore_service.py",
+      "sha256": "81a909679176ffcb5de71b632c066cb8ea309b96e39ac105405d5318e9a842fa",
+      "imports": [
+        "database.db",
+        "decimal",
+        "services.batch_export_service",
+        "services.import_state_service"
+      ],
+      "definitions": [
+        {
+          "name": "validate_workbook",
+          "line": 8,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "restore_workbook",
+          "line": 30,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "run",
+          "line": 44,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "services/bot_notifications_service.py",
       "sha256": "4726685e16bff59cf6fe070d888327108323cc115c13653183560ae2f52eb385",
       "imports": [
@@ -1790,7 +1887,7 @@
     },
     {
       "file": "services/card_design_service.py",
-      "sha256": "5e30af6514627cc856f5c7d9976e790129b8cd585ef78e31e5e4022377d7affe",
+      "sha256": "179a4a1b3b5284bf850bb1fa100557c6b8f45cc458ea2c1fe443c25e187c2abf",
       "imports": [
         "PIL",
         "core.config",
@@ -1829,22 +1926,22 @@
         },
         {
           "name": "delete_card_design",
-          "line": 381,
+          "line": 390,
           "kind": "FunctionDef"
         },
         {
           "name": "set_default_card_design",
-          "line": 401,
+          "line": 410,
           "kind": "FunctionDef"
         },
         {
           "name": "duplicate_card_design",
-          "line": 421,
+          "line": 430,
           "kind": "FunctionDef"
         },
         {
           "name": "process_and_save_card_background",
-          "line": 452,
+          "line": 461,
           "kind": "FunctionDef"
         }
       ]
@@ -2354,12 +2451,13 @@
     },
     {
       "file": "services/import_service.py",
-      "sha256": "cf0f43067d935bdf987edf9a0f96160ecf274227d7f5c4647dc93067bd4a972f",
+      "sha256": "704862b5220bcb5071f1b0949ece19638b16e87171a2feae3948d5aea21a7f5e",
       "imports": [
         "core.rate_limit",
         "database.db",
         "openpyxl.styles",
         "openpyxl.utils",
+        "services.batch_restore_service",
         "services.import_state_service",
         "services.license_guard_service"
       ],
@@ -2396,19 +2494,19 @@
         },
         {
           "name": "_parse_num",
-          "line": 432,
+          "line": 437,
           "kind": "FunctionDef"
         },
         {
           "name": "execute_import",
-          "line": 487,
+          "line": 492,
           "kind": "FunctionDef"
         }
       ]
     },
     {
       "file": "services/import_state_service.py",
-      "sha256": "725cf1e7e0ea2472228856215a6d98646cfd337ac6ab3131c8eb835f6f2b1105",
+      "sha256": "b05a4518c0e478ffbe297b39234dde17a8fedc7e4f99e8c1623dcd7d2fdda788",
       "imports": [
         "core.radius_sync",
         "core.rate_limit",
@@ -3016,12 +3114,15 @@
     },
     {
       "file": "services/mikrotik_userman_importer.py",
-      "sha256": "5cb4fc77f176ce24558a5d89ffdb1c19c8da3837b8cf87f4d6549edbf4a17463",
+      "sha256": "65d48c7d4bd2ba40970a6e6f1c8cd6891cb5a1fe6cc5d24be22f6ea8a69a4aa7",
       "imports": [
         "core.mikrotik_api",
         "database.db",
+        "database.userman_import_schema",
+        "services",
         "services.import_state_service",
-        "services.license_guard_service"
+        "services.license_guard_service",
+        "services.userman_import_evidence"
       ],
       "definitions": [
         {
@@ -3060,63 +3161,68 @@
           "kind": "FunctionDef"
         },
         {
+          "name": "parse_mikrotik_uptime_seconds",
+          "line": 182,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "parse_rsc_content",
-          "line": 185,
+          "line": 204,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_attributes",
-          "line": 216,
+          "line": 235,
           "kind": "FunctionDef"
         },
         {
           "name": "_clean_limit",
-          "line": 282,
+          "line": 301,
           "kind": "FunctionDef"
         },
         {
           "name": "BufferedRouterOSApiProtocol",
-          "line": 380,
+          "line": 402,
           "kind": "ClassDef"
         },
         {
           "name": "connect",
-          "line": 386,
+          "line": 408,
           "kind": "FunctionDef"
         },
         {
           "name": "_read_raw",
-          "line": 391,
+          "line": 413,
           "kind": "FunctionDef"
         },
         {
           "name": "_read_len",
-          "line": 414,
+          "line": 436,
           "kind": "FunctionDef"
         },
         {
           "name": "read_sentence",
-          "line": 434,
+          "line": 456,
           "kind": "FunctionDef"
         },
         {
           "name": "fetch_userman_via_api",
-          "line": 444,
+          "line": 466,
           "kind": "FunctionDef"
         },
         {
           "name": "read_rows",
-          "line": 465,
+          "line": 487,
           "kind": "FunctionDef"
         },
         {
           "name": "_clean_limit",
-          "line": 517,
+          "line": 539,
           "kind": "FunctionDef"
         },
         {
           "name": "execute_userman_import",
-          "line": 622,
+          "line": 647,
           "kind": "FunctionDef"
         }
       ]
@@ -4208,15 +4314,94 @@
       ]
     },
     {
+      "file": "services/userman_import_evidence.py",
+      "sha256": "b8151ebd57894d146a671b7540902cc0fa5a984a1d7947936ab0bc2138e801ea",
+      "imports": [
+        "services.import_state_service"
+      ],
+      "definitions": [
+        {
+          "name": "cycle_accounting",
+          "line": 6,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "historical_evidence",
+          "line": 14,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "services/userman_import_journal.py",
+      "sha256": "a537d1869d44d6ce823d8423ec8b60de7ca68496c0e12d4f96cd52ef7ebcdc83",
+      "imports": [
+        "database.db"
+      ],
+      "definitions": [
+        {
+          "name": "encode",
+          "line": 11,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "query",
+          "line": 15,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "lock_writers",
+          "line": 21,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "account_image",
+          "line": 25,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "resource_image",
+          "line": 36,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "record",
+          "line": 49,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "batch_receipt",
+          "line": 65,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "refresh_owned_resources",
+          "line": 75,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "restore_rows",
+          "line": 87,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "rollback_import",
+          "line": 117,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "services/userman_job_service.py",
-      "sha256": "9b54cb23894a0078bb77e0f7339a8d909abe430bdc0b691ff898fd7fa213a3bd",
+      "sha256": "38a9c1819eed5dfa3d6daca86fb36baa8c98e7095161596f8f78bd4dc9804204",
       "imports": [
         "contextlib",
         "core.config",
         "pathlib",
         "services.account_lifecycle_service",
         "services.factory_reset_service",
-        "services.mikrotik_userman_importer"
+        "services.mikrotik_userman_importer",
+        "services.userman_import_journal"
       ],
       "definitions": [
         {
@@ -4226,102 +4411,112 @@
         },
         {
           "name": "JobNotFound",
-          "line": 14,
+          "line": 15,
           "kind": "ClassDef"
         },
         {
           "name": "process_start",
-          "line": 16,
+          "line": 17,
           "kind": "FunctionDef"
         },
         {
           "name": "import_gate",
-          "line": 21,
+          "line": 22,
           "kind": "FunctionDef"
         },
         {
           "name": "root",
-          "line": 29,
+          "line": 30,
           "kind": "FunctionDef"
         },
         {
           "name": "write",
-          "line": 34,
+          "line": 35,
           "kind": "FunctionDef"
         },
         {
           "name": "folder",
-          "line": 46,
+          "line": 47,
           "kind": "FunctionDef"
         },
         {
           "name": "public",
-          "line": 54,
+          "line": 61,
           "kind": "FunctionDef"
         },
         {
           "name": "status",
-          "line": 59,
+          "line": 66,
           "kind": "FunctionDef"
         },
         {
           "name": "cancel",
-          "line": 70,
+          "line": 77,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "rollback_worker",
+          "line": 86,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "rollback_message",
+          "line": 104,
           "kind": "FunctionDef"
         },
         {
           "name": "result",
-          "line": 75,
+          "line": 109,
           "kind": "FunctionDef"
         },
         {
           "name": "operation_lock",
-          "line": 85,
+          "line": 119,
           "kind": "FunctionDef"
         },
         {
           "name": "launch",
-          "line": 100,
+          "line": 134,
           "kind": "FunctionDef"
         },
         {
           "name": "run",
-          "line": 112,
+          "line": 146,
           "kind": "FunctionDef"
         },
         {
           "name": "check_cancel",
-          "line": 114,
+          "line": 148,
           "kind": "FunctionDef"
         },
         {
           "name": "update",
-          "line": 116,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "start_fetch",
-          "line": 137,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "worker",
-          "line": 141,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "start_import",
           "line": 150,
           "kind": "FunctionDef"
         },
         {
+          "name": "start_fetch",
+          "line": 176,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "worker",
-          "line": 172,
+          "line": 180,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "start_import",
+          "line": 189,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "worker",
+          "line": 211,
           "kind": "FunctionDef"
         },
         {
           "name": "guarded_worker",
-          "line": 190,
+          "line": 230,
           "kind": "FunctionDef"
         }
       ]
@@ -4895,7 +5090,7 @@
     },
     {
       "file": "web/endpoint_permissions.py",
-      "sha256": "6c1585863b8afd809eca71f4049be027be61344fb511e1b2041b07cc81a6ec20",
+      "sha256": "f27727bd1ed195a9d222a035d2f8a2cbbd66c03a68fdd0b3963950a3ec04ba1d",
       "imports": [],
       "definitions": []
     },
@@ -6451,7 +6646,7 @@
     },
     {
       "file": "web/routes/vouchers.py",
-      "sha256": "0125491aa39c9b77757ef322deec9dafbd8c8ff74b432f0ac06e06fd30a5d562",
+      "sha256": "cf5d1cfb1e9b403846890fb6cbcf49369d22c652fa17eeff6df25d238b1f86f7",
       "imports": [
         "core.config",
         "core.mikrotik_api",
@@ -6463,6 +6658,7 @@
         "flask",
         "services.backup_scheduler_service",
         "services.backup_service",
+        "services.batch_export_service",
         "services.card_design_service",
         "services.import_service",
         "services.l2tp_service",
@@ -6608,8 +6804,13 @@
           "kind": "FunctionDef"
         },
         {
+          "name": "export_batch_excel",
+          "line": 1386,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "delete_batch_action",
-          "line": 1366,
+          "line": 1406,
           "kind": "FunctionDef"
         }
       ]
@@ -9908,6 +10109,17 @@
       "line": 1306
     },
     {
+      "rule": "/vouchers/batch/<int:batch_id>/excel",
+      "blueprint": "vouchers_bp",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "export_batch_excel",
+      "handler": "export_batch_excel",
+      "file": "web/routes/vouchers.py",
+      "line": 1386
+    },
+    {
       "rule": "/vouchers/delete-batch/<int:batch_id>",
       "blueprint": "vouchers_bp",
       "methods": [
@@ -9916,7 +10128,7 @@
       "endpoint": "delete_batch_action",
       "handler": "delete_batch_action",
       "file": "web/routes/vouchers.py",
-      "line": 1366
+      "line": 1406
     },
     {
       "rule": "/whatsapp/dashboard",

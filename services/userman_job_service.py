@@ -10,7 +10,8 @@ import uuid
 from pathlib import Path
 from contextlib import contextmanager
 
-class JobCancelled(Exception): pass
+class JobCancelled(Exception):
+    rollback_result = None
 class JobNotFound(Exception): pass
 
 def process_start(pid):
@@ -46,8 +47,14 @@ def write(path,value):
 def folder(job_id,owner):
     if not re.fullmatch('[a-f0-9]{32}',str(job_id)): raise JobNotFound()
     path=root()/job_id
-    try: state=json.loads((path/'state.json').read_text(encoding='utf-8'))
-    except (FileNotFoundError,ValueError): raise JobNotFound()
+    for attempt in range(10):
+        try:
+            state=json.loads((path/'state.json').read_text(encoding='utf-8'))
+            break
+        except PermissionError:
+            if os.name!='nt' or attempt==9: raise
+            time.sleep(.01)
+        except (FileNotFoundError,ValueError): raise JobNotFound()
     if state['owner']!=int(owner): raise JobNotFound()
     return path,state
 
@@ -69,8 +76,35 @@ def status(job_id,owner):
 
 def cancel(job_id,owner):
     path,state=folder(job_id,owner)
-    if state['state']=='running': (path/'cancel').touch(mode=0o600,exist_ok=True)
+    if state['state']=='running':
+        (path/'cancel').touch(mode=0o600,exist_ok=True)
+    elif state['kind']=='import' and state['state'] in ('completed','failed','interrupted','cancelled_partial'):
+        # Explicit resume of cancellation only. Never rerun an uncertain apply.
+        lock=operation_lock();lock.__enter__()
+        state.update(state='running',stage='rolling_back',pid=os.getpid(),process_start=process_start(os.getpid()))
+        write(path/'state.json',state)
+        def rollback_worker():
+            try:
+                with import_gate():
+                    from services.userman_import_journal import rollback_import
+                    value=rollback_import(job_id)
+                state.update(value,stage=value['state'],message=rollback_message(value),updated_at=time.time())
+                write(path/'rollback.json',value)
+            except Exception:
+                state.update(state='interrupted',stage='rollback_interrupted',message='تعذر تأكيد اكتمال التراجع؛ يمكن استئناف الإلغاء دون إعادة الاستيراد.')
+            finally:
+                try:
+                    write(path/'state.json',state)
+                finally:
+                    lock.__exit__(None,None,None)
+        threading.Thread(target=rollback_worker,daemon=True,name='Userman-cancel-'+job_id[:8]).start()
     return status(job_id,owner)
+
+
+def rollback_message(value):
+    return ('أُلغي الاستيراد بالكامل؛ عُكست آثاره المسجلة دون تغيير استخدام أحدث.'
+            if value.get('rollback_complete') else
+            'أُلغي الاستيراد جزئيًا؛ حُفظت الحالات ذات التغييرات أو الاستخدام الأحدث للمراجعة.')
 
 def result(job_id,owner):
     path,state=folder(job_id,owner)
@@ -122,8 +156,13 @@ def launch(kind,owner,worker,binding=None,initial_options=None):
                 # A completed import is truthful even if a late cancel arrives after commit.
                 write(path/'result.json',value)
                 update(force=True,state='completed',stage='completed',percent=100)
-            except JobCancelled:
-                update(force=True,state='cancelled',stage='cancelled',message='أُلغيت المهمة. الدفعات المكتملة قبل الإلغاء محفوظة؛ لم تُعد أو تُحذف.')
+            except JobCancelled as exc:
+                value=exc.rollback_result
+                if value:
+                    write(path/'rollback.json',value)
+                    update(force=True,**value,stage=value['state'],message=rollback_message(value))
+                else:
+                    update(force=True,state='cancelled',stage='cancelled',message='أُلغيت المهمة قبل اكتمالها.')
             except Exception:
                 update(force=True,state='failed',stage='failed',message='تعذرت متابعة المهمة؛ راجع إعدادات الاتصال وسجل الخادم. لا تُعد الدفعة تلقائيًا.')
                 import logging
@@ -177,7 +216,8 @@ def start_import(owner,request,admin_user):
             check();chunk=data['users'][index*size:(index+1)*size]
             # The marker remains if the process dies during/after commit: never auto-replay.
             write(path/'batch-in-flight.json',{'batch':index,'processed_before':processed})
-            value=execute_userman_import({'profiles':data.get('profiles',[]),'users':chunk},admin_user=admin_user,
+            value=execute_userman_import({'profiles':data.get('profiles',[]),'users':chunk,'nas_aliases':data.get('nas_aliases',{})},admin_user=admin_user,
+                operation_id=path.name,
                 chunk_index=index,total_chunks=count,state_cache=copy.deepcopy(cache),check_cancel=check,**options)
             if not value.get('success'):
                 check();raise RuntimeError('User Manager batch failed; no automatic replay')
@@ -188,5 +228,12 @@ def start_import(owner,request,admin_user):
         value['target_type']=options['target_type']
         return value
     def guarded_worker(path,update,check):
-        with import_gate(): return worker(path,update,check)
+        with import_gate():
+            try:
+                return worker(path,update,check)
+            except JobCancelled as exc:
+                update(force=True,stage='rolling_back',message='جاري التراجع الآمن عن دفعات الاستيراد.')
+                from services.userman_import_journal import rollback_import
+                exc.rollback_result=rollback_import(path.name)
+                raise
     return launch('import',owner,guarded_worker,binding,{'source_job_id':source_id,'options':options,'fingerprint':fingerprint})

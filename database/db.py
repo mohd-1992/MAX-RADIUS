@@ -280,6 +280,9 @@ def init_database():
                 from database.quick_card_schema import install_quick_card_schema
                 with db_session() as c:
                     install_quick_card_schema(c)
+                from database.userman_import_schema import install_userman_import_schema
+                with db_session() as c:
+                    install_userman_import_schema(c)
                 return
         except DatabaseUnavailableError:
             raise

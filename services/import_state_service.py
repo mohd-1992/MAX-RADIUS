@@ -114,7 +114,7 @@ def historical_accounting_values(username, state, now, mac=''):
     up, down = state['upload_bytes'], state['download_bytes']
     # Canonical 64-bit totals; zero legacy high words to prevent old views adding them twice.
     return (f'IMPORT-{unique}', unique, username, '', '127.0.0.1', '0', 'Wireless-802.11',
-            state['first_used_at'], now, now, 0, state['uptime_seconds'], 'RADIUS', '', '',
+            state.get('last_renewed_at') or state['first_used_at'], now, now, 0, state['uptime_seconds'], 'RADIUS', '', '',
             up, down, 0, 0, '', mac or '',
             'Consolidated-Historical-Import', 'Framed-User', 'PPP', '')
 

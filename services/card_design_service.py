@@ -308,10 +308,19 @@ def save_card_design(data, upload_dir=None):
     bg_color = data.get('background_color', '#ffffff')
     border_color = data.get('border_color', '#cbd5e1')
     config_obj = data.get('config')
-    bg_image = data.get('bg_image', '').strip()
+    bg_image = str(data.get('bg_image') or '').strip()
+    if bg_image:
+        # A FileReader preview is not a stored upload. Never save its base64 tail.
+        if bg_image.startswith(('data:', 'blob:')):
+            return {'success': False, 'message': 'انتظر اكتمال رفع الصورة قبل حفظ التصميم.'}
+        candidate = os.path.basename(bg_image)
+        folder = upload_dir or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                           'web', 'static', 'uploads', 'card_backgrounds')
+        if os.path.splitext(candidate)[1].lower() not in ('.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp') or not os.path.isfile(os.path.join(folder, candidate)):
+            return {'success': False, 'message': 'صورة التصميم غير موجودة؛ أعد رفع الصورة ثم احفظ التصميم.'}
     if bg_image:
         bg_image = os.path.basename(bg_image)
-    elif design_id and int(design_id) > 0 and data.get('design_type') != 'clean':
+    elif 'bg_image' not in data and design_id and int(design_id) > 0 and data.get('design_type') != 'clean':
         # If bg_image not explicitly passed in payload, inspect config or retain existing from DB
         cfg_bg = (config_obj.get('general', {}) if isinstance(config_obj, dict) else {}).get('bg_image')
         if cfg_bg:
@@ -451,43 +460,40 @@ def duplicate_card_design(design_id):
 
 def process_and_save_card_background(file_storage, target_width_mm=85, target_height_mm=52, upload_folder=None):
     """
-    Automated Image Processing (Pillow):
-    1. Opens uploaded image and corrects EXIF orientation.
-    2. Calculates natural aspect ratio without destructive cropping.
-    3. Resizes to high-resolution print-ready dimensions maintaining 100% of the image.
-    4. Computes proportional card dimensions (e.g. 85mm x H_mm) so the card matches the image perfectly.
-    5. Saves optimized file into static/uploads/card_backgrounds.
+    Validate the image and measure its display dimensions, then preserve its bytes.
+    A failed upload must never be reported as a stored background.
     """
     if not upload_folder:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         upload_folder = os.path.join(base_dir, 'web', 'static', 'uploads', 'card_backgrounds')
     
-    os.makedirs(upload_folder, exist_ok=True)
-
     try:
         from PIL import Image, ImageOps
 
         file_storage.seek(0)
         img = Image.open(file_storage.stream)
-        img = ImageOps.exif_transpose(img)
+        image_format = img.format
+        extensions = {'PNG': '.png', 'JPEG': '.jpg', 'WEBP': '.webp', 'GIF': '.gif', 'BMP': '.bmp'}
+        if image_format not in extensions:
+            return {'success': False, 'message': 'صيغة الصورة غير مدعومة؛ استخدم PNG أو JPG أو WEBP أو GIF أو BMP.'}
+        img.verify()
+        file_storage.seek(0)
+        with Image.open(file_storage.stream) as source:
+            img = ImageOps.exif_transpose(source)
+            orig_w, orig_h = img.size
 
-        orig_w, orig_h = img.size
         natural_ratio = float(orig_w) / float(orig_h)
-
-        orig_fname = getattr(file_storage, 'filename', '') or 'card_bg.png'
-        ext = os.path.splitext(orig_fname)[1].lower()
-        if ext not in ['.png', '.jpg', '.jpeg', '.webp']:
-            ext = '.png'
+        ext = extensions[image_format]
 
         filename = f"card_bg_{uuid.uuid4().hex[:12]}{ext}"
         save_path = os.path.join(upload_folder, filename)
+        w_mm = float(target_width_mm) if target_width_mm else 85.0
+        suggested_h_mm = round(w_mm / natural_ratio, 1)
+        os.makedirs(upload_folder, exist_ok=True)
 
         # Save original file bytes directly to preserve 100% genuine colors, color profiles (sRGB/ICC), and sharpness
         file_storage.seek(0)
         file_storage.save(save_path)
-
-        w_mm = float(target_width_mm) if target_width_mm else 85.0
-        suggested_h_mm = round(w_mm / natural_ratio, 1)
 
         return {
             'success': True,
@@ -503,22 +509,9 @@ def process_and_save_card_background(file_storage, target_width_mm=85, target_he
             'suggested_height_mm': suggested_h_mm
         }
 
-    except Exception as e:
-        file_storage.seek(0)
-        file_storage.save(save_path)
-        w_mm = float(target_width_mm) if target_width_mm else 85.0
-        h_mm = float(target_height_mm) if target_height_mm else 52.0
-        return {
-            'success': True,
-            'filename': filename,
-            'url': f'/static/uploads/card_backgrounds/{filename}',
-            'file_url': f'/static/uploads/card_backgrounds/{filename}',
-            'width': 1000,
-            'height': int(1000 * (h_mm / w_mm)),
-            'aspect_ratio': round(w_mm / h_mm, 3),
-            'suggested_width_mm': w_mm,
-            'suggested_height_mm': h_mm,
-            'warning': f'Saved without Pillow processing: {str(e)}'
-        }
+    except ImportError:
+        return {'success': False, 'message': 'خدمة رفع الصور غير متاحة حاليًا؛ لم تُحفظ الصورة.'}
+    except Exception:
+        return {'success': False, 'message': 'تعذر حفظ الصورة؛ تأكد من صلاحية الملف وأعد المحاولة.'}
 
 init_card_templates_table = ensure_card_designs_table

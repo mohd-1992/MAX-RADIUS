@@ -202,6 +202,7 @@ ENDPOINT_PERMISSIONS = {
  'packages_bulk_action': ['packages.manage'],
  'pay_invoice_action': ['invoices.manage'],
  'print_cards': ['vouchers.print'],
+ 'export_batch_excel': ['vouchers.print'],
  'process_import_action': ['system.settings'],
  'radius_simulator_page': ['system.view_services'],
  'reseller_wallets_page': ['managers.billing'],

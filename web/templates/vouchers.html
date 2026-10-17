@@ -2,6 +2,10 @@
 
 {% block extra_head %}
 <style>
+    /* Colors, border, shadow, spacing and light theme come from the shared
+       action-dropdown-menu used by subscriber/card operations. */
+    .batch-menu [role="menuitem"]:focus-visible { outline: 2px solid #60a5fa; outline-offset: -2px; }
+    .batch-menu { max-width: calc(100vw - 16px); }
     /* Bulk Action Bar (Light & Dark Compatible) */
     .bulk-action-bar-container {
         background: linear-gradient(135deg, rgba(30, 58, 138, 0.45) 0%, #0b0f19 50%, #070b14 100%);
@@ -282,10 +286,12 @@
                         </td>
                         <!-- الإجراءات (تعديل الحزمة، طباعة، حذف) -->
                         <td class="py-3.5 px-5 text-center" onclick="event.stopPropagation()">
-                            <div class="flex items-center justify-center gap-1.5">
+                            <button type="button" class="px-2.5 py-1.5 bg-blue-500/10 hover:bg-blue-600 hover:text-white text-blue-400 border border-blue-500/20 rounded-xl text-xs font-bold transition flex items-center gap-2 mx-auto shadow-sm" aria-haspopup="menu" aria-expanded="false" aria-controls="batchMenu{{ b.id }}" onclick="toggleBatchMenu(this)"><i class="fa-solid fa-bars-staggered text-[11px]"></i><span>العمليات</span><i class="fa-solid fa-chevron-down text-[9px]"></i></button>
+                            <div id="batchMenu{{ b.id }}" role="menu" aria-label="عمليات الحزمة" class="batch-menu action-dropdown-menu hidden fixed z-[9999] w-60 bg-[#0b0f19] border border-[#1c2840] rounded-2xl shadow-2xl py-2 text-xs">
+                                <div class="px-3.5 py-2 mb-1 text-[11px] font-bold text-slate-400 bg-[#070b14]/60 border-b border-[#1c2840] flex items-center gap-2"><i class="fa-solid fa-ticket text-blue-400"></i><span class="truncate">{{ b.name }}</span></div>
                                 <!-- تعديل الحزمة -->
-                                {% if can_access_endpoint('edit_batch_action') %}<button type="button" onclick="openEditBatchModal({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.package_id|tojson|forceescape }})" class="px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition flex items-center gap-1 cursor-pointer" title="تعديل الحزمة والباقة">
-                                    <i class="fa-solid fa-pen-to-square"></i><span class="hidden sm:inline">تعديل</span>
+                                {% if can_access_endpoint('edit_batch_action') %}<button type="button" onclick="openEditBatchModal({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.package_id|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer" title="تعديل الحزمة والباقة">
+                                    <i class="fa-solid fa-pen-to-square text-blue-400 w-4 text-center"></i><span>تعديل</span>
                                 </button>{% endif %}
                                 <!-- طباعة مع اختيار التصميم -->
                                 {% if can_access_endpoint('print_cards') %}<button type="button"
@@ -293,14 +299,17 @@
                                         data-batch-name="{{ b.name }}"
                                         data-package-name="{{ b.package_name }}"
                                         data-card-count="{{ b.card_count or 0 }}"
+                                        data-export-mode="pdf"
                                         onclick="handlePrintBtnClick(this)"
-                                        class="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer"
-                                        title="طباعة الحزمة واختيار قالب التصميم">
-                                    <i class="fa-solid fa-print"></i>
+                                        class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer"
+                                        title="تصدير إلى ملف PDF واختيار قالب التصميم">
+                                    <i class="fa-solid fa-file-pdf text-rose-400 w-4 text-center"></i><span>تصدير إلى ملف PDF</span>
                                 </button>{% endif %}
+                                {% if can_access_endpoint('export_batch_excel') %}<button type="button" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer" onclick="downloadBatchFile('/vouchers/batch/{{ b.id }}/excel', 'batch-{{ b.id }}.xlsx')"><i class="fa-solid fa-file-excel text-emerald-400 w-4 text-center"></i><span>تصدير الى ملف اكسل</span></button>{% endif %}
+                                {% if can_access_endpoint('print_cards') %}<button type="button" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer" data-batch-id="{{ b.id }}" data-batch-name="{{ b.name }}" data-package-name="{{ b.package_name }}" data-card-count="{{ b.card_count or 0 }}" data-export-mode="preview" onclick="handlePrintBtnClick(this)"><i class="fa-solid fa-eye text-amber-400 w-4 text-center"></i><span>معاينة</span></button>{% endif %}
                                 <!-- حذف الحزمة -->
-                                {% if can_access_endpoint('delete_batch_action') %}<button type="button" onclick="confirmDeleteBatch({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.batch_number|tojson|forceescape }})" class="p-1.5 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-400 rounded-lg text-xs transition border border-slate-700 cursor-pointer" title="حذف الحزمة">
-        <i class="fa-solid fa-trash"></i>
+                                {% if can_access_endpoint('delete_batch_action') %}<button type="button" onclick="confirmDeleteBatch({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.batch_number|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 mt-1 border-t border-[#1c2840] text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer" title="حذف الحزمة">
+        <i class="fa-solid fa-trash-can text-rose-500 w-4 text-center"></i><span>حذف</span>
     </button>{% endif %}
                             </div>
                         </td>
@@ -522,7 +531,7 @@
                 <button type="button" onclick="closeModal('selectPrintTemplateModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold cursor-pointer">إلغاء</button>
                 {% if can_access_endpoint('print_cards') %}<button type="button" onclick="confirmOpenPrintWindow()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center gap-1.5">
                     <i class="fa-solid fa-print"></i>
-                    <span>فتح صفحة الطباعة</span>
+                    <span id="printModalConfirmLabel">فتح صفحة الطباعة</span>
                 </button>{% endif %}
             </div>
         </div>
@@ -741,6 +750,75 @@ document.addEventListener('DOMContentLoaded',()=> {
     // Print Template Modal State & Handlers
     let currentBatchIdToPrint = null;
     let selectedDesignIdToPrint = '';
+    let batchPrintMode = 'preview';
+    let activeBatchMenu = null;
+    let activeBatchButton = null;
+    function closeBatchMenu(restoreFocus = false) {
+        if (activeBatchMenu) activeBatchMenu.classList.add('hidden');
+        if (activeBatchButton) {
+            activeBatchButton.setAttribute('aria-expanded', 'false');
+            if (restoreFocus) activeBatchButton.focus();
+        }
+        activeBatchMenu = null;
+    }
+    function toggleBatchMenu(button) {
+        const menu = document.getElementById(button.getAttribute('aria-controls'));
+        const same = activeBatchMenu === menu;
+        closeBatchMenu();
+        if (same) return;
+        activeBatchMenu = menu; activeBatchButton = button;
+        // Portalled out of the scrolling table: the last row never clips it.
+        document.body.appendChild(menu);
+        menu.querySelectorAll('button,a').forEach(item => item.setAttribute('role', 'menuitem'));
+        menu.classList.remove('hidden'); button.setAttribute('aria-expanded', 'true');
+        const rect = button.getBoundingClientRect();
+        const width = menu.offsetWidth, height = menu.offsetHeight;
+        menu.style.left = Math.max(8, Math.min(window.innerWidth - width - 8, rect.right - width)) + 'px';
+        menu.style.top = Math.max(8, rect.bottom + height + 8 > window.innerHeight ? rect.top - height : rect.bottom + 4) + 'px';
+        menu.querySelector('button,a')?.focus();
+    }
+    document.addEventListener('click', event => {
+        if (activeBatchMenu && !activeBatchButton.contains(event.target)) closeBatchMenu();
+    });
+    document.addEventListener('keydown', event => {
+        if (!activeBatchMenu) return;
+        if (event.key === 'Escape') {event.preventDefault(); closeBatchMenu(true);}
+        if (event.key === 'Tab') closeBatchMenu(true);
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const items = Array.from(activeBatchMenu.querySelectorAll('button,a'));
+            const index = items.indexOf(document.activeElement);
+            items[(index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+        }
+    });
+    window.addEventListener('resize', () => closeBatchMenu());
+    window.addEventListener('scroll', event => {if (activeBatchMenu && (!(event.target instanceof Node) || !activeBatchMenu.contains(event.target))) closeBatchMenu();}, true);
+    let batchDownloadPending = false;
+    async function downloadBatchFile(url, filename) {
+        if (batchDownloadPending) return;
+        closeBatchMenu(); batchDownloadPending = true;
+        Swal.fire({title: 'جارٍ تجهيز الملف...', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading()});
+        try {
+            const response = await fetch(url, {credentials: 'same-origin'});
+            if (!response.ok || !['application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].some(type => (response.headers.get('content-type') || '').includes(type))) {
+                const result = await response.json().catch(() => ({}));
+                throw new Error(result.message || 'تعذر تجهيز الملف. أعد المحاولة.');
+            }
+            const blob = await response.blob();
+            const disposition = response.headers.get('content-disposition') || '';
+            const unicodeName = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+            const plainName = disposition.match(/filename="((?:\\.|[^"])*)"|filename=([^;]+)/i);
+            if (unicodeName) {
+                try { filename = decodeURIComponent(unicodeName[1].trim()); } catch (_) { /* keep fallback */ }
+            } else if (plainName) filename = (plainName[1] || plainName[2]).replace(/\\([\\"])/g, '$1').trim();
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a'); link.href = objectUrl; link.download = filename;
+            document.body.appendChild(link); link.click(); link.remove();
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+            Swal.close();
+        } catch (error) { Swal.fire('تعذر التصدير', error.message, 'error'); }
+        finally { batchDownloadPending = false; }
+    }
 
     function handlePrintBtnClick(btn) {
         if (!btn) return;
@@ -748,6 +826,9 @@ document.addEventListener('DOMContentLoaded',()=> {
         const name = btn.getAttribute('data-batch-name') || '';
         const pkg = btn.getAttribute('data-package-name') || '';
         const count = btn.getAttribute('data-card-count') || 0;
+        batchPrintMode = btn.dataset.exportMode || 'preview';
+        document.getElementById('printModalConfirmLabel').textContent = batchPrintMode === 'pdf' ? 'تصدير إلى ملف PDF' : 'فتح صفحة الطباعة';
+        closeBatchMenu();
         openPrintBatchModal(id, name, pkg, count);
     }
 
@@ -785,7 +866,10 @@ document.addEventListener('DOMContentLoaded',()=> {
         if (selectedDesignIdToPrint) {
             url += `?design_id=${selectedDesignIdToPrint}`;
         }
-        window.open(url, '_blank');
+        if (batchPrintMode === 'pdf') {
+            url += (url.includes('?') ? '&' : '?') + 'export=pdf';
+            downloadBatchFile(url, `batch-${currentBatchIdToPrint}.pdf`);
+        } else window.open(url, '_blank');
         closeModal('selectPrintTemplateModal');
     }
 

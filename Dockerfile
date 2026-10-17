@@ -17,6 +17,7 @@ COPY database/db.py database/schema_healer.py database/schema_objects.py databas
 COPY database/freeradius_standard.sql database/wisp_extensions.sql database/seed_data.sql ./database/
 COPY database/license_capacity.py database/maintenance_jobs.py ./database/
 COPY database/permission_catalog.py database/quick_card_schema.py database/first_use_policy.py ./database/
+COPY database/userman_import_schema.py ./database/
 COPY database/loyalty_schema.py database/cycle_safety.py database/nas_session_safety.py database/voucher_sales_schema.py ./database/
 COPY database/migrations/ ./database/migrations/
 COPY storage/keys/master_public_key.pem ./storage/keys/master_public_key.pem
@@ -31,7 +32,7 @@ RUN cp /opt/max-build/verify_runtime.py /opt/max-protection/verify.py
 FROM python:3.11-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DEBIAN_FRONTEND=noninteractive PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends curl iputils-ping iproute2 default-mysql-client docker.io && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends curl iputils-ping iproute2 default-mysql-client docker.io chromium fonts-noto-core && rm -rf /var/lib/apt/lists/*
 COPY --from=build /opt/venv /opt/venv
 COPY --from=build /app /app
 COPY --from=build /opt/max-protection /opt/max-protection

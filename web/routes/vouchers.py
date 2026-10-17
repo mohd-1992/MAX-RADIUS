@@ -65,7 +65,7 @@ vouchers_bp = Blueprint('vouchers_bp', __name__)
 @vouchers_bp.before_request
 def guard_voucher_permissions():
     endpoint = (request.endpoint or '').split('.')[-1]
-    if 'design' in endpoint or endpoint in ('print_cards','upload_card_bg_api'):
+    if 'design' in endpoint or endpoint in ('print_cards','export_batch_excel','upload_card_bg_api'):
         permission = 'vouchers.print'
     elif endpoint=='generate_vouchers_action':
         permission = 'vouchers.generate'
@@ -1304,6 +1304,10 @@ def duplicate_card_design_api(design_id):
 @vouchers_bp.route('/vouchers/print/<int:batch_id>', endpoint="print_cards")
 
 def print_cards(batch_id):
+    # Check ownership before the print service performs its unscoped reads.
+    if not query_one('SELECT id FROM wisp_voucher_batches WHERE id=?', (batch_id,)):
+        return jsonify(success=False, message='الحزمة غير موجودة.'), 404
+    pdf_export = request.args.get('export') == 'pdf'
     batch, cards, template = get_batch_cards_for_print(batch_id)
     if not batch:
         flash('الدفعة المطلوبة غير موجودة.', 'danger')
@@ -1316,6 +1320,8 @@ def print_cards(batch_id):
             selected_design = get_card_design_by_id(int(design_id))
         except Exception:
             selected_design = None
+        if not selected_design:
+            return jsonify(success=False, message='التصميم المحدد غير موجود.'), 400
 
     designs = get_all_card_designs()
 
@@ -1350,7 +1356,7 @@ def print_cards(batch_id):
     setting_row = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = 'voucher_custom_design_config'")
     saved_config_json = setting_row['value'] if setting_row and setting_row.get('value') else None
 
-    return render_template('print_cards.html',
+    html = render_template('print_cards.html',
                            batch=batch,
                            cards=cards,
                            card_pages=card_pages,
@@ -1359,6 +1365,40 @@ def print_cards(batch_id):
                            designs=designs,
                            selected_design=selected_design,
                            selected_design_id=int(design_id) if (design_id and str(design_id).isdigit()) else None)
+    if not pdf_export:
+        return html
+    if not cards or len(cards) > 2000:
+        return jsonify(success=False, message='تصدير PDF متاح للحزم من 1 إلى 2000 كرت.'), 400
+    try:
+        import io
+        from services.batch_export_service import render_pdf, batch_download_name
+        response = send_file(io.BytesIO(render_pdf(html, current_app.static_folder)), mimetype='application/pdf',
+                             as_attachment=True, download_name=batch_download_name(batch['name'], 'pdf'), max_age=0)
+        response.headers['Cache-Control'] = 'no-store, private'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
+    except Exception:
+        logger.exception('Batch PDF export failed')
+        return jsonify(success=False, message='تعذر تجهيز PDF. تحقق من صور التصميم أو أعد المحاولة بعد قليل.'), 503
+
+
+@vouchers_bp.route('/vouchers/batch/<int:batch_id>/excel', endpoint='export_batch_excel')
+def export_batch_excel(batch_id):
+    batch = query_one('SELECT * FROM wisp_voucher_batches WHERE id=?', (batch_id,))
+    if not batch:
+        return jsonify(success=False, message='الحزمة غير موجودة.'), 404
+    from services.batch_export_service import export_snapshot, make_workbook, batch_download_name
+    try:
+        batch, cards, totals = export_snapshot(batch_id, owner_id())
+        response = send_file(make_workbook(batch, cards, totals),
+                             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                             as_attachment=True, download_name=batch_download_name(batch['name'], 'xlsx'), max_age=0)
+        response.headers['Cache-Control'] = 'no-store, private'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
+    except Exception:
+        logger.exception('Batch Excel export failed')
+        return jsonify(success=False, message='تعذر تصدير الملف بسبب عدم اكتمال بيانات العقد أو محاسبة الدورة.'), 409
 
 
 @vouchers_bp.route('/vouchers/delete-batch/<int:batch_id>', methods=['POST'], endpoint="delete_batch_action")

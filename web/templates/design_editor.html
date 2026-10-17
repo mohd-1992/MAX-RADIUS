@@ -477,6 +477,8 @@
     let activeElementKey = 'username';
     let currentTab = 'single';
     let uploadedBgImageUrl = '';
+    let imageUploadPending = false;
+    let imageUploadFailed = false;
     if (INITIAL_DESIGN && INITIAL_DESIGN.bg_image) {
         let img = INITIAL_DESIGN.bg_image;
         uploadedBgImageUrl = (img.startsWith('/') || img.startsWith('http')) ? img : `/static/uploads/card_backgrounds/${img}`;
@@ -813,6 +815,7 @@
     // Automated Image Processing Upload & Perfect Containment
     // -------------------------------------------------------------
     function handleImageUpload(input) {
+        if (imageUploadPending) return;
         if (!input.files || !input.files[0]) return;
         const file = input.files[0];
 
@@ -821,20 +824,13 @@
             return;
         }
 
-        // Instant Local Preview preserving layout synchronization
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            uploadedBgImageUrl = e.target.result;
-            renderPreview();
-            if (currentTab === 'a4') renderA4Sheet();
-        };
-        reader.readAsDataURL(file);
+        // Preview only the server-confirmed upload, never a temporary data URL.
+        imageUploadPending = true;
+        imageUploadFailed = false;
+        input.disabled = true;
         
         const fd = new FormData();
         fd.append('image', file);
-        fd.append('bg_image', file);
-        fd.append('background_image', file);
-        fd.append('file', file);
         fd.append('width_mm', (currentConfig.general && currentConfig.general.width_mm) || 85);
         fd.append('height_mm', (currentConfig.general && currentConfig.general.height_mm) || 52);
 
@@ -847,7 +843,7 @@
         .then(r => r.json())
         .then(res => {
             if (loadToast && loadToast.close) loadToast.close();
-            if (res.success) {
+            if (res.success && res.filename && (res.url || res.file_url)) {
                 uploadedBgImageUrl = res.url || res.file_url;
                 if (currentConfig.general) {
                     currentConfig.general.bg_image = res.filename;
@@ -861,18 +857,29 @@
                 renderPreview();
                 if (currentTab === 'a4') renderA4Sheet();
             } else {
+                imageUploadFailed = true;
                 notify('فشل معالجة الصورة', res.message || 'حدث خطأ في الخادم أثناء معالجة الصورة', 'error');
             }
         })
         .catch(err => {
+            imageUploadFailed = true;
             if (loadToast && loadToast.close) loadToast.close();
             notify('خطأ في الاتصال', err.toString(), 'error');
+        })
+        .finally(() => {
+            imageUploadPending = false;
+            input.disabled = false;
         });
     }
 
     function removeBgImage() {
+        if (imageUploadPending) return;
+        imageUploadFailed = false;
         uploadedBgImageUrl = '';
-        if (currentConfig.general) currentConfig.general.bg_image = '';
+        if (currentConfig.general) {
+            currentConfig.general.bg_image = '';
+            currentConfig.general.bg_image_url = '';
+        }
         const btnRemove = document.getElementById('btnRemoveBgImage');
         if (btnRemove) btnRemove.classList.add('hidden');
         document.getElementById('inpBgImageFile').value = '';
@@ -1323,6 +1330,10 @@
     }
 
     function printA4Simulation() {
+        if (imageUploadPending || imageUploadFailed) {
+            notify('الصورة غير جاهزة للطباعة', 'أكمل رفع الصورة بنجاح قبل طباعة التصميم.', 'error');
+            return;
+        }
         const w = window.open('', '_blank');
         const cols = parseInt((currentConfig.layout && currentConfig.layout.cards_per_row) || 2);
         const rows = parseInt((currentConfig.layout && currentConfig.layout.cards_per_col) || 5);
@@ -1565,6 +1576,10 @@
     // Save & Reset Handlers
     // -------------------------------------------------------------
     function saveDesign() {
+        if (imageUploadPending || imageUploadFailed || /^(data:|blob:)/i.test(uploadedBgImageUrl)) {
+            notify('لم تُحفظ الصورة بعد', imageUploadPending ? 'انتظر اكتمال رفع الصورة ثم احفظ التصميم.' : 'أعد رفع الصورة بنجاح أو أزلها قبل حفظ التصميم.', 'error');
+            return;
+        }
         const btn = document.getElementById('btnSaveDesign');
         const badge = document.getElementById('saveStatusBadge');
         const nameVal = document.getElementById('inpDesignName').value.trim() || 'تصميم الكروت الجديد';
@@ -1583,8 +1598,6 @@
             bgImgFilename = uploadedBgImageUrl.split('?')[0].split('/').pop();
         } else if (currentConfig.general && currentConfig.general.bg_image) {
             bgImgFilename = currentConfig.general.bg_image.split('?')[0].split('/').pop();
-        } else if (INITIAL_DESIGN && INITIAL_DESIGN.bg_image) {
-            bgImgFilename = INITIAL_DESIGN.bg_image.split('?')[0].split('/').pop();
         }
 
         if (currentConfig.general) {
@@ -1645,7 +1658,9 @@
     }
 
     function resetToDefaults() {
+        if (imageUploadPending) return;
         if (confirm('هل أنت متأكد من رغبتك في استعادة الإعدادات الافتراضية لهذا التصميم؟')) {
+            imageUploadFailed = false;
             currentConfig = JSON.parse(JSON.stringify(BASE_DEFAULT_CONFIG));
             uploadedBgImageUrl = '';
             document.getElementById('inpBgImageFile').value = '';
