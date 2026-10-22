@@ -595,7 +595,7 @@ def export_sales():
         # Header Title
         ws.merge_cells('A1:J1')
         title_cell = ws['A1']
-        title_cell.value = "📊 MAX RADIUS 2.0 - كشف مبيعات الكروت وحصة الشبكة وعمولات الموزعين"
+        title_cell.value = f"📊 {APP_NAME} {APP_VERSION} - كشف مبيعات الكروت وحصة الشبكة وعمولات الموزعين"
         title_cell.font = Font(name='Arial', size=15, bold=True, color='FFFFFF')
         title_cell.fill = PatternFill(start_color='0F172A', end_color='0F172A', fill_type='solid')
         title_cell.alignment = Alignment(horizontal='center', vertical='center')
@@ -786,6 +786,10 @@ def update_settings_action():
             'loan_amount_mb': str(max(10, int(f.get('loan_amount_mb', '1024').strip()))) if f.get('loan_amount_mb', '').strip().isdigit() else '1024',
             'loan_threshold_mb': str(max(1, int(f.get('loan_threshold_mb', '100').strip()))) if f.get('loan_threshold_mb', '').strip().isdigit() else '100'
         }
+
+        from core.license_feature_policy import enabled as _feature_enabled, BRANDING_FIELDS
+        if not _feature_enabled('white_label'):
+            settings_to_save = {k: v for k, v in settings_to_save.items() if k not in BRANDING_FIELDS}
 
         for k, v in settings_to_save.items():
             existing = query_one('SELECT `key` FROM wisp_system_settings WHERE `key` = ?', (k,))
@@ -1808,7 +1812,9 @@ def api_system_update_check():
 @login_required
 def api_system_update_apply():
     manager = get_current_manager()
-    operator_name = manager.get('username') if manager else 'Admin'
+    if not manager or manager.get('role_code') != 'superadmin':
+        return jsonify({'success': False, 'message': 'تحديث النظام متاح لمدير النظام الرئيسي فقط.'}), 403
+    operator_name = manager.get('username') or 'Admin'
     
     data = request.get_json(silent=True) or {}
     backup_first = data.get('backup_first', True)

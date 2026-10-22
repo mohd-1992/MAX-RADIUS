@@ -5,6 +5,7 @@ Manages multi-design voucher templates, layout calculations, typography,
 and automated image processing (resize/crop) for print-ready voucher cards.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import os
 import json
 import uuid
@@ -275,6 +276,7 @@ def get_default_card_design():
     }
 
 
+@_license_guarded('card_designer')
 def save_card_design(data, upload_dir=None):
     """
     Create or update a card design.
@@ -387,6 +389,7 @@ def save_card_design(data, upload_dir=None):
     return {'success': True, 'design_id': saved_id, 'message': 'تم حفظ التصميم بنجاح'}
 
 
+@_license_guarded('card_designer')
 def delete_card_design(design_id):
     """Delete a card design by ID, ensuring at least one default remains."""
     ensure_card_designs_table()
@@ -407,6 +410,7 @@ def delete_card_design(design_id):
     return True, "تم حذف التصميم بنجاح."
 
 
+@_license_guarded('card_designer')
 def set_default_card_design(design_id):
     """Set a design as the system default for voucher printing."""
     ensure_card_designs_table()
@@ -427,6 +431,7 @@ def set_default_card_design(design_id):
     return True, f"تم تعيين [{design['name']}] كقالب افتراضي لطباعة الكروت."
 
 
+@_license_guarded('card_designer')
 def duplicate_card_design(design_id):
     """Duplicate an existing design to allow rapid variations."""
     ensure_card_designs_table()
@@ -458,6 +463,7 @@ def duplicate_card_design(design_id):
     return new_id, f"تم تكرار التصميم بنجاح باسم [{new_name}]."
 
 
+@_license_guarded('card_designer')
 def process_and_save_card_background(file_storage, target_width_mm=85, target_height_mm=52, upload_folder=None):
     """
     Validate the image and measure its display dimensions, then preserve its bytes.

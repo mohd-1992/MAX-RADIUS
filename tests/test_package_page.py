@@ -18,6 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_functions(path, names, namespace):
+    from license_feature_fixture import fixture_endpoint_enabled
+    namespace['endpoint_enabled']=fixture_endpoint_enabled
     tree = ast.parse((ROOT / path).read_text(encoding='utf-8'))
     nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in names]
     for node in nodes:
@@ -91,6 +93,8 @@ def fixture():
               'packages_bulk_action', 'delete_package_action']
     load_functions('web/routes/packages.py', routes, namespace)
     app = Flask('package-isolated-test', template_folder=str(ROOT / 'web/templates'), static_folder=str(ROOT / 'web/static'))
+    from core.product_identity import get_product_identity
+    app.jinja_env.globals['product_identity'] = get_product_identity()
     app.secret_key = 'isolated-test-only'
     for path, endpoint, methods in [('/packages', 'packages', ['GET']),
             ('/packages/add', 'new_package_page', ['GET']), ('/packages/add', 'add_package_action', ['POST']),

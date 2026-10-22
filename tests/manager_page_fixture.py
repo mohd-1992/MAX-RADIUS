@@ -11,6 +11,9 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tests'))
 from voucher_page_fixture import voucher_fixture
 def load(path,ns,names=None,nested=False):
+ from core.license_feature_policy import require,guarded,enabled
+ from license_feature_fixture import fixture_endpoint_enabled
+ ns.update(_require_feature=require,_license_guarded=guarded,_feature_enabled=enabled,endpoint_enabled=fixture_endpoint_enabled)
  tree=ast.parse((ROOT/path).read_text(encoding='utf8'));nodes=[copy.deepcopy(n) for n in (ast.walk(tree) if nested else tree.body) if isinstance(n,ast.FunctionDef) and (names is None or n.name in names)]
  for n in nodes:n.decorator_list=[]
  exec(compile(ast.Module(body=nodes,type_ignores=[]),path,'exec'),ns)

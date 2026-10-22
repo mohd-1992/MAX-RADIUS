@@ -35,9 +35,17 @@ CREATE TABLE IF NOT EXISTS nasreload (
     PRIMARY KEY (nasipaddress)
 ) ENGINE=InnoDB;
 
-INSERT INTO radcheck (username, attribute, op, value) 
-VALUES ('healthcheck', 'Cleartext-Password', ':=', 'healthpass') 
-ON DUPLICATE KEY UPDATE value='healthpass';
+-- Reserved probe only: retries and repeated starts must not accumulate rows.
+SET @probe_lock=GET_LOCK(CONCAT(DATABASE(), ':healthcheck-bootstrap'), 10);
+DELETE older FROM radcheck older JOIN radcheck keeper
+ ON older.username=keeper.username AND older.attribute=keeper.attribute AND older.id>keeper.id
+ WHERE @probe_lock=1 AND older.username='healthcheck' AND older.attribute='Cleartext-Password';
+UPDATE radcheck SET op=':=',value='healthpass'
+ WHERE @probe_lock=1 AND username='healthcheck' AND attribute='Cleartext-Password';
+INSERT INTO radcheck (username, attribute, op, value)
+SELECT 'healthcheck','Cleartext-Password',':=','healthpass'
+WHERE @probe_lock=1 AND NOT EXISTS (SELECT 1 FROM radcheck WHERE username='healthcheck' AND attribute='Cleartext-Password');
+SELECT RELEASE_LOCK(CONCAT(DATABASE(), ':healthcheck-bootstrap'));
 EOSQL
 
 DEFAULT_SECRET="${RADIUS_SECRET_DEFAULT:-${RADIUS_SECRET:-max123}}"
@@ -137,6 +145,12 @@ if [ -f "${CONF_DIR}/sites-available/default" ]; then
     fi
 fi
 
+
+# Preserve maxcap accounting identity when a NAS changes its port description.
+# The original acct_unique remains first, preserving ai:/legacy fallback rules.
+if ! grep -q '^[[:space:]]*max_acct_unique' "${CONF_DIR}/sites-available/default"; then
+    sed -i '/^[[:space:]]*acct_unique[[:space:]]*$/a\	max_acct_unique {\n\t\tfail = return\n\t}' "${CONF_DIR}/sites-available/default"
+fi
 
 # Reserve only after successful authentication, before sending Access-Accept.
 # The packet authenticator makes retries idempotent and new sessions distinct.

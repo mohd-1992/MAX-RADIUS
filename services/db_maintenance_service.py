@@ -302,21 +302,31 @@ def optimize_database_tables(tables=None):
         return dict(success=False,message='تعذر تحسين الجداول: '+str(exc))
 
 
-def _optimize_database_tables_locked(tables=None, progress_callback=None):
+def _optimize_database_tables_locked(tables=None, progress_callback=None, factory=False):
     """
     Runs OPTIMIZE TABLE on database tables to rebuild InnoDB tablespaces,
     defragment index structures, and reclaim unused disk space.
     """
     start_t = time.time()
     import re
-    if not tables:
-        tables = [
+    allowed = {
             'radacct', 'radacct_archive','wisp_imported_session_history', 'radpostauth', 'radcheck', 'radusergroup',
             'wisp_vouchers', 'wisp_voucher_sales', 'wisp_subscribers', 'wisp_audit_logs'
-        ]
+    }
+    if factory:
+        allowed = set(FACTORY_RESET_TABLES) | {'wisp_packages','wisp_managers','wisp_resellers','radgroupcheck','radgroupreply'}
+    if tables is None:
+        tables = sorted(allowed)
+    if not isinstance(tables,(list,tuple)) or not tables or len(tables)>len(allowed):
+        return dict(success=False,message='قائمة جداول غير صالحة')
         
     if any(not isinstance(table,str) or not re.fullmatch(r'[A-Za-z0-9_]+',table) for table in tables):
         return dict(success=False,message='قائمة جداول غير صالحة')
+    # The factory coordinator may compact its own fixed wipe set, but callers
+    # of the public optimizer can never choose arbitrary system/license tables.
+    if any(table not in allowed for table in tables):
+        return dict(success=False,message='الجدول غير مشمول بعملية التحسين المسموحة.')
+    tables=list(dict.fromkeys(tables))
     before_stats = get_detailed_table_sizes()
     before_mb = before_stats.get('total_db_mb', 0.0)
     
@@ -325,6 +335,8 @@ def _optimize_database_tables_locked(tables=None, progress_callback=None):
     try:
         conn = get_connection()
         cursor = conn.cursor()
+        cursor.execute('SET SESSION lock_wait_timeout=2')
+        cursor.execute('SET SESSION innodb_lock_wait_timeout=2')
         
         for table_index, tbl in enumerate(tables):
             if progress_callback:
@@ -564,10 +576,10 @@ def run_database_audit():
                 'id': f"stale_acct_{row['radacctid']}",
                 'username': row['username'],
                 'category': 'stale_sessions',
-                'category_label': 'جلسة معلقة (Zombie Session)',
+                'category_label': 'جلسة تحتاج تحقق المحاسبة',
                 'severity': 'warning',
-                'details': f"جلسة برقم #{row['radacctid']} مفتوحة بدون تحديث حي منذ أكثر من 10 دقائق (NAS: {row['nasipaddress'] or '-'}).",
-                'suggested_fix': 'إغلاق الجلسة وتحديث وقت الانتهاء',
+                'details': f"جلسة برقم #{row['radacctid']} تجاوزت مهلة تحديث SQL؛ لا يثبت ذلك انقطاعها من الراوتر.",
+                'suggested_fix': 'التحقق من الراوتر والمحاسبة دون اختلاق إغلاق',
                 'action_code': 'close_stale_session',
                 'session_id': row['radacctid']
             })
@@ -586,7 +598,7 @@ def run_database_audit():
                 'category': 'invalid_check_attribute',
                 'category_label': 'سمة مصادقة خاطئة تسبب الرفض',
                 'severity': 'danger',
-                'details': f"يوجد حقل ({row['attribute']} = {row['value']}) في جدول radcheck مما يمنع FreeRADIUS من المصادقة ويظهر خطأ في اسم المستخدم وكلمة المرور.",
+                'details': f"السمة ({row['attribute']}) غير معروفة لقائمة التدقيق الحالية؛ تحقق من قاموس RADIUS قبل حذفها.",
                 'suggested_fix': f"حذف سمة {row['attribute']} الخاطئة من radcheck",
                 'action_code': 'purge_invalid_attr',
                 'record_id': row['id'],
@@ -617,25 +629,67 @@ def fix_audit_issue(action_code, username, extra_data=None):
         return dict(success=False,message=str(exc))
 
 
+def _inspect_stale_session(username, session_id):
+    """Read exact SQL/NAS identity. No disconnect, counter seal or synthetic Stop."""
+    from services.nas_session_settlement import actual_stop
+    if not session_id:
+        return dict(success=False,message='يجب تحديد جلسة محاسبة واحدة للتحقق.')
+    original=query_one('SELECT * FROM radacct WHERE radacctid=? AND username=?',(int(session_id),username))
+    if not original:
+        return dict(success=False,message='الجلسة غير موجودة أو لا تطابق الحساب.')
+    outcome='unavailable'
+    nas=query_one('SELECT * FROM wisp_nas_devices WHERE ip_address=?',(original['nasipaddress'],))
+    if nas and nas.get('api_username') and nas.get('api_password'):
+        from core.mikrotik_api import RouterOSApiProtocol
+        api=RouterOSApiProtocol(nas['ip_address'],port=nas.get('api_port') or 8728,timeout=2)
+        try:
+            api.connect()
+            if not api.login(nas['api_username'],nas['api_password']):
+                raise RuntimeError('NAS observation unavailable')
+            hot=api.execute_command('/ip/hotspot/active/print',['?user='+username])
+            ppp=api.execute_command('/ppp/active/print',['?name='+username])
+            # Any matching RADIUS session on the exact framed address prevents
+            # an absence claim; ambiguous/missing fields remain pending.
+            matching=[v for v in hot+ppp if v.get('radius')=='true'
+                      and (v.get('user') or v.get('name'))==username
+                      and v.get('address')==original.get('framedipaddress')]
+            ambiguous=any((v.get('user') or v.get('name'))==username and
+                          (v.get('radius') is None or not v.get('address')) for v in hot+ppp)
+            outcome='active' if matching else ('unavailable' if ambiguous else 'absent')
+        except Exception:
+            outcome='unavailable'
+        finally:
+            try:api.close()
+            except Exception:pass
+    current=query_one('SELECT * FROM radacct WHERE radacctid=? AND username=?',(int(session_id),username))
+    identity=('acctuniqueid','acctsessionid','nasipaddress','framedipaddress','callingstationid','acctstarttime')
+    counters=('acctinputoctets','acctoutputoctets','acctsessiontime')
+    if not current or any(current.get(k)!=original.get(k) for k in identity):
+        return dict(success=False,message='تغيرت هوية الجلسة؛ أعد الفحص دون إجراء على المحاسبة.')
+    if any(int(current.get(k) or 0)<int(original.get(k) or 0) for k in counters):
+        return dict(success=False,message='تحتاج عدادات الجلسة مراجعة؛ لم تُعدّل المحاسبة.')
+    final=actual_stop(current)
+    if outcome=='absent' and final:
+        return dict(success=True,verified=True,message='تأكد غياب الجلسة ووصول المحاسبة النهائية؛ لم يلزم تعديل SQL.')
+    message={'active':'الجلسة ما زالت على الراوتر؛ لم تُفصل أو تُغلق بسبب تأخر SQL.',
+             'absent':'الجلسة غير موجودة على الراوتر؛ بانتظار Accounting-Stop، ولم تُختلق عدادات أو نهاية.',
+             'unavailable':'تعذر إثبات حالة الراوتر؛ المحاسبة محفوظة وتحتاج متابعة.'}[outcome]
+    return dict(success=False,pending=True,nas_state=outcome,accounting_final=final,message=message)
+
+
 def _fix_audit_issue_locked(action_code, username, extra_data=None):
     from services.account_lifecycle_service import run_transaction, sql, expiry_reason
     from services.autoheal_service import get_zombie_session_timeout
     extra_data=extra_data or {}
     if not username or username in SYSTEM_RESERVED_USERS:
         return dict(success=False,message='حساب غير صالح للإصلاح')
+    if action_code=='close_stale_session':
+        return _inspect_stale_session(username,extra_data.get('session_id'))
     try:
         def operation(conn):
             voucher=sql(conn,'SELECT *,CURRENT_TIMESTAMP checked_at FROM wisp_vouchers WHERE username=? FOR UPDATE',(username,),'one')
             subscriber=sql(conn,'SELECT *,CURRENT_TIMESTAMP checked_at FROM wisp_subscribers WHERE username=? FOR UPDATE',(username,),'one')
             row=voucher or subscriber
-            if action_code=='close_stale_session':
-                cutoff=get_heartbeat_cutoff(get_zombie_session_timeout())
-                statement="UPDATE radacct SET acctstoptime=COALESCE(acctupdatetime,acctstarttime),acctterminatecause='Stale-Session-Timeout' WHERE username=? AND acctstoptime IS NULL AND COALESCE(acctupdatetime,acctstarttime)<?"
-                params=(username,cutoff)
-                if extra_data.get('session_id'):
-                    statement+=' AND radacctid=?';params+=(int(extra_data['session_id']),)
-                affected=sql(conn,statement,params)
-                return dict(success=True,message=f'تم إغلاق {affected} جلسة متقادمة فقط؛ التحديثات المتأخرة تبقى قابلة للمصالحة.')
             if action_code=='purge_orphan':
                 if row:raise ValueError('الحساب أصبح مرتبطًا؛ أُلغي حذف اليتيم.')
             elif action_code=='revoke_auth':
@@ -676,16 +730,13 @@ def _fix_audit_issue_locked(action_code, username, extra_data=None):
 
 def fix_all_audit_issues():
     from services.voucher_service import check_and_update_expired_vouchers
-    from services.autoheal_service import purge_stale_zombie_sessions
     from services.account_lifecycle_service import job_lock
     started=time.time()
-    fixed=0;errors=[]
+    fixed=0;errors=[];pending=[]
     try:
         with job_lock('audit-fix-all') as acquired:
             if not acquired:raise ValueError('توجد عملية إصلاح شامل قيد التنفيذ.')
             if not check_and_update_expired_vouchers():raise ValueError('فحص الانتهاء قيد التنفيذ؛ أعد المحاولة لاحقًا.')
-            ok,msg=purge_stale_zombie_sessions()
-            if not ok:raise RuntimeError(msg)
             audit=run_database_audit()
             if not audit.get('success'):raise RuntimeError(audit.get('error','تعذر إكمال الفحص'))
             seen=set()
@@ -695,12 +746,13 @@ def fix_all_audit_issues():
                 seen.add(key)
                 result=fix_audit_issue(issue['action_code'],issue['username'],issue)
                 if result['success']:fixed+=1
+                elif result.get('pending'):pending.append(dict(issue_id=issue['id'],message=result['message']))
                 else:errors.append(dict(issue_id=issue['id'],message=result.get('message','تعذر الإصلاح')))
             remaining=run_database_audit()
             if not remaining.get('success'):
                 errors.append(dict(issue_id='verification',message=remaining.get('error','تعذر فحص النتيجة')))
             complete=remaining.get('success') and not remaining.get('truncated') and remaining['total_issues']==0 and not errors
-            return dict(success=bool(complete),fixed_count=fixed,errors_count=len(errors),errors=errors,
+            return dict(success=bool(complete),fixed_count=fixed,errors_count=len(errors),errors=errors,pending_count=len(pending),pending=pending,
                         remaining_issues=remaining.get('total_issues'),truncated=remaining.get('truncated',False),
                         duration_seconds=round(time.time()-started,2),
                         message=f'تم إصلاح {fixed} بند؛ تعثر {len(errors)}. ' + ('لم يرصد الفحص المتاح مشكلات متبقية.' if complete else 'لم تكتمل المعالجة؛ أعد الفحص وراجع البنود المتبقية.'))
@@ -709,10 +761,10 @@ def fix_all_audit_issues():
                     message=f'لم تكتمل المعالجة: {exc}',duration_seconds=round(time.time()-started,2))
 
 
-FACTORY_RESET_TABLES = ('wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
+FACTORY_RESET_TABLES = ('wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
 
 
-def _wipe_factory_database(keep_packages=True, keep_resellers=False):
+def _wipe_factory_database(keep_packages=True, keep_resellers=False, job_id=None):
     """Atomic wipe; called only by the reset coordinator after safe preparation."""
     from services.account_lifecycle_service import sql, run_transaction
     def wipe(conn):
@@ -743,6 +795,17 @@ def _wipe_factory_database(keep_packages=True, keep_resellers=False):
         if keep_packages:
             from core.radius_sync import sync_package_to_radius
             for row in sql(conn,'SELECT id FROM wisp_packages ORDER BY id',fetch='all'):sync_package_to_radius(row['id'],conn=conn)
+        if job_id:
+            # Commit the wipe receipt WITH the business transaction. Recovery
+            # must distinguish a lost response from an uncommitted reset.
+            import json
+            receipt=sql(conn,'SELECT progress FROM wisp_maintenance_jobs WHERE job_id=? FOR UPDATE',(job_id,),'one')
+            if not receipt:raise ValueError('سجل إعادة المصنع غير موجود؛ لم يُعتمد المسح.')
+            progress=json.loads(receipt['progress'])
+            progress.update(data_reset=True,state_archive_pending=True,stage='archiving_state',
+                            percent=75,tables_reset=len(ordered))
+            sql(conn,'UPDATE wisp_maintenance_jobs SET progress=?,updated_at=NOW(6) WHERE job_id=?',
+                (json.dumps(progress,ensure_ascii=False),job_id))
         # Retain monotonic IDs, constraints, license, NAS and the rollback archive.
         return len(ordered)
     return run_transaction(wipe)
@@ -753,7 +816,7 @@ def _reclaim_factory_space(keep_packages=True, keep_resellers=False, progress_ca
     tables=set(FACTORY_RESET_TABLES) | {'radgroupcheck', 'radgroupreply'}
     if not keep_packages:tables.add('wisp_packages')
     if not keep_resellers:tables.update(('wisp_managers','wisp_resellers'))
-    return _optimize_database_tables_locked(sorted(tables & existing), progress_callback)
+    return _optimize_database_tables_locked(sorted(tables & existing), progress_callback, factory=True)
 
 
 def factory_reset_database(keep_packages=True, keep_resellers=False, admin_user="admin"):

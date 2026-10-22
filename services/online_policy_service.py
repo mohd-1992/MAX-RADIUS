@@ -297,6 +297,15 @@ def intent(username):
 
 
 def refresh(username):
+    # A removed account cannot have a policy to retry. This executes while the
+    # caller owns the existing per-account cycle lock, before any NAS access.
+    account = query_one('SELECT id FROM wisp_vouchers WHERE username=%s', (username,))
+    account = account or query_one('SELECT id FROM wisp_subscribers WHERE username=%s', (username,))
+    if not account:
+        execute_write('''DELETE FROM wisp_online_policy_outbox WHERE username=%s
+            AND NOT EXISTS (SELECT 1 FROM wisp_vouchers WHERE username=%s)
+            AND NOT EXISTS (SELECT 1 FROM wisp_subscribers WHERE username=%s)''', (username,username,username))
+        return
     snapshot=checkpoint(username)
     with view(snapshot):
         from services.quota_service import calculate_account_quota
@@ -372,32 +381,41 @@ def retry_loop():
     while True:
         time.sleep(15)
         try:
-            from pathlib import Path
-            import json
-            recovery=set()
-            root=Path(os.environ.get('MAX_SETTLEMENT_JOURNAL_DIR','/app/storage/nas-session-settlements'))
-            for path in list(root.glob('*.json'))[:10]:
-                recovery.add(json.loads(path.read_text())['username'])
-            pending=query_all("SELECT username FROM wisp_online_policy_outbox WHERE status='pending' AND next_attempt<=NOW() LIMIT 10")
-            for row in pending+[{'username':u,'recovery_only':True} for u in recovery]:
-                username=row['username'];db=get_connection()
-                lock='max-cycle:'+hashlib.sha256(username.casefold().encode()).hexdigest()[:48]
-                try:
-                    with db.cursor() as cur:
-                        cur.execute('SELECT GET_LOCK(%s,0) AS acquired',(lock,))
-                        if cur.fetchone()['acquired']!=1:
-                            continue
-                    if row.get('recovery_only'):
-                        from services.nas_session_settlement import recover_journals
-                        recover_journals(username)
-                    else:
-                        refresh_or_pending(username)
-                finally:
-                    with db.cursor() as cur:
-                        cur.execute('SELECT RELEASE_LOCK(%s)',(lock,))
-                    db.close()
+            from services.account_lifecycle_service import job_lock
+            from services.factory_reset_service import factory_reset_active
+            with job_lock('online-policy-retry') as idle:
+                if not idle or factory_reset_active():
+                    continue
+                _retry_once()
         except Exception:
             log.warning('Online policy retry unavailable')
+
+
+def _retry_once():
+    from pathlib import Path
+    import json
+    recovery=set()
+    root=Path(os.environ.get('MAX_SETTLEMENT_JOURNAL_DIR','/app/storage/nas-session-settlements'))
+    for path in list(root.glob('*.json'))[:10]:
+        recovery.add(json.loads(path.read_text())['username'])
+    pending=query_all("SELECT username FROM wisp_online_policy_outbox WHERE status='pending' AND next_attempt<=NOW() LIMIT 10")
+    for row in pending+[{'username':u,'recovery_only':True} for u in recovery]:
+        username=row['username'];db=get_connection()
+        lock='max-cycle:'+hashlib.sha256(username.casefold().encode()).hexdigest()[:48]
+        try:
+            with db.cursor() as cur:
+                cur.execute('SELECT GET_LOCK(%s,0) AS acquired',(lock,))
+                if cur.fetchone()['acquired']!=1:
+                    continue
+            if row.get('recovery_only'):
+                from services.nas_session_settlement import recover_journals
+                recover_journals(username)
+            else:
+                refresh_or_pending(username)
+        finally:
+            with db.cursor() as cur:
+                cur.execute('SELECT RELEASE_LOCK(%s)',(lock,))
+            db.close()
 
 
 threading.Thread(target=retry_loop,name='MaxOnlinePolicyRetry',daemon=True).start()

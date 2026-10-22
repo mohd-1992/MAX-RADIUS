@@ -3,7 +3,6 @@ import json
 import threading
 import uuid
 from database.db import query_one, execute_write, execute_update, log_audit
-from database.maintenance_jobs import MAINTENANCE_JOBS_DDL
 from services.account_lifecycle_service import job_lock
 
 _READY = False
@@ -13,7 +12,9 @@ def ensure_job_table():
     global _READY
     with _SCHEMA_LOCK:
         if not _READY:
-            execute_write(MAINTENANCE_JOBS_DDL)
+            row=query_one("SELECT COUNT(*) n FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='wisp_maintenance_jobs'")
+            if not row or not row['n']:
+                raise RuntimeError('سجل الصيانة غير مهيأ؛ يلزم تهيئة الإصدار قبل تنفيذ الصيانة.')
             _READY = True
 
 def _public(row):
@@ -29,11 +30,20 @@ def _recover_interrupted():
 
 def get_cleanup_job(job_id=None):
     ensure_job_table()
-    _recover_interrupted()
     condition = "COALESCE(JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.job_kind')), 'expired-card-delete')='expired-card-delete'"
     if job_id:
-        return _public(query_one('SELECT * FROM wisp_maintenance_jobs WHERE job_id=? AND '+condition,(job_id,)))
-    return _public(query_one('SELECT * FROM wisp_maintenance_jobs WHERE '+condition+' ORDER BY (active_key IS NOT NULL) DESC,created_at DESC,job_id DESC LIMIT 1'))
+        row=query_one('SELECT * FROM wisp_maintenance_jobs WHERE job_id=? AND '+condition,(job_id,))
+    else:
+        row=query_one('SELECT * FROM wisp_maintenance_jobs WHERE '+condition+' ORDER BY (active_key IS NOT NULL) DESC,created_at DESC,job_id DESC LIMIT 1')
+    # GET reports interrupted work without writing a journal or creating schema.
+    # Explicit submission/recovery may persist the observation later.
+    if row and row['state'] in ('queued','running'):
+        stale=query_one("""SELECT updated_at<NOW()-INTERVAL 60 SECOND
+            AND IS_USED_LOCK(CONCAT(DATABASE(), ':expired-card-delete')) IS NULL AS stale
+            FROM wisp_maintenance_jobs WHERE job_id=?""",(row['job_id'],))
+        if stale and stale['stale']:
+            row=dict(row,state='interrupted',active_key=None)
+    return _public(row)
 
 def _update(job_id, state, result, terminal=False):
     payload=json.dumps(result,ensure_ascii=False)

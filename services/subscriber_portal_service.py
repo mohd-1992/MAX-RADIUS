@@ -54,6 +54,10 @@ def get_subscriber_portal_settings():
     return result
 
 
+from core.license_feature_policy import guarded as _license_guarded
+
+
+@_license_guarded('hotspot_designer')
 def save_subscriber_portal_settings(data):
     """
     Saves subscriber portal settings to wisp_system_settings.

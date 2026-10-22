@@ -1,4 +1,6 @@
 """Quick cards share batch issuance, ownership, wallet and RADIUS transaction."""
+from core.license_feature_policy import guarded as _license_guarded
+from core.license_feature_policy import require as _require_feature
 import json
 import re
 from decimal import Decimal
@@ -44,6 +46,7 @@ def get_issue_policy(tx=None):
         raise ValueError('إعدادات إصدار كروت الموزعين غير صالحة؛ راجع الإدارة.')
 
 
+@_license_guarded('quick_cards')
 def save_issue_policy(data):
     if owner_id() is not None:
         raise PermissionError('إعدادات الإصدار متاحة للإدارة فقط.')
@@ -92,6 +95,7 @@ def issue_quick_cards(actor, package_id, count, request_key, reseller_id=None):
             if (previous['package_id'], previous['card_count'], previous['reseller_id']) != (package_id, count, actual_owner):
                 raise ValueError('مرجع الإصدار مستخدم لعملية أخرى؛ حدّث الصفحة قبل إصدار جديد.')
             return dict(previous, repeated=True)
+        _require_feature('quick_cards')
         if not package.get('is_active') or package.get('service_type') not in ('hotspot', 'both'):
             raise ValueError('اختر باقة كروت نشطة.')
         policy = get_issue_policy(tx)

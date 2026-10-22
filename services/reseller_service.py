@@ -4,6 +4,7 @@ Reseller & Point of Sale (POS) service:
 Manages prepaid credit wallets, commissions, wholesale packages, and transactions.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 from database.db import query_all, query_one, execute_write, log_audit
 
 def get_resellers():
@@ -17,7 +18,11 @@ def get_resellers():
     ''')
     return resellers
 
+@_license_guarded('reseller_management')
 def create_reseller(data, admin_username='admin'):
+    if float(data.get('balance',0))>0:
+        from core.license_feature_policy import require as _require_feature
+        _require_feature('reseller_wallets')
     res_id = execute_write('''
         INSERT INTO wisp_resellers (name, contact_person, phone, email, balance, commission_percent, allowed_packages, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -41,6 +46,7 @@ def create_reseller(data, admin_username='admin'):
     log_audit(1, admin_username, 'CREATE_RESELLER', 'resellers', f'Created reseller {data["name"]}')
     return res_id
 
+@_license_guarded('reseller_wallets')
 def topup_reseller(reseller_id, amount, description='شحن رصيد مالي', admin_username='admin'):
     reseller = query_one('SELECT * FROM wisp_resellers WHERE id = ?', (reseller_id,))
     if not reseller:

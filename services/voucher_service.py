@@ -68,6 +68,9 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
     import math
     from core.ownership import generation_owner
     reseller_id = generation_owner(reseller_id, package_id)
+    if reseller_id:
+        from core.license_feature_policy import require as _require_feature
+        _require_feature('reseller_wallets')
     from contextlib import nullcontext
     with (nullcontext(_conn) if _conn is not None else db_session()) as conn:
         tx = _VoucherWriter(conn)
@@ -267,7 +270,7 @@ def generate_voucher_batch(name, package_id, count, prefix='', pin_only=True,
 def get_batches(search=None, package_id=None, reseller_id=None):
     query = '''
         SELECT b.*, 
-               COALESCE(st.total_cards, b.card_count, 0) as card_count,
+               COALESCE(st.total_cards, 0) as actual_card_count,
                p.name as package_name, 
                COALESCE(p.price, b.price) as package_price, 
                COALESCE(p.rate_download, b.rate_download) as rate_download, 
@@ -325,7 +328,10 @@ def get_batches(search=None, package_id=None, reseller_id=None):
         except (ValueError, TypeError):
             pass
     query += ' ORDER BY b.id DESC'
-    return query_all(query, tuple(params))
+    batches = query_all(query, tuple(params))
+    for batch in batches:
+        batch['card_count'] = batch.pop('actual_card_count', 0)
+    return batches
 
 def get_voucher_summary_counts():
     row = query_one('''

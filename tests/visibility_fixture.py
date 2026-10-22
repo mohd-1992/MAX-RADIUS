@@ -8,13 +8,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def install_fixture_visibility(app, namespace, enforce=False):
+    from license_feature_fixture import fixture_endpoint_enabled
     policy = dict(request=request, jsonify=jsonify, redirect=redirect,
                   url_for=url_for, render_template=render_template,
                   has_permission=namespace['has_permission'],
                   get_current_manager=namespace['get_current_manager'],
                   owner_id=lambda: None, can_access_owned_endpoint=lambda endpoint: True,
                   guard_owned_request=lambda: None,
-                  required_detail=required_detail, ACTION_ENDPOINTS=ACTION_ENDPOINTS)
+                  required_detail=required_detail, ACTION_ENDPOINTS=ACTION_ENDPOINTS,
+                  endpoint_enabled=fixture_endpoint_enabled)
     parents = {row['code']: row['parent'] for row in permission_rows()}
     legacy_check = namespace['has_permission']
     policy['has_permission'] = lambda code, manager=None: legacy_check(parents.get(code, code), manager)

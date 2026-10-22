@@ -1,4 +1,5 @@
 """Private durable User Manager progress. Never replay an interrupted SQL batch."""
+from core.license_feature_policy import guarded as _license_guarded
 import copy
 import hashlib
 import json
@@ -131,6 +132,7 @@ def operation_lock():
         yield
     finally: stream.close()
 
+@_license_guarded('userman_import')
 def launch(kind,owner,worker,binding=None,initial_options=None):
     # The worker owns the lock until its final journal update.
     lock=operation_lock();lock.__enter__()
@@ -173,6 +175,7 @@ def launch(kind,owner,worker,binding=None,initial_options=None):
     except Exception:
         lock.__exit__(None,None,None);raise
 
+@_license_guarded('userman_import')
 def start_fetch(owner,credentials):
     host=str(credentials.get('host','')).strip();username=str(credentials.get('username','')).strip()
     port=int(credentials.get('port') or 8728)
@@ -186,6 +189,7 @@ def start_fetch(owner,credentials):
         return value
     return launch('fetch',owner,worker)
 
+@_license_guarded('userman_import')
 def start_import(owner,request,admin_user):
     source_id=request.get('source_job_id')
     if source_id:

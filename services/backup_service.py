@@ -560,7 +560,7 @@ def _create_backup(sql_file, admin_username, notes, dispatch_notifications):
     }
     
     # Pack into TAR.GZ
-    with tarfile.open(filepath, 'w:gz', compresslevel=3) as tar:
+    with tarfile.open(filepath, 'w:gz', compresslevel=3,dereference=True) as tar:
         # 1. Database dump
         if not is_mysql:
             sql_file.write(sql_content.encode('utf-8'))
@@ -606,8 +606,10 @@ def _create_backup(sql_file, admin_username, notes, dispatch_notifications):
                     for file in files:
                         full_fpath = os.path.join(root, file)
                         rel_name = os.path.relpath(full_fpath, u_dir).replace('\\', '/')
+                        if rel_name.split('/')[0] == 'card_backgrounds':
+                            continue
                         arc_name = f"uploads/{rel_name}"
-                        if arc_name not in added_files and os.path.isfile(full_fpath):
+                        if arc_name not in added_files and os.path.isfile(full_fpath) and not os.path.islink(full_fpath):
                             added_files.add(arc_name)
                             try:
                                 tar.add(full_fpath, arcname=arc_name)
@@ -750,6 +752,13 @@ def _restore_backup(filename, admin_username, temp_dir):
         is_tar = safe_name.endswith('.tar.gz') or safe_name.endswith('.tgz')
         is_zip = safe_name.endswith('.zip')
         is_sql = safe_name.endswith('.sql')
+        from core.backup_archive_policy import validate_archive,upload_targets
+        payload_types=validate_archive(filepath)
+        if 'sql' not in payload_types:
+            probe_conn=get_connection()
+            try:mysql_restore=is_mysql_conn(probe_conn)
+            finally:probe_conn.close()
+            if mysql_restore:raise ValueError('نسخة SQLite لا تصلح لاستعادة MySQL.')
         
         target_uploads_dirs = [
             str(UPLOADS_DIR),
@@ -776,12 +785,16 @@ def _restore_backup(filename, admin_username, temp_dir):
                         rel_file = member.name[len('uploads/'):]
                         f = tar.extractfile(member)
                         if f:
-                            data = f.read()
-                            for ud in target_uploads_dirs:
-                                dest_path = os.path.join(ud, rel_file)
-                                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                                with open(dest_path, 'wb') as out_f:
-                                    out_f.write(data)
+                            from contextlib import ExitStack
+                            with ExitStack() as stack:
+                                outputs=[]
+                                for dest_path in upload_targets(rel_file,target_uploads_dirs):
+                                    dest_path.parent.mkdir(parents=True,exist_ok=True)
+                                    outputs.append(stack.enter_context(dest_path.open('wb')))
+                                while True:
+                                    block=f.read(1024*1024)
+                                    if not block:break
+                                    for out_f in outputs:out_f.write(block)
                             restored_files_count += 1
                     elif member.name == 'system_config.json':
                         # Config JSON backup
@@ -795,22 +808,19 @@ def _restore_backup(filename, admin_username, temp_dir):
                     with zf.open('database_dump.sql') as src, open(extracted_sql, 'wb') as out:
                         shutil.copyfileobj(src, out, 1024 * 1024)
                     sql_path = extracted_sql
-                elif 'radius_wisp_raw.db' in namelist and not is_mysql_conn(get_connection()):
-                    raw_bytes = zf.read('radius_wisp_raw.db')
-                    with open(DB_PATH, 'wb') as f:
-                        f.write(raw_bytes)
+                elif 'radius_wisp_raw.db' in namelist and not mysql_restore:
+                    with zf.open('radius_wisp_raw.db') as source,open(DB_PATH,'wb') as destination:
+                        shutil.copyfileobj(source,destination,1024*1024)
                     return True, f"تمت استعادة النسخة الاحتياطية [{safe_name}] بنجاح."
                     
                 # Check for uploads inside ZIP
                 for name in namelist:
                     if name.startswith('uploads/') and not name.endswith('/'):
                         rel_file = name[len('uploads/'):]
-                        data = zf.read(name)
-                        for ud in target_uploads_dirs:
-                            dest_path = os.path.join(ud, rel_file)
-                            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                            with open(dest_path, 'wb') as out_f:
-                                out_f.write(data)
+                        for dest_path in upload_targets(rel_file,target_uploads_dirs):
+                            dest_path.parent.mkdir(parents=True,exist_ok=True)
+                            with zf.open(name) as source,dest_path.open('wb') as destination:
+                                shutil.copyfileobj(source,destination,1024*1024)
                         restored_files_count += 1
                         
         # 3. Plain SQL

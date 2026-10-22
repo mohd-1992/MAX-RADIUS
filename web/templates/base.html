@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>MAX RADIUS - {% block title %}لوحة التحكم{% endblock %}</title>
+    <title>{{ product_identity.name }}{% if system_title %} — {{ system_title|replace(product_identity.name, "")|trim(" -—") }}{% endif %} — {% block title %}لوحة التحكم{% endblock %}</title>
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
@@ -14,7 +14,7 @@
                 const url = new URL(input instanceof Request ? input.url : input, window.location.href);
                 const method = (options.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
                 if (url.origin === window.location.origin && method === 'POST' &&
-                    (url.pathname.startsWith('/api/actions/') || url.pathname.startsWith('/api/subscribers/') || url.pathname.startsWith('/api/vouchers/') || url.pathname.startsWith('/vouchers/') || url.pathname.startsWith('/managers/') || url.pathname.startsWith('/api/reseller-wallets/') || url.pathname === '/profile/update')) {
+                    (url.pathname.startsWith('/api/tools/database-maintenance/') || url.pathname.startsWith('/api/actions/') || url.pathname.startsWith('/api/subscribers/') || url.pathname.startsWith('/api/vouchers/') || url.pathname.startsWith('/vouchers/') || url.pathname.startsWith('/managers/') || url.pathname.startsWith('/api/reseller-wallets/') || url.pathname === '/profile/update')) {
                     const headers = new Headers(options.headers || (input instanceof Request ? input.headers : undefined));
                     headers.set('X-CSRF-Token', document.querySelector('meta[name="csrf-token"]').content);
                     options = { ...options, headers };
@@ -1938,7 +1938,7 @@
                 </button>
                 <div>
                     <h2 class="font-extrabold text-base text-white">{% block page_title %}{{ self.title() }}{% endblock %}</h2>
-                    <span class="text-[11px] text-slate-400 hidden sm:inline">نظام MAX RADIUS لإدارة الشبكات والفوترة وميكروتيك</span>
+                    <span class="text-[11px] text-slate-400 hidden sm:inline">نظام {{ product_identity.name }} لإدارة الشبكات والفوترة وميكروتيك</span>
                 </div>
             </div>
 
@@ -2097,11 +2097,11 @@
         <!-- Footer -->
         <footer class="border-t border-[#1c2840] bg-[#070a13] py-4 text-center text-xs text-slate-500">
             <div class="{% block footer_container_class %}max-w-7xl{% endblock %} mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-                <span class="font-semibold">&copy; {{ current_year|default('2026') }} {{ app_name|default('MAX RADIUS') }}. All Rights Reserved.</span>
+                <span class="font-semibold">&copy; {{ current_year|default('2026') }} {{ product_identity.owner }}. جميع الحقوق محفوظة.</span>
                 <div class="flex items-center gap-4">
                     <span>FreeRADIUS: <strong class="text-slate-400">3.2.x</strong></span>
                     <span>MikroTik CoA: <strong class="text-emerald-400">UDP :3799</strong></span>
-                    <span>Platform: <strong class="text-blue-400">{{ app_name|default('MAX RADIUS') }} {{ app_edition|default('Enterprise') }}</strong></span>
+                    <span>Platform: <strong class="text-blue-400">{{ product_identity.name }} {{ app_edition|default('Enterprise') }}</strong></span>
                 </div>
             </div>
         </footer>
@@ -2655,14 +2655,8 @@
             function forceCleanupSwalContainers() {
                 try {
                     origSwalClose();
-                    const containers = document.querySelectorAll('.swal2-container');
-                    containers.forEach(function(c) {
-                        if (c && c.parentNode) {
-                            c.parentNode.removeChild(c);
-                        }
-                    });
-                    document.body.classList.remove('swal2-shown', 'swal2-height-auto', 'swal2-no-backdrop', 'swal2-toast-shown');
-                    document.documentElement.classList.remove('swal2-shown', 'swal2-height-auto', 'swal2-no-backdrop');
+                    // SweetAlert restores focus/aria-hidden after its close animation.
+                    // Removing its container here skips that cleanup and traps the page.
                 } catch(e) {}
             }
 

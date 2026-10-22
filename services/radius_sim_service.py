@@ -11,6 +11,10 @@ from database.db import get_connection
 
 _get_db = get_connection
 
+from core.license_feature_policy import guarded as _license_guarded
+
+
+@_license_guarded('radius_simulator')
 def simulate_radius_auth(username, password, nas_ip='127.0.0.1', nas_secret='testing123', radius_server='127.0.0.1', radius_port=1812):
     """
     Simulates a live RADIUS Access-Request packet using FreeRADIUS radtest / radclient.

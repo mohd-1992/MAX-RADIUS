@@ -141,8 +141,8 @@
                         </div>
 
                         <div class="mt-4 w-full">
-                            <input type="file" id="networkLogoInput" name="network_logo" accept="image/png, image/jpeg, image/webp, image/svg+xml" onchange="previewLogoFile(this)" class="hidden">
-                            <button type="button" onclick="document.getElementById('networkLogoInput').click()" class="w-full py-2.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
+                            <input type="file" id="networkLogoInput" name="network_logo" {% if not has_feature('white_label') %}disabled{% endif %} accept="image/png, image/jpeg, image/webp, image/svg+xml" onchange="previewLogoFile(this)" class="hidden">
+                            <button type="button" {% if not has_feature('white_label') %}disabled{% endif %} onclick="document.getElementById('networkLogoInput').click()" class="w-full py-2.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-upload"></i>
                                 <span>رفع شعار جديد للمؤسسة</span>
                             </button>
@@ -160,7 +160,7 @@
                                 <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-sm">
                                     <i class="fa-solid fa-tower-broadcast"></i>
                                 </span>
-                                <input type="text" name="network_name" id="networkNameInput" value="{{ network_name }}" required 
+                                <input type="text" name="network_name" id="networkNameInput" value="{{ network_name }}" required {% if not has_feature('white_label') %}disabled{% endif %}
                                        oninput="document.getElementById('liveBrandPreview').innerText = this.value || 'MAX RADIUS'"
                                        placeholder="مثال: شبكة الأفق الذكية WISP" 
                                        class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-sm text-white font-bold focus:border-blue-500 transition">
@@ -177,7 +177,7 @@
                                     <span class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 text-xs">
                                         <i class="fa-solid fa-window-maximize"></i>
                                     </span>
-                                    <input type="text" name="system_title" value="{{ system_title }}" 
+                                    <input type="text" name="system_title" value="{{ system_title }}" {% if not has_feature('white_label') %}disabled{% endif %}
                                            placeholder="MAX RADIUS - نظام إدارة الشبكات"
                                            class="w-full bg-[#070b14] border border-slate-700 rounded-xl pr-10 pl-3.5 py-2.5 text-xs text-white focus:border-blue-500 transition">
                                 </div>

@@ -10,6 +10,7 @@ Provides:
 6. Stale Session Purger & Memory Defragmentation Triggers.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import os
 import sys
 import time
@@ -18,6 +19,7 @@ import socket
 import shutil
 import http.client
 import datetime
+import re
 
 from database.db import query_all, query_one, execute_write, execute_update, get_connection
 from core.watchdog import (
@@ -85,6 +87,22 @@ def docker_api_request(method, path, body=None, timeout=6.0):
     except Exception as e:
         return None, str(e)
 
+def _runtime_container_ids():
+    """Read Linux runtime identity; HOSTNAME may belong to a retained container."""
+    from pathlib import Path
+    identities = set()
+    try:
+        for line in Path('/proc/self/mountinfo').read_text().splitlines():
+            parts = line.split()
+            if len(parts) > 4 and parts[4] in ('/etc/hostname', '/etc/hosts', '/etc/resolv.conf'):
+                identities.update(re.findall(r'/containers/([0-9a-f]{64})/', parts[3]))
+        identities.update(re.findall(r'(?:/docker/|docker-)([0-9a-f]{64})(?:[/\s.]|$)',
+                                    Path('/proc/self/cgroup').read_text()))
+    except OSError:
+        pass
+    return identities
+
+
 def get_container_fleet_status():
     """
     Inspects all system containers and returns clean, structured metadata for dashboard rendering.
@@ -101,33 +119,29 @@ def get_container_fleet_status():
             containers_map[clean_name] = c
 
     fleet = []
-    current = next((c for c in raw_list if c.get('Id', '').startswith(os.environ.get('HOSTNAME', '!'))), None)
+    runtime_ids = _runtime_container_ids()
+    current = next((c for c in raw_list if c.get('Id') in runtime_ids), None) if len(runtime_ids) == 1 else None
     project = (current or {}).get('Labels', {}).get('com.docker.compose.project')
     if not project:
+        # The inherited hostname is a project hint only, never a service target.
         details, _ = docker_api_request('GET', '/containers/' + os.environ.get('HOSTNAME', 'unknown') + '/json')
-        project = ((details or {}).get('Config', {}).get('Labels', {}) if isinstance(details, dict) else {}).get('com.docker.compose.project')
+        labels = ((details or {}).get('Config', {}).get('Labels', {}) if isinstance(details, dict) else {})
+        if labels.get('com.docker.compose.service') in ('web', 'wisp-web'):
+            project = labels.get('com.docker.compose.project')
     if not project:
         return _get_fallback_container_fleet('تعذر تحديد منظومة الحاويات؛ لن يتم التحكم بحاويات أخرى')
     if project:
-        # A retained rollback container keeps its Compose labels. Prefer this
-        # process for its service, then a running/healthy instance; Docker list
-        # order must never make a stopped backup the target of live controls.
-        by_service = {}
-        def fleet_rank(container):
-            return (container.get('Id') == (current or {}).get('Id'),
-                    container.get('State') == 'running',
-                    '(healthy)' in container.get('Status', '').lower(),
-                    container.get('Created', 0))
-        for container in raw_list:
-            labels = container.get('Labels', {})
-            if labels.get('com.docker.compose.project') != project:
-                continue
-            role = labels.get('com.docker.compose.service')
-            if role not in by_service or fleet_rank(container) > fleet_rank(by_service[role]):
-                by_service[role] = container
         for default, role in zip(MONITORED_CONTAINER_NAMES, ('autoheal', 'freeradius', 'wisp-web', 'mariadb', 'l2tp')):
             aliases = {'freeradius': 'radius_core', 'wisp-web': 'web', 'mariadb': 'db'}
-            match = by_service.get(role) or by_service.get(aliases.get(role))
+            candidates = [c for c in raw_list
+                          if c.get('Labels', {}).get('com.docker.compose.project') == project
+                          and c.get('Labels', {}).get('com.docker.compose.service') in (role, aliases.get(role, role))]
+            own = [c for c in candidates if current and c.get('Id') == current.get('Id')]
+            named = [c for c in candidates if '/' + default in c.get('Names', [])]
+            running = [c for c in candidates if c.get('State') == 'running']
+            # A canonical stopped service remains visible; archives never become
+            # substitutes. Ambiguous noncanonical services fail closed.
+            match = own[0] if own else named[0] if len(named) == 1 else running[0] if len(running) == 1 else None
             containers_map[default] = match
         containers_map = {key: value for key, value in containers_map.items() if value and value.get('Labels', {}).get('com.docker.compose.project') == project}
     
@@ -194,6 +208,9 @@ def get_container_fleet_status():
             fleet.append({
                 'name': target_name,
                 'id': c_id,
+                'container_id': c_raw.get('Id', ''),
+                'compose_project': project,
+                'compose_service': c_raw.get('Labels', {}).get('com.docker.compose.service'),
                 'title': meta['title'],
                 'desc': meta['desc'],
                 'role': meta['role'],
@@ -245,24 +262,42 @@ def _get_fallback_container_fleet(err_msg):
         }
     ]
 
+def _resolve_managed_container(reference, require_id=False):
+    if not isinstance(reference, str):
+        return None, 'مرجع الحاوية غير صالح؛ حدّث الصفحة.'
+    reference = reference.strip()
+    if require_id and not re.fullmatch(r'[0-9a-f]{64}', reference):
+        return None, 'يلزم معرف الحاوية الكامل من البطاقة الحالية؛ حدّث الصفحة.'
+    selected = next((c for c in get_container_fleet_status()
+                     if c.get('container_id') and reference in (c['name'], c['container_id'])), None)
+    if not selected:
+        return None, 'الحاوية ليست ضمن الحاويات الفعلية لهذه المنظومة؛ حدّث الصفحة.'
+    data, error = docker_api_request('GET', '/containers/' + selected['container_id'] + '/json')
+    if error or not isinstance(data, dict):
+        return None, 'تعذر التحقق من هوية الحاوية الحالية.'
+    labels = data.get('Config', {}).get('Labels', {})
+    if (data.get('Id') != selected['container_id'] or data.get('Name', '').lstrip('/') != selected['name']
+            or labels.get('com.docker.compose.project') != selected['compose_project']
+            or labels.get('com.docker.compose.service') != selected['compose_service']):
+        return None, 'تغيرت هوية الحاوية أثناء التحقق؛ حدّث الصفحة.'
+    return data, None
+
+
 def _allowed_container(name):
-    return name in {c['name'] for c in get_container_fleet_status() if c['id'] not in ('N/A', 'internal')}
+    data, _ = _resolve_managed_container(name)
+    return bool(data)
 
 def inspect_container_details(container_name):
     """Fetches full inspect payload for a specific container."""
-    container_name = container_name.strip()
-    if not _allowed_container(container_name):
-        return None, 'الحاوية ليست ضمن هذه المنظومة'
-    data, err = docker_api_request('GET', f'/containers/{container_name}/json')
-    if err:
-        return None, err
-    return data, None
+    return _resolve_managed_container(container_name)
 
+@_license_guarded('autoheal')
 def get_live_container_logs(container_name, lines=60):
     """Fetches real-time stdout/stderr log chunk for a container."""
-    container_name = container_name.strip()
-    if not _allowed_container(container_name):
-        return 'تعذر استخراج السجلات: الحاوية ليست ضمن هذه المنظومة'
+    details, error = _resolve_managed_container(container_name)
+    if error:
+        return 'تعذر استخراج السجلات: ' + error
+    container_name = details['Id']
     lines = min(max(10, int(lines or 60)), 300)
     raw_logs, err = docker_api_request('GET', f'/containers/{container_name}/logs?stdout=1&stderr=1&tail={lines}&timestamps=1')
     if err:
@@ -278,22 +313,26 @@ def get_live_container_logs(container_name, lines=60):
         return '\n'.join(clean_lines)
     return str(raw_logs)
 
+@_license_guarded('autoheal')
 def restart_system_container(container_name):
     """
     Safely triggers container restart via Docker API.
     """
-    container_name = container_name.strip()
-    if not _allowed_container(container_name):
-        return False, f"الحاوية '{container_name}' غير مصرح بإعادة تشغيلها من هذه اللوحة."
+    details, error = _resolve_managed_container(container_name, require_id=True)
+    if error:
+        return False, error
+    container_id = details['Id']
+    container_name = details['Name'].lstrip('/')
     
     log_system_alert('CONTAINER_RESTART_PENDING', 'info', f'جارٍ إعادة تشغيل [{container_name}]', source='container:' + container_name)
-    res, err = docker_api_request('POST', f'/containers/{container_name}/restart?t=5', timeout=15.0)
+    res, err = docker_api_request('POST', f'/containers/{container_id}/restart?t=5', timeout=15.0)
     if err:
         execute_update("UPDATE wisp_system_alerts SET alert_type='CONTAINER_RESTART_FAILED', severity='danger', message=? WHERE source=? AND alert_type='CONTAINER_RESTART_PENDING' AND is_resolved=0", (f'فشلت إعادة تشغيل [{container_name}]: {err}', 'container:' + container_name))
         return False, f'فشل أمر إعادة التشغيل: {err}'
     return True, f'تم قبول إعادة تشغيل [{container_name}]؛ تكتمل العملية في السجل بعد إثبات الصحة.'
 
 
+@_license_guarded('autoheal')
 def probe_all_network_ports():
     """
     Actively probes network sockets and UDP ports across the MAX RADIUS fleet.
@@ -356,6 +395,7 @@ def probe_all_network_ports():
 
     return results
 
+@_license_guarded('autoheal')
 def run_deep_system_diagnostic():
     """
     Executes a comprehensive healthcheck & self-healing diagnostic across the full ecosystem.
@@ -505,6 +545,7 @@ def get_zombie_session_timeout():
         pass
     return 15
 
+@_license_guarded('autoheal')
 def set_zombie_session_timeout(timeout_mins):
     """Saves configured timeout in minutes into wisp_system_settings."""
     timeout_mins = max(5, int(timeout_mins or 15))
@@ -522,6 +563,7 @@ def set_zombie_session_timeout(timeout_mins):
         except Exception as e:
             return False, f"خطأ أثناء حفظ الإعداد: {e}"
 
+@_license_guarded('autoheal')
 def purge_stale_zombie_sessions(timeout_minutes=None):
     """
     Cleans up orphaned sessions where users disconnected without sending Acct-Stop.
@@ -571,6 +613,7 @@ def purge_stale_zombie_sessions(timeout_minutes=None):
     except Exception as e:
         return False, f"خطأ أثناء تفريغ الجلسات: {e}"
 
+@_license_guarded('autoheal')
 def get_autoheal_dashboard_full(alert_filter=None):
     """
     Consolidates all metrics, container fleet status, ports, alerts, and watchdog metadata.

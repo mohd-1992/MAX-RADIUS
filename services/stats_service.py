@@ -498,6 +498,10 @@ def get_traffic_chart_data():
         'upload': upload_gb
     }
 
+from core.license_feature_policy import guarded as _license_guarded
+
+
+@_license_guarded('sales_reports')
 def get_sales_chart_data():
     """
     Returns real monthly sales for the last 6 months from wisp_voucher_sales and wisp_invoices.

@@ -22,6 +22,7 @@ import string
 import datetime
 import threading
 import concurrent.futures
+from core.license_feature_policy import guarded as _license_guarded, enabled as _feature_enabled
 
 from database.db import query_all, query_one, execute_write, log_audit
 from services.nas_service import reload_freeradius_clients
@@ -74,6 +75,7 @@ def _query_wg_bridge(action, payload=None, timeout=2.0):
         return {'success': False, 'error': str(e)}
 
 
+@_license_guarded('vpn_tunnels')
 def generate_wg_keypair():
     """Generates a Curve25519 private/public keypair via high-performance Python cryptography."""
     try:
@@ -135,6 +137,7 @@ def get_available_wireguard_ip():
     return f"{prefix}.50"
 
 
+@_license_guarded('vpn_tunnels')
 def apply_peer_to_kernel(public_key, allowed_ip, preshared_key=None):
     """Registers or updates a WireGuard peer dynamically in the Linux kernel."""
     if not public_key or not allowed_ip:
@@ -157,6 +160,8 @@ def remove_peer_from_kernel(public_key):
 
 def sync_all_wireguard_peers_to_kernel():
     """Syncs all active WireGuard peers from MySQL to the kernel."""
+    if not _feature_enabled('vpn_tunnels'):
+        return False
     res = _query_wg_bridge('sync_all')
     return res.get('success', False)
 
@@ -262,6 +267,7 @@ def get_wireguard_tunnel(tunnel_id):
     """, (tunnel_id,))
 
 
+@_license_guarded('vpn_tunnels')
 def add_wireguard_tunnel(form_or_data, admin_username='admin'):
     """Creates a new WireGuard tunnel record, adds to Linux kernel, and provisions FreeRADIUS NAS."""
     data = form_or_data
@@ -330,6 +336,7 @@ def add_wireguard_tunnel(form_or_data, admin_username='admin'):
     return tunnel_id
 
 
+@_license_guarded('vpn_tunnels')
 def update_wireguard_tunnel(tunnel_id, form_or_data, admin_username='admin'):
     """Updates an existing WireGuard tunnel record and re-syncs kernel peer table."""
     data = form_or_data
@@ -402,6 +409,7 @@ def delete_wireguard_tunnel(tunnel_id, admin_username='admin'):
     return True
 
 
+@_license_guarded('vpn_tunnels')
 def generate_mikrotik_wireguard_script(tunnel_id, vps_host=None):
     """
     Generates a 100% reliable 1-Click RouterOS v7+ Native WireGuard Setup Script.

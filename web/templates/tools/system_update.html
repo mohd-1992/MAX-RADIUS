@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}تحديث وترقية النظام | MAX RADIUS{% endblock %}
+{% block title %}تحديث وترقية النظام{% endblock %}
 
 {% block content %}
 <style>
@@ -52,7 +52,7 @@
                     تحديث وترقية النظام
                     <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">System Update Center</span>
                 </h1>
-                <p class="text-xs text-slate-400 mt-1">الترقية السحابية المباشرة بنقرة زر واحدة (1-Click Online Update) مع النسخ الاحتياطي التلقائي وضمان استمرارية خدمة الراديوس.</p>
+                <p class="text-xs text-slate-400 mt-1">تحديث واجهة النظام بإصدار موثق، مع نسخة احتياطية والتحقق من التشغيل قبل اعتماد التحديث.</p>
             </div>
         </div>
         <div class="flex items-center gap-2.5 shrink-0">
@@ -103,7 +103,7 @@
                 <div class="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/20 space-y-1.5">
                     <div class="flex items-center gap-2 text-xs font-bold text-emerald-400">
                         <i class="fa-solid fa-shield-check"></i>
-                        <span>ترقية آمنة 100% بدون مخاطر</span>
+                        <span>نسخة احتياطية وفحص قبل اعتماد التحديث</span>
                     </div>
                     <p class="text-[11px] text-slate-300 leading-relaxed">
                         يتم أخذ نسخة احتياطية كاملة من قاعدة البيانات والإعدادات آلياً قبل تطبيق أي تحديث لضمان سلامة بيانات الكروت والمشتركين.
@@ -219,7 +219,7 @@
             </div>
             <div class="flex items-center gap-2 text-slate-500" id="stepCheck-4">
                 <i class="fa-regular fa-circle text-[10px]"></i>
-                <span>4. تطبيق تحديثات قاعدة البيانات (DB Migrations)</span>
+                <span>4. التحقق من سلامة الواجهة والترخيص</span>
             </div>
             <div class="flex items-center gap-2 text-slate-500" id="stepCheck-5">
                 <i class="fa-regular fa-circle text-[10px]"></i>
@@ -253,13 +253,11 @@ function checkUpdates(force = false) {
     })
     .then(data => {
         if (spinner) spinner.classList.remove('fa-spin');
-        if (data && data.success) {
-            renderUpdateData(data);
-        }
+        renderUpdateData(data || {success: false});
     })
     .catch(err => {
         if (spinner) spinner.classList.remove('fa-spin');
-        console.error("Update check error:", err);
+        renderUpdateData({success: false, message: "تعذر الاتصال للتحقق من التحديثات"});
     });
 }
 
@@ -273,7 +271,13 @@ function renderUpdateData(data) {
     if (currVer) currVer.innerText = `v${data.current_version || '2.0.0'}`;
     if (lastChecked) lastChecked.innerText = data.checked_at || 'الآن';
 
-    g_latestVersion = data.latest_version;
+    g_latestVersion = data.success && data.has_update ? data.latest_version : null;
+    if (!data.success) {
+        if (badge) badge.textContent = data.message || 'تعذر التحقق من التحديثات';
+        if (availBox) availBox.classList.add('hidden');
+        if (upToDateBox) upToDateBox.classList.add('hidden');
+        return;
+    }
 
     if (data.has_update) {
         if (badge) {
@@ -293,7 +297,7 @@ function renderUpdateData(data) {
         (data.changelog || []).forEach(item => {
             const li = document.createElement('li');
             li.className = 'flex items-start gap-2';
-            li.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-xs mt-0.5 shrink-0"></i><span>${item}</span>`;
+            li.textContent = item;
             clList.appendChild(li);
         });
 
@@ -309,13 +313,14 @@ function renderUpdateData(data) {
 }
 
 function startSystemUpdate() {
+    if (!g_latestVersion) return;
     Swal.fire({
         title: 'تأكيد ترقية وتحديث النظام',
         html: `
             <div class="text-right text-xs space-y-2 text-slate-300">
                 <p>هل أنت متأكد من رغبتك في ترقية MAX RADIUS إلى الإصدار <b>v${g_latestVersion || 'الجديد'}</b> الآن؟</p>
                 <p class="text-emerald-400">🛡️ سيتم أخذ نسخة احتياطية كاملة لقاعدة البيانات تلقائياً قبل البدء.</p>
-                <p class="text-slate-400">⚡ تستغرق العملية بضع ثوانٍ ولن تنقطع جلسات المشتركين النشطة على الراديوس.</p>
+                <p class="text-slate-400">يُحدَّث جزء الواجهة فقط مع التحقق من الجاهزية والترخيص، وقد تنقطع اللوحة مؤقتًا. يُحفظ الإصدار السابق للرجوع دون إعادة قاعدة قديمة.</p>
             </div>
         `,
         icon: 'question',
@@ -384,7 +389,7 @@ function startPollingProgress() {
             // Highlight checklist steps
             updateChecklistUI(pct);
 
-            if (data.status === 'completed' || pct >= 100) {
+            if (data.status === 'completed') {
                 clearInterval(g_updatePollTimer);
                 g_updatePollTimer = null;
                 setTimeout(() => {
@@ -398,7 +403,7 @@ function startPollingProgress() {
                         window.location.reload();
                     });
                 }, 1000);
-            } else if (data.status === 'error') {
+            } else if (['error', 'rolled_back', 'recovery_required'].includes(data.status)) {
                 clearInterval(g_updatePollTimer);
                 g_updatePollTimer = null;
                 document.getElementById('updateProgressModal').classList.add('hidden');

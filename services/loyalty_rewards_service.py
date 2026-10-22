@@ -1,3 +1,4 @@
+from core.license_feature_policy import guarded as _license_guarded
 from services.renewal_settlement_service import settle_cycle_operation
 """
 services/loyalty_rewards_service.py
@@ -59,6 +60,7 @@ def calculate_tier(total_earned):
     return 'bronze'
 
 
+@_license_guarded('loyalty_rewards')
 def get_loyalty_overview():
     """Get complete loyalty dashboard data, customizable rewards, top members, and transactions."""
     ensure_loyalty_tables()
@@ -115,6 +117,7 @@ def get_reward_by_id(reward_id):
         db.close()
 
 
+@_license_guarded('loyalty_rewards')
 def create_reward(reward_name, points_cost, reward_type, reward_value, description='', icon='fa-gift', is_active=1):
     """Add a new customizable reward to the catalog."""
     ensure_loyalty_tables()
@@ -138,6 +141,7 @@ def create_reward(reward_name, points_cost, reward_type, reward_value, descripti
         db.close()
 
 
+@_license_guarded('loyalty_rewards')
 def update_reward(reward_id, reward_name, points_cost, reward_type, reward_value, description='', icon='fa-gift', is_active=1):
     """Update an existing reward in the catalog."""
     ensure_loyalty_tables()
@@ -162,6 +166,7 @@ def update_reward(reward_id, reward_name, points_cost, reward_type, reward_value
         db.close()
 
 
+@_license_guarded('loyalty_rewards')
 def delete_reward(reward_id):
     """Delete a reward from the catalog."""
     db = _get_db()
@@ -177,6 +182,7 @@ def delete_reward(reward_id):
         db.close()
 
 
+@_license_guarded('loyalty_rewards')
 def toggle_reward_status(reward_id, is_active):
     """Enable or disable a reward without deleting it."""
     db = _get_db()
@@ -195,6 +201,8 @@ def toggle_reward_status(reward_id, is_active):
 
 def award_loyalty_points(username, points, reason='Recharge Bonus'):
     """Award or adjust points for a subscriber wallet."""
+    from core.license_feature_policy import enabled as _feature_enabled
+    if not _feature_enabled('loyalty_rewards'):return False,'ميزة نقاط الولاء غير متاحة في الترخيص.'
     ensure_loyalty_tables()
     username = (username or '').strip()
     try:
@@ -259,6 +267,7 @@ def award_loyalty_points(username, points, reason='Recharge Bonus'):
             db.close()
 
 
+@_license_guarded('loyalty_rewards')
 @settle_cycle_operation
 def redeem_reward(username, reward_id):
     """

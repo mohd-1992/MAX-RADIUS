@@ -161,3 +161,19 @@ credentials/
 !/tests/test_license_clock_recovery.py
 /.install-backups/
 !/tests/test_runtime_distribution.py
+!/tests/test_telegram_document_upload.py
+!/tests/test_telegram_backup_parts.py
+!tests/test_product_protection.py
+
+!tests/test_system_update.py
+
+# User chat attachments are not source artifacts.
+/.codex-remote-attachments/
+
+
+!tests/test_db_maintenance_safety.py
+
+!tests/test_autoheal_container_binding.py
+!tests/accounting_identity_live.py
+!tests/run_accounting_identity_lab.py
+!tests/test_license_feature_policy.py

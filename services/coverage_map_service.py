@@ -6,6 +6,7 @@ Manages geographical tower coordinates, sectors/access points, live subscribers 
 and telemetry.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 from database.db import get_connection, query_all, query_one, execute_write
 
 _get_db = get_connection
@@ -83,6 +84,7 @@ def ensure_gis_tables():
     finally:
         db.close()
 
+@_license_guarded('gis_map')
 def get_coverage_map_data():
     """Get all towers with their attached access points, live active subscriber counts and status."""
     ensure_gis_tables()
@@ -173,6 +175,7 @@ def get_coverage_map_data():
         db.close()
 
 # ----------------- Towers CRUD -----------------
+@_license_guarded('gis_map')
 def create_tower(tower_name, latitude, longitude, coverage_radius_meters=500, tower_type='hotspot', nas_id=None, nas_ip=None, notes=''):
     """Create a new Tower / Site."""
     ensure_gis_tables()
@@ -190,6 +193,7 @@ def create_tower(tower_name, latitude, longitude, coverage_radius_meters=500, to
     finally:
         db.close()
 
+@_license_guarded('gis_map')
 def update_tower_location(tower_id, lat, lng, radius, tower_name, tower_type='hotspot', nas_id=None, nas_ip=None, notes=''):
     """Update coordinates & info of a specific tower."""
     ensure_gis_tables()
@@ -209,6 +213,7 @@ def update_tower_location(tower_id, lat, lng, radius, tower_name, tower_type='ho
     finally:
         db.close()
 
+@_license_guarded('gis_map')
 def delete_tower(tower_id):
     """Delete a tower and all its linked access points."""
     ensure_gis_tables()
@@ -225,6 +230,7 @@ def delete_tower(tower_id):
         db.close()
 
 # ----------------- Access Points CRUD -----------------
+@_license_guarded('gis_map')
 def create_access_point(tower_id, name, device_model='Ubiquiti Rocket', ip_address='', snmp_community='public', interface_name='', frequency_mhz=5800, azimuth_deg=0, beamwidth_deg=90, ssid='', coverage_radius_meters=400, status='active', notes=''):
     """Create a new Access Point / Sector under a specific tower."""
     ensure_gis_tables()
@@ -242,6 +248,7 @@ def create_access_point(tower_id, name, device_model='Ubiquiti Rocket', ip_addre
     finally:
         db.close()
 
+@_license_guarded('gis_map')
 def update_access_point(ap_id, name, device_model='Ubiquiti Rocket', ip_address='', snmp_community='public', interface_name='', frequency_mhz=5800, azimuth_deg=0, beamwidth_deg=90, ssid='', coverage_radius_meters=400, status='active', notes=''):
     """Update an existing Access Point."""
     ensure_gis_tables()
@@ -262,6 +269,7 @@ def update_access_point(ap_id, name, device_model='Ubiquiti Rocket', ip_address=
     finally:
         db.close()
 
+@_license_guarded('gis_map')
 def delete_access_point(ap_id):
     """Delete an access point."""
     ensure_gis_tables()
@@ -276,6 +284,7 @@ def delete_access_point(ap_id):
     finally:
         db.close()
 
+@_license_guarded('gis_map')
 def get_tower_access_points(tower_id):
     """Get all APs for a given tower ID."""
     ensure_gis_tables()

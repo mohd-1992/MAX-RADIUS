@@ -181,6 +181,9 @@ def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, m
             sql(conn,'UPDATE wisp_invoices SET subscriber_id=NULL WHERE subscriber_id=?',(entity_id,))
         # Historical ledgers retain the original identity and are deliberately not deleted.
         sql(conn,f'DELETE FROM {table} WHERE id=?',(entity_id,))
+        # Retire only this deleted identity's operational work; keep financial history.
+        sql(conn,'DELETE FROM wisp_online_policy_outbox WHERE username=?',(row['username'],))
+        sql(conn,'DELETE FROM wisp_renewal_guards WHERE username=? AND expires_at<=NOW()',(row['username'],))
         return dict(deleted=True, username=row['username'], **removed)
     result = run_transaction(operation, connection=connection)
     if result.get('pending'):

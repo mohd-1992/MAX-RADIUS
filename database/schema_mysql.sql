@@ -1154,15 +1154,15 @@ INSERT IGNORE INTO wisp_username_write_lock(id) VALUES(1);
 
 -- First-use contracts: created before the application accepts requests.
 DELIMITER ;;
-CREATE OR REPLACE FUNCTION fn_freeze_voucher_policy(p_username VARCHAR(64))
+CREATE OR REPLACE FUNCTION fn_freeze_voucher_policy(p_username VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci)
 RETURNS INT MODIFIES SQL DATA
 BEGIN
     DECLARE v_id INT DEFAULT NULL;
     DECLARE v_frozen DATETIME DEFAULT NULL;
-    DECLARE v_status VARCHAR(32);
+    DECLARE v_status VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET v_id = NULL;
     SELECT id, policy_frozen_at, status INTO v_id, v_frozen, v_status
-      FROM wisp_vouchers WHERE username=p_username LIMIT 1 FOR UPDATE;
+      FROM wisp_vouchers WHERE username=p_username COLLATE utf8mb4_unicode_ci LIMIT 1 FOR UPDATE;
     IF v_id IS NULL THEN RETURN 1; END IF;
     IF v_frozen IS NULL AND v_status='unused' THEN
         UPDATE wisp_vouchers v JOIN wisp_packages p ON p.id=v.package_id
@@ -1171,7 +1171,7 @@ BEGIN
             v.snap_rate_download=COALESCE(p.rate_download,'0'),
             v.snap_rate_upload=COALESCE(p.rate_upload,'0'),
             v.snap_rate_limit_str=COALESCE((SELECT r.value FROM radgroupreply r
-              WHERE r.groupname=p.name AND LOWER(r.attribute)='mikrotik-rate-limit'
+              WHERE r.groupname=p.name COLLATE utf8mb4_unicode_ci AND LOWER(r.attribute)='mikrotik-rate-limit'
               ORDER BY r.id DESC LIMIT 1),'0/0'),
             v.policy_frozen_at=CURRENT_TIMESTAMP
         WHERE v.id=v_id AND v.policy_frozen_at IS NULL;

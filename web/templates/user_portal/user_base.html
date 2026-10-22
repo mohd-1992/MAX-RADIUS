@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>MAX RADIUS - {% block title %}بوابة المشتركين الذكية{% endblock %}</title>
+    <title>{{ product_identity.name }} - {% block title %}بوابة المشتركين الذكية{% endblock %}</title>
     
     <!-- Instant Theme Loader: Default is 'light' matching base.html -->
     <script>
@@ -933,7 +933,7 @@
     <footer class="mt-auto border-t border-slate-800/60 py-4 text-center text-xs text-slate-400">
         <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
             <span>جميع الحقوق محفوظة &copy; {{ network_name|default('MAX RADIUS') }}</span>
-            <span class="font-mono text-[11px] text-slate-400">{{ app_name|default('MAX RADIUS') }} v{{ app_version|default('2.4.0') }} Enterprise Engine</span>
+            <span class="font-mono text-[11px] text-slate-400">{{ product_identity.name }} v{{ app_version }}</span>
         </div>
     </footer>
 

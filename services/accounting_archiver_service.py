@@ -10,6 +10,7 @@ Features:
 - Detailed telemetry on table sizes, storage reclaimed, and session distributions.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 from datetime import datetime, timedelta
 from database.db import get_connection
 from core.config import DB_NAME
@@ -103,9 +104,9 @@ def ensure_archive_tables():
     finally:
         db.close()
 
+@_license_guarded('accounting_archiver')
 def get_archiver_status():
     """Return status of live vs archived accounting records and estimated reclaimable space."""
-    ensure_archive_tables()
     db = _get_db()
     try:
         cur = db.cursor()
@@ -176,6 +177,7 @@ def get_archiver_status():
     finally:
         db.close()
 
+@_license_guarded('accounting_archiver')
 def archive_old_sessions(days_threshold=90, chunk_size=5000):
     from services.account_lifecycle_service import job_lock
     try:
@@ -339,6 +341,7 @@ def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000):
     finally:
         db.close()
 
+@_license_guarded('accounting_archiver')
 def optimize_accounting_tables():
     from services.db_maintenance_service import optimize_database_tables
     result=optimize_database_tables(['radacct','radacct_archive'])

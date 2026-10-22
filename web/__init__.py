@@ -32,6 +32,25 @@ def create_app(config=None):
         template_folder=os.path.join(os.path.dirname(__file__), 'templates'),
         static_folder=os.path.join(os.path.dirname(__file__), 'static')
     )
+    # Release images embed templates in a compiled module. Source checkouts keep
+    # Flask's normal filesystem loader; no tenant override loader is accepted.
+    try:
+        from web._embedded_templates import template_loader
+    except ModuleNotFoundError as exc:
+        if exc.name != 'web._embedded_templates':
+            raise
+    else:
+        app.jinja_loader = template_loader()
+
+    from core.product_identity import get_product_identity
+    from core.runtime_integrity import integrity_status, start_integrity_observer
+
+    @app.context_processor
+    def publisher_identity_context():
+        return {'product_identity': get_product_identity(),
+                'runtime_integrity': integrity_status()}
+
+    start_integrity_observer()
     
     app.secret_key = SECRET_KEY
     app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -191,6 +210,9 @@ def create_app(config=None):
 
     from web.access_policy import install_visibility_policy
     install_visibility_policy(app)
+    from web.license_features import install_feature_access
+    from core.license_feature_policy import enabled as feature_enabled
+    install_feature_access(app)
 
     # 4. Context Processor
     @app.context_processor
@@ -264,6 +286,12 @@ def create_app(config=None):
             except Exception:
                 lic_stat = {}
 
+            if not feature_enabled('white_label'):
+                network_name = APP_NAME
+                network_logo = ''
+                logo_url = None
+                system_title = 'MAX RADIUS - نظام إدارة الشبكات والفوترة و FreeRADIUS'
+
             from core.ownership import owner_id
             if owner_id() is not None or not has_permission('system.settings'):
                 lic_stat = {k: v for k, v in lic_stat.items() if k in ('plan_tier',)}
@@ -293,7 +321,7 @@ def create_app(config=None):
                 'nas_count': nas_count,
                 'current_manager': current_manager,
                 'has_permission': has_permission,
-                'has_feature': has_license_feature,
+                'has_feature': feature_enabled,
                 'license_info': lic_stat,
                 'is_over_quota': lic_stat.get('is_over_quota', False),
                 'quota_warning': lic_stat.get('quota_warning', ''),
@@ -326,7 +354,7 @@ def create_app(config=None):
                 'app_version': APP_VERSION,
                 'system_version': APP_VERSION_FULL,
                 'has_permission': lambda *args, **kwargs: False,
-                'has_feature': lambda *args, **kwargs: True
+                'has_feature': lambda *args, **kwargs: False
             }
 
     # 5. Fault-Tolerant Error Handlers

@@ -11,6 +11,7 @@ import re
 from decimal import Decimal, InvalidOperation
 import secrets
 import datetime
+from core.license_feature_policy import require as _require_feature
 from database.db import query_all, query_one, execute_write, execute_update, log_audit, db_session, adapt_query
 from core.rbac import hash_manager_password, verify_manager_password
 
@@ -122,6 +123,7 @@ def transfer_manager_wallet(from_id, to_id, amount, notes='', admin_user='admin'
             if previous['notes'] != f'تحويل إلى #{to_id}: {notes}':
                 raise ValueError('مرجع التحويل مستخدم لمستلم مختلف.')
             return previous['balance_after'], number
+        _require_feature('reseller_wallets')
         if float(accounts[from_id]['wallet_balance'] or 0) < amount:
             raise ValueError('رصيد المحفظة غير كافٍ للتحويل.')
         number = number or 'INV-TR-' + secrets.token_hex(16)
@@ -326,6 +328,8 @@ def create_manager(data, admin_user='admin'):
     payment_type = data.get('initial_payment_type', 'cash')
     notes = data.get('notes', '').strip()
 
+    if role_id!=1:_require_feature('reseller_management')
+    if initial_balance>0:_require_feature('reseller_wallets')
     existing = query_one('SELECT id FROM wisp_managers WHERE LOWER(username) = LOWER(?)', (username,))
     if existing:
         raise ValueError(f"اسم المستخدم [{username}] مستخدم بالفعل.")
@@ -396,6 +400,7 @@ def update_manager(manager_id, data, admin_user='admin'):
     if manager_id == 1:
         role_id = 1
 
+    if int(mgr['role_id'])!=1 or role_id!=1:_require_feature('reseller_management')
     with db_session() as conn:
         if password:
             password_hash = hash_manager_password(password)
@@ -492,6 +497,7 @@ def toggle_manager_status(manager_id, admin_user='admin'):
         if not locked or locked.get('is_deleted'):
             raise ValueError('الحساب محذوف ولا يمكن إعادة تفعيله.')
         new_status = 0 if locked['is_active'] else 1
+        if new_status and int(locked['role_id'])!=1:_require_feature('reseller_management')
         _manager_tx(conn, 'UPDATE wisp_managers SET is_active = ? WHERE id = ?', (new_status, manager_id))
         _manager_tx(conn, 'UPDATE wisp_admins SET is_active = ? WHERE username = ?', (new_status, mgr['username']))
 
@@ -572,6 +578,7 @@ def deposit_manager_wallet(manager_id, amount, payment_type='cash', notes='', ad
         if previous:
             return previous['balance_after'], previous['invoice_number']
 
+        _require_feature('reseller_wallets')
         balance_before = float(mgr['wallet_balance'] or 0.0)
         balance_after = round(balance_before + amount, 2)
 
@@ -622,6 +629,7 @@ def deduct_manager_wallet(manager_id, amount, notes='', admin_user='admin', requ
         if previous:
             return previous['balance_after'], previous['invoice_number']
 
+        _require_feature('reseller_wallets')
         balance_before = float(mgr['wallet_balance'] or 0.0)
         if amount > balance_before:
             raise ValueError('الرصيد غير كافٍ للخصم.')

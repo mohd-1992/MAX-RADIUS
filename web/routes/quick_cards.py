@@ -58,6 +58,8 @@ def quick_cards_issue():
                        amount=str(result['amount']),balance_after=str(result['balance_after']) if result['balance_after'] is not None else None,
                        message='تم استرجاع الإصدار السابق دون خصم جديد.' if result['repeated'] else 'تم إصدار الكروت بنجاح.')
     except (ValueError,PermissionError) as exc:
+        from core.license_feature_policy import FeatureUnavailable
+        if isinstance(exc,FeatureUnavailable):raise
         return jsonify(success=False,message=str(exc)),400
     except Exception:
         logger.exception('Quick issuance failed')

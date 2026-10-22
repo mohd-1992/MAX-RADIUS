@@ -7,6 +7,7 @@ Processes 150k+ records in sub-15 seconds by bypassing live triggers during bulk
 Includes live progress tracking, safe cancellation & rollback.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import os
 import gzip
 import re
@@ -209,6 +210,7 @@ def rollback_cancelled_import(tracking_data, db):
         print(f"[Rollback Cleanup Exception]: {e}")
 
 
+@_license_guarded('data_import')
 def analyze_backup_file(file_input):
     profiles_list = []
     admins_list = []
@@ -496,6 +498,7 @@ def verify_migration_license(db):
             raise RuntimeError('تعذر التحقق من الترخيص قبل الاستيراد؛ لم يتم مسح البيانات. تحقق من صلاحية الترخيص ثم أعد المحاولة.')
 
 
+@_license_guarded('data_import')
 def execute_database_migration(file_input, options=None):
     """
     High-Performance Database Migration Engine.
@@ -1591,6 +1594,7 @@ def execute_database_migration(file_input, options=None):
             set_import_maintenance_active(False)
 
 
+@_license_guarded('data_import')
 def start_async_migration(file_input, options=None):
     """Launches migration in a background worker thread for smooth progress polling."""
     t = threading.Thread(target=execute_database_migration, args=(file_input, options), daemon=True)

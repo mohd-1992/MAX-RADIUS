@@ -130,7 +130,7 @@
                     </div>
                 </div>
 
-                <a href="https://wa.me/967777000000?text={{ ('طلب ترخيص لنظام MAX RADIUS - بصمة السيرفر: ' ~ license.current_machine_id) | urlencode }}" target="_blank" class="w-full sm:w-auto px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 flex-shrink-0">
+                <a href="{{ product_identity.whatsapp_url }}" target="_blank" class="w-full sm:w-auto px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition flex items-center justify-center gap-2 flex-shrink-0">
                     <i class="fa-brands fa-whatsapp text-base"></i>
                     <span>طلب ترخيص عبر واتساب</span>
                 </a>
@@ -223,7 +223,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-white/5 bg-[#0a0f1d] py-6 text-center text-xs text-slate-500">
-        MAX RADIUS 2.0 • جميع الحقوق محفوظة © 2026
+        {{ product_identity.name }} v{{ app_version }} • جميع الحقوق محفوظة © {{ current_year }} {{ product_identity.owner }}
     </footer>
 
     <!-- Copy Helper Script -->

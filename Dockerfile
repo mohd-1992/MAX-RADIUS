@@ -13,7 +13,7 @@ COPY run.py entrypoint.sh ./
 COPY core/ ./core/
 COPY services/ ./services/
 COPY web/ ./web/
-COPY database/db.py database/schema_healer.py database/schema_objects.py database/schema_mysql.sql ./database/
+COPY database/db.py database/schema_healer.py database/schema_objects.py database/mysql_bootstrap.py database/schema_mysql.sql ./database/
 COPY database/freeradius_standard.sql database/wisp_extensions.sql database/seed_data.sql ./database/
 COPY database/license_capacity.py database/maintenance_jobs.py ./database/
 COPY database/permission_catalog.py database/quick_card_schema.py database/first_use_policy.py ./database/
@@ -25,7 +25,12 @@ COPY packaging/ /opt/max-build/
 RUN python -c "from setuptools import setup, Extension; from Cython.Build import cythonize; names=['services.license_guard_service','core.licensing','core.hardware_fingerprint','core.license_protocol','core.license_security','database.license_capacity']; setup(name='SecurityCore', ext_modules=cythonize([Extension(n, [n.replace('.','/')+'.py']) for n in names], compiler_directives={'language_level':'3'}), script_args=['build_ext','--inplace'])" && \
     rm -f services/license_guard_service.py core/licensing.py core/hardware_fingerprint.py core/license_protocol.py core/license_security.py database/license_capacity.py services/*.c core/*.c database/*.c && \
     rm -rf build
-RUN python /opt/max-build/compile_runtime.py && pip uninstall -y cython setuptools
+RUN pip install --no-cache-dir rjsmin==1.2.4 rcssmin==1.2.2 && \
+    python /opt/max-build/minify_assets.py && \
+    python /opt/max-build/embed_templates.py && \
+    python /opt/max-build/compile_runtime.py && \
+    rm -rf /app/web/templates && \
+    pip uninstall -y cython setuptools rjsmin rcssmin
 RUN --mount=type=secret,id=runtime_signing_key,required=true python /opt/max-build/seal_runtime.py
 RUN cp /opt/max-build/verify_runtime.py /opt/max-protection/verify.py
 

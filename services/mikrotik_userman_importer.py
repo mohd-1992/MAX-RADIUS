@@ -8,6 +8,7 @@ Supports:
 2. Online direct RouterOS API synchronization.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import os
 import re
 import time
@@ -463,6 +464,7 @@ class BufferedRouterOSApiProtocol(RouterOSApiProtocol):
         return res
 
 
+@_license_guarded('userman_import')
 def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, timeout=90.0, progress=None, check_cancel=None):
     """
     Connects to live MikroTik router and pulls User Manager v6 profiles and users
@@ -644,6 +646,7 @@ def fetch_userman_via_api(host, username, password, port=8728, use_ssl=False, ti
 # -------------------------------------------------------------
 # 3. Execution Engine: Insert into MAX RADIUS
 # -------------------------------------------------------------
+@_license_guarded('userman_import')
 def execute_userman_import(parsed_data, target_type='vouchers', fallback_package=None, duplicate_action='skip', ignore_expired=True, import_consumption=False, admin_user='admin', profile_costs=None, chunk_index=None, total_chunks=None, state_cache=None, check_cancel=None, operation_id=None):
     """
     Executes the isolated database insertion:

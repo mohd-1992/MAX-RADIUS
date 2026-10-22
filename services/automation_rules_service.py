@@ -5,6 +5,7 @@ Smart Automation & Rules Engine for MAX RADIUS.
 Provides trigger-based actions (auto-purge expired, auto-generate invoices, auto-alert on low quota).
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import time
 from datetime import datetime
 from database.db import get_connection
@@ -65,6 +66,7 @@ def ensure_automation_tables():
     finally:
         db.close()
 
+@_license_guarded('automation_rules')
 def get_automation_overview():
     """Get active rules, recent execution logs and status."""
     ensure_automation_tables()
@@ -94,6 +96,7 @@ def get_automation_overview():
     finally:
         db.close()
 
+@_license_guarded('automation_rules')
 def toggle_rule(rule_id, is_active):
     """Enable or disable an automation rule."""
     db = _get_db()
@@ -107,6 +110,7 @@ def toggle_rule(rule_id, is_active):
     finally:
         db.close()
 
+@_license_guarded('automation_rules')
 def execute_rule_now(rule_id, scheduled=False, expected_last=None):
     from services.factory_reset_service import factory_reset_active
     if factory_reset_active():
@@ -148,8 +152,8 @@ def execute_rule_now(rule_id, scheduled=False, expected_last=None):
 
 
 def run_due_rules():
-    from services.license_guard_service import has_license_feature
-    if not has_license_feature('automation_rules'):
+    from core.license_feature_policy import enabled as _feature_enabled
+    if not _feature_enabled('automation_rules'):
         return
     from database.db import query_all
     from core.time_service import get_system_now, get_db_storage_now

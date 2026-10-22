@@ -12,6 +12,7 @@ Provides:
 6. Full Message Lifecycle Tracking and Audit Logging.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import os
 import re
 import json
@@ -144,6 +145,7 @@ def get_whatsapp_settings():
     return dict(row)
 
 
+@_license_guarded('whatsapp_gateway')
 def update_whatsapp_settings(data):
     """Updates WhatsApp gateway configuration."""
     settings = get_whatsapp_settings()
@@ -176,6 +178,7 @@ def update_whatsapp_settings(data):
     return True, "تم حفظ إعدادات الواتساب بنجاح."
 
 
+@_license_guarded('whatsapp_gateway')
 def get_evolution_qr_code():
     """Fetches the live QR code and pairing code from Evolution API container."""
     settings = get_whatsapp_settings()
@@ -213,6 +216,7 @@ def get_evolution_qr_code():
     return {'success': False, 'message': 'تعذر الاتصال بحاوية Evolution API. يرجى التأكد من تشغيل الحاوية.'}
 
 
+@_license_guarded('whatsapp_gateway')
 def get_evolution_connection_state():
     """Queries instance connection state ('open', 'connecting', 'close') and updates database."""
     settings = get_whatsapp_settings()
@@ -242,6 +246,7 @@ def get_evolution_connection_state():
     return {'success': False, 'status': 'disconnected', 'state': 'offline'}
 
 
+@_license_guarded('whatsapp_gateway')
 def restart_evolution_instance():
     """Restarts or recreates instance in Evolution API."""
     settings = get_whatsapp_settings()
@@ -276,6 +281,7 @@ def get_template_by_key(event_key):
     return dict(row) if row else None
 
 
+@_license_guarded('whatsapp_gateway')
 def save_template(template_id, title, template_text, is_enabled=1):
     """Updates a message template."""
     execute_update(
@@ -350,6 +356,8 @@ def send_whatsapp_message(phone_number, message_text, event_type='manual', messa
     Main entry point for dispatching a WhatsApp message.
     Routes to the configured gateway provider.
     """
+    from core.license_feature_policy import enabled as _feature_enabled
+    if not _feature_enabled('whatsapp_gateway'):return False,'ميزة WhatsApp غير متاحة في الترخيص.'
     settings = get_whatsapp_settings()
     phone = clean_phone_number(phone_number)
     if not phone:
@@ -574,6 +582,7 @@ def query_subscriber_status(search_term):
     }
 
 
+@_license_guarded('whatsapp_gateway')
 def process_incoming_whatsapp_message(phone_number, message_text, sender_name=''):
     """
     Core Bot Dialog Engine: Parses incoming WhatsApp message and returns reply.
@@ -822,6 +831,7 @@ def notify_wallet_recharge(username, recipient_phone, amount, new_balance):
     return send_whatsapp_message(recipient_phone, text, event_type='wallet_recharge')
 
 
+@_license_guarded('whatsapp_gateway')
 def send_broadcast_campaign(target_audience, message_text, specific_reseller_id=None):
     """
     Dispatches a mass broadcast campaign to subscribers or resellers.

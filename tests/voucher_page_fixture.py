@@ -75,6 +75,8 @@ def voucher_fixture():
     import importlib.util
     spec=importlib.util.spec_from_file_location('audit_csrf',ROOT/'core/license_security.py');security=importlib.util.module_from_spec(spec);spec.loader.exec_module(security);security.install_csrf(app,security.protects_admin_account_request)
     app.jinja_env.filters['format_datetime']=str;app.jinja_env.filters['format_duration']=str
+    from core.product_identity import get_product_identity
+    app.jinja_env.globals['product_identity'] = get_product_identity()
     seed('wisp_packages',id=1,name='Fixture package',price=10,cost=0,service_type='hotspot',is_active=1,rate_download='4M',rate_upload='2M',volume_quota_mb=10,uptime_limit_mins=0,validity_value=0,validity_unit='days',validity_days=0,simultaneous_sessions=1)
     seed('wisp_voucher_batches',id=1,name='Fixture batch',batch_number='FIX1',package_id=1,card_count=6,price=10,cost=0,volume_quota_mb=10,validity_value=0,validity_days=0,validity_unit='days',rate_download='4M',rate_upload='2M',pin_only=0)
     seed('wisp_managers',id=1,username='fixture-manager',wallet_balance=100,is_active=1,is_deleted=0)
@@ -85,7 +87,7 @@ def voucher_fixture():
     seed('wisp_card_templates',id=1,name='Fixture design',design_type='image',width_mm=85,height_mm=52,cards_per_row=2,cards_per_col=5,margin_top_mm=10,margin_page_mm=10,card_spacing_mm=3,is_default=1,config_json=json.dumps(ns['DEFAULT_CARD_CONFIG']),bg_image='')
     app.before_request(ns['guard_voucher_permissions'])
     ownership_stub=types.ModuleType('core.ownership');ownership_stub.generation_owner=lambda owner,package:owner
-    license_stub=types.ModuleType('services.license_guard_service');license_stub.get_active_license_status=lambda:dict(valid=True,status='active')
+    license_stub=types.ModuleType('services.license_guard_service');license_stub.get_active_license_status=lambda **kwargs:dict(valid=True,status='active',features={})
     quota_stub=types.ModuleType('services.quota_service');quota_stub.calculate_account_quota=lambda *a,**kw:dict(used_down_bytes=150,used_up_bytes=75,used_total_bytes=225,is_quota_unlimited=False,total_quota_mb=15,remaining_bytes=15*1048576-225,quota_used_pct=1)
     sub_stub=types.ModuleType('services.subscriber_service');sub_stub.get_heartbeat_cutoff_str=ns['get_heartbeat_cutoff_str']
     time_stub=types.ModuleType('core.time_service');time_stub.get_utc_cutoff_str=lambda n=3:(now-datetime.timedelta(minutes=n)).isoformat(' ')

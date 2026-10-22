@@ -177,9 +177,10 @@ def _close_sessions(progress, timeout=600, job_id=None):
 def _worker(job_id, parameters, created_by):
     result=dict(success=False,message='جارٍ التحضير',stage='preparing',percent=5,cores=[],data_reset=False)
     try:
-        with job_lock('factory-reset') as acquired, job_lock('expired-card-delete') as idle, job_lock('expiry-sweep', timeout=60) as expiry_idle:
+        with job_lock('factory-reset') as acquired, job_lock('expired-card-delete') as idle, job_lock('expiry-sweep', timeout=60) as expiry_idle, job_lock('online-policy-retry', timeout=30) as policy_idle:
             if not acquired or not idle:raise RuntimeError('توجد عملية حذف أو إعادة مصنع قيد التنفيذ؛ أعد المحاولة بعد اكتمالها.')
             if not expiry_idle:raise RuntimeError('لم تتوقف دورة فحص الانتهاء خلال المهلة المحددة؛ لم يُنفذ المسح.')
+            if not policy_idle:raise RuntimeError('لم تتوقف معالجة سياسات الجلسات؛ لم يُنفذ المسح.')
             if execute_update("UPDATE wisp_maintenance_jobs SET state='running' WHERE job_id=? AND state='queued'",(job_id,))!=1:return
             try:
                 _check_cancel(job_id)
@@ -212,8 +213,13 @@ def _worker(job_id, parameters, created_by):
                 result.update(stage='wiping',percent=65,message='مسح البيانات التشغيلية في معاملة واحدة')
                 _claim_wipe(job_id,result)
                 from services.db_maintenance_service import _wipe_factory_database
-                result['tables_reset']=_wipe_factory_database(parameters['keep_packages'],parameters['keep_resellers'])
-                result.update(data_reset=True,percent=75,message='تم المسح؛ جارٍ تحسين الجداول واستعادة المساحة',stage='reclaiming')
+                result['tables_reset']=_wipe_factory_database(parameters['keep_packages'],parameters['keep_resellers'],job_id=job_id)
+                result.update(data_reset=True,state_archive_pending=True,percent=75,message='تم المسح؛ جارٍ حفظ حالة التشغيل السابقة',stage='archiving_state')
+                _save(job_id,result)
+                from services.maintenance_reset_state import archive_reset_state
+                result['operational_archive']=archive_reset_state(job_id)
+                result['state_archive_pending']=False
+                result.update(message='تم حفظ حالة التشغيل السابقة؛ جارٍ تحسين الجداول',stage='reclaiming')
                 _save(job_id,result)
                 def reclaim_progress(done,total,table):
                     result.update(percent=75+int(15*done/max(total,1)),message=f'استعادة المساحة: جدول {table} ({done+1}/{total})')
@@ -234,8 +240,19 @@ def _worker(job_id, parameters, created_by):
                 result.update(success=False,cancelled=True,stage='cancelled',message=str(exc))
             except Exception as exc:
                 result.update(success=False,message=str(exc))
+                if result.get('stage')=='wiping':
+                    try:
+                        receipt=query_one('SELECT progress FROM wisp_maintenance_jobs WHERE job_id=?',(job_id,))
+                        persisted=json.loads(receipt['progress']) if receipt else {}
+                        if persisted.get('data_reset'):
+                            result.update(persisted,success=False,
+                                          message='ثبت اعتماد المسح؛ لم يتأكد إكمال حفظ حالة التشغيل. يلزم الاسترداد.')
+                    except Exception:
+                        result.update(state_archive_pending=True,wipe_outcome_unknown=True,
+                                      message='تعذر التأكد من نتيجة اعتماد المسح؛ لم يُعَد تشغيل الخدمة أو تكرار المسح.')
             finally:
-                errors=_restore(result['cores'])
+                errors=(['لم تكتمل أرشفة حالة التشغيل السابقة؛ يلزم استكمال الاسترداد قبل إعادة الراديوس.']
+                        if result.get('state_archive_pending') else _restore(result['cores']))
                 result['restart_errors']=errors
                 if errors:
                     result.update(success=False,message=result['message']+'؛ تعذر إعادة الراديوس: '+'؛ '.join(errors))
@@ -264,6 +281,21 @@ def recover_factory_reset():
         if row['state']=='queued' and query_one('SELECT updated_at>=NOW()-INTERVAL 60 SECOND AS fresh FROM wisp_maintenance_jobs WHERE job_id=?',(row['job_id'],))['fresh']:
             return
         result=json.loads(row['progress'])
+        if result.get('wipe_outcome_unknown'):
+            result.update(success=False,restart_errors=['نتيجة اعتماد المسح غير مؤكدة؛ يلزم تحقق يدوي من سجل المعاملة.'],
+                          message='لم يُكرر المسح ولم تُعد الخدمة تلقائيًا لأن نتيجة المعاملة غير مؤكدة.')
+            _save(row['job_id'],result,'interrupted',terminal=False)
+            return
+        if result.get('data_reset') and result.get('state_archive_pending'):
+            try:
+                from services.maintenance_reset_state import archive_reset_state
+                result['operational_archive']=archive_reset_state(row['job_id'])
+                result['state_archive_pending']=False
+            except Exception:
+                result.update(success=False,restart_errors=['لم تكتمل أرشفة حالة التشغيل السابقة.'],
+                              message='لم يُستأنف المسح؛ يلزم استكمال حفظ حالة التشغيل قبل إعادة الخدمة.')
+                _save(row['job_id'],result,'interrupted',terminal=False)
+                return
         errors=_restore(result.get('cores',[]))
         result.update(success=False,restart_errors=errors,stage='interrupted',message='انقطعت مهمة إعادة المصنع؛ لم يُستأنف المسح تلقائيًا. '+('تعذر إعادة الراديوس: '+'؛ '.join(errors) if errors else 'أُعيد الراديوس إلى حالته السابقة.'))
         _save(row['job_id'],result,'interrupted',terminal=not errors)

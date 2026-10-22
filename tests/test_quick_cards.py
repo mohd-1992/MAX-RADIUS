@@ -33,6 +33,9 @@ class QuickCardsTests(unittest.TestCase):
   if hasattr(self,'http_modules'):self.http_modules.stop()
   self.modules.stop();self.db.close()
  def load(self,path,ns,names=None):
+  from core.license_feature_policy import require,guarded
+  from license_feature_fixture import fixture_endpoint_enabled
+  ns.update(_require_feature=require,_license_guarded=guarded,endpoint_enabled=fixture_endpoint_enabled)
   tree=ast.parse((ROOT/path).read_text(encoding='utf-8-sig'))
   nodes=[n for n in tree.body if isinstance(n,(ast.FunctionDef,ast.ClassDef,ast.Assign)) and (names is None or getattr(n,'name',None) in names)]
   exec(compile(ast.Module(body=nodes,type_ignores=[]),path,'exec'),ns)
@@ -77,6 +80,18 @@ class QuickCardsTests(unittest.TestCase):
   self.assertEqual(first['id'],second['id']);self.assertTrue(second['repeated'])
   self.assertEqual(float(self.read('SELECT wallet_balance FROM wisp_managers WHERE id=2')['wallet_balance']),84)
   self.assertEqual(self.read('SELECT COUNT(*) n FROM wisp_manager_invoices')['n'],1)
+ def test_completed_receipt_survives_feature_revocation_but_new_issue_is_denied(self):
+  from core import license_feature_policy as feature_policy
+  first=self.issue()
+  before=self.db.execute('SELECT COUNT(*) FROM wisp_vouchers').fetchone()[0]
+  balance=self.read('SELECT wallet_balance FROM wisp_managers WHERE id=2')['wallet_balance']
+  with patch.object(feature_policy,'_verified_state',return_value={'valid':True,'features':{'quick_cards':False,'reseller_wallets':False}}):
+   repeated=self.issue()
+   self.assertEqual(repeated['id'],first['id']);self.assertTrue(repeated['repeated'])
+   with self.assertRaises(feature_policy.FeatureUnavailable):self.issue(key='new_denied_feature_request')
+  self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_vouchers').fetchone()[0],before)
+  self.assertEqual(self.read('SELECT wallet_balance FROM wisp_managers WHERE id=2')['wallet_balance'],balance)
+  self.assertEqual(self.read('SELECT COUNT(*) n FROM wisp_quick_card_issues')['n'],1)
  def test_reused_reference_different_payload_rejected(self):
   self.issue()
   with self.assertRaises(ValueError):self.issue(2)

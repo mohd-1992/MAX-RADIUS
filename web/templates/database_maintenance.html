@@ -274,7 +274,7 @@
             <!-- 1. Live radacct -->
             <div class="arch-mini-card rounded-xl p-3.5 flex flex-col justify-between">
                 <div class="flex items-center justify-between">
-                    <span class="arch-mini-label text-[11px]">الجلسات الحية (radacct)</span>
+                    <span class="arch-mini-label text-[11px]">سجلات المحاسبة (radacct)</span>
                     <i class="fa-solid fa-database text-blue-500 text-xs"></i>
                 </div>
                 <h4 id="arch_live_count" class="arch-mini-val text-xl font-black font-mono mt-1">
@@ -765,8 +765,8 @@
             <div class="p-4 rounded-xl fr-subbox border flex items-start gap-3">
                 <i class="fa-solid fa-rotate-left text-cyan-600 dark:text-cyan-400 mt-0.5 text-sm flex-shrink-0"></i>
                 <div>
-                    <strong class="block mb-1 text-xs">تصفير العدادات التلقائية:</strong>
-                    <span class="leading-relaxed block text-[11px]">إعادة ضبط الترقيم التلقائي (AUTO_INCREMENT = 1) لكافة الجداول لتبدأ الكروت والاشتراكات الجديدة من الرقم 1.</span>
+                    <strong class="block mb-1 text-xs">حماية تسلسل المعرفات:</strong>
+                    <span class="leading-relaxed block text-[11px]">تُحفظ المعرفات المتزايدة لمنع إعادة استخدام هوية قديمة بعد التصفير.</span>
                 </div>
             </div>
         </div>
@@ -1346,6 +1346,10 @@ function runDatabaseAudit() {
 }
 
 // 8. Render Audit Table
+function auditText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
 function renderAuditTable() {
     const tbody = document.getElementById('auditTableBody');
     let filtered = currentAuditIssues;
@@ -1386,18 +1390,18 @@ function renderAuditTable() {
         else if (item.category === 'stale_sessions') badgeColor = 'bg-sky-500/15 text-sky-300 border-sky-500/30';
 
         rowsHtml += `
-            <tr id="row_${item.id}" class="hover:bg-[#11192b] transition">
+            <tr id="audit_row_${idx}" class="hover:bg-[#11192b] transition">
                 <td class="py-3 px-4 text-center font-mono text-slate-500">${idx + 1}</td>
-                <td class="py-3 px-4 font-mono font-bold text-white">${item.username}</td>
+                <td class="py-3 px-4 font-mono font-bold text-white">${auditText(item.username)}</td>
                 <td class="py-3 px-4">
                     <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold border ${badgeColor}">
-                        ${item.category_label}
+                        ${auditText(item.category_label)}
                     </span>
                 </td>
-                <td class="py-3 px-4 text-slate-300">${item.details}</td>
-                <td class="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">${item.suggested_fix}</td>
+                <td class="py-3 px-4 text-slate-300">${auditText(item.details)}</td>
+                <td class="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">${auditText(item.suggested_fix)}</td>
                 <td class="py-3 px-4 text-center">
-                    <button onclick="fixSingleIssue('${item.action_code}', '${item.username}', ${item.session_id || 'null'}, '${item.id}')" class="px-3 py-1 bg-emerald-600/20 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition flex items-center gap-1.5 mx-auto">
+                    <button data-fix-index="${idx}" class="px-3 py-1 bg-emerald-600/20 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold transition flex items-center gap-1.5 mx-auto">
                         <i class="fa-solid fa-wrench text-[10px]"></i>
                         <span>إصلاح</span>
                     </button>
@@ -1407,6 +1411,12 @@ function renderAuditTable() {
     });
 
     tbody.innerHTML = rowsHtml;
+    tbody.querySelectorAll('[data-fix-index]').forEach(button => {
+        button.addEventListener('click', () => {
+            const item = filtered[Number(button.dataset.fixIndex)];
+            if (item) fixSingleIssue(item.action_code, item.username, item.session_id, item.id);
+        });
+    });
 }
 
 // 9. Filter Table Tabs
@@ -1448,6 +1458,8 @@ function fixSingleIssue(actionCode, username, sessionId, rowId) {
             document.getElementById('audit_total_issues').innerText = currentAuditIssues.length;
             renderAuditTable();
             refreshStats();
+        } else if (data.pending) {
+            Swal.fire('بانتظار التحقق والمحاسبة', data.message, 'info');
         } else {
             Swal.fire('خطأ في الإصلاح', data.message || 'فشلت العملية', 'error');
         }

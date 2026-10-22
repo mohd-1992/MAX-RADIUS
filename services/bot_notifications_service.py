@@ -229,83 +229,58 @@ def send_telegram_alert(message_text, message_type='SYSTEM_ALERT', override_chat
         db.close()
 
 def send_telegram_document(filepath, caption='', message_type='BACKUP_ARCHIVE', override_chat_id=None):
-    """
-    Dispatch a document/archive file directly to Telegram using official sendDocument API.
-    Supports file uploads up to Telegram's 50MB Bot API limit with resilient HTML/Plain fallback.
-    """
+    """Stream an archive/verified parts without holding a DB connection during I/O."""
     ensure_notifications_tables()
-    
     if not filepath or not os.path.isfile(filepath):
         return False, f"الملف المطلوب غير موجود على السيرفر: {filepath}"
-
-    file_size_bytes = os.path.getsize(filepath)
-    file_size_mb = file_size_bytes / (1024 * 1024)
-
-    # Telegram Bot API hard limit for file uploads is 50 MB
-    if file_size_mb > 50.0:
-        return False, f"حجم الملف ({file_size_mb:.2f} MB) يتجاوز الحد الأقصى المسموح به في بوتات تيليجرام (50 MB)."
+    file_size_mb = os.path.getsize(filepath) / (1024 * 1024)
 
     db = _get_db()
     try:
         with db.cursor() as cur:
             cur.execute("SELECT bot_token, chat_id, backup_chat_id, is_enabled FROM wisp_notification_channels LIMIT 1")
             row = cur.fetchone()
-
-        if not row:
-            return False, "قناة الإشعارات غير مهيأة"
-
-        token = row.get('bot_token')
-        # Use dedicated backup_chat_id if provided, else fall back to main chat_id
-        chat_id = override_chat_id or row.get('backup_chat_id') or row.get('chat_id')
-
-        if not token or not chat_id:
-            return False, "يرجى تهيئة Bot Token ومعرف المحادثة Chat ID أولاً في مركز الإشعارات."
-
-        url = f"https://api.telegram.org/bot{token}/sendDocument"
-        filename = os.path.basename(filepath)
-
-        with open(filepath, 'rb') as f:
-            files = {
-                'document': (filename, f)
-            }
-            data = {
-                'chat_id': str(chat_id),
-                'caption': caption or f"📦 نسخة احتياطية من MAX RADIUS\nالملف: {filename}",
-                'parse_mode': 'HTML'
-            }
-            try:
-                resp = requests.post(url, data=data, files=files, timeout=120)
-                res_data = resp.json()
-                if not res_data.get('ok') and 'can\'t parse entities' in str(res_data.get('description', '')).lower():
-                    # Retry without parse_mode as plain text
-                    f.seek(0)
-                    data.pop('parse_mode', None)
-                    resp = requests.post(url, data=data, files=files, timeout=120)
-                    res_data = resp.json()
-
-                status = 'sent' if res_data.get('ok') else 'failed'
-                details = json.dumps(res_data, ensure_ascii=False)
-            except Exception as err:
-                status = 'failed'
-                details = str(err)
-
-        # Log event in notification history
-        with db.cursor() as cur:
-            cur.execute("""
-                INSERT INTO wisp_notification_logs (channel_type, recipient, message_type, message_text, status, response_details)
-                VALUES ('telegram', %s, %s, %s, %s, %s)
-            """, (str(chat_id), message_type, f"Document: {filename} ({file_size_mb:.2f} MB)", status, details))
-            db.commit()
-
-        if status == 'sent':
-            return True, f"تم إرسال الملف [{filename}] بنجاح عبر تيليجرام."
-        else:
-            return False, f"تعذر الإرسال عبر تيليجرام: {details}"
-
-    except Exception as e:
-        return False, str(e)
     finally:
         db.close()
+    if not row:
+        return False, "قناة الإشعارات غير مهيأة"
+    token = row.get('bot_token')
+    chat_id = override_chat_id or row.get('backup_chat_id') or row.get('chat_id')
+    if not token or not chat_id:
+        return False, "يرجى تهيئة Bot Token ومعرف المحادثة Chat ID أولاً في مركز الإشعارات."
+
+    try:
+        from services.telegram_backup_parts import send_backup_document
+        from services.telegram_document_transport import UploadFailure
+        filename = os.path.basename(filepath)
+        try:
+            result, progress = send_backup_document(token, chat_id, filepath,
+                caption or f"📦 نسخة احتياطية من MAX RADIUS\nالملف: {filename}")
+            status = 'sent' if result.get('ok') else 'failed'
+            details = json.dumps(dict(result, _transfer=progress), ensure_ascii=False)
+        except UploadFailure as err:
+            status = 'failed'
+            details = json.dumps(err.details, ensure_ascii=False)
+
+        db = _get_db()
+        try:
+            with db.cursor() as cur:
+                cur.execute("INSERT INTO wisp_notification_logs "
+                    "(channel_type, recipient, message_type, message_text, status, response_details) "
+                    "VALUES ('telegram', %s, %s, %s, %s, %s)",
+                    (str(chat_id), message_type, f"Document: {filename} ({file_size_mb:.2f} MB)", status, details))
+            db.commit()
+        except Exception:
+            if status == 'sent':
+                return True, "أُرسل الملف إلى تيليجرام، لكن تعذر تسجيل نتيجة الإرسال محليًا؛ لا تكرر الإرسال."
+            return False, "تعذر الإرسال وتسجيل نتيجته؛ تحقق من المحادثة قبل إعادة المحاولة."
+        finally:
+            db.close()
+        if status == 'sent':
+            return True, f"تم إرسال الملف [{filename}] بنجاح عبر تيليجرام."
+        return False, f"تعذر الإرسال عبر تيليجرام: {details}"
+    except Exception:
+        return False, "تعذر إكمال رفع الملف؛ تحقق من سجل الإشعارات والمحادثة قبل إعادة المحاولة."
 
 
 # ==============================================================================
@@ -434,6 +409,8 @@ def trigger_daily_sales_summary():
     Compute daily financial figures and dispatch formatted summary to Telegram.
     Executed automatically at 23:59 or upon admin trigger.
     """
+    from core.license_feature_policy import enabled as _feature_enabled
+    if not _feature_enabled('sales_reports'):return False,'تقرير المبيعات غير متاح في الترخيص.'
     try:
         settings_data = get_notification_settings()
         st = settings_data.get('settings') or {}

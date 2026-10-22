@@ -4,6 +4,7 @@ from core.rbac import get_current_manager, has_permission
 from core.ownership import owner_id, can_access_owned_endpoint, guard_owned_request, scoped_query_one
 from web.endpoint_permissions import ENDPOINT_PERMISSIONS
 from core.permission_catalog import required_detail, ACTION_ENDPOINTS
+from core.license_feature_policy import endpoint_enabled
 
 ADMIN_BLUEPRINTS = {'quick_cards_bp', 'dashboard_bp', 'vouchers_bp', 'subscribers_bp', 'packages_bp',
                     'resellers_bp', 'nas_bp', 'accounting_bp', 'system_bp', 'whatsapp_bp'}
@@ -16,6 +17,8 @@ TARGET_GUARDED_ENDPOINTS = {'api_delete_entity', 'api_extend_time', 'api_termina
 def can_access_endpoint(endpoint, data=None):
     endpoint = (endpoint or '').rsplit('.', 1)[-1]
     if not can_access_owned_endpoint(endpoint):
+        return False
+    if not endpoint_enabled(endpoint,data):
         return False
     if endpoint in ('dashboard', 'login', 'logout', 'static', 'impersonate_exit', 'profile_update'):
         return get_current_manager() is not None

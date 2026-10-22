@@ -6,11 +6,13 @@ Network Traffic & Bandwidth Analytics Inspector for MAX RADIUS.
 Calculates real-time bandwidth consumption, top data hogs, hourly peak usage distribution, and anomalous sessions.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 from datetime import datetime, timedelta
 from database.db import get_connection
 
 _get_db = get_connection
 
+@_license_guarded('traffic_analytics')
 def get_traffic_analytics_report(timeframe='30d'):
     """Generate comprehensive traffic metrics, dual download/upload curves, and peak distribution."""
     db = _get_db()

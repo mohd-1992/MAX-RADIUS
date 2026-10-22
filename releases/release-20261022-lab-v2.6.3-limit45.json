@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "release": "20261022-lab-v2.6.3-limit45",
+  "version": "2.6.3",
+  "platform": "linux/amd64",
+  "channel": "explicit-lab-snapshot",
+  "automatic_distribution": false,
+  "client_updater_compatible": false,
+  "images": {
+    "web": "mohd777/max-radius-web@sha256:68a3daa26878fdb18dfc0ba70f128261093af1ead8e0db99c06ba7490f7d914f",
+    "core": "mohd777/max-radius-core@sha256:b0e1b2e1f4a9fd35845800013fe59b95536efaaa71548e1a34ed6e1556da3a00",
+    "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+    "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
+    "autoheal": "willfarrell/autoheal@sha256:f8adb7a2343aaeaa2757561b52428ebf9d3bb8e304d0f7a77fd13de395610504"
+  },
+  "host_tools": {
+    "clock_guard": "v1"
+  },
+  "bundle": {
+    "url": "https://github.com/mohd-1992/MAX-RADIUS/releases/download/20261022-lab-v2.6.3-limit45/max-radius-runtime-20261022-lab-v2.6.3-limit45.tar.gz",
+    "sha256": "cb3fe500460eae01af7c37474826379a7edc3535b04342fc920e40bef5374361"
+  },
+  "telegram_document_part_limit_bytes": 45000000,
+  "limitations": [
+    "Built-in updater is Web-only and does not fully reverify the restored container.",
+    "Core/schema upgrades need separate scoped compatibility and accounting verification.",
+    "A current NAS workload or paid financial settlement was not tested by publication."
+  ]
+}

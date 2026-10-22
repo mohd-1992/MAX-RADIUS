@@ -9,6 +9,7 @@ Features:
 4. FreeRADIUS live synchronization (radcheck, radusergroup).
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import io
 import os
 import secrets
@@ -100,6 +101,7 @@ def _excel_header_map(headers):
 # -----------------------------------------------------------------------------
 # 2. Dynamic Sample Excel Template Generator
 # -----------------------------------------------------------------------------
+@_license_guarded('data_import')
 def generate_sample_template(import_type='vouchers'):
     """
     Generates a beautifully formatted sample Excel (.xlsx) file in-memory.
@@ -246,6 +248,7 @@ def generate_sample_template(import_type='vouchers'):
 # -----------------------------------------------------------------------------
 # 3. Read Excel Data Rows from File Storage
 # -----------------------------------------------------------------------------
+@_license_guarded('data_import')
 def parse_excel_file(file_storage):
     """
     Parses an uploaded file (.xlsx or .xls) and returns a list of dictionaries with raw row numbers.
@@ -321,6 +324,7 @@ def parse_excel_file(file_storage):
 # -----------------------------------------------------------------------------
 # 4. Strict Zero-Tolerance Validation Engine
 # -----------------------------------------------------------------------------
+@_license_guarded('data_import')
 def validate_import_data(raw_rows, import_type='vouchers', default_reseller_id=None):
     """
     Performs comprehensive validation on all rows before any database write.
@@ -489,6 +493,7 @@ def validate_import_data(raw_rows, import_type='vouchers', default_reseller_id=N
 # -----------------------------------------------------------------------------
 # 5. Atomic Batch Import Execution
 # -----------------------------------------------------------------------------
+@_license_guarded('data_import')
 def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='admin', import_consumption=False):
     """
     Executes the entire database insertion inside an atomic transaction using chunked bulk queries.

@@ -249,7 +249,7 @@ def init_database():
             raise DatabaseUnavailableError('MySQL driver is unavailable.')
         schema_file = os.path.join(current_dir, 'schema_mysql.sql')
         if not os.path.exists(schema_file):
-            return
+            raise RuntimeError('MySQL bootstrap schema is unavailable')
             
         try:
             with get_connection() as conn:
@@ -259,21 +259,17 @@ def init_database():
                 with open(schema_file, 'r', encoding='utf-8') as f:
                     sql_content = f.read()
 
-                commands = [c.strip() for c in sql_content.split(';') if c.strip()]
-                with db_session() as c:
-                    cursor = c.cursor()
-                    for cmd in commands:
-                        if cmd and not cmd.startswith('--') and not cmd.upper().startswith('DELIMITER'):
-                            try:
-                                cursor.execute(cmd)
-                            except Exception:
-                                pass
-                print("[DB] MySQL FreeRADIUS & WISP Tables and Indexes initialized successfully.")
-                try:
-                    from database.schema_healer import heal_database_schema
-                    heal_database_schema()
-                except Exception as e:
-                    print(f"[Schema Healer Auto-Run Notice]: {e}")
+                from database.mysql_bootstrap import bootstrap_empty_schema, SchemaInitializationError
+                with get_connection() as c:
+                    bootstrap_empty_schema(c, sql_content)
+                from database.schema_healer import heal_database_schema, install_accounting_triggers
+                if not heal_database_schema():
+                    raise SchemaInitializationError('Schema migration did not complete')
+                # The healer is also used in best-effort recovery paths. Startup
+                # must propagate a failed trigger/function installation instead.
+                with get_connection() as c:
+                    install_accounting_triggers(c)
+                    c.commit()
                 from database.permission_catalog import install_permission_catalog
                 with db_session() as c:
                     install_permission_catalog(c)
@@ -283,11 +279,14 @@ def init_database():
                 from database.userman_import_schema import install_userman_import_schema
                 with db_session() as c:
                     install_userman_import_schema(c)
+                print("[DB] MySQL base schema and required migrations verified successfully.")
                 return
         except DatabaseUnavailableError:
             raise
-        except Exception as e:
-            print(f"[DB Notice]: MySQL schema check: {e}")
+        except Exception:
+            # No success-shaped return after missing tables, lock failure or a
+            # partially applied DDL. Callers must stop startup and review state.
+            raise
         return
             
     if DB_TYPE != 'sqlite':

@@ -70,7 +70,8 @@ dashboard_bp = Blueprint('dashboard_bp', __name__)
 def dashboard():
     metrics = filter_dashboard_metrics(get_dashboard_metrics())
     traffic_chart = get_traffic_chart_data() if can_view_network_totals() else dict(labels=[], download=[], upload=[])
-    sales_chart = get_sales_chart_data() if has_permission('invoices.view') and has_permission('detail.invoices.sales_view') else dict(labels=[], sales=[])
+    from core.license_feature_policy import enabled as _feature_enabled
+    sales_chart = get_sales_chart_data() if _feature_enabled('sales_reports') and has_permission('invoices.view') and has_permission('detail.invoices.sales_view') else dict(labels=[], sales=[])
     routers = query_all('SELECT id, name, ip_address, nas_type FROM wisp_nas_devices LIMIT 4') if owner_id() is None and has_permission('nas.view') else []
     internet_status = get_internet_ping() if owner_id() is None and has_permission('nas.view') else None
     system_uptime = get_system_uptime_str() if owner_id() is None and has_permission('system.view_services') else None

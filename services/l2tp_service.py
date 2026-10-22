@@ -9,6 +9,7 @@ eliminating dynamic MAC/DHCP collisions permanently, maintaining zero CPU overhe
 enforcing strict license limits, and generating clean 1-Click MikroTik RouterOS setup scripts.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import os
 import re
 import time
@@ -66,6 +67,7 @@ def get_l2tp_network_settings():
     return settings
 
 
+@_license_guarded('vpn_tunnels')
 def save_l2tp_network_settings(form_or_data, admin_username='admin'):
     """Saves dynamic L2TP network & IP pool settings to wisp_system_settings."""
     keys = ['l2tp_gateway_ip', 'l2tp_mask', 'l2tp_pool_start', 'l2tp_pool_end', 'l2tp_server_port', 'l2tp_ipsec_secret']
@@ -376,6 +378,7 @@ def get_available_tunnel_ip():
     return '192.168.44.50'
 
 
+@_license_guarded('vpn_tunnels')
 def add_l2tp_tunnel(form_or_data, admin_username='admin'):
     """
     Creates a new L2TP tunnel with strict license enforcement, automatic random API credentials,
@@ -459,6 +462,7 @@ def add_l2tp_tunnel(form_or_data, admin_username='admin'):
     return True
 
 
+@_license_guarded('vpn_tunnels')
 def create_l2tp_tunnel(name, username, password, assigned_ip=None, radius_secret='max123',
                        api_port=None, api_user=None, api_pass=None, admin_username='admin'):
     """Keyword argument wrapper for add_l2tp_tunnel."""
@@ -475,6 +479,7 @@ def create_l2tp_tunnel(name, username, password, assigned_ip=None, radius_secret
     return add_l2tp_tunnel(data, admin_username=admin_username)
 
 
+@_license_guarded('vpn_tunnels')
 def update_l2tp_tunnel(tunnel_id, form_or_data, admin_username='admin'):
     """Updates an existing L2TP tunnel, NAS device, and syncs PPP secrets."""
     data = form_or_data
@@ -556,6 +561,7 @@ def delete_l2tp_tunnel(tunnel_id, admin_username='admin'):
     return True
 
 
+@_license_guarded('vpn_tunnels')
 def generate_mikrotik_rsc_script(tunnel_id_or_username, vps_host=None):
     """
     Generates a clean, 100% reliable 1-Click MikroTik RouterOS setup script.

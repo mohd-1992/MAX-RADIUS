@@ -152,6 +152,8 @@ def deposit_manager_action(manager_id):
         bal_after, inv_num = deposit_manager_wallet(manager_id, amt, payment_type=pay_type, notes=notes, admin_user=session.get('admin_username', 'admin'), request_id=_financial_request_id())
         flash(f'تم إيداع الرصيد بنجاح ({amt}) وإصدار الفاتورة/القيد {inv_num}.', 'success')
     except Exception as e:
+        from core.license_feature_policy import FeatureUnavailable
+        if isinstance(e,FeatureUnavailable):raise
         flash(f'خطأ أثناء الإيداع: {str(e)}', 'danger')
     return redirect(request.referrer or url_for('managers_page'))
 
@@ -171,6 +173,8 @@ def deduct_manager_action(manager_id):
         bal_after, inv_num = deduct_manager_wallet(manager_id, amt, notes=notes, admin_user=session.get('admin_username', 'admin'), request_id=_financial_request_id())
         flash(f'تم خصم الرصيد بنجاح ({amt}) وتسجيل القيد {inv_num}.', 'info')
     except Exception as e:
+        from core.license_feature_policy import FeatureUnavailable
+        if isinstance(e,FeatureUnavailable):raise
         flash(f'خطأ أثناء الخصم: {str(e)}', 'danger')
     return redirect(request.referrer or url_for('managers_page'))
 
@@ -327,6 +331,8 @@ def api_reseller_wallet_transfer():
                                 request_id=_financial_request_id())
         return jsonify(success=True, message='تم التحويل وتسجيل القيدين في محافظ المدراء.')
     except (ValueError, TypeError) as exc:
+        from core.license_feature_policy import FeatureUnavailable
+        if isinstance(exc,FeatureUnavailable):raise
         return jsonify(success=False, message=str(exc)), 400
 
 
@@ -340,6 +346,8 @@ def api_reseller_wallet_deposit():
                                request_id=_financial_request_id())
         return jsonify(success=True, message='تم الإيداع في محفظة المدير وتسجيل فاتورته.')
     except (ValueError, TypeError) as exc:
+        from core.license_feature_policy import FeatureUnavailable
+        if isinstance(exc,FeatureUnavailable):raise
         return jsonify(success=False, message=str(exc)), 400
 
 

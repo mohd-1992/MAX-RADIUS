@@ -245,11 +245,11 @@ def reconcile_container_alerts():
 def run_watchdog_cycle():
     """Execute one full watchdog cycle with auto-healing and auto-resolution."""
     from services.factory_reset_service import factory_reset_active
-    if factory_reset_active():
-        return {'status':'factory-reset'}
     if os.environ.get('MAX_MAINTENANCE_MODE') == '1':
         return {'status':'maintenance'}
     try:
+        if factory_reset_active():
+            return {'status':'factory-reset'}
         db_ok = check_database_health()
         disk_ok, free_pct = check_disk_space()
         radius_ok = check_radius_engine_health()

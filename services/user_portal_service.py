@@ -5,6 +5,7 @@ Handles authentication, subscriber profile, wallet recharges via vouchers,
 package renewals & changes, and personal session history.
 """
 
+from core.license_feature_policy import guarded as _license_guarded
 import re
 import datetime
 from core.time_service import get_db_storage_now
@@ -321,6 +322,7 @@ def get_portal_speed_options(settings_dict=None):
     return []
 
 
+@_license_guarded('user_portal')
 def authenticate_portal_user(username, password):
     """
     Authenticate against FreeRADIUS radcheck table or subscribers/vouchers.
@@ -376,6 +378,7 @@ def authenticate_portal_user(username, password):
 
     return None, "اسم المستخدم أو كلمة المرور غير صحيحة"
 
+@_license_guarded('user_portal')
 def get_portal_user_data(username):
     """
     Fetch comprehensive dashboard data for the authenticated subscriber.
@@ -697,6 +700,7 @@ def _sync_recharge_radius(cursor, conn, username, sub, card, target_type, new_fr
             run("INSERT INTO radreply (username, attribute, op, value) VALUES (?, 'Mikrotik-Group', ':=', ?)", (username, group))
 
 
+@_license_guarded('user_portal')
 @settle_cycle_operation
 def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
     """
@@ -1059,6 +1063,7 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         return False, f"فشل تنفيذ عملية الشحن: {str(ex)}"
 
 
+@_license_guarded('portal_advance')
 @settle_cycle_operation
 def request_data_loan(username):
     """
@@ -1223,6 +1228,7 @@ def request_data_loan(username):
     return True, f"تم تفعيل سلفة البيانات بنجاح بقيمة {loan_str} وتمديد الصلاحية 24 ساعة."
 
 
+@_license_guarded('user_portal')
 def apply_portal_speed(username, rate_formatted):
     """Save policy; Hotspot applies next login, PPPoE requests every open session."""
     with db_session() as conn:
@@ -1274,6 +1280,7 @@ def _lock_portal_account(cursor, conn, username):
     return None, None, None
 
 
+@_license_guarded('user_portal')
 @settle_cycle_operation
 def renew_or_change_package(username, new_pkg_id):
     """
@@ -1492,6 +1499,7 @@ def renew_or_change_package(username, new_pkg_id):
 
     return True, ret_msg
 
+@_license_guarded('user_portal')
 def get_user_sessions_history(username, limit=30):
     """Use the same heartbeat display status as admin session history."""
     from services.subscriber_service import get_subscriber_sessions
@@ -1553,6 +1561,7 @@ def ensure_initial_package():
         pass
     return pkg_id
 
+@_license_guarded('portal_registration')
 def register_portal_subscriber(form_data):
     """
     Handles Self-Registration of new subscribers via User Portal:
@@ -1644,6 +1653,7 @@ def register_portal_subscriber(form_data):
 
     return True, "تم إنشاء حسابك بنجاح، يمكنك الآن تسجيل الدخول وشحن رصيدك"
 
+@_license_guarded('user_portal')
 def change_portal_password(username, old_password, new_password, confirm_password):
     """Change portal and RADIUS credentials atomically under the account lock."""
     username = (username or '').strip()
