@@ -38,7 +38,8 @@ class PermissionCatalogTests(unittest.TestCase):
         self.app.secret_key='isolated-test'
         self.ns=dict(request=request,jsonify=jsonify,redirect=redirect,url_for=url_for,render_template=render_template,
             owner_id=lambda:None,can_access_owned_endpoint=lambda endpoint:True,guard_owned_request=lambda:None,
-            required_detail=required_detail,ACTION_ENDPOINTS=ACTION_ENDPOINTS,has_permission=rbac['has_permission'],get_current_manager=manager)
+            required_detail=required_detail,ACTION_ENDPOINTS=ACTION_ENDPOINTS,has_permission=rbac['has_permission'],get_current_manager=manager,
+            endpoint_enabled=lambda *args, **kwargs: True)
         exec((ROOT/'web/endpoint_permissions.py').read_text(encoding='utf8'),self.ns)
         policy=ast.parse((ROOT/'web/access_policy.py').read_text(encoding='utf8'))
         exec(compile(ast.Module(body=[node for node in policy.body if isinstance(node,(ast.FunctionDef,ast.Assign))],type_ignores=[]),'policy','exec'),self.ns)

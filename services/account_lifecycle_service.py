@@ -218,26 +218,54 @@ def delete_packages(ids):
     return run_transaction(operation)
 
 
+class BatchDeletionPending(ValueError):
+    code = 'sessions_pending'
+
+
+def batch_refund_amount(conn, batch, unused, manager):
+    """Refund only the unused share of an identifiable issuance debit."""
+    if not unused or not batch.get('reseller_id'):
+        return Decimal('0.00')
+    if manager:
+        marker = ('دفعة #' + str(batch['batch_number']) + ')').replace('=', '==').replace('%', '=%').replace('_', '=_')
+        purchases = sql(conn, "SELECT amount FROM wisp_manager_invoices WHERE manager_id=? "
+                        "AND transaction_type='card_purchase' AND COALESCE(is_voided,0)=0 "
+                        "AND notes LIKE ? ESCAPE '=' FOR UPDATE",
+                        (batch['reseller_id'], '%' + marker), 'all')
+    else:
+        purchases = sql(conn, "SELECT amount FROM wisp_reseller_transactions WHERE reseller_id=? "
+                        "AND type='card_purchase' AND reference_id=? FOR UPDATE",
+                        (batch['reseller_id'], str(batch['batch_number'])), 'all')
+    if not purchases:
+        return Decimal('0.00')  # No invented credit for imported/reassigned batches.
+    if len(purchases) != 1:
+        raise ValueError('تعذر تحديد خصم إصدار الحزمة بدقة؛ لم يتم الحذف أو الاسترداد.')
+    paid = Decimal(str(purchases[0]['amount']))
+    count = int(batch.get('card_count') or 0)
+    if not paid.is_finite() or paid < 0 or count <= 0 or unused > count:
+        raise ValueError('بيانات خصم إصدار الحزمة غير صالحة؛ لم يتم الحذف أو الاسترداد.')
+    return (paid * unused / count).quantize(Decimal('.01'))
+
+
 def delete_voucher_batch(batch_id, admin_username):
     from database.db import query_all
     # Do not refund or delete a batch while a card may still be online.
     online = query_all("SELECT DISTINCT v.id FROM wisp_vouchers v JOIN radacct a ON a.username=v.username WHERE v.batch_id=? AND (a.acctstoptime IS NULL OR a.acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed'))",(batch_id,))
     if online:
         for row in online:delete_account('voucher',row['id'])
-        raise ValueError('تم طلب فصل الجلسات ومنع دخولها؛ أعد الحذف بعد تأكيد إغلاقها. لم يُسترد أي مبلغ.')
+        raise BatchDeletionPending('تم طلب فصل الجلسات ومنع دخولها؛ أعد الحذف بعد تأكيد إغلاقها. لم يُسترد أي مبلغ.')
     def operation(conn):
         batch=sql(conn,'SELECT * FROM wisp_voucher_batches WHERE id=? FOR UPDATE',(batch_id,),'one')
         if not batch:return False
         cards=sql(conn,'SELECT * FROM wisp_vouchers WHERE batch_id=? ORDER BY id FOR UPDATE',(batch_id,),'all')
         for row in cards:
             if sql(conn,"SELECT 1 ok FROM radacct WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) LIMIT 1 FOR UPDATE",(row['username'],),'one') or sql(conn,'SELECT 1 ok FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() LIMIT 1 FOR UPDATE',(row['username'],),'one'):
-                raise ValueError('ظهرت جلسة جديدة؛ لم يتم حذف الدفعة أو استرداد قيمتها.')
+                raise BatchDeletionPending('توجد جلسة أو محاولة دخول جارية؛ لم يتم حذف الدفعة أو استرداد قيمتها.')
         unused=sum(row['status']=='unused' for row in cards)
         reseller=batch.get('reseller_id')
-        amount=Decimal(str(batch.get('cost') or Decimal(str(batch.get('price') or 0)) * Decimal('.8'))) * unused
-        amount=amount.quantize(Decimal('.01'))
+        manager=sql(conn,'SELECT * FROM wisp_managers WHERE id=? FOR UPDATE',(reseller,),'one') if reseller else None
+        amount=batch_refund_amount(conn, batch, unused, manager)
         if reseller and amount>0:
-            manager=sql(conn,'SELECT * FROM wisp_managers WHERE id=? FOR UPDATE',(reseller,),'one')
             if manager:
                 before=Decimal(str(manager.get('wallet_balance') or 0));after=before+amount
                 sql(conn,'UPDATE wisp_managers SET wallet_balance=? WHERE id=?',(after,reseller))

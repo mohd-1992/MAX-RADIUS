@@ -1,19 +1,30 @@
 {
   "format": 1,
-  "release": "20261017-clock-license-r13",
+  "release": "20261024-v2.6.5-batches-r1",
+  "version": "2.6.5",
   "platform": "linux/amd64",
+  "channel": "manual-install",
+  "automatic_distribution": false,
+  "client_updater_compatible": false,
   "images": {
-    "web": "mohd777/max-radius-web@sha256:683c3f4f0045c70b6c6fedff89a8e11a0dc9a603aff52dbe7814a3d430bfef06",
-    "core": "mohd777/max-radius-core@sha256:4d609e0c03a32be6a979dfd110ccd10d8c8ceda72c3495a1c4734de653f42d59",
-    "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
+    "web": "mohd777/max-radius-web@sha256:189c4aab255386987b59b02601383f831a845356cbb8938c91fe8d9e49a0970e",
+    "core": "mohd777/max-radius-core@sha256:b0e1b2e1f4a9fd35845800013fe59b95536efaaa71548e1a34ed6e1556da3a00",
     "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+    "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
     "autoheal": "willfarrell/autoheal@sha256:f8adb7a2343aaeaa2757561b52428ebf9d3bb8e304d0f7a77fd13de395610504"
   },
   "host_tools": {
     "clock_guard": "v1"
   },
   "bundle": {
-    "url": "https://github.com/mohd-1992/MAX-RADIUS/releases/download/20261017-clock-license-r13/max-radius-runtime-20261017-clock-license-r13.tar.gz",
-    "sha256": "bd77dd596a23c7977d368de3176db8bc76a14c9f163c50bf8ee2577b53af9f8b"
-  }
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261024-v2.6.5-batches-r1.tar.gz",
+    "sha256": "5119fc15fb1b8ba6c06cc17ed5250e167738bc29a689324838dff277344a4366"
+  },
+  "telegram_document_part_limit_bytes": 45000000,
+  "limitations": [
+    "Web image is the existing tested 2.6.5 batches image; no registry image is rebuilt or replaced.",
+    "Image health and local installation checks do not prove real NAS authentication or accounting.",
+    "Host clock guard remains opt-in; installation does not repair historical license records."
+  ],
+  "source_manifest": "releases/source-20261024-v2.6.5-batches-r1.json"
 }

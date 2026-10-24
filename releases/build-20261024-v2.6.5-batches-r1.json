@@ -1,0 +1,30 @@
+{
+  "version": "2.6.5",
+  "tag": "mohd777/max-radius-web:20261024-v2.6.5-batches-r1",
+  "image": "mohd777/max-radius-web@sha256:189c4aab255386987b59b02601383f831a845356cbb8938c91fe8d9e49a0970e",
+  "full_source_build": true,
+  "source_files": 248,
+  "source_manifest_sha256": "57293d924e94349412427267135d0af878a37dba1392fd6c5f84104014102337",
+  "runtime_manifest_sha256": "0f12d8cfeeebb084e6bf7e2a447bf77abf43a41d85ffe274b22f0d82bad08596",
+  "signed_files": 169,
+  "templates": 72,
+  "missing_sources": [],
+  "changed_runtime_files": [
+    "services/account_lifecycle_service.py",
+    "web/access_policy.py",
+    "web/endpoint_permissions.py",
+    "web/routes/vouchers.py",
+    "web/templates/vouchers.html"
+  ],
+  "compiled_acceptance_passed": true,
+  "manually_deployed": [
+    "4k",
+    "m",
+    "max1",
+    "shn"
+  ],
+  "core_or_db_restarted": false,
+  "stopped_4k_web_containers_after_cleanup": 0,
+  "private_evidence": "PRIVATE/release-batches-4k-20261024/FINAL.private.json",
+  "subsequent_deployment_evidence": "PRIVATE/release-batches-three-20261024/FINAL.private.json"
+}

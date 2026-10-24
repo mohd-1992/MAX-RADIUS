@@ -1,0 +1,14 @@
+{
+  "version": "2.6.5",
+  "scope": "local build and isolated test only; not published",
+  "tag": "max-radius-web:full-2.6.5-local-20261023-r1",
+  "image": "sha256:c61766679bbcaf349d1301d7e45dc1d7f329461f2fb40cbf3d9b465c36b61096",
+  "frozen_source_files": 248,
+  "signed_files": 169,
+  "templates": 72,
+  "runtime_manifest_sha256": "9251b9e1fc2c0b89c030331e5806c960578d749ac90be441e69e58359ad2b03e",
+  "selected_compiled_tests_passed": true,
+  "fresh_mariadb_initialization_passed": true,
+  "production_or_nas_test": false,
+  "registry_or_deployment_changed": false
+}

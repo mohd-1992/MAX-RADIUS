@@ -1,0 +1,34 @@
+--- a/central_provision.py
++++ b/central_provision.py
+@@ -13,6 +13,7 @@
+ import management_service as management
+ import tunnel_registry as tunnels
+ from tenant_release import prepare_creation_images, verify_creation_images
++from new_domain_updates import preflight_new_domain_updates, prepare_new_domain_updates, verify_new_domain_updates
+ 
+ 
+ def compose(name,port,db_password,root_password,radius_secret,instance):
+@@ -83,6 +84,7 @@
+     with socket.socket() as probe:
+         try:probe.bind(('0.0.0.0',port))
+         except OSError:raise ValueError('المنفذ مستخدم')
++    preflight_new_domain_updates()
+     dbpass,rootpass,radius_secret=secrets.token_hex(24),secrets.token_hex(24),secrets.token_hex(24)
+     instance='INST-'+secrets.token_hex(5).upper()
+     meta=dict(name=title,subdomain=name,instance_uuid=instance,admin_user='admin',admin_password=password,
+@@ -106,6 +108,7 @@
+     try:
+         control.command(base+['config','--quiet'])
+         schema_file = prepare_creation_images(path)
++        prepare_new_domain_updates(path, name)
+         control.command(['systemctl','enable','--now',f'max-panel-fleet@{name}.socket'])
+         control.command(base+['up','-d','db'],timeout=180)
+         deadline=time.monotonic()+100
+@@ -139,6 +142,7 @@
+         control.command(['docker','exec','max_radius_'+name+'_core','freeradius','-C'],timeout=30)
+         mark_loaded(name,loaded_signature)
+         verify_creation_images(path, name)
++        verify_new_domain_updates(path, name)
+         text=f'''server {{
+     listen 80;
+     server_name {name}.{control.BASE_DOMAIN};

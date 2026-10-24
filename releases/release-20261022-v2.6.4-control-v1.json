@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "version": "2.6.4",
+  "release": "20261022-v2.6.4-control-v1",
+  "platform": "linux/amd64",
+  "based_on": "20261022-lab-v2.6.3-limit45",
+  "published_at": "2026-10-22T17:46:44.281086+00:00",
+  "automatic_distribution": false,
+  "control_consumer_protocol": 1,
+  "capabilities": [
+    "web",
+    "core",
+    "signed_audience"
+  ],
+  "requires_installation_controller": true,
+  "requires_separate_target_enrollment": true,
+  "old_panel_creation_hook_deployed": false,
+  "images": {
+    "web": "mohd777/max-radius-web@sha256:7a9dacdc402a1a01c7481740a1f41a0ecfef8be4fa92948d1ecb1de9a0a1490b",
+    "core": "mohd777/max-radius-core@sha256:b0e1b2e1f4a9fd35845800013fe59b95536efaaa71548e1a34ed6e1556da3a00",
+    "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
+    "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+    "autoheal": "willfarrell/autoheal@sha256:f8adb7a2343aaeaa2757561b52428ebf9d3bb8e304d0f7a77fd13de395610504"
+  },
+  "verification": {
+    "isolated_tests": 68,
+    "docker_lifecycle_cases": [
+      "success",
+      "rollback",
+      "lost_create"
+    ],
+    "docker_probe_injected": true,
+    "runtime_signature": true,
+    "registry_rootfs_matches_tested_image": true,
+    "compiled_template_and_javascript": true,
+    "fresh_live_nas_test": false,
+    "compiled_unix_controller_public_feed": true
+  },
+  "limits": [
+    "Explicit SQL migrations are not advertised or executed.",
+    "Old public release.json remains unchanged.",
+    "Uploading latest does not enroll a domain or install its controller.",
+    "No existing deployment was updated."
+  ]
+}

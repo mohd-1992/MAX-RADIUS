@@ -1,5 +1,6 @@
 """Administrative endpoint requirements. Keep read-route coverage tests in sync."""
 ENDPOINT_PERMISSIONS = {
+ 'batches_bulk_action': ['vouchers.view'],
  'quick_cards_page': ['vouchers.generate'],
  'quick_cards_issue': ['vouchers.generate'],
  'quick_cards_history': ['vouchers.view'],
@@ -244,3 +245,14 @@ ENDPOINT_PERMISSIONS = {
  'wireguard_delete_tunnel_action': ['nas.manage'],
  'wireguard_delete_tunnel_action_alt': ['nas.manage'],
  'wireguard_edit_tunnel_action': ['nas.manage']}
+
+
+def endpoint_permissions(endpoint, data=None):
+    """Resolve action-specific parents without requiring unrelated batch grants."""
+    permissions = ENDPOINT_PERMISSIONS.get(endpoint)
+    if endpoint == 'batches_bulk_action':
+        parent = {'delete': 'vouchers.delete', 'export': 'vouchers.print',
+                  'change_package': 'vouchers.actions',
+                  'assign_reseller': 'vouchers.actions'}.get((data or {}).get('action'))
+        return permissions + ([parent] if parent else [])
+    return permissions

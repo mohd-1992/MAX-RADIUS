@@ -47,7 +47,7 @@ echo '[2/6] Downloading verified runtime-only release...'
 stage=$(mktemp -d)
 trap 'rm -rf -- "$stage"' EXIT
 curl --fail --location --retry 3 --proto '=https' --tlsv1.2 "$MANIFEST_URL" -o "$stage/release.json"
-jq -e '.format == 1 and .platform == "linux/amd64" and (.release | test("^[A-Za-z0-9._-]+$")) and (.bundle.sha256 | test("^[a-f0-9]{64}$")) and (.bundle.url | startswith("https://github.com/mohd-1992/MAX-RADIUS/releases/download/")) and ([.images.web,.images.core,.images.l2tp] | all(test("^mohd777/max-radius-(web|core|l2tp)@sha256:[a-f0-9]{64}$")))' "$stage/release.json" >/dev/null
+jq -e '.format == 1 and .platform == "linux/amd64" and (.release | test("^[A-Za-z0-9._-]+$")) and (.bundle.sha256 | test("^[a-f0-9]{64}$")) and (.bundle.url | startswith("https://github.com/mohd-1992/MAX-RADIUS/releases/download/") or test("^https://raw\\.githubusercontent\\.com/mohd-1992/MAX-RADIUS/main/releases/runtime-[A-Za-z0-9._-]+\\.tar\\.gz$")) and ([.images.web,.images.core,.images.l2tp] | all(test("^mohd777/max-radius-(web|core|l2tp)@sha256:[a-f0-9]{64}$")))' "$stage/release.json" >/dev/null
 jq -e '((.images.database // "legacy") | . == "legacy" or test("^mariadb@sha256:[a-f0-9]{64}$")) and ((.images.autoheal // "legacy") | . == "legacy" or test("^willfarrell/autoheal@sha256:[a-f0-9]{64}$"))' "$stage/release.json" >/dev/null
 release=$(jq -r .release "$stage/release.json")
 curl --fail --location --retry 3 --proto '=https' --tlsv1.2 "$(jq -r .bundle.url "$stage/release.json")" -o "$stage/runtime.tar.gz"

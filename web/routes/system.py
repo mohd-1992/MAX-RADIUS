@@ -60,6 +60,16 @@ from core.ownership import scoped_query_all as query_all, scoped_query_one as qu
 
 system_bp = Blueprint('system_bp', __name__)
 
+
+@system_bp.app_context_processor
+def verified_branding_context():
+    from core.license_feature_policy import enabled
+    if enabled('white_label'):
+        return {}
+    return {'network_name': APP_NAME, 'company_name': APP_NAME, 'isp_name': APP_NAME,
+            'logo_url': None, 'system_title': 'نظام إدارة الشبكات والفوترة و FreeRADIUS'}
+
+
 @system_bp.before_request
 def guard_account_action_permissions():
     if not request.path.startswith('/api/actions/'):
@@ -720,94 +730,17 @@ def settings():
 @system_bp.route('/settings/update', methods=['POST'], endpoint="update_settings_action")
 def update_settings_action():
     try:
-        f = request.form
-
-        # 1. Handle Logo Upload
-        if 'network_logo' in request.files:
-            file = request.files['network_logo']
-            if file and file.filename:
-                ext = os.path.splitext(file.filename)[1].lower()
-                if ext in ['.png', '.jpg', '.jpeg', '.svg', '.webp', '.ico']:
-                    upload_dir = os.path.join(current_app.static_folder, 'uploads')
-                    os.makedirs(upload_dir, exist_ok=True)
-                    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-                    filename = f"logo_{timestamp}{ext}"
-                    filepath = os.path.join(upload_dir, filename)
-                    file.save(filepath)
-
-                    existing = query_one('SELECT `key` FROM wisp_system_settings WHERE `key` = ?', ('network_logo',))
-                    if existing:
-                        execute_write('UPDATE wisp_system_settings SET `value` = ? WHERE `key` = ?', (filename, 'network_logo'))
-                    else:
-                        execute_write('INSERT INTO wisp_system_settings (`key`, `value`, `description`) VALUES (?, ?, ?)', ('network_logo', filename, 'مسار شعار الشبكة'))
-
-        # 2. Currency Mapping
-        selected_currency = f.get('currency', 'YER').strip()
-        custom_symbol = f.get('currency_symbol', '').strip()
-
-        currency_map = {
-            'YER': 'ر.ي',
-            'EGP': 'ج.م',
-            'IQD': 'د.ع',
-            'SYP': 'ل.س',
-            'SAR': 'ر.س',
-            'AED': 'د.إ',
-            'USD': '$'
-        }
-        currency_symbol = custom_symbol if custom_symbol else currency_map.get(selected_currency, 'ر.ي')
-
-        # 3. Settings to Save
-        network_name = f.get('network_name', '').strip() or f.get('company_name', '').strip() or 'MAX RADIUS'
-        timezone_val = f.get('timezone', 'Asia/Aden').strip()
-
-        settings_to_save = {
-            'network_name': network_name,
-            'company_name': network_name,
-            'isp_name': network_name,
-            'system_title': f.get('system_title', 'MAX RADIUS - نظام إدارة الشبكات والفوترة و FreeRADIUS').strip(),
-            'currency': selected_currency,
-            'currency_symbol': currency_symbol,
-            'timezone': timezone_val,
-            'support_phone': f.get('support_phone', '').strip(),
-            'support_email': f.get('support_email', '').strip(),
-            'address': f.get('address', '').strip(),
-            'hotspot_domain': f.get('hotspot_domain', 'wifi.hotspot').strip(),
-            'default_coa_port': f.get('default_coa_port', '3799').strip(),
-            'sms_gateway_url': f.get('sms_gateway_url', '').strip(),
-            'sms_api_key': f.get('sms_api_key', '').strip(),
-            'sms_sender_id': f.get('sms_sender_id', 'WISP-NET').strip(),
-            'portal_allow_registration': '1' if f.get('portal_allow_registration') in ('1', 'on', 'true', True, 1) else '0',
-            'portal_allow_package_change': '1' if f.get('portal_allow_package_change') in ('1', 'on', 'true', True, 1) else '0',
-            'portal_allow_password_change': '1' if f.get('portal_allow_password_change') in ('1', 'on', 'true', True, 1) else '0',
-            'portal_login_username_only': '1' if f.get('portal_login_username_only') in ('1', 'on', 'true', True, 1) else '0',
-            'portal_whatsapp': f.get('portal_whatsapp', '').strip(),
-            'portal_support_phone': f.get('portal_support_phone', '').strip(),
-            'allow_data_loan': '1' if f.get('allow_data_loan') in ('1', 'on', 'true', True, 1) else '0',
-            'loan_amount_mb': str(max(10, int(f.get('loan_amount_mb', '1024').strip()))) if f.get('loan_amount_mb', '').strip().isdigit() else '1024',
-            'loan_threshold_mb': str(max(1, int(f.get('loan_threshold_mb', '100').strip()))) if f.get('loan_threshold_mb', '').strip().isdigit() else '100'
-        }
-
-        from core.license_feature_policy import enabled as _feature_enabled, BRANDING_FIELDS
-        if not _feature_enabled('white_label'):
-            settings_to_save = {k: v for k, v in settings_to_save.items() if k not in BRANDING_FIELDS}
-
-        for k, v in settings_to_save.items():
-            existing = query_one('SELECT `key` FROM wisp_system_settings WHERE `key` = ?', (k,))
-            if existing:
-                execute_write('UPDATE wisp_system_settings SET `value` = ? WHERE `key` = ?', (v, k))
-            else:
-                execute_write('INSERT INTO wisp_system_settings (`key`, `value`, `description`) VALUES (?, ?, ?)', (k, v, 'إعداد نظام'))
-
-        # Set runtime timezone & reload scheduler
+        from services.system_settings_service import save_system_settings
+        saved = save_system_settings(request.form, request.files.get('network_logo'), current_app.static_folder)
+        currency_symbol = saved['currency_symbol']
+        timezone_val = saved['timezone']
         try:
             from core.time_service import update_system_timezone
             update_system_timezone(timezone_val)
             reload_backup_schedule()
         except Exception:
             pass
-
-        log_audit(1, 'admin', 'UPDATE_SETTINGS', 'settings', f'Updated settings. Name: {network_name}, Currency: {selected_currency} ({currency_symbol}), Timezone: {timezone_val}')
-        flash(f'تم حفظ وتطبيق كافة إعدادات النظام والهوية والعملة ({currency_symbol}) والمنطقة الزمنية ({timezone_val}) بنجاح.', 'success')
+        flash(f'تم حفظ وتطبيق إعدادات النظام المسموحة والعملة ({currency_symbol}) والمنطقة الزمنية ({timezone_val}) بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء حفظ الإعدادات: {str(e)}', 'danger')
     return redirect(url_for('settings'))
@@ -1377,10 +1310,8 @@ def api_migration_analyze():
     try:
         if 'backup_file' in request.files and request.files['backup_file'].filename:
             f = request.files['backup_file']
-            temp_dir = os.path.join(os.getcwd(), 'data', 'migration_cache')
-            os.makedirs(temp_dir, exist_ok=True)
-            temp_path = os.path.join(temp_dir, 'uploaded_backup.gz')
-            f.save(temp_path)
+            from services.migration_upload_service import save_backup_upload
+            temp_path = save_backup_upload(f)
             res = analyze_backup_file(temp_path)
             res['temp_server_path'] = temp_path
             return jsonify(res)
@@ -1408,8 +1339,9 @@ def api_migration_execute():
         server_path = data.get('server_path') or data.get('temp_server_path')
         
         if not server_path or not os.path.exists(server_path):
-            default_cached = os.path.join(os.getcwd(), 'data', 'migration_cache', 'uploaded_backup.gz')
-            if os.path.exists(default_cached):
+            from services.migration_upload_service import cached_backup
+            default_cached = cached_backup()
+            if default_cached:
                 server_path = default_cached
 
         if not server_path or not os.path.exists(server_path):
@@ -1820,7 +1752,8 @@ def api_system_update_apply():
     backup_first = data.get('backup_first', True)
     target_version = data.get('version')
     
-    res = trigger_system_update(target_version=target_version, backup_first=backup_first, triggered_by=operator_name)
+    res = trigger_system_update(target_version=target_version, backup_first=backup_first, triggered_by=operator_name,
+                                release_id=data.get('release_id'), manifest_sha256=data.get('manifest_sha256'))
     if res.get('success'):
         try:
             log_audit(

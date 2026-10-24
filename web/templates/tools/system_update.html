@@ -52,7 +52,7 @@
                     تحديث وترقية النظام
                     <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-bold border border-purple-500/30">System Update Center</span>
                 </h1>
-                <p class="text-xs text-slate-400 mt-1">تحديث واجهة النظام بإصدار موثق، مع نسخة احتياطية والتحقق من التشغيل قبل اعتماد التحديث.</p>
+                <p class="text-xs text-slate-400 mt-1">تحديث مكونات النظام بإصدار موثق، مع نسخة احتياطية والتحقق من التشغيل قبل اعتماد التحديث.</p>
             </div>
         </div>
         <div class="flex items-center gap-2.5 shrink-0">
@@ -163,8 +163,8 @@
                     <i class="fa-solid fa-circle-check"></i>
                 </div>
                 <div>
-                    <h3 class="text-base font-bold text-white mb-1">نظامك محدث بالكامل بأحدث إصدار!</h3>
-                    <p class="text-xs text-slate-400">أنت تستخدم أحدث إصدار معتمد من MAX RADIUS، وجميع الخدمات تعمل بأعلى كفاءة وأمان.</p>
+                    <h3 class="text-base font-bold text-white mb-1">لا يوجد إصدار أحدث متوافق مع هذه النسخة</h3>
+                    <p class="text-xs text-slate-400">تم فحص قناة التحديثات وفق هوية النسخة وقدراتها.</p>
                 </div>
                 <div class="pt-2">
                     <button type="button" onclick="checkUpdates(true)" class="px-4 py-2 bg-[#070b14] hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl text-xs font-semibold transition cursor-pointer">
@@ -219,11 +219,11 @@
             </div>
             <div class="flex items-center gap-2 text-slate-500" id="stepCheck-4">
                 <i class="fa-regular fa-circle text-[10px]"></i>
-                <span>4. التحقق من سلامة الواجهة والترخيص</span>
+                <span>4. التحقق من المكونات والترخيص وحفظ المحاسبة</span>
             </div>
             <div class="flex items-center gap-2 text-slate-500" id="stepCheck-5">
                 <i class="fa-regular fa-circle text-[10px]"></i>
-                <span>5. إعادة تشغيل وتفعيل النظام المحدث</span>
+                <span>5. اعتماد النتيجة بعد التحقق من التشغيل</span>
             </div>
         </div>
 
@@ -236,6 +236,8 @@
 <script>
 let g_updatePollTimer = null;
 let g_latestVersion = null;
+let g_releaseId = null;
+let g_manifestSha256 = null;
 
 function checkUpdates(force = false) {
     const spinner = document.getElementById('checkSpinner');
@@ -272,6 +274,8 @@ function renderUpdateData(data) {
     if (lastChecked) lastChecked.innerText = data.checked_at || 'الآن';
 
     g_latestVersion = data.success && data.has_update ? data.latest_version : null;
+    g_releaseId = g_latestVersion ? data.release_id : null;
+    g_manifestSha256 = g_latestVersion ? data.manifest_sha256 : null;
     if (!data.success) {
         if (badge) badge.textContent = data.message || 'تعذر التحقق من التحديثات';
         if (availBox) availBox.classList.add('hidden');
@@ -282,7 +286,7 @@ function renderUpdateData(data) {
     if (data.has_update) {
         if (badge) {
             badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30';
-            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span><span>يتوفر تحديث جديد (v${data.latest_version})</span>`;
+            badge.textContent = `يتوفر تحديث جديد (v${data.latest_version})`;
         }
 
         if (availBox) availBox.classList.remove('hidden');
@@ -304,7 +308,7 @@ function renderUpdateData(data) {
     } else {
         if (badge) {
             badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
-            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>النظام محدث بالكامل</span>`;
+            badge.textContent = 'لا يوجد إصدار أحدث متوافق مع هذه النسخة';
         }
 
         if (availBox) availBox.classList.add('hidden');
@@ -320,7 +324,7 @@ function startSystemUpdate() {
             <div class="text-right text-xs space-y-2 text-slate-300">
                 <p>هل أنت متأكد من رغبتك في ترقية MAX RADIUS إلى الإصدار <b>v${g_latestVersion || 'الجديد'}</b> الآن؟</p>
                 <p class="text-emerald-400">🛡️ سيتم أخذ نسخة احتياطية كاملة لقاعدة البيانات تلقائياً قبل البدء.</p>
-                <p class="text-slate-400">يُحدَّث جزء الواجهة فقط مع التحقق من الجاهزية والترخيص، وقد تنقطع اللوحة مؤقتًا. يُحفظ الإصدار السابق للرجوع دون إعادة قاعدة قديمة.</p>
+                <p class="text-slate-400">تُحدَّث المكونات المحددة في الإصدار مع التحقق من الجاهزية والترخيص وحفظ المحاسبة. قد تتوقف الواجهة أو جلسات الدخول مؤقتًا أثناء التبديل. يُحفظ الإصدار السابق للرجوع دون إعادة قاعدة قديمة.</p>
             </div>
         `,
         icon: 'question',
@@ -343,8 +347,8 @@ function triggerUpdateExecution() {
 
     fetch('{{ url_for("api_system_update_apply") }}', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ version: g_latestVersion, backup_first: true })
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': {{ csrf_token()|tojson }} },
+        body: JSON.stringify({ version: g_latestVersion, backup_first: true, release_id: g_releaseId, manifest_sha256: g_manifestSha256 })
     })
     .then(async r => {
         if (!r.ok) {
@@ -443,6 +447,14 @@ function updateChecklistUI(pct) {
 // Initial Auto-check on load
 document.addEventListener('DOMContentLoaded', function() {
     checkUpdates(false);
+    fetch('{{ url_for("api_system_update_progress") }}')
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (data && ['queued', 'running', 'unknown'].includes(data.status)) {
+                document.getElementById('updateProgressModal').classList.remove('hidden');
+                startPollingProgress();
+            }
+        }).catch(() => {});
 });
 </script>
 {% endblock %}

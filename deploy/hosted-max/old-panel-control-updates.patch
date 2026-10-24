@@ -1,0 +1,78 @@
+--- a/app.py
++++ b/app.py
+@@ -184,7 +184,7 @@
+         status = 'error'
+         try:
+             with control.host_operation():
+-                if action in ('edit','update','rollback','start','stop','restart'):
++                if action in ('edit','start','stop','restart'):
+                     control.repair_compose(control.tenant_path(name))
+                 message = operation()
+             status = 'success'
+--- a/control_service.py
++++ b/control_service.py
+@@ -339,50 +339,12 @@
+ 
+ 
+ def update_tenant(name):
+-    path = tenant_path(name)
+-    repair_compose(path)
+-    original_compose = (path / 'docker-compose.yml').read_bytes()
+-    before = {s: inspect(f'max_radius_{name}_{s}') for s in ('web', 'core')}
+-    if any(not value for value in before.values()):
+-        raise RuntimeError('الخدمات الحالية غير مكتملة')
+-    view = inventory(force=True)
+-    if any(i['severity'] == 'error' and ('مكرر' in i['message'] or 'تعذر' in i['message']) for i in view['issues']):
+-        raise RuntimeError('تعذر ضمان عدم تعارض عناوين الأنفاق؛ أُوقف التحديث قبل تغيير الحاويات')
+-    folder = Path(os.environ.get('PANEL_STATE_DIR', '/opt/saas-manager-state')) / 'updates'
+-    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+-    checkpoint = {'tenant': name, 'time': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+-                  'images': {'web': before['web']['Image'], 'radius_core': before['core']['Image']}}
+-    target = folder / (name + '.json')
+-    target.write_text(json.dumps(checkpoint), encoding='utf-8')
+-    os.chmod(target, 0o600)
+-    prepare_update_images(path)
+-    # Pull failures stop the operation, and database upgrades are separate.
+-    from update_release import schema_migration
+-    release = json.loads((path / 'update-release.json').read_text())
+-    db = inspect(f'max_radius_{name}_db')
+-    if not db: raise RuntimeError('قاعدة بيانات المنظومة غير موجودة')
+-    try:
+-        schema_migration(command, path, release['web']['reference'], before['web'], db)
+-        command(['docker', 'compose', '--project-directory', str(path), 'up', '-d', '--no-deps', '--pull', 'never', 'web', 'radius_core'], timeout=180)
+-    except Exception:
+-        # Image/config recovery is separate from a database schema rollback.
+-        (path / 'docker-compose.yml').write_bytes(original_compose)
+-        command(['docker', 'compose', '--project-directory', str(path), 'up', '-d', '--no-deps', '--pull', 'never', 'web', 'radius_core'], timeout=180)
+-        raise
+-    deadline = time.monotonic() + 100
+-    while time.monotonic() < deadline:
+-        current = [inspect(f'max_radius_{name}_{suffix}') for suffix in ('web', 'core')]
+-        if all(c and c['State'].get('Running') and c['State'].get('Health', {}).get('Status') not in ('unhealthy', 'starting') for c in current):
+-            if current[0]['Image'] != release['web']['image_id'] or current[1]['Image'] != release['radius_core']['image_id']:
+-                raise RuntimeError('هوية الحاويات لا تطابق الإصدار الجديد؛ لم يثبت نجاح التحديث')
+-            command(['docker', 'exec', f'max_radius_{name}_core', 'freeradius', '-C'], timeout=30)
+-            refresh_routes(name)
+-            CACHE['time'] = 0
+-            return 'تم تحديث الويب والراديوس والتحقق من الإعدادات ومزامنة التوجيه؛ تم ترحيل المخطط دون إعادة تسعير العقود أو ترقية محرك قاعدة البيانات.'
+-        time.sleep(3)
+-    raise RuntimeError('لم تجتز الحاويات فحص الجاهزية بعد التحديث؛ راجع السجلات قبل المتابعة')
++    from panel_updates import update_tenant as targeted_update
++    return targeted_update(name)
+ 
+ def rollback_tenant(name):
++    from panel_updates import guard_legacy_rollback
++    guard_legacy_rollback(name)
+     path = tenant_path(name)
+     repair_compose(path)
+     folder = Path(os.environ.get('PANEL_STATE_DIR', '/opt/saas-manager-state')) / 'updates'
+--- a/management_service.py
++++ b/management_service.py
+@@ -289,7 +289,6 @@
+     successful, failed = [], []
+     for name in names:
+         try:
+-            control.repair_compose(control.tenant_path(name))
+             control.update_tenant(name)
+             successful.append(name)
+         except Exception:

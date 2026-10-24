@@ -32,7 +32,8 @@ def is_global_admin(manager):
 
 def owner_id():
     manager = ownership_manager()
-    return int(manager['id']) if manager and not is_global_admin(manager) else None
+    network_manager = bool(manager and manager.get('role_id') == 2 and manager.get('role_code') == 'manager')
+    return int(manager['id']) if manager and not is_global_admin(manager) and not network_manager else None
 
 
 def allowed_package_ids(manager):

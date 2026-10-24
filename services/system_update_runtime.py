@@ -131,7 +131,10 @@ def restore(api, plan, state):
         api('POST', '/containers/' + new_id + '/update', {'RestartPolicy': {'Name': 'no'}})
         for net in new['NetworkSettings']['Networks']:
             api('POST', '/networks/' + urllib.parse.quote(net, safe='') + '/disconnect', {'Container': new_id, 'Force': True})
-        api('POST', '/containers/' + new_id + '/rename?name=max_web_failed_update_' + plan['job'])
+        role = plan.get('role', 'web')
+        if role not in ('web', 'core'):
+            raise UpdateError('Unsupported rollback role')
+        api('POST', '/containers/' + new_id + '/rename?name=max_' + role + '_failed_update_' + plan['job'])
     # Never take a name from a container outside this round.
     fleet = api('GET', '/containers/json?all=1')
     occupants = [v['Id'] for v in fleet if plan['old']['Name'] in v.get('Names', [])]

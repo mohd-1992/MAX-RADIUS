@@ -1,0 +1,19 @@
+{
+  "version": "2.6.5",
+  "tag": "mohd777/max-radius-web:20261023-v2.6.5-rbac-fix-r1",
+  "image_digest": "sha256:5f582abe49d75b7a5fed40f57318dac5e0c62fa1da2f02b05d88d4644c1f7a2f",
+  "runtime_manifest_sha256": "3d54b6312976a2356035f308e4a62a896a03b85b00bd77e9c97ee6c9109ebdf7",
+  "signed_files": 166,
+  "changed_units": 6,
+  "unchanged_files": 160,
+  "tested_source_cases": 60,
+  "compiled_and_mariadb_checks_passed": true,
+  "installed_web_targets": [
+    "max1",
+    "shn"
+  ],
+  "existing_role_grants_preserved": true,
+  "m_existing_equivalent_private_image_unchanged": true,
+  "core_db_controller_restarted": false,
+  "monitoring_resumed": false
+}

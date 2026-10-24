@@ -101,3 +101,12 @@ storage/userman-jobs/
 release.json
 runtime-release.env
 .install-backups/
+
+# These two host entrypoints are compiled into the Web update runtime.
+# Keep all other deployment tools outside the build context.
+!deploy/
+deploy/*
+!deploy/hosted-max/
+deploy/hosted-max/*
+!deploy/hosted-max/update_controller.py
+!deploy/hosted-max/provision_update_controller.py

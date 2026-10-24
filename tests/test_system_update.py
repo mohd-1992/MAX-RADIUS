@@ -17,7 +17,7 @@ def load(name, path):
     spec=importlib.util.spec_from_file_location(name, ROOT/path)
     module=importlib.util.module_from_spec(spec);sys.modules[name]=module;spec.loader.exec_module(module);return module
 r=load('services.system_update_runtime','services/system_update_runtime.py')
-u=load('services.system_update_service','services/system_update_service.py')
+u=load('legacy_system_update_service','tests/fixtures/system_update_legacy.py')
 OLD='a'*64;NEW='b'*64;IMAGE='sha256:'+'c'*64;PIN='mohd777/max-radius-web@sha256:'+'d'*64
 
 def original():

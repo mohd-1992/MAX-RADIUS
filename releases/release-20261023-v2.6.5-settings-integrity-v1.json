@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "version": "2.6.5",
+  "release": "20261023-v2.6.5-settings-integrity-v1",
+  "platform": "linux/amd64",
+  "based_on": "20261022-v2.6.4-control-v1",
+  "images": {
+    "web": "mohd777/max-radius-web@sha256:be1b5a0319803ea8f3e51798b9622aa29ad7016e591a3162226d649865181c77"
+  },
+  "web_latest_updated": true,
+  "core_l2tp_latest_unchanged": true,
+  "channel_audiences": [
+    "m.max-net.net",
+    "max1.max-net.net",
+    "shn.max-net.net"
+  ],
+  "public_channel_release": false,
+  "local_channel_release": false,
+  "minimum_client_version": "2.6.4",
+  "update_scope": "web_only",
+  "migration": "none",
+  "automatic_install": false,
+  "domain_install_performed": false,
+  "changed_compiled_modules": 6,
+  "unchanged_existing_files": 160,
+  "signed_manifest_files": 166,
+  "verification": {
+    "settings_source_cases": 15,
+    "feature_policy_source_cases": 9,
+    "settings_compiled_cases": 15,
+    "compiled_mariadb_transactions": true,
+    "embedded_settings_entitlement_states": 2,
+    "internal_import_closure": true,
+    "runtime_signature": true,
+    "compiled_upload_integrity": true,
+    "registry_rootfs_matches_tested_image": true,
+    "real_controller_offer_checks": 3,
+    "excluded_reader_checks": 15,
+    "production_authentication_test": false
+  },
+  "installation_prerequisites": {
+    "m": "Relocate the old migration cache with operator authorization and reverify current runtime integrity before attempting installation. No live move performed."
+  },
+  "published_at": "2026-10-23T06:58:23.842706+00:00"
+}

@@ -131,7 +131,7 @@
                     </button>
                 </div>
 
-                <p class="text-[11px] text-slate-400 leading-relaxed">صلاحيات القسم الأساسية مطلوبة للدخول إليه، والخيارات التفصيلية تحدد الصفحات والعمليات المتاحة داخله. صلاحيات الموزع تقتصر على بياناته.</p>
+                <p class="text-[11px] text-slate-400 leading-relaxed">اختيار عملية تفصيلية يحدد متطلبها الأساسي تلقائيًا، وإلغاء الأساسي يلغي التفاصيل التابعة. الموزع يصل إلى بياناته فقط؛ الخيارات الموسومة «نطاق الإدارة» لا تفتح له إعدادات الإدارة أو بيانات الآخرين.</p>
                 <div class="space-y-4">
                     {% for cat_name, perms in grouped_permissions.items() %}
                     <div class="bg-[#070b14] rounded-xl p-3.5 border border-[#162136] space-y-2.5">
@@ -145,10 +145,12 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
                             {% for p in perms %}
                             <label class="flex items-start gap-2.5 p-2 rounded-xl bg-[#0b0f19] border border-slate-800 hover:border-blue-500/50 cursor-pointer transition select-none">
-                                <input type="checkbox" name="permissions" value="{{ p.id }}" class="perm-checkbox mt-0.5 rounded text-blue-600 focus:ring-blue-500 bg-[#070b14] border-slate-700">
+                                <input type="checkbox" name="permissions" value="{{ p.id }}" data-parent="{{ p.parent_id|default('') }}" data-permission-name="{{ p.name }}" onchange="syncPermissionDependencies(this)" class="perm-checkbox mt-0.5 rounded text-blue-600 focus:ring-blue-500 bg-[#070b14] border-slate-700">
                                 <div>
                                     <span class="font-semibold text-slate-200 block text-[11px]">{{ p.name }}</span>
                                     <span class="text-[10px] text-slate-500 font-mono block break-all">{{ p.code }}</span>
+                                    {% if p.parent_name %}<span class="text-[10px] text-amber-300 block mt-1">يتطلب: {{ p.parent_name }}</span>{% endif %}
+                                    {% if p.administration_only %}<span class="text-[10px] text-rose-300 block">نطاق الإدارة</span>{% endif %}
                                     {% if p.description %}<span class="text-[10px] text-slate-500 block mt-1 leading-relaxed">{{ p.description }}</span>{% endif %}
                                 </div>
                             </label>
@@ -172,6 +174,24 @@
 <script src="{{ url_for('static', filename='manager-actions.js') }}"></script>
 <script>
     let roleLoadVersion = 0;
+    function syncPermissionDependencies(changed) {
+        const boxes = Array.from(document.querySelectorAll('.perm-checkbox'));
+        if (changed.checked && changed.dataset.parent) {
+            const parent = boxes.find(box => box.value === changed.dataset.parent);
+            if (parent) parent.checked = true;
+        } else if (!changed.checked) {
+            boxes.filter(box => box.dataset.parent === changed.value).forEach(box => box.checked = false);
+        }
+    }
+    document.getElementById('roleForm').addEventListener('submit', function (event) {
+        const boxes = Array.from(document.querySelectorAll('.perm-checkbox'));
+        const selected = new Set(boxes.filter(box => box.checked).map(box => box.value));
+        const missing = boxes.find(box => box.checked && box.dataset.parent && !selected.has(box.dataset.parent));
+        if (missing) {
+            event.preventDefault();
+            Swal.fire('متطلب صلاحية مفقود', 'اختر الصلاحية الأساسية للعملية: ' + missing.dataset.permissionName, 'warning');
+        }
+    });
     function openAddRoleModal() {
         ++roleLoadVersion;
         document.getElementById('roleModalTitle').innerHTML = '<i class="fa-solid fa-plus text-blue-400"></i> إنشاء دور جديد';

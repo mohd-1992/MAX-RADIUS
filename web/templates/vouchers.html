@@ -171,7 +171,12 @@
 
         <!-- Actions Menu Dropdown -->
         <div class="relative">
-            <button type="button" id="bulkBatchesDropdownBtn" onclick="toggleBulkBatchesDropdown(event)" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
+            {% set can_bulk_delete = can_access_endpoint('batches_bulk_action', {'action': 'delete'}) %}
+            {% set can_bulk_export = can_access_endpoint('batches_bulk_action', {'action': 'export'}) %}
+            {% set can_bulk_package = can_access_endpoint('batches_bulk_action', {'action': 'change_package'}) %}
+            {% set can_bulk_assign = not is_reseller_scope() and can_access_endpoint('batches_bulk_action', {'action': 'assign_reseller'}) %}
+            {% if can_bulk_delete or can_bulk_export or can_bulk_package or can_bulk_assign %}
+            <button type="button" id="bulkBatchesDropdownBtn" aria-expanded="false" aria-controls="bulkBatchesDropdownMenu" onclick="toggleBulkBatchesDropdown(event)" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 transition flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-bolt-lightning text-amber-300"></i>
                 <span>الإجراءات الجماعية</span>
                 <i class="fa-solid fa-chevron-down text-[10px] transition-transform duration-200" id="bulkBatchesChevron"></i>
@@ -216,6 +221,7 @@
                     </button>{% endif %}
                 </div>
             </div>
+            {% else %}<span class="text-xs text-slate-400">لا توجد إجراءات جماعية متاحة لصلاحيات حسابك.</span>{% endif %}
         </div>
     </div>
 
@@ -876,7 +882,7 @@ document.addEventListener('DOMContentLoaded',()=> {
     function confirmDeleteBatch(batchId, name, batchNum) {
         Swal.fire({
             title: 'حذف حزمة الكروت نهائياً',
-            text: `هل أنت متأكد من حذف الحزمة [${name || batchNum}] وجميع كروتها نهائياً من FreeRADIUS ومسح بياناتها؟ لا يمكن التراجع عن هذا الإجراء!`,
+            text: `هل أنت متأكد من حذف الحزمة [${name || batchNum}] وكروتها؟ يُحفظ تاريخ المحاسبة والعمليات المالية، ويُحسب الاسترداد للكروت غير المستخدمة وفق خصم الإصدار المثبت. لا يمكن التراجع عن الحذف!`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#e11d48',
@@ -888,6 +894,10 @@ document.addEventListener('DOMContentLoaded',()=> {
                 const f = document.createElement('form');
                 f.method = 'POST';
                 f.action = `/vouchers/delete-batch/${batchId}`;
+                const csrf = document.createElement('input');
+                csrf.type = 'hidden'; csrf.name = 'csrf_token';
+                csrf.value = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                f.appendChild(csrf);
                 document.body.appendChild(f);
                 f.submit();
             }
@@ -947,6 +957,7 @@ document.addEventListener('DOMContentLoaded',()=> {
         const chevron = document.getElementById('bulkBatchesChevron');
         if (menu) {
             menu.classList.toggle('hidden');
+            document.getElementById('bulkBatchesDropdownBtn')?.setAttribute('aria-expanded', String(!menu.classList.contains('hidden')));
             if (chevron) {
                 chevron.classList.toggle('rotate-180');
             }
@@ -957,6 +968,7 @@ document.addEventListener('DOMContentLoaded',()=> {
         const menu = document.getElementById('bulkBatchesDropdownMenu');
         const chevron = document.getElementById('bulkBatchesChevron');
         if (menu) menu.classList.add('hidden');
+        document.getElementById('bulkBatchesDropdownBtn')?.setAttribute('aria-expanded', 'false');
         if (chevron) chevron.classList.remove('rotate-180');
     }
 
@@ -974,7 +986,7 @@ document.addEventListener('DOMContentLoaded',()=> {
         closeBulkBatchesDropdown();
         Swal.fire({
             title: 'حذف الحزم المحددة جماعياً',
-            text: `هل أنت متأكد من حذف عدد (${ids.length}) حزمة محددة وجميع كروتها نهائياً من FreeRADIUS ومسح بياناتها؟ لا يمكن التراجع عن هذا الإجراء!`,
+            text: `هل أنت متأكد من حذف (${ids.length}) حزمة وكروتها؟ يُحفظ تاريخ المحاسبة والعمليات المالية، ويُحسب الاسترداد للكروت غير المستخدمة وفق خصم الإصدار المثبت. لا يمكن التراجع عن الحذف!`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#e11d48',
@@ -996,11 +1008,20 @@ document.addEventListener('DOMContentLoaded',()=> {
                 })
                 .then(r => r.json())
                 .then(data => {
-                    if (data.success) {
-                        Swal.fire('تم بنجاح', data.message, 'success').then(() => location.reload());
-                    } else {
-                        Swal.fire('خطأ', data.message || 'فشلت عملية الحذف', 'error');
+                    const details = document.createElement('div');
+                    details.style.textAlign = 'right';
+                    const summary = document.createElement('p');
+                    summary.textContent = data.message || 'تعذر إكمال الحذف.';
+                    details.appendChild(summary);
+                    for (const result of data.results || []) {
+                        const line = document.createElement('p');
+                        line.textContent = `حزمة #${result.batch_id}: ${result.message}`;
+                        details.appendChild(line);
                     }
+                    const pending = (data.results || []).some(result => result.status === 'pending');
+                    Swal.fire({title: data.partial ? 'اكتمل الحذف جزئيًا' : data.success ? 'اكتمل الحذف' : pending ? 'الحذف ينتظر إغلاق الجلسات' : 'لم يكتمل الحذف',
+                        html: details, icon: data.partial ? 'warning' : data.success ? 'success' : pending ? 'info' : 'error'})
+                        .then(() => { if (data.success || pending) location.reload(); });
                 })
                 .catch(() => {
                     Swal.fire('خطأ', 'حدث خطأ في الاتصال بالخادم', 'error');

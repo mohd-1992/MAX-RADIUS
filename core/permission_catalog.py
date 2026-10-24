@@ -168,6 +168,85 @@ def permission_rows():
     return rows
 
 
+# Stable base catalog; insert missing metadata without replaying historical RBAC seed SQL.
+BASE_PERMISSIONS = (
+    ('subscribers.view', 'عرض المشتركين', 'إدارة المشتركين', 'إمكانية استعراض قائمة وبيانات المشتركين'),
+    ('subscribers.create', 'إضافة مشترك جديد', 'إدارة المشتركين', 'إمكانية إنشاء حسابات جديدة للمشتركين وتوثيقها'),
+    ('subscribers.edit', 'تعديل بيانات المشترك', 'إدارة المشتركين', 'تعديل الباقة أو كلمة المرور أو البيانات الشخصية'),
+    ('subscribers.delete', 'حذف المشتركين', 'إدارة المشتركين', 'حذف حسابات المشتركين من النظام والراديوس'),
+    ('subscribers.renew', 'تجديد اشتراك', 'إدارة المشتركين', 'إمكانية تجديد الباقة وتمديد صلاحية المشترك'),
+    ('subscribers.disconnect', 'فصل جلسة المشترك (CoA)', 'إدارة المشتركين', 'إرسال أمر طرد وفصل الجلسة الآنية عبر CoA'),
+    ('vouchers.view', 'استعراض الحزم والكروت', 'نظام الكروت', 'عرض دفعات الكروت والمستخدمين النشطين'),
+    ('vouchers.generate', 'توليد دفعات كروت جديدة', 'نظام الكروت', 'إنشاء وتوليد كروت جديدة وطباعتها'),
+    ('vouchers.print', 'طباعة وتصميم الكروت', 'نظام الكروت', 'الوصول لقوالب الطباعة وتصدير الكروت'),
+    ('vouchers.delete', 'حذف دفعات الكروت', 'نظام الكروت', 'حذف الحزم والكروت غير المستخدمة'),
+    ('vouchers.actions', 'إجراءات الكروت المتقدمة', 'نظام الكروت', 'تعديل مدة الصلاحية وإضافة الرصيد والفصل الفوري'),
+    ('wallets.manage', 'إدارة الأرصدة والمحافظ', 'العمليات المالية', 'إيداع وسحب الرصيد النقدي والآجل لحسابات المشتركين والموزعين'),
+    ('invoices.view', 'عرض الفواتير والتقارير المالية', 'العمليات المالية', 'استعراض فواتير الاشتراكات ومبيعات الكروت'),
+    ('invoices.manage', 'إصدار وتسديد الفواتير', 'العمليات المالية', 'تسجيل الدفعات وتغيير حالة الفواتير إلى مسددة'),
+    ('packages.view', 'عرض الباقات', 'الباقات والسرعات', 'استعراض باقات الإنترنت ومحددات السرعة'),
+    ('packages.manage', 'إضافة وتعديل الباقات', 'الباقات والسرعات', 'إنشاء باقات جديدة وتعديل أسعارها وسرعاتها'),
+    ('nas.view', 'عرض راوترات NAS', 'خوادم البث (NAS)', 'استعراض حالة الراوترات والمراقبة الحية'),
+    ('nas.manage', 'إضافة وتعديل وحذف الراوترات', 'خوادم البث (NAS)', 'ربط راوترات جديدة وتعديل منافذ وأسرار RADIUS'),
+    ('nas.test_coa', 'اختبار بروتوكول CoA', 'خوادم البث (NAS)', 'إرسال حزم PoD / Disconnect تجريبية للراوتر'),
+    ('managers.view', 'عرض المدراء والموزعين', 'المدراء والموزعين', 'استعراض حسابات المدراء وموزعي نقاط البيع'),
+    ('managers.manage', 'إدارة المدراء والموزعين', 'المدراء والموزعين', 'إضافة وتعديل وتعطيل حسابات المدراء'),
+    ('managers.billing', 'إدارة فواتير وكشوفات الموزعين', 'المدراء والموزعين', 'شحن أرصدة الموزعين نقدياً وآجلاً وإصدار كشوفات الحساب'),
+    ('roles.manage', 'إدارة الصلاحيات والأدوار', 'المدراء والموزعين', 'إنشاء وتعديل مجموعات الصلاحيات والأدوار'),
+    ('system.view_services', 'مراقبة خدمات النظام', 'خدمات النظام', 'استعراض حالة Web Server و FreeRADIUS و MariaDB'),
+    ('system.control_services', 'التحكم بالخدمات والتعافي', 'خدمات النظام', 'إعادة تشغيل وإيقاف خدمات النظام'),
+    ('system.backups', 'النسخ الاحتياطي', 'إعدادات النظام', 'أخذ واستعادة وتحميل النسخ الاحتياطية لقاعدة البيانات'),
+    ('system.settings', 'إعدادات النظام والشبكة', 'إعدادات النظام', 'تعديل هوية الشبكة والشعار ومنافذ الاتصال الافتراضية'),
+    ('system.audit_logs', 'سجلات التدقيق والأمان', 'إعدادات النظام', 'استعراض سجلات تتبع عمليات المدراء'),
+)
+
+
+def base_permission_rows():
+    return [dict(code=code, name=name, category=category, description=description)
+            for code, name, category, description in BASE_PERMISSIONS]
+
+
+def standard_role_permissions(code):
+    """Explicit operational profiles. No role inherits superadmin's bypass."""
+    manager_parents = {
+        'subscribers.view', 'subscribers.create', 'subscribers.edit',
+        'subscribers.delete', 'subscribers.renew', 'subscribers.disconnect',
+        'vouchers.view', 'vouchers.generate', 'vouchers.print', 'vouchers.delete',
+        'vouchers.actions', 'packages.view', 'packages.manage', 'nas.view',
+        'invoices.view', 'system.view_services',
+    }
+    shared_reads = {
+        'detail.vouchers.active_users', 'detail.vouchers.inspect',
+        'detail.vouchers.batch_details', 'detail.vouchers.quick_history',
+        'detail.vouchers.quick_cards', 'detail.vouchers.quick_print',
+        'detail.invoices.sales_view', 'detail.invoices.sales_export',
+        'detail.managers.statement', 'detail.managers.invoices',
+        'detail.managers.wallets_view',
+    }
+    if code == 'manager':
+        grants = set(manager_parents)
+        for row in permission_rows():
+            if row['parent'] not in grants:
+                continue
+            if row['code'].startswith(('detail.subscribers.', 'detail.vouchers.', 'detail.packages.')):
+                grants.add(row['code'])
+            elif row['code'] in {
+                'detail.nas.details', 'detail.nas.coverage_view',
+                'detail.invoices.sales_view', 'detail.invoices.sales_export',
+            }:
+                grants.add(row['code'])
+        # Infrastructure and system jobs are separately authorized, not implied by monitoring.
+        return grants
+    if code in ('main_reseller', 'pos_agent'):
+        grants = {'vouchers.view', 'vouchers.print', 'vouchers.actions',
+                  'invoices.view', 'managers.billing'} | shared_reads
+        grants.update({'detail.vouchers.activate', 'detail.vouchers.action_activate_subscriber'})
+        if code == 'main_reseller':
+            grants.update({'vouchers.generate', 'detail.vouchers.quick_issue'})
+        return grants
+    raise ValueError('Unknown standard operational role')
+
+
 ENDPOINT_DETAILS = {endpoint: 'detail.' + suffix for suffix, _, _, endpoints in DETAILS for endpoint in endpoints.split()}
 
 

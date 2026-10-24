@@ -260,15 +260,23 @@ def batches_bulk_action():
 
         if action == 'delete':
             deleted_count = 0
+            results = []
             for bid in batch_ids:
                 try:
                     if delete_batch(bid, admin_username=admin_username):
                         deleted_count += 1
+                        results.append({'batch_id': bid, 'status': 'deleted', 'message': 'تم حذف الحزمة.'})
+                    else:
+                        results.append({'batch_id': bid, 'status': 'not_found', 'message': 'الحزمة غير موجودة أو حُذفت سابقًا.'})
+                except ValueError as e:
+                    results.append({'batch_id': bid, 'status': 'pending' if getattr(e, 'code', None) == 'sessions_pending' else 'failed', 'message': str(e)})
                 except Exception as e:
                     logger.error(f"Error deleting batch {bid}: {e}")
+                    results.append({'batch_id': bid, 'status': 'failed', 'message': 'تعذر إكمال الحذف؛ تحقق من حالة الحزمة قبل إعادة الطلب.'})
             log_audit(session.get('admin_id', 1), admin_username, 'BULK_DELETE_BATCHES', 'vouchers', f'Bulk deleted {deleted_count} batches')
             return jsonify({'success': deleted_count > 0, 'partial': 0 < deleted_count < count,
                             'successful': deleted_count, 'failed': count-deleted_count,
+                            'results': results,
                             'message': f'حُذفت {deleted_count} حزمة؛ لم تُحذف {count-deleted_count} حزمة. تحقق من حالتها قبل إعادة الطلب.'})
 
         elif action == 'change_package':
@@ -1405,8 +1413,8 @@ def export_batch_excel(batch_id):
 
 def delete_batch_action(batch_id):
     try:
-        deleted = delete_batch(batch_id)
-        flash('تم حذف الدفعة واسترداد قيمتها ذريًا.' if deleted else 'الدفعة غير موجودة.', 'info')
+        deleted = delete_batch(batch_id, admin_username=session.get('admin_username', 'admin'))
+        flash('تم حذف الحزمة ومعالجة الاسترداد وفق خصم الإصدار المثبت.' if deleted else 'الدفعة غير موجودة.', 'info')
     except Exception as e:
         flash(f'خطأ أثناء حذف الدفعة: {str(e)}', 'danger')
     return redirect(url_for('vouchers'))

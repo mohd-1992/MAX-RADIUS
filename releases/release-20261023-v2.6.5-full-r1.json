@@ -1,0 +1,34 @@
+{
+  "version": "2.6.5",
+  "release": "20261023-v2.6.5-full-r1",
+  "image": "mohd777/max-radius-web@sha256:c61766679bbcaf349d1301d7e45dc1d7f329461f2fb40cbf3d9b465c36b61096",
+  "latest": true,
+  "signed_files": 169,
+  "templates": 72,
+  "full_source_build": true,
+  "registry_config_and_rootfs_match_tested_image": true,
+  "installed_domains": [
+    "m",
+    "max1",
+    "shn"
+  ],
+  "installed_services": [
+    "web",
+    "update_controller"
+  ],
+  "core_db_unchanged": true,
+  "public_http_200": true,
+  "auth_accounting_verified_domains": [
+    "m",
+    "max1"
+  ],
+  "no_registered_nas": [
+    "shn"
+  ],
+  "expected_trigger_change": "trg_max_nas_seal_preserve: three explicit utf8mb4_unicode_ci comparisons; all other tokens unchanged; 10 compiled MariaDB cases passed",
+  "m_recovery_triggers_preserved": true,
+  "other_preexisting_containers_unchanged": 55,
+  "control_offers_modified": false,
+  "git_pushed": false,
+  "completed_at_utc": "2026-10-23T17:14:16.319493+00:00"
+}

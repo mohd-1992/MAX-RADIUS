@@ -261,7 +261,7 @@ def init_database():
 
                 from database.mysql_bootstrap import bootstrap_empty_schema, SchemaInitializationError
                 with get_connection() as c:
-                    bootstrap_empty_schema(c, sql_content)
+                    fresh_schema = bootstrap_empty_schema(c, sql_content)
                 from database.schema_healer import heal_database_schema, install_accounting_triggers
                 if not heal_database_schema():
                     raise SchemaInitializationError('Schema migration did not complete')
@@ -270,9 +270,11 @@ def init_database():
                 with get_connection() as c:
                     install_accounting_triggers(c)
                     c.commit()
-                from database.permission_catalog import install_permission_catalog
+                from database.permission_catalog import install_permission_catalog, install_standard_role_profiles
                 with db_session() as c:
                     install_permission_catalog(c)
+                    if fresh_schema:
+                        install_standard_role_profiles(c)
                 from database.quick_card_schema import install_quick_card_schema
                 with db_session() as c:
                     install_quick_card_schema(c)

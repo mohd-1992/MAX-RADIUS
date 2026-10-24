@@ -2,7 +2,7 @@
 from flask import request, jsonify, redirect, url_for, render_template
 from core.rbac import get_current_manager, has_permission
 from core.ownership import owner_id, can_access_owned_endpoint, guard_owned_request, scoped_query_one
-from web.endpoint_permissions import ENDPOINT_PERMISSIONS
+from web.endpoint_permissions import ENDPOINT_PERMISSIONS, endpoint_permissions
 from core.permission_catalog import required_detail, ACTION_ENDPOINTS
 from core.license_feature_policy import endpoint_enabled
 
@@ -22,8 +22,10 @@ def can_access_endpoint(endpoint, data=None):
         return False
     if endpoint in ('dashboard', 'login', 'logout', 'static', 'impersonate_exit', 'profile_update'):
         return get_current_manager() is not None
-    permissions = ENDPOINT_PERMISSIONS.get(endpoint)
+    permissions = endpoint_permissions(endpoint, data)
     detail = required_detail(endpoint, data)
+    if detail == '!invalid':
+        return False
     return bool(permissions) and all(has_permission(code) for code in permissions) and (not detail or has_permission(detail))
 
 
@@ -114,7 +116,7 @@ def install_visibility_policy(app):
                     return jsonify(success=False, message='يرجى تسجيل الدخول أولًا.'), 401
                 return redirect(url_for('login', next=request.url))
             return permission_denied()
-        permissions = ENDPOINT_PERMISSIONS.get(endpoint)
+        permissions = endpoint_permissions(endpoint, request.get_json(silent=True) or request.values)
         if permissions is None:
             if request.blueprint in ADMIN_BLUEPRINTS and endpoint not in TARGET_GUARDED_ENDPOINTS and endpoint != 'api_whatsapp_webhook':
                 return permission_denied()

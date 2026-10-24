@@ -51,9 +51,18 @@ def _permission_ids(permission_ids):
         ids = sorted({int(p) for p in (permission_ids or [])})
     except (ValueError, TypeError):
         raise ValueError('قائمة الصلاحيات غير صالحة.')
-    known = {p['id'] for p in query_all('SELECT id FROM wisp_permissions')}
+    known = {p['id']: p for p in query_all('SELECT id,code,name FROM wisp_permissions')}
     if not set(ids).issubset(known):
         raise ValueError('تتضمن القائمة صلاحية غير موجودة؛ لم تحفظ التغييرات.')
+    from core.permission_catalog import permission_rows
+    selected = {known[ident]['code'] for ident in ids}
+    dependencies = {row['code']: row['parent'] for row in permission_rows()}
+    missing = sorted({dependencies[code] for code in selected
+                      if code in dependencies and dependencies[code] not in selected})
+    if missing:
+        names = {p['code']: p['name'] for p in known.values()}
+        raise ValueError('لم تحفظ الصلاحيات؛ اختر المتطلبات الأساسية أيضًا: ' +
+                         '، '.join(names.get(code, code) for code in missing))
     return ids
 
 
@@ -147,8 +156,26 @@ def transfer_manager_wallet(from_id, to_id, amount, notes='', admin_user='admin'
 def get_all_permissions_grouped():
     """Returns all available system permissions grouped by category."""
     perms = query_all('SELECT * FROM wisp_permissions ORDER BY id ASC')
+    from core.permission_catalog import permission_rows
+    dependencies = {row['code']: row['parent'] for row in permission_rows()}
+    by_code = {p['code']: p for p in perms}
+    own_finance_reads = {'detail.managers.statement', 'detail.managers.invoices',
+                        'detail.managers.wallets_view'}
     grouped = {}
     for p in perms:
+        parent = by_code.get(dependencies.get(p['code']))
+        p['parent_id'] = parent['id'] if parent else ''
+        p['parent_name'] = parent['name'] if parent else ''
+        code = p['code'].removeprefix('detail.')
+        p['administration_only'] = (
+            code.startswith(('subscribers.', 'nas.', 'system.', 'roles.')) or
+            p['code'] in {'wallets.manage', 'packages.manage', 'managers.manage'} or
+            code.startswith('packages.') and p['code'] != 'packages.view' or
+            code.startswith('managers.') and p['code'].startswith('detail.') and p['code'] not in own_finance_reads or
+            code.startswith('invoices.') and p['code'] not in {'invoices.view', 'detail.invoices.sales_view', 'detail.invoices.sales_export'} or
+            'design' in code or code in {'vouchers.bulk_assign_reseller',
+                                       'vouchers.action_add_wallet', 'vouchers.action_deduct_wallet'}
+        )
         cat = p['category']
         if cat not in grouped:
             grouped[cat] = []

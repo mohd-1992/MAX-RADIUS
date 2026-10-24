@@ -8,10 +8,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir cython==3.1.4 setuptools==80.9.0
+COPY build-constraints.txt /tmp/build-constraints.txt
+RUN pip install --no-cache-dir -c /tmp/build-constraints.txt -r requirements.txt && pip install --no-cache-dir cython==3.1.4 setuptools==80.9.0
 COPY run.py entrypoint.sh ./
 COPY core/ ./core/
 COPY services/ ./services/
+COPY deploy/hosted-max/update_controller.py ./services/system_update_host.py
+COPY deploy/hosted-max/provision_update_controller.py ./services/system_update_provision.py
 COPY web/ ./web/
 COPY database/db.py database/schema_healer.py database/schema_objects.py database/mysql_bootstrap.py database/schema_mysql.sql ./database/
 COPY database/freeradius_standard.sql database/wisp_extensions.sql database/seed_data.sql ./database/
@@ -42,6 +45,7 @@ COPY --from=build /opt/venv /opt/venv
 COPY --from=build /app /app
 COPY --from=build /opt/max-protection /opt/max-protection
 RUN mkdir -p /app/storage/backups /app/storage/uploads /app/storage/logs && chmod +x /app/entrypoint.sh
+LABEL org.opencontainers.image.version="2.6.5" max.release.channel="control-v1"
 EXPOSE 80/tcp 5090/tcp 18120/udp 18130/udp 37990/udp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD curl -f http://localhost:5090/ || exit 1
 ENTRYPOINT ["/app/entrypoint.sh"]

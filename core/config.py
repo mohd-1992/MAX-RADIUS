@@ -9,7 +9,7 @@ from pathlib import Path
 # Application Identity & Centralized Versioning System
 from core.product_identity import PRODUCT_IDENTITY
 APP_NAME = PRODUCT_IDENTITY['name']
-APP_VERSION = "2.6.3"
+APP_VERSION = "2.6.5"
 APP_EDITION = os.environ.get('APP_EDITION', 'Enterprise')
 APP_VERSION_FULL = f"{APP_NAME} v{APP_VERSION}"
 APP_VERSION_BADGE = f"v{APP_VERSION} {APP_EDITION}"
