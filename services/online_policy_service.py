@@ -36,7 +36,7 @@ def seconds(value):
 
 
 def rows_for(username, conn=None, locked=False):
-    sql = 'SELECT * FROM radacct WHERE username=%s AND acctstoptime IS NULL'
+    sql = 'SELECT * FROM radacct_owned WHERE username=%s AND acctstoptime IS NULL'
     if conn:
         with conn.cursor() as cur:
             cur.execute(sql + (' FOR UPDATE' if locked else ''), (username,))
@@ -175,7 +175,7 @@ def overlay_baselines(original,username,renewed_at=None,conn=None):
                 continue
             cut=local.cuts.get(rid)
             if cut is None:
-                cur.execute('SELECT * FROM radacct WHERE radacctid=%s AND username=%s FOR UPDATE',(rid,username))
+                cur.execute('SELECT * FROM radacct_owned WHERE radacctid=%s AND username=%s FOR UPDATE',(rid,username))
                 r=cur.fetchone()
                 if not r:
                     raise RuntimeError('Session disappeared while creating the cycle cut')

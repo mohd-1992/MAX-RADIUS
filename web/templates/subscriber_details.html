@@ -337,88 +337,111 @@
     <div id="tab-pane-edit" class="tab-pane hidden space-y-6">
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-xl space-y-5">
             <div class="flex items-center justify-between border-b border-[#1c2840] pb-4">
-                <div>
-                    <h3 class="font-bold text-white text-base flex items-center gap-2">
-                        <i class="fa-solid fa-user-pen text-blue-400"></i>تعديل بيانات المشترك والاشتراك
-                    </h3>
-                <p class="text-xs text-slate-400 mt-1">عدّل البيانات الشخصية وكلمة المرور وقيود الاتصال. تغيير الباقة والتجديد والإيقاف والتنشيط يتم من قائمة العمليات للحفاظ على الرصيد وتسوية الجلسات.</p>
-                </div>
+                <h3 class="font-bold text-white text-base flex items-center gap-2">
+                    <i class="fa-solid fa-user-pen text-blue-400"></i>تعديل بيانات المشترك
+                </h3>
             </div>
-
-            <form id="editSubForm" method="POST" action="{{ url_for('edit_subscriber_action', sub_id=subscriber.id) }}" class="space-y-4 text-xs">
+            <form id="editSubForm" method="POST" action="{{ url_for('edit_subscriber_contract', sub_id=subscriber.id) }}" class="space-y-4 text-xs" data-subscriber-edit="profile">
                 <input type="hidden" name="return_to_details" value="1">
-                
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="operation_id" value="{{ edit_operation_id }}">
+                <input type="hidden" name="expected_revision" value="{{ edit_revision }}">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">الاسم الكامل للمشترك</label>
-                        <input type="text" name="full_name" value="{{ subscriber.full_name }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
+                        <label class="block text-slate-300 font-semibold mb-1" for="editSubscriberUsername">اسم المستخدم</label>
+                        <input type="text" dir="ltr" id="editSubscriberUsername" name="username" value="{{ subscriber.username }}" maxlength="64" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500 font-mono">
                     </div>
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">كلمة المرور في RADIUS (Cleartext-Password)</label>
-                        <input type="text" name="password" value="{{ subscriber.password or '123456' }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-amber-300 font-mono focus:border-blue-500">
+                        <label for="editSubscriber_password" class="block text-slate-300 font-semibold mb-1">كلمة المرور</label>
+                        <input id="editSubscriber_password" type="text" dir="ltr" name="password" value="{{ subscriber.password or '123456' }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-amber-300 focus:border-blue-500 font-mono">
                     </div>
                 </div>
-
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">الباقة المخصصة والسرعة</label>
-                        <p class="text-sm text-slate-300 py-2.5">{{ subscriber.package_name }}</p>
+                        <label for="editSubscriber_service_type" class="block text-slate-300 font-semibold mb-1">نوع الخدمة</label>
+                        <select id="editSubscriber_service_type" name="service_type" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
+                            <option value="hotspot" {% if subscriber.service_type == 'hotspot' %}selected{% endif %}>Hotspot</option>
+                            <option value="pppoe" {% if subscriber.service_type == 'pppoe' %}selected{% endif %}>PPPoE</option>
+                        </select>
                     </div>
+                    {% if has_permission('subscribers.renew') and can_access_account_action('extend-time', 'subscriber') %}
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">نوع الخدمة والربط</label>
-                        <p class="text-sm text-slate-300 py-2.5">{{ subscriber.service_type|upper }}</p>
+                        <label for="editSubscriber_expires_at" class="block text-slate-300 font-semibold mb-1">تاريخ الانتهاء</label>
+                        <input id="editSubscriber_expires_at" type="datetime-local" step="1" dir="ltr" name="expires_at" value="{{ (subscriber.expires_at|string|replace(' ', 'T')) if subscriber.expires_at else '' }}" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
                     </div>
+                    {% endif %}
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">حالة الحساب</label>
-                        <p class="text-sm text-slate-300 py-2.5">{{ 'موقوف' if subscriber.status in ('suspended', 'disabled') else 'منتهي' if subscriber.status == 'expired' else 'نشط' }}</p>
+                        <label for="editSubscriber_mac_binding" class="block text-slate-300 font-semibold mb-1">ربط الماك (MAC)</label>
+                        <input id="editSubscriber_mac_binding" type="text" dir="ltr" name="mac_binding" value="{{ subscriber.mac_binding or '' }}" placeholder="AA:BB:CC:DD:EE:FF" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500 font-mono">
                     </div>
                 </div>
-
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">تاريخ الانتهاء (Expiration Date)</label>
-                        <p class="text-sm text-slate-300 py-2.5">{{ subscriber.expires_at or 'غير محدد' }}</p>
+                        <label for="editSubscriber_full_name" class="block text-slate-300 font-semibold mb-1">الاسم الكامل للمشترك</label>
+                        <input id="editSubscriber_full_name" type="text" name="full_name" value="{{ subscriber.full_name }}" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
                     </div>
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">تقييد الماك (MAC Binding)</label>
-                        <input type="text" name="mac_binding" value="{{ subscriber.mac_binding or '' }}" placeholder="AA:BB:CC:DD:EE:FF" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                        <label for="editSubscriber_phone" class="block text-slate-300 font-semibold mb-1">رقم الهاتف</label>
+                        <input id="editSubscriber_phone" type="text" name="phone" value="{{ subscriber.phone or '' }}" placeholder="0500000000" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
                     </div>
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">عنوان IP الثابت (Static IP - اختياري)</label>
-                        <input type="text" name="static_ip" value="{{ subscriber.static_ip or '' }}" placeholder="192.168.10.50" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                        <label for="editSubscriber_national_id" class="block text-slate-300 font-semibold mb-1">رقم الهوية الوطنية / الإقامة</label>
+                        <input id="editSubscriber_national_id" type="text" name="national_id" value="{{ subscriber.national_id or '' }}" placeholder="1000000000" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
                     </div>
                 </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">رقم الهاتف</label>
-                        <input type="text" name="phone" value="{{ subscriber.phone or '' }}" placeholder="0500000000" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
+                        <label for="editSubscriber_static_ip" class="block text-slate-300 font-semibold mb-1">عنوان IP الثابت (اختياري)</label>
+                        <input id="editSubscriber_static_ip" type="text" dir="ltr" name="static_ip" value="{{ subscriber.static_ip or '' }}" placeholder="192.168.10.50" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500 font-mono">
                     </div>
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1">رقم الهوية الوطنية / الإقامة</label>
-                        <input type="text" name="national_id" value="{{ subscriber.national_id or '' }}" placeholder="1000000000" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-slate-300 font-semibold mb-1">العنوان / الحي</label>
-                        <input type="text" name="address" value="{{ subscriber.address or '' }}" placeholder="الرياض - حي الملز" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
+                        <label for="editSubscriber_address" class="block text-slate-300 font-semibold mb-1">العنوان / الحي</label>
+                        <input id="editSubscriber_address" type="text" name="address" value="{{ subscriber.address or '' }}" placeholder="الرياض - حي الملز" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
                     </div>
                 </div>
-
                 <div>
-                    <label class="block text-slate-300 font-semibold mb-1">ملاحظات إدارية</label>
-                    <textarea name="notes" rows="2" placeholder="أي ملاحظات خاصة بالمشترك أو التركيب..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:border-blue-500">{{ subscriber.notes or '' }}</textarea>
+                    <label for="editSubscriber_notes" class="block text-slate-300 font-semibold mb-1">ملاحظات إدارية</label>
+                    <textarea id="editSubscriber_notes" name="notes" rows="3" placeholder="أي ملاحظات خاصة بالمشترك أو التركيب..." class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">{{ subscriber.notes or '' }}</textarea>
                 </div>
-
-                <div class="flex justify-end gap-3 pt-4 border-t border-[#1c2840]">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-[#1c2840] pt-4 text-xs">
+                    <div><span class="block text-slate-300 font-semibold mb-1">الباقة الحالية</span><p class="py-2.5 text-sm text-slate-300">{{ subscriber.package_name }}</p></div>
+                    <div><span class="block text-slate-300 font-semibold mb-1">حالة الحساب</span><p class="py-2.5 text-sm text-slate-300">{{ 'موقوف' if subscriber.status in ('suspended', 'disabled') else 'منتهي' if subscriber.status == 'expired' else 'نشط' }}</p></div>
+                    {% if not (has_permission('subscribers.renew') and can_access_account_action('extend-time', 'subscriber')) %}
+                    <div><span class="block text-slate-300 font-semibold mb-1">تاريخ الانتهاء</span><p class="py-2.5 text-sm text-slate-300">{{ subscriber.expires_at or 'غير محدد' }}</p></div>
+                    {% endif %}
+                </div>
+                <div class="flex flex-wrap justify-end gap-3 pt-4 border-t border-[#1c2840]">
                     <button type="reset" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold">إعادة تعيين</button>
-                    <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 flex items-center gap-2">
-                        <i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات ومزامنة RADIUS
-                    </button>
+                    <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 flex items-center gap-2"><i class="fa-solid fa-floppy-disk"></i>حفظ التعديلات</button>
                 </div>
             </form>
         </div>
+        {% if has_permission('subscribers.renew') and can_access_account_action('change-package','subscriber') %}
+        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-xl space-y-5">
+            <div class="flex items-center justify-between border-b border-[#1c2840] pb-4">
+                <h3 class="font-bold text-white text-base flex items-center gap-2"><i class="fa-solid fa-box-open text-blue-400"></i>تغيير الباقة</h3>
+            </div>
+            <form method="POST" action="{{ url_for('edit_subscriber_package', sub_id=subscriber.id) }}" data-subscriber-edit="package" class="space-y-4 text-xs">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="operation_id" value="{{ package_operation_id }}">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1" for="editSubscriberPackage">الباقة الجديدة</label>
+                        <select id="editSubscriberPackage" name="new_package_id" required class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
+                            <option value="">اختر الباقة</option>
+                            {% for p in packages %}<option value="{{ p.id }}" data-quota="{{ p.volume_quota_mb or 0 }}" data-validity="{{ p.validity_value if p.validity_value is not none else p.validity_days }}" data-unit="{{ p.validity_unit or 'days' }}">{{ p.name }} — {{ p.service_type }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <label class="flex items-center gap-2 h-11 text-sm text-slate-300"><input type="checkbox" name="enable_rollover" value="1" class="w-4 h-4 rounded accent-blue-600">ترحيل المتبقي</label>
+                </div>
+                <p id="editPackagePreview" class="text-xs text-slate-400 empty:hidden" aria-live="polite"></p>
+                <div class="flex justify-end pt-4 border-t border-[#1c2840]">
+                    <button type="submit" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-500/25 flex items-center gap-2"><i class="fa-solid fa-arrows-rotate"></i>تغيير الباقة وبدء دورة جديدة</button>
+                </div>
+            </form>
+        </div>
+        {% endif %}
     </div>
-
     {% endif %}
     <!-- TAB 3: SESSIONS LOG (سجل الجلسات) -->
     <div id="tab-pane-sessions" class="tab-pane hidden space-y-6">
@@ -449,7 +472,7 @@
                     <tbody class="divide-y divide-[#1c2840]">
                         {% for s in sessions %}
                         <tr class="hover:bg-[#11192b] transition">
-                            <td class="p-3 font-mono text-slate-300">{{ s.acctstarttime }}</td>
+                            <td class="p-3 font-mono text-slate-300">{{ s.acctstarttime }}{% if s.original_username and s.original_username != subscriber.username %}<span class="block text-xs text-slate-400">اسم الدخول الأصلي: {{ s.original_username }}</span>{% endif %}</td>
                             <td class="p-3 font-mono">
                                 {% if s.is_active %}
                                 <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
@@ -583,12 +606,14 @@
                                 </span>
                             </td>
                             <td class="p-3 whitespace-nowrap">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase font-mono">
-                                    {{ log.action }}
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                    {{ log.action_label|default(log.action) }}
                                 </span>
                             </td>
-                            <td class="p-3 text-slate-200">
-                                {{ log.change_details }}
+                            <td class="p-3 text-slate-200 break-words">
+                                {% for detail in log.detail_lines|default([log.change_details]) %}
+                                <div>{{ detail }}</div>
+                                {% endfor %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -893,4 +918,5 @@
         chartRendered = true;
     }
 </script>
+<script src="{{ url_for('static', filename='subscriber-edit.js', v='20261024-1') }}" defer></script>
 {% endblock %}

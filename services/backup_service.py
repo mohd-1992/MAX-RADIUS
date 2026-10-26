@@ -383,7 +383,7 @@ def generate_mysql_dump(output=None):
     table_names = []
     try:
         with conn.cursor() as cur:
-            cur.execute("SHOW TABLES")
+            cur.execute("SHOW FULL TABLES WHERE Table_type='BASE TABLE'")
             tables = cur.fetchall()
             for t in tables:
                 tname = list(t.values())[0] if isinstance(t, dict) else t[0]
@@ -399,11 +399,15 @@ def generate_mysql_dump(output=None):
                 except Exception:
                     pass
 
+                # Generated ownership keys are recreated by DDL, never inserted.
+                cur.execute(f"SHOW COLUMNS FROM `{tname}`")
+                backup_columns = [c['Field'] for c in cur.fetchall() if 'GENERATED' not in str(c.get('Extra','')).upper()]
+                selected_columns = ','.join('`'+c+'`' for c in backup_columns)
                 # Fetch rows in chunks of 500 to keep memory flat
                 from pymysql.cursors import SSDictCursor
                 data_cur = conn.cursor(SSDictCursor)
                 try:
-                    data_cur.execute(f"SELECT * FROM `{tname}`")
+                    data_cur.execute(f"SELECT {selected_columns} FROM `{tname}`")
                     batch_size = 500
                     while True:
                         rows = data_cur.fetchmany(batch_size)
@@ -841,6 +845,15 @@ def _restore_backup(filename, admin_username, temp_dir):
 
         quota_warning = ""
 
+        # An older backup cannot inherit alias ownership from this newer database.
+        restored_identity_metadata = False
+        restored_voucher_metadata = False
+        if sql_path:
+            import re
+            with open(sql_path,'r',encoding='utf-8',errors='replace') as identity_source:
+                for line in identity_source:
+                    restored_identity_metadata |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_subscriber_names\b',line,re.I))
+                    restored_voucher_metadata |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_voucher_names\b',line,re.I))
         # Execute database restoration
         if sql_path:
             conn = get_connection()
@@ -873,6 +886,12 @@ def _restore_backup(filename, admin_username, temp_dir):
             # The general healer logs some trigger failures; enforce verification here.
             with db_session() as restored_db:
                 if is_mysql_conn(restored_db):
+                    from database.subscriber_edit_schema import install_subscriber_edit_schema,clear_legacy_restore_ownership
+                    if sql_path and not restored_identity_metadata:
+                        clear_legacy_restore_ownership(restored_db)
+                    elif sql_path and not restored_voucher_metadata:
+                        clear_legacy_restore_ownership(restored_db,voucher_only=True)
+                    install_subscriber_edit_schema(restored_db)
                     install_accounting_triggers(restored_db)
         except Exception as e:
             schema_restore_error = str(e)

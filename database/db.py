@@ -262,6 +262,9 @@ def init_database():
                 from database.mysql_bootstrap import bootstrap_empty_schema, SchemaInitializationError
                 with get_connection() as c:
                     fresh_schema = bootstrap_empty_schema(c, sql_content)
+                from database.subscriber_edit_schema import install_subscriber_edit_schema
+                with get_connection() as c:
+                    install_subscriber_edit_schema(c)
                 from database.schema_healer import heal_database_schema, install_accounting_triggers
                 if not heal_database_schema():
                     raise SchemaInitializationError('Schema migration did not complete')
@@ -270,6 +273,8 @@ def init_database():
                 with get_connection() as c:
                     install_accounting_triggers(c)
                     c.commit()
+                with get_connection() as c:
+                    install_subscriber_edit_schema(c)
                 from database.permission_catalog import install_permission_catalog, install_standard_role_profiles
                 with db_session() as c:
                     install_permission_catalog(c)
@@ -281,6 +286,10 @@ def init_database():
                 from database.userman_import_schema import install_userman_import_schema
                 with db_session() as c:
                     install_userman_import_schema(c)
+                from services.accounting_archiver_service import ensure_archive_tables
+                ensure_archive_tables()
+                with get_connection() as c:
+                    install_subscriber_edit_schema(c)
                 print("[DB] MySQL base schema and required migrations verified successfully.")
                 return
         except DatabaseUnavailableError:

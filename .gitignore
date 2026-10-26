@@ -193,3 +193,5 @@ tests/fixtures/*
 !tests/test_old_panel_control_updates.py
 !tests/license_feature_fixture.py
 !/releases/runtime-20261024-v2.6.5-batches-r1.tar.gz
+
+!/releases/runtime-20261024-v2.6.5-subscriber-voucher-r1.tar.gz

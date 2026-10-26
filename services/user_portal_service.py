@@ -482,7 +482,7 @@ def get_portal_user_data(username):
     # 2. Check active live connection in radacct with Interim-Update Heartbeat
     if DB_TYPE == 'mysql':
         active_session = query_one("""
-            SELECT * FROM radacct
+            SELECT * FROM radacct_owned
             WHERE LOWER(username) = LOWER(?) 
               AND acctstoptime IS NULL
               AND (
@@ -495,7 +495,7 @@ def get_portal_user_data(username):
     else:
         cutoff_str = get_heartbeat_cutoff_str(5)
         active_session = query_one("""
-            SELECT * FROM radacct
+            SELECT * FROM radacct_owned
             WHERE LOWER(username) = LOWER(?) 
               AND acctstoptime IS NULL
               AND (
@@ -1235,7 +1235,7 @@ def apply_portal_speed(username, rate_formatted):
         cursor = conn.cursor()
         cursor.execute(adapt_query("DELETE FROM radreply WHERE LOWER(username)=LOWER(?) AND attribute='MikroTik-Rate-Limit'", conn), (username,))
         cursor.execute(adapt_query("INSERT INTO radreply(username,attribute,op,value) VALUES (?,'MikroTik-Rate-Limit',':=',?)", conn), (username, rate_formatted))
-    sessions = query_all("SELECT * FROM radacct WHERE LOWER(username)=LOWER(?) AND acctstoptime IS NULL ORDER BY radacctid", (username,))
+    sessions = query_all("SELECT * FROM radacct_owned WHERE LOWER(username)=LOWER(?) AND acctstoptime IS NULL ORDER BY radacctid", (username,))
     account = query_one("SELECT service_type FROM wisp_subscribers WHERE LOWER(username)=LOWER(?) LIMIT 1", (username,))
     if not account:
         account = query_one("SELECT p.service_type FROM wisp_vouchers v LEFT JOIN wisp_packages p ON p.id=v.package_id WHERE LOWER(v.username)=LOWER(?) LIMIT 1", (username,))
@@ -1460,6 +1460,16 @@ def renew_or_change_package(username, new_pkg_id):
                                'policy_rate_limit_str': rate if account_type == 'voucher' else None,
                                'pkg_mikrotik_group': pkg.get('mikrotik_group')},
                               account_type, new_fr_exp)
+
+        if account_type == 'subscriber':
+            from services.quick_action_service import generate_invoice_number
+            cursor.execute(adapt_query("""INSERT INTO wisp_invoices
+                (invoice_number, subscriber_id, subscriber_name, amount, status,
+                 package_name, notes, paid_at)
+                VALUES (?, ?, ?, ?, 'paid', ?, ?, ?)""", conn),
+                (generate_invoice_number(sub['id']), sub['id'],
+                 sub.get('full_name') or sub['username'], pkg_price, pkg['name'],
+                 'شراء أو تجديد باقة من محفظة المشترك عبر البوابة', db_now_str))
 
     # Sessions were finalized before billing; no delayed disconnect can hit a new login.
 

@@ -31,12 +31,15 @@ def get_user_audit_logs(user_type, user_id=None, username=None):
         ORDER BY id DESC
         LIMIT 100
     ''', (user_type, user_id or 0, username or ''))
+    if user_type in ('subscriber','voucher'):
+        from services.subscriber_audit_service import present_subscriber_audit
+        return present_subscriber_audit(logs)
     return logs
 
 def get_user_usage_analytics(username, days=30):
     """
     Returns daily aggregated usage (Download, Upload, Connection Duration, Sessions)
-    from radacct for Chart.js / ApexCharts.
+    from radacct_owned for Chart.js / ApexCharts.
     """
     try:
         stats = query_all('''
@@ -48,12 +51,12 @@ def get_user_usage_analytics(username, days=30):
                 COUNT(*) as session_count
             FROM (
                 SELECT acctstarttime,acctoutputoctets,acctinputoctets,acctsessiontime
-                FROM radacct r WHERE LOWER(username)=LOWER(?)
+                FROM radacct_owned r WHERE LOWER(username)=LOWER(?)
                   AND (COALESCE(acctterminatecause,'')<>'Consolidated-Historical-Import'
-                    OR NOT EXISTS (SELECT 1 FROM wisp_imported_session_history h WHERE h.username=r.username))
+                    OR NOT EXISTS (SELECT 1 FROM wisp_imported_session_history_owned h WHERE h.username=r.username))
                 UNION ALL
                 SELECT acctstarttime,acctoutputoctets,acctinputoctets,acctsessiontime
-                FROM wisp_imported_session_history WHERE LOWER(username)=LOWER(?)
+                FROM wisp_imported_session_history_owned WHERE LOWER(username)=LOWER(?)
             ) history
             GROUP BY DATE(acctstarttime)
             ORDER BY usage_date ASC
@@ -141,7 +144,7 @@ def get_subscriber_status_counts(search=None, service_type=None, package_id=None
 
         # Online (Active radacct session)
         online_where = base_where + ''' AND s.username IN (
-            SELECT username FROM radacct
+            SELECT username FROM radacct_owned
             WHERE acctstoptime IS NULL
               AND (
                 (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
@@ -192,7 +195,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
         params.append('active')
     elif status == 'online':
         query += ''' AND s.username IN (
-            SELECT username FROM radacct
+            SELECT username FROM radacct_owned
             WHERE acctstoptime IS NULL
               AND (
                 (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
@@ -228,7 +231,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
         active_sessions_list = query_all(f'''
             SELECT username, acctsessionid, framedipaddress, nasipaddress, calledstationid,
                    acctstarttime, callingstationid, acctinputoctets, acctoutputoctets
-            FROM radacct
+            FROM radacct_owned
             WHERE username IN ({placeholders})
               AND acctstoptime IS NULL
               AND (
@@ -243,10 +246,10 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
         last_sessions_list = query_all(f'''
             SELECT a.username, a.acctstoptime, a.framedipaddress, a.calledstationid, a.nasipaddress,
                    a.acctinputoctets, a.acctoutputoctets
-            FROM radacct a
+            FROM radacct_owned a
             INNER JOIN (
                 SELECT username, MAX(radacctid) as max_id
-                FROM radacct
+                FROM radacct_owned
                 WHERE username IN ({placeholders})
                 GROUP BY username
             ) m ON a.radacctid = m.max_id
@@ -464,10 +467,10 @@ def create_subscriber(data, admin_username='admin', conn=None):
         (admin_username, f'Created subscriber {data["username"]}'))
     return sub_id
 
-def update_subscriber(sub_id, data, admin_username='admin', conn=None):
+def update_subscriber(sub_id, data, admin_username='admin', conn=None, record_audit=True):
     if conn is None:
         with db_session() as connection:
-            return update_subscriber(sub_id, data, admin_username=admin_username, conn=connection)
+            return update_subscriber(sub_id, data, admin_username=admin_username, conn=connection, record_audit=record_audit)
     query_one = lambda sql, params=(): execute_in_transaction(conn, sql, params, fetch='one')
     execute_write = lambda sql, params=(): execute_in_transaction(conn, sql, params)
     old_sub = query_one('''
@@ -531,13 +534,14 @@ def update_subscriber(sub_id, data, admin_username='admin', conn=None):
         raise ValueError('تعذرت مزامنة المشترك؛ لم يُحفظ التعديل.')
     
     change_summary = "، ".join(changes) if changes else "تحديث عام لبيانات المشترك"
-    execute_write('''INSERT INTO user_audit_logs
-        (user_type, user_id, username, admin_name, action, change_details)
-        VALUES ('subscriber', ?, ?, ?, 'UPDATE_PROFILE', ?)''',
-        (sub_id, old_sub['username'], admin_username, change_summary))
-    execute_write('''INSERT INTO wisp_audit_logs (admin_id, username, action, module, details)
-        VALUES (1, ?, 'UPDATE_SUBSCRIBER', 'subscribers', ?)''',
-        (admin_username, f'Updated subscriber {old_sub["username"]}: {change_summary}'))
+    if record_audit:
+        execute_write('''INSERT INTO user_audit_logs
+            (user_type, user_id, username, admin_name, action, change_details)
+            VALUES ('subscriber', ?, ?, ?, 'UPDATE_PROFILE', ?)''',
+            (sub_id, old_sub['username'], admin_username, change_summary))
+        execute_write('''INSERT INTO wisp_audit_logs (admin_id, username, action, module, details)
+            VALUES (1, ?, 'UPDATE_SUBSCRIBER', 'subscribers', ?)''',
+            (admin_username, f'Updated subscriber {old_sub["username"]}: {change_summary}'))
     return True
 
 def delete_subscriber(sub_id, admin_username='admin'):
@@ -552,17 +556,17 @@ def delete_subscriber(sub_id, admin_username='admin'):
 def get_subscriber_sessions(username, limit=15):
     cutoff_str = get_heartbeat_cutoff_str(5)
     # Imported details are display-only; quota/authentication read radacct exclusively.
-    columns = 'radacctid,acctsessionid,acctuniqueid,username,nasipaddress,acctstarttime,acctupdatetime,acctstoptime,acctsessiontime,acctinputoctets,acctoutputoctets,acctterminatecause,framedipaddress,callingstationid'
+    columns = 'radacctid,acctsessionid,acctuniqueid,username,original_username,nasipaddress,acctstarttime,acctupdatetime,acctstoptime,acctsessiontime,acctinputoctets,acctoutputoctets,acctterminatecause,framedipaddress,callingstationid'
     sessions = query_all(f"""
         SELECT * FROM (
           SELECT {columns}, CASE WHEN acctstoptime IS NULL
             AND COALESCE(acctupdatetime,acctstarttime)>=? THEN 1 ELSE 0 END is_active,
-            0 imported_history FROM radacct r WHERE LOWER(username)=LOWER(?)
+            0 imported_history FROM radacct_owned r WHERE LOWER(username)=LOWER(?)
             AND (COALESCE(acctterminatecause,'')<>'Consolidated-Historical-Import'
-              OR NOT EXISTS (SELECT 1 FROM wisp_imported_session_history h WHERE h.username=r.username))
+              OR NOT EXISTS (SELECT 1 FROM wisp_imported_session_history_owned h WHERE h.username=r.username))
           UNION ALL
           SELECT {columns},0 is_active,1 imported_history
-            FROM wisp_imported_session_history WHERE LOWER(username)=LOWER(?)
+            FROM wisp_imported_session_history_owned WHERE LOWER(username)=LOWER(?)
         ) history ORDER BY acctstarttime DESC,radacctid DESC LIMIT ?
     """, (cutoff_str,username,username,limit))
     

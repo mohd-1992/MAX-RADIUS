@@ -62,7 +62,7 @@ def record_session_baselines(username, renewed_at=None, conn=None):
                     (COALESCE(acctinputoctets, 0) + COALESCE(acctoutputoctets, 0)) as baseline_bytes,
                     COALESCE(acctsessiontime, 0) as baseline_seconds,
                     %s as renewed_at
-                FROM radacct
+                FROM radacct_owned
                 WHERE username = %s AND (acctstoptime IS NULL OR acctstarttime >= %s OR acctstoptime >= %s OR acctterminatecause IN ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed'))
                 ON DUPLICATE KEY UPDATE
                     baseline_input_bytes = VALUES(baseline_input_bytes),
@@ -83,7 +83,7 @@ def record_session_baselines(username, renewed_at=None, conn=None):
                     (COALESCE(acctinputoctets, 0) + COALESCE(acctoutputoctets, 0)) as baseline_bytes,
                     COALESCE(acctsessiontime, 0) as baseline_seconds,
                     ? as renewed_at
-                FROM radacct
+                FROM radacct_owned
                 WHERE LOWER(username) = LOWER(?) AND (acctstoptime IS NULL OR acctstarttime >= ? OR acctstoptime >= ? OR acctterminatecause IN ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed'))
             """, conn)
             cur.execute(ins_q, (renewed_dt, username, renewed_dt, renewed_dt))
@@ -135,7 +135,7 @@ def get_accounting_totals_batch(subscriber_ids, entity_type="subscriber"):
                     AND (a.acctstoptime IS NULL OR a.acctstoptime > {cycle})
                     AND b.radacctid IS NULL THEN 1 ELSE 0 END) AS incomplete
                 FROM {table} s
-                LEFT JOIN radacct a ON LOWER(a.username) = LOWER(s.username)
+                LEFT JOIN radacct_owned a ON LOWER(a.username) = LOWER(s.username)
                 LEFT JOIN wisp_session_baselines b ON b.radacctid = a.radacctid
                     AND b.renewed_at = {cycle}
                 WHERE s.id IN ({placeholders}) GROUP BY s.id, s.username''', tuple(chunk))
@@ -161,7 +161,7 @@ def get_voucher_accounting_totals_batch(voucher_ids):
 
 def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_update=False):
     """
-    Calculates exact upload, download, total bytes and uptime seconds from radacct.
+    Calculates exact upload, download, total bytes and uptime seconds from radacct_owned.
     When since_timestamp is provided, uses cycle baselines to calculate net traffic
     for sessions that spanned the renewal boundary:
     - Session started >= since_timestamp: 100% of bytes count
@@ -183,7 +183,7 @@ def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_up
         if since_timestamp:
             # A pre-existing late session can cross an old cycle without a baseline.
             # Stop gives its lifetime counters, not the missing counters at that boundary.
-            check_sql = adapt_query("""SELECT a.radacctid FROM radacct a
+            check_sql = adapt_query("""SELECT a.radacctid FROM radacct_owned a
                 LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at=?
                 WHERE a.username=? AND a.acctstarttime<?
                 AND (a.acctstoptime IS NULL OR a.acctstoptime>?)
@@ -230,7 +230,7 @@ def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_up
                             ELSE 0
                         END
                     ), 0) as uptime_secs
-                FROM radacct a
+                FROM radacct_owned a
                 LEFT JOIN wisp_session_baselines b 
                        ON a.radacctid = b.radacctid 
                       AND b.renewed_at = ?
@@ -251,7 +251,7 @@ def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_up
                     COALESCE(SUM(COALESCE(a.acctoutputoctets, 0)), 0) as down_bytes,
                     COALESCE(SUM(COALESCE(a.acctinputoctets, 0) + COALESCE(a.acctoutputoctets, 0)), 0) as total_bytes,
                     COALESCE(SUM(COALESCE(a.acctsessiontime, 0)), 0) as uptime_secs
-                FROM radacct a
+                FROM radacct_owned a
                 WHERE a.username = ?
             """, conn)
             if not is_mysql_conn(conn):
@@ -621,7 +621,7 @@ def calculate_batch_quotas(usernames, entity_type='voucher'):
             COALESCE(SUM(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)), 0) as down_bytes,
             COALESCE(SUM(COALESCE(acctsessiontime, 0)), 0) as uptime_secs,
             COUNT(DISTINCT acctsessionid) as sessions_count
-        FROM radacct
+        FROM radacct_owned
         WHERE username IN ({placeholders})
         GROUP BY username
     """

@@ -71,7 +71,7 @@ def expiry_reason(conn, kind, row):
     if not (base or uptime):
         return None
     cycle = row.get('last_renewed_at')
-    if cycle and sql(conn, '''SELECT a.radacctid FROM radacct a
+    if cycle and sql(conn, '''SELECT a.radacctid FROM radacct_owned a
         LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at=?
         WHERE a.username=? AND a.acctstarttime<?
         AND (a.acctstoptime IS NULL OR a.acctstoptime>?)
@@ -85,7 +85,7 @@ def expiry_reason(conn, kind, row):
         COALESCE(SUM(CASE WHEN b.radacctid IS NOT NULL THEN
             GREATEST(0,CAST(COALESCE(a.acctsessiontime,0) AS SIGNED)-CAST(b.baseline_seconds AS SIGNED))
             ELSE COALESCE(a.acctsessiontime,0) END),0) seconds
-        FROM radacct a LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at=?
+        FROM radacct_owned a LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at=?
         WHERE a.username=? AND (? IS NULL OR a.acctstarttime>=? OR b.radacctid IS NOT NULL)''',
         (cycle, row['username'], cycle, cycle), 'one')
     if base and int(totals['bytes']) >= (Decimal(str(base)) + Decimal(str(row.get('extra_quota_mb') or 0))) * 1048576:
@@ -109,7 +109,7 @@ def sweep_expired_accounts():
                 return False
             # Read-only shortlist: only per-account transactions hold row locks.
             states = "('expired','disabled','suspended','recharged')" if kind=='voucher' else "('expired','disabled','suspended')"
-            rows = query_all(f"SELECT id FROM {table} t WHERE status IN ('active','used') OR (status IN {states} AND (EXISTS (SELECT 1 FROM radcheck c WHERE c.username=t.username AND c.attribute='Cleartext-Password') OR EXISTS (SELECT 1 FROM radacct a WHERE a.username=t.username AND a.acctstoptime IS NULL))) ORDER BY id")
+            rows = query_all(f"SELECT id FROM {table} t WHERE status IN ('active','used') OR (status IN {states} AND (EXISTS (SELECT 1 FROM radcheck c WHERE c.username=t.username AND c.attribute='Cleartext-Password') OR EXISTS (SELECT 1 FROM radacct_owned a WHERE a.username=t.username AND a.acctstoptime IS NULL))) ORDER BY id")
             for candidate in rows:
                 # Finish the previous account transaction and its disconnect
                 # enqueue before yielding to the accepted reset request.
@@ -135,7 +135,7 @@ def sweep_expired_accounts():
                     return None
                 expired = run_transaction(process)
                 if expired:
-                    sessions = query_all('SELECT radacctid,acctsessionid,nasipaddress FROM radacct WHERE username=? AND acctstoptime IS NULL', (expired['username'],))
+                    sessions = query_all('SELECT radacctid,acctsessionid,nasipaddress FROM radacct_owned WHERE username=? AND acctstoptime IS NULL', (expired['username'],))
                     for session in sessions:
                         ok, msg = enqueue_disconnect(expired['username'], nas_ip=session['nasipaddress'], session_id=session['acctsessionid'], radacctid=session['radacctid'], reason='Account Expired / Quota Depleted', lifecycle_kind=kind, lifecycle_id=expired['id'], lifecycle_cycle=str(expired.get('last_renewed_at') or ''))
                         if not ok:
@@ -166,7 +166,7 @@ def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, m
                 old = sql(conn, f'SELECT 1 ok FROM {table} WHERE id=? AND expires_at < NOW()-INTERVAL ? DAY', (entity_id,min_age_days),'one')
                 if not old:
                     return {'deleted':False,'skipped':True}
-        sessions = sql(conn, "SELECT radacctid,acctsessionid,nasipaddress FROM radacct WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) ORDER BY radacctid FOR UPDATE", (row['username'],),'all')
+        sessions = sql(conn, "SELECT radacctid,acctsessionid,nasipaddress FROM radacct_owned WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) ORDER BY radacctid FOR UPDATE", (row['username'],),'all')
         reserved = sql(conn, 'SELECT id FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() FOR UPDATE', (row['username'],), 'all')
         if sessions or reserved:
             if not expected_expired:
@@ -250,7 +250,7 @@ def batch_refund_amount(conn, batch, unused, manager):
 def delete_voucher_batch(batch_id, admin_username):
     from database.db import query_all
     # Do not refund or delete a batch while a card may still be online.
-    online = query_all("SELECT DISTINCT v.id FROM wisp_vouchers v JOIN radacct a ON a.username=v.username WHERE v.batch_id=? AND (a.acctstoptime IS NULL OR a.acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed'))",(batch_id,))
+    online = query_all("SELECT DISTINCT v.id FROM wisp_vouchers v JOIN radacct_owned a ON a.username=v.username WHERE v.batch_id=? AND (a.acctstoptime IS NULL OR a.acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed'))",(batch_id,))
     if online:
         for row in online:delete_account('voucher',row['id'])
         raise BatchDeletionPending('تم طلب فصل الجلسات ومنع دخولها؛ أعد الحذف بعد تأكيد إغلاقها. لم يُسترد أي مبلغ.')
@@ -259,7 +259,7 @@ def delete_voucher_batch(batch_id, admin_username):
         if not batch:return False
         cards=sql(conn,'SELECT * FROM wisp_vouchers WHERE batch_id=? ORDER BY id FOR UPDATE',(batch_id,),'all')
         for row in cards:
-            if sql(conn,"SELECT 1 ok FROM radacct WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) LIMIT 1 FOR UPDATE",(row['username'],),'one') or sql(conn,'SELECT 1 ok FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() LIMIT 1 FOR UPDATE',(row['username'],),'one'):
+            if sql(conn,"SELECT 1 ok FROM radacct_owned WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) LIMIT 1 FOR UPDATE",(row['username'],),'one') or sql(conn,'SELECT 1 ok FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() LIMIT 1 FOR UPDATE',(row['username'],),'one'):
                 raise BatchDeletionPending('توجد جلسة أو محاولة دخول جارية؛ لم يتم حذف الدفعة أو استرداد قيمتها.')
         unused=sum(row['status']=='unused' for row in cards)
         reseller=batch.get('reseller_id')

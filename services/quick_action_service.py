@@ -598,7 +598,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
 
 
 @settle_cycle_operation
-def action_change_package(entity_type, entity_id, new_package_id, enable_rollover=None, admin_username='admin', voucher_profile=None):
+def action_change_package(entity_type, entity_id, new_package_id, enable_rollover=None, admin_username='admin', voucher_profile=None, operation_id=None, expected_revision=None):
     """4. تغيير الباقة مع خيار ترحيل الرصيد الذكي (Data & Time Rollover) وتسوية السلفة"""
     with db_session() as conn:
         cursor = conn.cursor()
@@ -617,6 +617,12 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
         if not isinstance(entity, dict):
             entity = dict(entity)
 
+        if etype == 'voucher' and expected_revision is not None:
+            from services.voucher_edit_service import revision
+            if revision(entity) != expected_revision:
+                return False, 'تغيرت بيانات الكرت؛ أعد فتح الصفحة قبل تغيير الباقة.'
+        if voucher_profile is not None and voucher_profile.get('username') != entity['username']:
+            return False, 'احفظ تعديل اسم الكرت أولًا من قسم البيانات ثم غيّر الباقة.'
         if voucher_profile is not None and etype != 'voucher':
             return False, 'تعديل بيانات الكرت متاح للكروت فقط'
         if etype == 'voucher' and str(entity.get('status') or '').lower() == 'recharged':
@@ -835,6 +841,19 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
         cursor.execute(adapt_query("DELETE FROM radusergroup WHERE LOWER(username) = LOWER(?)", conn), (username,))
         cursor.execute(adapt_query("INSERT INTO radusergroup (username, groupname, priority) VALUES (?, ?, 1)", conn), (username, new_pkg['name']))
 
+        if operation_id:
+            if etype == 'voucher':
+                from services.voucher_edit_service import fingerprint, save_receipt
+            else:
+                from services.subscriber_edit_service import fingerprint, save_receipt
+            digest=fingerprint('package',entity['id'],admin_username,{'package_id':int(new_package_id),'rollover':bool(enable_rollover)})
+            save_receipt(conn,operation_id,entity['id'],admin_username,digest,{'success':True,'message':'تم تغيير الباقة وبدء دورة جديدة وفق خيار الترحيل المحدد.'})
+            if etype == 'voucher':
+                details = f"تغيير الباقة إلى {new_pkg['name']} " + ('مع ترحيل المتبقي' if enable_rollover else 'دون ترحيل المتبقي')
+                cursor.execute(adapt_query("INSERT INTO user_audit_logs(user_type,user_id,username,admin_name,action,change_details) VALUES('voucher',?,?,?,'CHANGE_PACKAGE',?)",conn),
+                               (entity['id'],username,admin_username,details))
+                cursor.execute(adapt_query("INSERT INTO wisp_audit_logs(admin_id,username,action,module,details) VALUES(1,?,'CHANGE_PACKAGE','vouchers',?)",conn),(admin_username,details))
+
     # Sessions were finalized before billing; only audit remains outside the transaction.
 
     rolled_gb = round(rem_data_mb / 1024.0, 2)
@@ -856,8 +875,9 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
         res_msg = f"تم تغيير الباقة إلى ({new_pkg['name']}) بنجاح للمشترك{loan_text} وتطبيق الإعدادات الجديدة فوراً."
         audit_note = f"تغيير باقة إلى {new_pkg['name']}{loan_text}"
 
-    log_user_audit(etype, entity['id'], username, admin_username, 'CHANGE_PACKAGE', audit_note)
-    log_audit(1, admin_username, 'CHANGE_PACKAGE', etype, f'Changed package to {new_pkg["name"]} for {username}: {audit_note}')
+    if not (etype == 'voucher' and operation_id):
+        log_user_audit(etype, entity['id'], username, admin_username, 'CHANGE_PACKAGE', audit_note)
+        log_audit(1, admin_username, 'CHANGE_PACKAGE', etype, f'Changed package to {new_pkg["name"]} for {username}: {audit_note}')
     return True, res_msg
 
 def parse_quota_adjustment(quota_amount, quota_unit='GB'):
@@ -902,7 +922,7 @@ def action_get_usage_history(entity_type, entity_id):
                    MAX(CAST(COALESCE(acctoutputoctets, 0) AS UNSIGNED)) as max_down,
                    MAX(CAST(COALESCE(acctinputoctets, 0) AS UNSIGNED)) as max_up,
                    MAX(acctsessiontime) as max_time
-            FROM radacct
+            FROM radacct_owned
             WHERE LOWER(username) = LOWER(?)
             GROUP BY nasipaddress, acctsessionid
         ) AS t

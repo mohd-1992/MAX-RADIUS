@@ -62,8 +62,11 @@ _RELATIONS = {
     'wisp_subscribers': '1=0',
     'wisp_invoices': '1=0',
     'radacct': 'username IN (SELECT username FROM wisp_vouchers WHERE reseller_id={owner})',
+    'radacct_owned': 'username IN (SELECT username FROM wisp_vouchers WHERE reseller_id={owner})',
+    'radacct_archive_owned': 'username IN (SELECT username FROM wisp_vouchers WHERE reseller_id={owner})',
+    'wisp_imported_session_history_owned': 'username IN (SELECT username FROM wisp_vouchers WHERE reseller_id={owner})',
     'wisp_session_baselines': 'username IN (SELECT username FROM wisp_vouchers WHERE reseller_id={owner})',
-    'user_audit_logs': 'username IN (SELECT username FROM wisp_vouchers WHERE reseller_id={owner})',
+    'user_audit_logs': "user_type='voucher' AND user_id IN (SELECT id FROM wisp_vouchers WHERE reseller_id={owner})",
 }
 _TABLE_REF = re.compile(r'\b(FROM|JOIN)\s+`?([a-zA-Z_]\w*)`?', re.I)
 _KEYWORDS = {'where', 'join', 'left', 'right', 'inner', 'outer', 'cross', 'on',

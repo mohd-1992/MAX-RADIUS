@@ -36,7 +36,7 @@ def get_traffic_analytics_report(timeframe='30d'):
                 COALESCE(SUM(acctoutputoctets), 0) as total_download_bytes,
                 COUNT(*) as total_sessions,
                 COUNT(DISTINCT username) as total_unique_users
-            FROM radacct
+            FROM radacct_owned
             WHERE {date_filter}
         """)
         overall = cur.fetchone() or {}
@@ -68,7 +68,7 @@ def get_traffic_analytics_report(timeframe='30d'):
                 SUM(acctinputoctets + acctoutputoctets) as total_bytes,
                 SUM(acctsessiontime) as total_duration_sec,
                 MAX(acctstarttime) as last_seen
-            FROM radacct
+            FROM radacct_owned
             WHERE {date_filter}
             GROUP BY username
             ORDER BY total_bytes DESC
@@ -105,7 +105,7 @@ def get_traffic_analytics_report(timeframe='30d'):
                 SUM(acctinputoctets) as hour_up_bytes,
                 SUM(acctoutputoctets) as hour_down_bytes,
                 SUM(acctinputoctets + acctoutputoctets) as hour_traffic_bytes
-            FROM radacct
+            FROM radacct_owned
             WHERE {date_filter}
             GROUP BY HOUR(acctstarttime)
             ORDER BY hour_of_day ASC
@@ -188,7 +188,7 @@ def get_traffic_analytics_report(timeframe='30d'):
                 acctstoptime,
                 acctsessiontime,
                 (acctinputoctets + acctoutputoctets) as session_bytes
-            FROM radacct
+            FROM radacct_owned
             WHERE {date_filter}
               AND ((acctinputoctets + acctoutputoctets) > 1073741824
                    OR acctsessiontime > 86400)

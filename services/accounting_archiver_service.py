@@ -209,12 +209,12 @@ def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000):
         AND COALESCE(a.acctterminatecause, '') NOT IN
             ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed')
         AND NOT EXISTS (
-            SELECT 1 FROM wisp_subscribers s WHERE s.username = a.username
+            SELECT 1 FROM wisp_subscribers s WHERE s.username = a.account_read_username
             AND (s.last_renewed_at IS NULL OR a.acctstarttime >= s.last_renewed_at
                  OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid = a.radacctid AND b.renewed_at = s.last_renewed_at))
         )
         AND NOT EXISTS (
-            SELECT 1 FROM wisp_vouchers v WHERE v.username = a.username
+            SELECT 1 FROM wisp_vouchers v WHERE v.username = a.account_read_username
             AND (v.last_renewed_at IS NULL OR a.acctstarttime >= v.last_renewed_at
                  OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid = a.radacctid AND b.renewed_at = v.last_renewed_at))
         )
@@ -260,7 +260,7 @@ def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000):
                                 acctstoptime, acctinterval, acctsessiontime, acctauthentic, connectinfo_start,
                                 connectinfo_stop, acctinputoctets, acctoutputoctets, acctinputgigawords,
                                 acctoutputgigawords, class, calledstationid, callingstationid,
-                                acctterminatecause, servicetype, framedprotocol, framedipaddress
+                                acctterminatecause, servicetype, framedprotocol, framedipaddress, account_subscriber_id, account_voucher_id, account_username
                             )
                             SELECT
                                 radacctid, acctsessionid, acctuniqueid, username, '' as groupname, realm,
@@ -269,7 +269,7 @@ def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000):
                                 connectinfo_stop, acctinputoctets, acctoutputoctets,
                                 COALESCE(acctinputgigawords, 0), COALESCE(acctoutputgigawords, 0),
                                 class, calledstationid, callingstationid,
-                                acctterminatecause, servicetype, framedprotocol, framedipaddress
+                                acctterminatecause, servicetype, framedprotocol, framedipaddress, account_subscriber_id, account_voucher_id, account_username
                             FROM radacct
                             WHERE radacctid IN ({placeholders})
                             ON DUPLICATE KEY UPDATE
@@ -280,6 +280,9 @@ def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000):
                                 acctsessiontime=GREATEST(COALESCE(radacct_archive.acctsessiontime,0),COALESCE(VALUES(acctsessiontime),0)),
                                 acctupdatetime=GREATEST(COALESCE(radacct_archive.acctupdatetime,VALUES(acctupdatetime)),COALESCE(VALUES(acctupdatetime),radacct_archive.acctupdatetime)),
                                 acctstoptime=GREATEST(COALESCE(radacct_archive.acctstoptime,VALUES(acctstoptime)),COALESCE(VALUES(acctstoptime),radacct_archive.acctstoptime)),
+                                account_subscriber_id=COALESCE(radacct_archive.account_subscriber_id,VALUES(account_subscriber_id)),
+                                account_voucher_id=COALESCE(radacct_archive.account_voucher_id,VALUES(account_voucher_id)),
+                                account_username=COALESCE(VALUES(account_username),radacct_archive.account_username),
                                 realm=VALUES(realm),nasportid=VALUES(nasportid),nasporttype=VALUES(nasporttype),
                                 acctinterval=VALUES(acctinterval),acctauthentic=VALUES(acctauthentic),
                                 connectinfo_start=VALUES(connectinfo_start),connectinfo_stop=VALUES(connectinfo_stop),

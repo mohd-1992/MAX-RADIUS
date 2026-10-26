@@ -25,7 +25,7 @@ def verify(root, manifest):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument('--manifest', default='releases/source-20261024-v2.6.5-batches-r1.json')
+    parser.add_argument('--manifest', default='releases/source-20261024-v2.6.5-subscriber-voucher-r1.json')
     args = parser.parse_args()
     result = verify(args.root, args.root / args.manifest)
     print(json.dumps(result, indent=2))

@@ -152,7 +152,7 @@ def subscriber_details(sub_id):
     active_sess = query_one('''
         SELECT radacctid, acctsessionid, nasipaddress, framedipaddress, callingstationid,
                acctstarttime, acctsessiontime, acctinputoctets, acctoutputoctets
-        FROM radacct
+        FROM radacct_owned
         WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL
           AND (
               (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
@@ -165,7 +165,7 @@ def subscriber_details(sub_id):
     # Last session (Offline)
     last_sess = query_one('''
         SELECT acctstoptime, nasipaddress, framedipaddress, callingstationid
-        FROM radacct
+        FROM radacct_owned
         WHERE LOWER(username) = LOWER(?)
         ORDER BY radacctid DESC LIMIT 1
     ''', (sub['username'],))
@@ -247,11 +247,13 @@ def subscriber_details(sub_id):
 
     sessions = get_subscriber_sessions(sub['username'], limit=50)
     invoices = query_all('SELECT * FROM wisp_invoices WHERE subscriber_id = ? OR LOWER(subscriber_name) = LOWER(?) ORDER BY id DESC LIMIT 50', (sub_id, sub['username'])) if has_permission('invoices.view') else []
-    packages = query_all('SELECT id, name, price, service_type, rate_download, rate_upload FROM wisp_packages WHERE is_active = 1')
+    packages = query_all('SELECT id,name,price,service_type,rate_download,rate_upload,volume_quota_mb,validity_value,validity_unit,validity_days FROM wisp_packages WHERE is_active = 1')
     audit_logs = get_user_audit_logs('subscriber', sub_id, sub['username'])
     analytics = get_user_usage_analytics(sub['username'])
 
+    from services.subscriber_edit_service import revision
     return render_template('subscriber_details.html',
+                           edit_revision=revision(sub), edit_operation_id=secrets.token_hex(16), package_operation_id=secrets.token_hex(16),
                            subscriber=filter_account_money(sub),
                            total_download=total_download,
                            total_upload=total_upload,
@@ -281,6 +283,51 @@ def edit_subscriber_action(sub_id):
     if request.form.get('return_to_details'):
         return redirect(url_for('subscriber_details', sub_id=sub_id))
     return redirect(url_for('subscribers'))
+
+
+@subscribers_bp.route('/subscribers/<int:sub_id>/edit-contract', methods=['POST'], endpoint='edit_subscriber_contract')
+@login_required
+def edit_subscriber_contract(sub_id):
+    from web.access_policy import can_access_account_action
+    if not has_permission('subscribers.edit'):
+        return jsonify(success=False,message='لا تملك صلاحية تعديل المشتركين.'),403
+    from services.subscriber_edit_service import edit_subscriber
+    from services.renewal_settlement_service import SettlementPending
+    try:
+        result=edit_subscriber(sub_id,request.form,actor=get_current_manager().get('username') or 'admin',
+                               can_change_expiry=has_permission('subscribers.renew') and can_access_account_action('extend-time','subscriber'))
+        return jsonify(result)
+    except ValueError as exc:
+        return jsonify(success=False,message=str(exc)),400
+    except SettlementPending as exc:
+        return jsonify(success=False,message=str(exc)),409
+    except Exception:
+        current_app.logger.exception('Subscriber edit failed: subscriber_id=%s',sub_id)
+        return jsonify(success=False,message='تعذر تأكيد حفظ التعديل. حدّث صفحة المشترك للتحقق قبل إعادة العملية.'),500
+
+
+@subscribers_bp.route('/subscribers/<int:sub_id>/edit-package', methods=['POST'], endpoint='edit_subscriber_package')
+@login_required
+def edit_subscriber_package(sub_id):
+    from web.access_policy import can_access_account_action
+    if not has_permission('subscribers.edit') or not has_permission('subscribers.renew') or not can_access_account_action('change-package','subscriber'):
+        return jsonify(success=False,message='تغيير الباقة يحتاج صلاحية تعديل وتجديد المشتركين.'),403
+    try:
+        package_id=int(request.form.get('new_package_id',''))
+        if package_id<=0:raise ValueError()
+        from services.subscriber_edit_service import receipt,fingerprint
+        actor=get_current_manager().get('username') or 'admin'
+        rollover=request.form.get('enable_rollover') in ('1','true','on')
+        operation_id=request.form.get('operation_id','')
+        # Reject missing/invalid operation IDs before entering the existing service.
+        receipt(operation_id,sub_id,actor,fingerprint('package',sub_id,actor,{'package_id':package_id,'rollover':rollover}))
+        success,message=action_change_package('subscriber',sub_id,package_id,enable_rollover=rollover,admin_username=actor,operation_id=operation_id)
+        return jsonify(success=success,message=message),(200 if success else 409)
+    except ValueError:
+        return jsonify(success=False,message='اختر باقة صحيحة وأعد فتح الصفحة إذا كان طلب التعديل منتهيًا.'),400
+    except Exception:
+        current_app.logger.exception('Subscriber package edit failed: subscriber_id=%s',sub_id)
+        return jsonify(success=False,message='تعذر تأكيد نتيجة تغيير الباقة. راجع الحالة قبل تكرار الطلب.'),500
 
 
 @subscribers_bp.route('/subscribers/delete/<int:sub_id>', methods=['POST'], endpoint="delete_subscriber_action")

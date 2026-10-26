@@ -206,7 +206,7 @@ def _collect_db_metrics_internal():
     # 0. Total Active Sessions across all interfaces (Hotspot + PPPoE) matching MikroTik Active
     active_sessions_q = query_one('''
         SELECT COUNT(*) as total 
-        FROM radacct 
+        FROM radacct_owned
         WHERE acctstoptime IS NULL
           AND (
             (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
@@ -230,7 +230,7 @@ def _collect_db_metrics_internal():
         SELECT 
             COUNT(DISTINCT a.username) as unique_users,
             COUNT(a.radacctid) as total_devices
-        FROM radacct a
+        FROM radacct_owned a
         WHERE a.acctstoptime IS NULL
           AND (a.framedprotocol = 'PPP' OR a.nasporttype IN ('Virtual', 'PPPoE'))
           AND (
@@ -247,7 +247,7 @@ def _collect_db_metrics_internal():
         SELECT 
             COUNT(DISTINCT a.username) as unique_cards,
             COUNT(a.radacctid) as total_devices
-        FROM radacct a
+        FROM radacct_owned a
         WHERE a.acctstoptime IS NULL
           AND (a.framedprotocol IS NULL OR a.framedprotocol != 'PPP')
           AND (a.nasporttype IS NULL OR a.nasporttype NOT IN ('Virtual', 'PPPoE'))
@@ -320,7 +320,7 @@ def _collect_db_metrics_internal():
     traffic = query_one('''
         SELECT COALESCE(SUM(a.acctinputoctets), 0) as total_in,
                COALESCE(SUM(a.acctoutputoctets), 0) as total_out
-        FROM radacct a
+        FROM radacct_owned a
         WHERE a.username IN (SELECT username FROM wisp_subscribers)
            OR a.username IN (SELECT username FROM wisp_vouchers)
     ''')
@@ -412,7 +412,7 @@ def get_recent_live_sessions(limit=10):
             a.nasipaddress, a.acctsessiontime, a.acctinputoctets, a.acctoutputoctets,
             v.id as voucher_id, vp.name as voucher_pkg_name,
             s.id as sub_id, sp.name as sub_pkg_name
-        FROM radacct a
+        FROM radacct_owned a
         LEFT JOIN wisp_vouchers v ON a.username = v.username
         LEFT JOIN wisp_packages vp ON v.package_id = vp.id
         LEFT JOIN wisp_subscribers s ON a.username = s.username
@@ -467,7 +467,7 @@ def get_traffic_chart_data():
         SELECT DATE(acctstarttime) as day_date,
                COALESCE(SUM(acctinputoctets), 0) as total_in,
                COALESCE(SUM(acctoutputoctets), 0) as total_out
-        FROM radacct
+        FROM radacct_owned
         WHERE acctstarttime >= ?
         GROUP BY DATE(acctstarttime)
     """, (start_str,))

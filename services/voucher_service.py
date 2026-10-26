@@ -463,7 +463,7 @@ def update_voucher_batch(batch_id, name, package_id, admin_username='admin'):
             # Used cards must go through the individual settlement-aware path.
             if any(c['status'] != 'unused' or c.get('first_used_at') or c.get('policy_frozen_at') for c in cards):
                 raise ValueError('تحتوي الدفعة كروتًا مستخدمة؛ غيّر باقتها من عمليات الكرت لتسوية الاستهلاك. لم تُعدّل الدفعة.')
-            run('''SELECT 1 FROM radacct a JOIN wisp_vouchers v ON v.username=a.username
+            run('''SELECT 1 FROM radacct_owned a JOIN wisp_vouchers v ON v.username=a.username
                 WHERE v.batch_id=? LIMIT 1''', (batch_id,))
             if cur.fetchone():
                 raise ValueError('توجد محاسبة لكرت في الدفعة؛ استخدم تغيير الباقة الفردي.')

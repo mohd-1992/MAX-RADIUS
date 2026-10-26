@@ -26,7 +26,7 @@ DETAILS = (
  ('vouchers.designs_view', 'عرض تصاميم الكروت', 'vouchers.print', 'voucher_designs_list card_designer card_designer_short edit_voucher_design edit_voucher_design_direct'),
  ('vouchers.designs_manage', 'إنشاء وحفظ وحذف تصاميم الكروت', 'vouchers.actions', 'new_voucher_design save_card_design_api save_card_designer_action delete_card_design_api duplicate_card_design_api set_default_card_design_api upload_card_bg_api'),
  ('vouchers.batch_edit', 'تعديل حزمة الكروت', 'vouchers.actions', 'edit_batch_action'),
- ('vouchers.card_edit', 'تعديل بيانات الكرت', 'vouchers.actions', 'edit_card_action edit_active_card_action update_card_action'),
+ ('vouchers.card_edit', 'تعديل بيانات الكرت', 'vouchers.actions', 'edit_card_action edit_active_card_action edit_active_card_package update_card_action'),
  ('vouchers.activate', 'تفعيل الكرت', 'vouchers.actions', 'api_activate_voucher'),
  ('vouchers.disconnect', 'فصل جلسة الكرت', 'vouchers.actions', 'api_disconnect_voucher'),
  ('vouchers.extend', 'إضافة أيام وبيانات للكرت', 'vouchers.actions', 'api_extend_voucher'),

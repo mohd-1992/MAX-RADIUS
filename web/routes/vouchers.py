@@ -727,7 +727,7 @@ def active_card_user_details(card_id):
     active_sess = query_one('''
         SELECT radacctid, acctsessionid, nasipaddress, framedipaddress, callingstationid,
                acctstarttime, acctsessiontime, acctinputoctets, acctoutputoctets
-        FROM radacct
+        FROM radacct_owned
         WHERE LOWER(username) = LOWER(?) AND acctstoptime IS NULL
           AND (
               (acctupdatetime IS NOT NULL AND acctupdatetime >= ?)
@@ -822,14 +822,17 @@ def active_card_user_details(card_id):
                activated_at as created_at,
                price as amount, 'شراء وتفعيل كرت' as operation_type, 'paid' as status
         FROM wisp_voucher_sales
-        WHERE LOWER(username) = LOWER(?)
+        WHERE voucher_id = ?
         ORDER BY id DESC
-    ''', (card['username'],))
-    packages = query_all("SELECT id, name, price, service_type, rate_download, rate_upload FROM wisp_packages WHERE service_type IN ('hotspot', 'both')")
+    ''', (card_id,))
+    packages = query_all("SELECT id,name,price,service_type,rate_download,rate_upload,volume_quota_mb,validity_value,validity_unit,validity_days FROM wisp_packages WHERE is_active=1 AND service_type IN ('hotspot','both')")
     audit_logs = get_user_audit_logs('voucher', card_id, card['username'])
     analytics = get_user_usage_analytics(card['username'])
 
+    from services.voucher_edit_service import revision
+    import secrets
     return render_template('active_card_user_details.html',
+                           edit_revision=revision(card),edit_operation_id=secrets.token_hex(16),package_operation_id=secrets.token_hex(16),
                            card=card,
                            total_download=total_download,
                            total_upload=total_upload,
@@ -850,66 +853,54 @@ def active_card_user_details(card_id):
 @vouchers_bp.route('/vouchers/active-users/edit/<int:card_id>', methods=['POST'], endpoint="edit_active_card_action")
 
 def edit_active_card_action(card_id):
+    from services.voucher_edit_service import edit_voucher
+    from services.renewal_settlement_service import SettlementPending
+    from web.access_policy import can_access_account_action
+    if not query_one('SELECT id FROM wisp_vouchers WHERE id=?',(card_id,)):
+        return jsonify(success=False,message='الكرت غير موجود.'),404
     try:
-        f = request.form
-        new_username = f['username'].strip()
-        new_password = f['password'].strip()
-        new_pkg_id = int(f.get('package_id', 1))
-        bound_mac = f.get('bound_mac', '').strip()
-        status = f.get('status', 'active')
-        if status == 'disabled':
-            status = 'suspended'
-        expires_at = f.get('expires_at') or None
-        admin_user = session.get('user', {}).get('username', 'admin')
+        return jsonify(edit_voucher(card_id,request.form,actor=get_current_manager().get('username') or 'admin',
+            can_change_expiry=has_permission('vouchers.extend') and can_access_account_action('extend-time','voucher')))
+    except ValueError as exc:
+        return jsonify(success=False,message=str(exc)),400
+    except SettlementPending as exc:
+        return jsonify(success=False,message=str(exc)),409
+    except Exception:
+        logger.exception('Voucher edit failed: card_id=%s',card_id)
+        return jsonify(success=False,message='تعذر تأكيد حفظ التعديل. راجع حالة الكرت قبل إعادة العملية.'),500
 
-        old_card = query_one('''
-            SELECT v.*, p.name as package_name 
-            FROM wisp_vouchers v 
-            LEFT JOIN wisp_packages p ON v.package_id = p.id 
-            WHERE v.id = ?
-        ''', (card_id,))
-        if not old_card:
-            flash('الكرت غير موجود.', 'danger')
-            return redirect(url_for('active_card_users'))
 
-        old_username = old_card['username']
-        new_pkg = query_one('SELECT name FROM wisp_packages WHERE id = ?', (new_pkg_id,))
-        pkg_name = new_pkg['name'] if new_pkg else None
-
-        changes = []
-        if old_username != new_username:
-            changes.append(f"تعديل اسم المستخدم من '{old_username}' إلى '{new_username}'")
-        if old_card.get('password') != new_password:
-            changes.append("تعديل كلمة المرور في RADIUS")
-        if old_card.get('package_id') != new_pkg_id:
-            changes.append(f"تغيير الباقة من '{old_card.get('package_name')}' إلى '{pkg_name}'")
-        if (old_card.get('bound_mac') or '') != bound_mac:
-            changes.append(f"تعديل تقييد الماك إلى '{bound_mac or 'إلغاء التقييد'}'")
-        if (old_card.get('status') or '') != status:
-            changes.append(f"تغيير الحالة من '{old_card.get('status')}' إلى '{status}'")
-        if str(old_card.get('expires_at') or '') != str(expires_at or ''):
-            changes.append(f"تعديل تاريخ الانتهاء إلى '{expires_at or 'تلقائي'}'")
-
-        if status != ('suspended' if old_card['status']=='disabled' else old_card['status']) or str(expires_at or '').replace('T',' ')[:16] != str(old_card.get('expires_at') or '')[:16]:
-            raise ValueError('استخدم عمليات الحالة وتمديد الصلاحية المخصصة.')
-
-        if old_card.get('package_id') != new_pkg_id:
-            profile = dict(username=new_username, password=new_password, bound_mac=bound_mac, status=status)
-            old_exp = str(old_card.get('expires_at') or '').replace('T', ' ')[:16]
-            submitted_exp = str(expires_at or '').replace('T', ' ')[:16]
-            if old_exp != submitted_exp:
-                profile['expires_at'] = expires_at
-            ok, message = action_change_package('voucher', card_id, new_pkg_id,
-                                                admin_username=admin_user, voucher_profile=profile)
-            flash(message, 'success' if ok else 'danger')
-            return redirect(url_for('active_card_user_details', card_id=card_id))
-
-        update_voucher_card(card_id,new_username,new_password,admin_username=admin_user,bound_mac=bound_mac)
-        flash('تم حفظ تعديلات الكرت ومزامنة بيانات FreeRADIUS بنجاح.', 'success')
-    except Exception as e:
-        flash(f'خطأ أثناء تعديل الكرت: {str(e)}', 'danger')
-
-    return redirect(url_for('active_card_user_details', card_id=card_id))
+@vouchers_bp.route('/vouchers/active-users/<int:card_id>/edit-package',methods=['POST'],endpoint='edit_active_card_package')
+def edit_active_card_package(card_id):
+    from web.access_policy import can_access_account_action
+    from services.voucher_edit_service import revision,receipt,fingerprint
+    if not has_permission('vouchers.card_edit') or not can_access_account_action('change-package','voucher'):
+        return jsonify(success=False,message='لا تملك صلاحية تغيير باقة الكرت.'),403
+    row=query_one('SELECT * FROM wisp_vouchers WHERE id=?',(card_id,))
+    if not row:return jsonify(success=False,message='الكرت غير موجود.'),404
+    try:
+        package_id=int(request.form.get('new_package_id',''))
+        if package_id<=0:raise ValueError('اختر باقة صحيحة.')
+        if not query_one("SELECT id FROM wisp_packages WHERE id=? AND is_active=1 AND service_type IN ('hotspot','both')",(package_id,)):
+            raise ValueError('الباقة غير متاحة لهذا الكرت.')
+        actor=get_current_manager().get('username') or 'admin'
+        rollover=request.form.get('enable_rollover') in ('1','true','on')
+        if row['status']=='unused':rollover=False
+        op=request.form.get('operation_id','')
+        digest=fingerprint('package',card_id,actor,{'package_id':package_id,'rollover':rollover})
+        old=receipt(op,card_id,actor,digest)
+        if old:return jsonify(old)
+        expected=request.form.get('expected_revision')
+        if expected!=revision(row):raise ValueError('تغيرت بيانات الكرت؛ أعد فتح الصفحة.')
+        unused_profile=dict(username=row['username'],password=row['password'],bound_mac=row.get('bound_mac'),status='unused') if row['status']=='unused' else None
+        ok,msg=action_change_package('voucher',card_id,package_id,enable_rollover=rollover,
+            admin_username=actor,operation_id=op,expected_revision=expected,voucher_profile=unused_profile)
+        return jsonify(success=ok,message=msg),(200 if ok else 409)
+    except ValueError as exc:
+        return jsonify(success=False,message=str(exc)),400
+    except Exception:
+        logger.exception('Voucher package edit failed: card_id=%s',card_id)
+        return jsonify(success=False,message='تعذر تأكيد نتيجة تغيير الباقة؛ راجع الحالة قبل إعادة الطلب.'),500
 
 
 @vouchers_bp.route('/vouchers/update-card', methods=['POST'], endpoint="update_card_action")

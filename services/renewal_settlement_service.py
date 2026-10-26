@@ -17,10 +17,74 @@ class SettlementPending(RuntimeError):
     pass
 
 
+def current_radius_container():
+    """Resolve the current Web and one running Core within its proven project.
+
+    Runtime mount/cgroup identity takes precedence over an inherited or custom
+    hostname. Retained containers and another tenant never supply a target.
+    This is a read-only readiness check, not proof of NAS accounting settlement.
+    """
+    import os
+    import re
+    from services.autoheal_service import docker_api_request, _runtime_container_ids
+
+    def unavailable(reason):
+        raise SettlementPending('تعذر التحقق من حاوية الراديوس الحالية: ' + reason +
+                                ' لم تُنفذ العملية ولم يتم الخصم.')
+
+    fleet, error = docker_api_request('GET', '/containers/json?all=1')
+    if error or not isinstance(fleet, list):
+        unavailable('اتصال Docker غير متاح.')
+    identities = _runtime_container_ids()
+    if len(identities) > 1:
+        unavailable('هوية حاوية الويب ملتبسة.')
+    if identities:
+        own = [row for row in fleet if row.get('Id') in identities]
+    else:
+        # Default Docker hostnames are ID prefixes. Arbitrary hostnames are
+        # not tenant identifiers and must never become a cross-project hint.
+        hostname = os.environ.get('HOSTNAME', '')
+        own = [row for row in fleet if re.fullmatch(r'[0-9a-f]{12,64}', hostname)
+               and row.get('Id', '').startswith(hostname)]
+    if len(own) != 1 or own[0].get('State') != 'running':
+        unavailable('لم تثبت هوية حاوية الويب العاملة.')
+    own = own[0]
+    labels = own.get('Labels') or {}
+    project = labels.get('com.docker.compose.project')
+    if not project or labels.get('com.docker.compose.service') not in ('web', 'wisp-web'):
+        unavailable('تعريف منظومة الويب غير مكتمل.')
+    roles = ('radius_core', 'freeradius', 'core')
+    candidates = [row for row in fleet if row.get('State') == 'running'
+                  and (row.get('Labels') or {}).get('com.docker.compose.project') == project
+                  and (row.get('Labels') or {}).get('com.docker.compose.service') in roles
+                  and str((row.get('Labels') or {}).get('com.docker.compose.oneoff', '')).lower() != 'true']
+    if len(candidates) != 1:
+        unavailable('لم توجد حاوية راديوس عاملة واحدة محددة لهذه المنظومة.')
+    core = candidates[0]
+    # Inspect the full IDs again: reject a stop or ownership change during discovery.
+    for row, allowed_roles in ((own, ('web', 'wisp-web')), (core, roles)):
+        ident = row.get('Id', '')
+        if not re.fullmatch(r'[0-9a-f]{64}', ident):
+            unavailable('معرّف الحاوية غير صالح.')
+        details, error = docker_api_request('GET', '/containers/' + ident + '/json')
+        if error or not isinstance(details, dict) or details.get('Id') != ident:
+            unavailable('تعذرت إعادة مطابقة هوية الحاوية.')
+        actual_labels = (details.get('Config') or {}).get('Labels') or {}
+        state = details.get('State') or {}
+        if (not state.get('Running') or state.get('Paused') or state.get('Restarting')
+                or actual_labels.get('com.docker.compose.project') != project
+                or actual_labels.get('com.docker.compose.service') not in allowed_roles):
+            unavailable('تغيرت حالة الحاوية أو ملكيتها أثناء الفحص.')
+        health = (state.get('Health') or {}).get('Status')
+        if health and health != 'healthy':
+            unavailable('الحاوية لم تجتز فحص الجاهزية.')
+    return core
+
+
 def pending_sessions(username):
     marks = ','.join(['%s'] * len(NON_FINAL_CAUSES))
     return query_all(f"""SELECT radacctid,nasipaddress,acctsessionid,
-        framedipaddress,callingstationid FROM radacct WHERE username=%s
+        framedipaddress,callingstationid FROM radacct_owned WHERE username=%s
         AND (acctstoptime IS NULL OR (acctterminatecause IN ({marks})
           AND acctstoptime>=COALESCE(
             (SELECT COALESCE(last_renewed_at,first_used_at,created_at) FROM wisp_subscribers WHERE username=%s LIMIT 1),
@@ -39,7 +103,7 @@ def has_unaccounted_accept(username):
             (SELECT created_at FROM wisp_subscribers WHERE username=%s LIMIT 1),
             (SELECT created_at FROM wisp_vouchers WHERE username=%s LIMIT 1), '1970-01-01')
         GROUP BY nasipaddress,callingstationid) p
-        WHERE NOT EXISTS (SELECT 1 FROM radacct a WHERE a.username=%s
+        WHERE NOT EXISTS (SELECT 1 FROM radacct_owned a WHERE a.username=%s
           AND (a.nasipaddress=p.nasipaddress OR COALESCE(p.nasipaddress,'')='')
           AND (COALESCE(a.callingstationid,'')=p.callingstationid OR COALESCE(p.callingstationid,'')='')
           AND a.acctstoptime>=p.authdate
@@ -97,17 +161,7 @@ def settled_account(username):
         conn.commit()
         guarded = True
         from services.online_policy_service import checkpoint, preflight, view, intent, refresh_or_pending
-        from services.autoheal_service import docker_api_request
-        fleet, error = docker_api_request('GET', '/containers/json?all=1')
-        import os
-        own = next((r for r in (fleet or []) if r.get('Id','').startswith(os.environ.get('HOSTNAME','!'))), None)
-        project = (own or {}).get('Labels',{}).get('com.docker.compose.project')
-        core = next((r for r in (fleet or []) if project and
-            r.get('Labels',{}).get('com.docker.compose.project') == project and
-            r.get('Labels',{}).get('com.docker.compose.service') in ('radius_core','freeradius','core')), None)
-        if error or not core or core.get('State') != 'running' or '(unhealthy)' in core.get('Status',''):
-            from services.online_policy_service import fail
-            fail()
+        current_radius_container()
         if query_one("SELECT 1 AS pending FROM wisp_session_reservations WHERE username=%s AND radacctid IS NULL AND expires_at>NOW() LIMIT 1",(username,)):
             from services.online_policy_service import fail
             fail()
@@ -209,7 +263,7 @@ def settle_cycle_operation(fn):
             profile.get('password', entity.get('password')) != entity.get('password') or
             str(profile.get('bound_mac') or '').upper() != str(entity.get('bound_mac') or '').upper() or
             profile.get('status') in ('suspended', 'disabled', 'recharged', 'unused'))
-        if protected_profile_change and query_one('SELECT 1 AS live FROM radacct WHERE username=%s AND acctstoptime IS NULL LIMIT 1',(entity['username'],)):
+        if protected_profile_change and query_one('SELECT 1 AS live FROM radacct_owned WHERE username=%s AND acctstoptime IS NULL LIMIT 1',(entity['username'],)):
             return False, '\u0644\u0627 \u064a\u0645\u0643\u0646 \u062a\u063a\u064a\u064a\u0631 \u0647\u0648\u064a\u0629 \u062d\u0633\u0627\u0628 \u0628\u062c\u0644\u0633\u0629 \u0645\u0641\u062a\u0648\u062d\u0629.'
         if fn.__name__ == 'renew_or_change_package' and entity.get('status') in ('disabled', 'suspended', 'recharged'):
             return fn(*args, **kwargs)
@@ -220,6 +274,19 @@ def settle_cycle_operation(fn):
                     str(card['username']).casefold() == str(entity['username']).casefold() or
                     entity.get('status') in ('disabled', 'suspended', 'recharged')):
                 return fn(*args, **kwargs)
+        if fn.__name__ == 'action_change_package' and values.get('operation_id'):
+            if entity_kind == 'voucher':
+                from services.voucher_edit_service import fingerprint, receipt
+                if entity.get('status')=='unused' and profile and profile.get('status')=='unused':
+                    values['enable_rollover']=False
+            else:
+                from services.subscriber_edit_service import fingerprint, receipt
+            digest=fingerprint('package',values['entity_id'],values['admin_username'],{'package_id':int(values['new_package_id']),'rollover':bool(values['enable_rollover'])})
+            try:
+                previous=receipt(values['operation_id'],values['entity_id'],values['admin_username'],digest)
+            except ValueError as exc:
+                return False,str(exc)
+            if previous:return True,previous['message']
         # Do not disconnect for an invalid or unaffordable requested package.
         new_id = values.get('new_package_id', values.get('new_pkg_id'))
         if new_id is not None:
@@ -229,6 +296,9 @@ def settle_cycle_operation(fn):
                 return fn(*args, **kwargs)
         try:
             with settled_account(entity['username']):
+                if fn.__name__ == 'action_change_package' and values.get('operation_id'):
+                    previous=receipt(values['operation_id'],values['entity_id'],values['admin_username'],digest)
+                    if previous:return True,previous['message']
                 result = fn(*args, **kwargs)
                 from services.online_policy_service import local
                 local.operation_succeeded = bool(result[0])

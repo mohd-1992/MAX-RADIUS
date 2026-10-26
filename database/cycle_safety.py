@@ -40,6 +40,18 @@ def install_cycle_safety(conn):
                   IF {condition} THEN
                     INSERT INTO wisp_username_write_lock(id) VALUES(1)
                      ON DUPLICATE KEY UPDATE id=VALUES(id);
+                    SELECT subscriber_id INTO occupied FROM wisp_subscriber_names
+                     WHERE username COLLATE utf8mb4_unicode_ci=NEW.username COLLATE utf8mb4_unicode_ci LIMIT 1 FOR UPDATE;
+                    IF occupied IS NOT NULL AND ('{table}'='wisp_vouchers' OR occupied<>NEW.id) THEN
+                      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Username reserved by subscriber history';
+                    END IF;
+                    SET occupied=NULL;
+                    SELECT voucher_id INTO occupied FROM wisp_voucher_names
+                     WHERE username COLLATE utf8mb4_unicode_ci=NEW.username COLLATE utf8mb4_unicode_ci LIMIT 1 FOR UPDATE;
+                    IF occupied IS NOT NULL AND ('{table}'='wisp_subscribers' OR occupied<>NEW.id) THEN
+                      SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Username reserved by voucher history';
+                    END IF;
+                    SET occupied=NULL;
                     SELECT id INTO occupied FROM {other}
                      WHERE username=NEW.username LIMIT 1 FOR UPDATE;
                     IF occupied IS NOT NULL THEN

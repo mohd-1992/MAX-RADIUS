@@ -43,12 +43,12 @@ def get_maintenance_stats():
         'radpostauth_count': 0,
         'db_size_mb': 0.0
     }
-    
+
     try:
         # 1. Voucher status breakdown
         v_counts = query_all("""
-            SELECT status, COUNT(*) as cnt 
-            FROM wisp_vouchers 
+            SELECT status, COUNT(*) as cnt
+            FROM wisp_vouchers
             GROUP BY status
         """)
         for r in v_counts:
@@ -62,40 +62,40 @@ def get_maintenance_stats():
                 stats['active_used_vouchers'] += cnt
             elif st == 'unused':
                 stats['unused_vouchers'] = cnt
-        
+
         stats['total_vouchers'] = sum(int(r['cnt'] or 0) for r in v_counts)
-        
+
         # 2. Breakdown of Expired vouchers: Quota vs Time
         if stats['expired_total'] > 0:
             quota_breakdown = query_one("""
-                SELECT 
+                SELECT
                     SUM(CASE WHEN expire_reason LIKE ? OR expire_reason LIKE ? THEN 1 ELSE 0 END) as by_quota
-                FROM wisp_vouchers 
+                FROM wisp_vouchers
                 WHERE status = 'expired'
             """, ("%البيانات%", "%كوتا%"))
             stats['expired_by_quota'] = int((quota_breakdown and quota_breakdown['by_quota']) or 0)
             stats['expired_by_time'] = max(0, stats['expired_total'] - stats['expired_by_quota'])
-        
+
         # 3. Subscribers
         sub_row = query_one("SELECT COUNT(*) as cnt FROM wisp_subscribers")
         stats['total_subscribers'] = int((sub_row and sub_row['cnt']) or 0)
-        
+
         # 4. FreeRADIUS Table Counts
         rc_row = query_one("SELECT COUNT(*) as cnt FROM radcheck")
         stats['radcheck_count'] = int((rc_row and rc_row['cnt']) or 0)
-        
+
         rr_row = query_one("SELECT COUNT(*) as cnt FROM radreply")
         stats['radreply_count'] = int((rr_row and rr_row['cnt']) or 0)
-        
+
         rg_row = query_one("SELECT COUNT(*) as cnt FROM radusergroup")
         stats['radusergroup_count'] = int((rg_row and rg_row['cnt']) or 0)
-        
+
         ra_row = query_one("SELECT COUNT(*) as cnt FROM radacct")
         stats['radacct_count'] = int((ra_row and ra_row['cnt']) or 0)
-        
+
         rp_row = query_one("SELECT COUNT(*) as cnt FROM radpostauth")
         stats['radpostauth_count'] = int((rp_row and rp_row['cnt']) or 0)
-        
+
         # 5. DB Size Estimation (MySQL / MariaDB)
         try:
             db_sz = query_one("""
@@ -107,7 +107,7 @@ def get_maintenance_stats():
                 stats['db_size_mb'] = round(float(db_sz['size_mb']), 2)
         except Exception:
             pass
-            
+
         # 6. Safe Archiver Telemetry
         try:
             from services.accounting_archiver_service import get_archiver_status
@@ -126,7 +126,7 @@ def get_maintenance_stats():
 
     except Exception as e:
         print(f"[ERROR] get_maintenance_stats: {str(e)}")
-        
+
     return stats
 
 
@@ -176,7 +176,7 @@ def get_detailed_table_sizes():
 
     try:
         rows = query_all("""
-            SELECT 
+            SELECT
                 table_name,
                 COALESCE(table_rows, 0) as table_rows,
                 ROUND(data_length / 1024 / 1024, 2) AS data_mb,
@@ -186,23 +186,23 @@ def get_detailed_table_sizes():
             WHERE table_schema = DATABASE()
             ORDER BY (data_length + index_length) DESC
         """)
-        
+
         total_db_mb = sum(float(r['total_mb'] or 0.0) for r in rows) or 0.01
-        
+
         top_tables = []
         other_rows = 0
         other_data_mb = 0.0
         other_index_mb = 0.0
         other_total_mb = 0.0
         other_count = 0
-        
+
         for r in rows:
             tname = r['table_name']
             t_mb = float(r['total_mb'] or 0.0)
             d_mb = float(r['data_mb'] or 0.0)
             i_mb = float(r['index_mb'] or 0.0)
             r_cnt = int(r['table_rows'] or 0)
-            
+
             if tname in TABLE_META:
                 meta = TABLE_META[tname]
                 pct = round((t_mb / total_db_mb) * 100, 1)
@@ -224,11 +224,11 @@ def get_detailed_table_sizes():
                 other_data_mb += d_mb
                 other_index_mb += i_mb
                 other_total_mb += t_mb
-                
+
         # Sort top tables in preferred priority order
         order_keys = ['radacct', 'wisp_vouchers', 'radusergroup', 'radcheck', 'radpostauth']
         top_tables.sort(key=lambda x: order_keys.index(x['table_name']) if x['table_name'] in order_keys else 99)
-        
+
         # Add summary row for other tables if any exist
         if other_count > 0:
             other_pct = round((other_total_mb / total_db_mb) * 100, 1)
@@ -244,7 +244,7 @@ def get_detailed_table_sizes():
                 'total_mb': round(other_total_mb, 2),
                 'percentage': other_pct
             })
-            
+
         return {
             'success': True,
             'total_db_mb': round(total_db_mb, 2),
@@ -319,7 +319,7 @@ def _optimize_database_tables_locked(tables=None, progress_callback=None, factor
         tables = sorted(allowed)
     if not isinstance(tables,(list,tuple)) or not tables or len(tables)>len(allowed):
         return dict(success=False,message='قائمة جداول غير صالحة')
-        
+
     if any(not isinstance(table,str) or not re.fullmatch(r'[A-Za-z0-9_]+',table) for table in tables):
         return dict(success=False,message='قائمة جداول غير صالحة')
     # The factory coordinator may compact its own fixed wipe set, but callers
@@ -329,15 +329,15 @@ def _optimize_database_tables_locked(tables=None, progress_callback=None, factor
     tables=list(dict.fromkeys(tables))
     before_stats = get_detailed_table_sizes()
     before_mb = before_stats.get('total_db_mb', 0.0)
-    
+
     optimized_results = []
-    
+
     try:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute('SET SESSION lock_wait_timeout=2')
         cursor.execute('SET SESSION innodb_lock_wait_timeout=2')
-        
+
         for table_index, tbl in enumerate(tables):
             if progress_callback:
                 progress_callback(table_index, len(tables), tbl)
@@ -360,14 +360,14 @@ def _optimize_database_tables_locked(tables=None, progress_callback=None, factor
                     'status': f'Error: {str(e_tbl)}',
                     'duration_s': round(time.time() - t0, 2)
                 })
-                
+
         conn.close()
-        
+
         after_stats = get_detailed_table_sizes()
         after_mb = after_stats.get('total_db_mb', 0.0)
         freed_mb = max(0.0, round(before_mb - after_mb, 2))
         elapsed = round(time.time() - start_t, 2)
-        
+
         return {
             'success': all(item['status']=='OK' for item in optimized_results),
             'before_mb': before_mb,
@@ -377,7 +377,7 @@ def _optimize_database_tables_locked(tables=None, progress_callback=None, factor
             'details': optimized_results,
             'message': f"انتهت معالجة {len(tables)} جداول؛ راجع نتيجة كل جدول خلال {elapsed} ثانية. (الحجم الحالي: {after_mb} MB)."
         }
-        
+
     except Exception as e:
         return {
             'success': False,
@@ -465,17 +465,17 @@ def run_database_audit():
         'issues': [],
         'duration_seconds': 0.0
     }
-    
+
     try:
         # -------------------------------------------------------------
         # 1. Orphaned FreeRADIUS Records
         # -------------------------------------------------------------
         orphans = query_all("""
-            SELECT DISTINCT r.username, r.attribute, r.value 
+            SELECT DISTINCT r.username, r.attribute, r.value
             FROM radcheck r
             LEFT JOIN wisp_vouchers v ON r.username = v.username
             LEFT JOIN wisp_subscribers s ON r.username = s.username
-            WHERE v.id IS NULL 
+            WHERE v.id IS NULL
               AND s.id IS NULL
               AND r.username NOT IN ('healthcheck', 'probe_user', 'admin')
             LIMIT 200
@@ -491,9 +491,9 @@ def run_database_audit():
                 'suggested_fix': 'حذف السجل اليتيم من FreeRADIUS',
                 'action_code': 'purge_orphan'
             })
-            
+
         audit_results['orphaned_count'] = len(orphans)
-        
+
         # -------------------------------------------------------------
         # 2. Missing Auth / Limits in FreeRADIUS
         # -------------------------------------------------------------
@@ -517,7 +517,7 @@ def run_database_audit():
                 missing_parts.append("كلمة المرور في radcheck")
             if not row['rg_id']:
                 missing_parts.append(f"مجموعة الباقة ({row['package_name']}) في radusergroup")
-            
+
             audit_results['issues'].append({
                 'id': f"missing_{row['username']}",
                 'username': row['username'],
@@ -528,9 +528,9 @@ def run_database_audit():
                 'suggested_fix': 'إعادة مزامنة وإنشاء قيود الكرت في FreeRADIUS',
                 'action_code': 'sync_auth_limits'
             })
-            
+
         audit_results['missing_limits_count'] = len(missing_auth)
-        
+
         # -------------------------------------------------------------
         # 3. Status Mismatches (Expired/Recharged/Disabled lingering in radcheck)
         # -------------------------------------------------------------
@@ -555,15 +555,15 @@ def run_database_audit():
                 'suggested_fix': 'إلغاء وتطهير سجل الدخول من FreeRADIUS',
                 'action_code': 'revoke_auth'
             })
-            
+
         audit_results['status_mismatch_count'] = len(mismatches)
-        
+
         # -------------------------------------------------------------
         # 4. Stale Zombie Accounting Sessions (> 10m no heartbeat)
         # -------------------------------------------------------------
         from services.autoheal_service import get_zombie_session_timeout
         cutoff_str = get_heartbeat_cutoff(get_zombie_session_timeout())
-        
+
         stale_acct = query_all("""
             SELECT radacctid, username, acctstarttime, acctupdatetime, nasipaddress, framedipaddress
             FROM radacct
@@ -583,7 +583,7 @@ def run_database_audit():
                 'action_code': 'close_stale_session',
                 'session_id': row['radacctid']
             })
-            
+
         audit_results['stale_sessions_count'] = len(stale_acct)
 
         # -------------------------------------------------------------
@@ -604,18 +604,18 @@ def run_database_audit():
                 'record_id': row['id'],
                 'attribute_name': row['attribute']
             })
-            
+
         audit_results['invalid_attrs_count'] = len(invalid_attrs)
-        
+
         # Total counts
         audit_results['truncated'] = any(len(rows)>=200 for rows in (orphans,missing_auth,mismatches,stale_acct,invalid_attrs))
         audit_results['total_issues'] = len(audit_results['issues'])
         audit_results['duration_seconds'] = round(time.time() - start_t, 2)
-        
+
     except Exception as e:
         audit_results.update(success=False,error=str(e),duration_seconds=round(time.time()-start_t,2))
         print(f"[ERROR] run_database_audit: {str(e)}")
-        
+
     return audit_results
 
 
@@ -761,7 +761,7 @@ def fix_all_audit_issues():
                     message=f'لم تكتمل المعالجة: {exc}',duration_seconds=round(time.time()-started,2))
 
 
-FACTORY_RESET_TABLES = ('wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
+FACTORY_RESET_TABLES = ('wisp_voucher_names','wisp_voucher_edit_receipts','wisp_subscriber_names','wisp_subscriber_edit_receipts','wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
 
 
 def _wipe_factory_database(keep_packages=True, keep_resellers=False, job_id=None):

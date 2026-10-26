@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "release": "20261024-v2.6.5-subscriber-voucher-r1",
+  "version": "2.6.5",
+  "platform": "linux/amd64",
+  "channel": "manual-install",
+  "automatic_distribution": false,
+  "client_updater_compatible": false,
+  "images": {
+    "web": "mohd777/max-radius-web@sha256:5eda6a3450ddef586478153082395fbeb73f661be0fcf73b47bffd1e02559d38",
+    "core": "mohd777/max-radius-core@sha256:7bf2baa71525ea79e866daeb063c35346f39054fbf81ae209107f632681c1a5e",
+    "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+    "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
+    "autoheal": "willfarrell/autoheal@sha256:f8adb7a2343aaeaa2757561b52428ebf9d3bb8e304d0f7a77fd13de395610504"
+  },
+  "host_tools": {
+    "clock_guard": "v1"
+  },
+  "bundle": {
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261024-v2.6.5-subscriber-voucher-r1.tar.gz",
+    "sha256": "1af61a746f22d8fc6013e2d4f4fcf4849c42030ccf2e545adebf481870086a18"
+  },
+  "telegram_document_part_limit_bytes": 45000000,
+  "limitations": [
+    "Existing published 2.6.5 subscriber/voucher images match the four verified domain installations; no image rebuild or registry push.",
+    "Manual installation only; no client updater or automatic distribution change.",
+    "No new engine handoff/requirements modules or 2.6.6 features are included.",
+    "Local initialization and integrity checks do not prove every router or financial transaction."
+  ],
+  "source_manifest": "releases/source-20261024-v2.6.5-subscriber-voucher-r1.json"
+}
