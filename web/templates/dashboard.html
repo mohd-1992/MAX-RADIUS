@@ -254,8 +254,9 @@
 <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
                 <div class="flex items-start justify-between">
                     <div>
-                        <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي استهلاك البيانات</span>
+                        <span class="text-xs font-bold text-slate-400 block mb-1">إجمالي استهلاك البيانات اليومي</span>
                         <h3 id="stat-traffic-total" class="text-2xl sm:text-3xl font-black text-sky-400 font-mono tracking-tight">{{ metrics.traffic_total_str }}</h3>
+                        <span id="stat-traffic-status" class="text-xs text-amber-500">{{ metrics.traffic_status_text|default('') }}</span>
                     </div>
                     <div class="w-12 h-12 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center text-xl border border-sky-500/20">
                         <i class="fa-solid fa-arrow-right-arrow-left"></i>
@@ -522,6 +523,7 @@
                         استهلاك البيانات (Traffic Analytics)
                     </h4>
                     <p class="text-xs text-slate-400 mt-0.5">حجم البيانات المستهلكة لآخر 7 أيام بالجيجابايت</p>
+
                 </div>
                 <span class="text-xs font-bold font-mono px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20">7 Days (GB)</span>
             </div>
@@ -645,7 +647,7 @@
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
         const seconds = String(now.getSeconds()).padStart(2, '0');
-        
+
         const timeEl = document.getElementById('live-clock-time');
         if (timeEl) {
             timeEl.textContent = `${hours}:${minutes}:${seconds}`;
@@ -901,6 +903,8 @@
             if (elTfOut && m.traffic_out_str) elTfOut.textContent = m.traffic_out_str;
             const elTfIn = document.getElementById('stat-traffic-in');
             if (elTfIn && m.traffic_in_str) elTfIn.textContent = m.traffic_in_str;
+            const elTrafficStatus = document.getElementById('stat-traffic-status');
+            if (elTrafficStatus && m.traffic_status_text !== undefined) elTrafficStatus.textContent = m.traffic_status_text;
             const elNas = document.getElementById('stat-total-nas');
             if (elNas && m.total_nas !== undefined) elNas.textContent = m.total_nas;
 
@@ -1053,7 +1057,7 @@
                 const descEl = document.getElementById('update-banner-desc');
                 const latestVer = data.latest_version || data.target_version || '2.5.0';
                 const updateTitle = data.title || data.update_title || `تحديث MAX RADIUS v${latestVer}`;
-                
+
                 if (banner) {
                     if (verEl) {
                         verEl.textContent = 'v' + latestVer;

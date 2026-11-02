@@ -136,7 +136,8 @@ def _disconnect_account_guard(username):
     import hashlib,uuid
     from database.db import get_connection
     conn=get_connection();token=uuid.uuid4().hex
-    lock='max-cycle:'+hashlib.sha256(username.casefold().encode()).hexdigest()[:48]
+    from services.account_lock_service import account_lock_name
+    lock=account_lock_name(conn,username)
     locked=False;guarded=False
     try:
         with conn.cursor() as cur:
@@ -197,7 +198,7 @@ def _disconnect_account_sessions(username, nas_ip=None):
                 time.sleep(.2)
 
 
-def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None, require_accounting_stop=False, lifecycle_stop=False):
+def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_address, radacctid=None, require_accounting_stop=False, lifecycle_stop=False, expected_start=None, verify_only=False):
     """ACK requests removal; verified NAS absence confirms it. Never invent Stop."""
     resolved_ip, secret, coa_port, api_port, api_user, api_pass = _resolve_nas_credentials(nas_ip)
     target_nas_ip = resolved_ip or nas_ip or '127.0.0.1'
@@ -222,6 +223,13 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
             res.update(success=True, status='nas_confirmed_absent')
         else:
             path, original = matches[0]
+            if verify_only:
+                raise RuntimeError('Interrupted attempt still present; no blind resend')
+            if expected_start is not None:
+                from services.online_policy_service import seconds
+                clock = query_one('SELECT NOW() AS now')['now']
+                if not original.get('uptime') or abs((clock-expected_start).total_seconds()-seconds(original['uptime']))>15:
+                    raise RuntimeError('NAS session generation does not match accounting')
             if lifecycle_stop:
                 if original.get('radius') != 'true':
                     raise RuntimeError('Lifecycle target is not a verified RADIUS session')

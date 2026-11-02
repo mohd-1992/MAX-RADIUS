@@ -1,0 +1,10 @@
+# Diagnostic accounting log. SQL remains the authoritative accounting store.
+# A fixed parent is prepared before workers start; client IPs are file names,
+# never directories created concurrently by the first Accounting-Start packets.
+detail {
+    filename = ${radacctdir}/detail-%{%{Packet-Src-IP-Address}:-%{Packet-Src-IPv6-Address}}-%Y%m%d
+    escape_filenames = yes
+    permissions = 0600
+    header = "%t"
+    locking = yes
+}

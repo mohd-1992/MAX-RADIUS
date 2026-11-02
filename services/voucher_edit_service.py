@@ -49,7 +49,7 @@ def _available(conn,card_id,old,new):
             owner=cur.fetchone()
             if owner and int(owner['voucher_id'])!=int(card_id):raise ValueError('الاسم مرتبط بتاريخ كرت آخر.')
         if new!=old:
-            for table in ('radacct','radacct_archive','wisp_imported_session_history'):
+            for table in ('radacct','radacct_archive','wisp_imported_session_history','wisp_traffic_history'):
                 cur.execute(adapt_query(f'SELECT username FROM {table} WHERE LOWER(username)=LOWER(?) AND (account_voucher_id IS NULL OR account_voucher_id<>? OR account_subscriber_id IS NOT NULL) LIMIT 1',conn),(new,card_id))
                 if cur.fetchone():raise ValueError('الاسم الجديد له تاريخ اتصال غير مرتبط بهذا الكرت.')
             cur.execute(adapt_query('SELECT id FROM wisp_loyalty_wallets WHERE LOWER(username)=LOWER(?)',conn),(new,))
@@ -60,7 +60,7 @@ def _claim_history(conn,card_id,old,new):
     with conn.cursor() as cur:
         for name in (old,new):
             cur.execute(adapt_query('INSERT INTO wisp_voucher_names(username,voucher_id) VALUES(?,?) ON DUPLICATE KEY UPDATE voucher_id=VALUES(voucher_id)',conn),(name,card_id))
-        for table in ('radacct','radacct_archive','wisp_imported_session_history'):
+        for table in ('radacct','radacct_archive','wisp_imported_session_history','wisp_traffic_history'):
             cur.execute(adapt_query(f'''UPDATE {table} SET account_voucher_id=?,account_username=?
                 WHERE account_voucher_id=? OR (LOWER(username)=LOWER(?) AND account_voucher_id IS NULL AND account_subscriber_id IS NULL)''',conn),(card_id,new,card_id,old))
         for table in ('radcheck','radreply','radusergroup'):
@@ -80,6 +80,8 @@ def edit_voucher(card_id,data,actor='admin',can_change_expiry=False):
     name=str(data.get('username',row['username'])).strip()
     password=str(data.get('password',row.get('password')) or '').strip()
     mac=str(data.get('bound_mac',row.get('bound_mac')) or '').strip().upper().replace('-',':')
+    from services.account_mac_service import reject_legacy_mac_change
+    reject_legacy_mac_change('voucher', row, mac)
     expiry=parse_expiry(data.get('expires_at',row.get('expires_at')))
     old_expiry=parse_expiry(row.get('expires_at'))
     if name!=row['username'] and not re.fullmatch(r'[A-Za-z0-9_.@+\-]{1,64}',name):raise ValueError('اسم المستخدم غير صالح.')
@@ -95,13 +97,15 @@ def edit_voucher(card_id,data,actor='admin',can_change_expiry=False):
     sensitive=identity or expiry!=old_expiry
     from services.renewal_settlement_service import settled_account,wait_for_final_accounting
     from services.online_policy_service import local
-    with (settled_account(row['username']) if sensitive else nullcontext()):
+    with (settled_account(row['username'], identity_change=True) if identity else
+          settled_account(row['username']) if sensitive else nullcontext()):
         previous=receipt(op,card_id,actor,digest)
         if previous:return previous
         if identity:
             from services.nas_session_settlement import freeze_and_disconnect
+            session_ids = tuple(local.snapshot)
             freeze_and_disconnect(local.snapshot,include_ppp=True)
-            wait_for_final_accounting(row['username'])
+            wait_for_final_accounting(row['username'], session_ids=session_ids)
         with db_session() as conn:
             with conn.cursor() as cur:
                 cur.execute(adapt_query('SELECT *,CURRENT_TIMESTAMP AS checked_at FROM wisp_vouchers WHERE id=?'+(' FOR UPDATE' if is_mysql_conn(conn) else ''),conn),(card_id,));current=cur.fetchone()

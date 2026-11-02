@@ -123,7 +123,7 @@
         #archiver {
             transition: all 0.2s ease-in-out;
         }
-        
+
         /* 1. Light Theme Styling (الوضع النهاري) */
         html.theme-light #archiver {
             background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 40%, #fffbeb 100%) !important;
@@ -242,18 +242,18 @@
                 </div>
                 <div>
                     <div class="flex items-center gap-2 flex-wrap">
-                        <h3 class="arch-title text-base font-black">أرشفة وضغط سجلات المحاسبة (Accounting Archiver)</h3>
+                        <h3 class="arch-title text-base font-black">أرشفة سجلات المحاسبة</h3>
                         <span class="arch-badge px-2.5 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1">
                             <i class="fa-solid fa-shield-halved text-[9px]"></i>
                             حفظ تاريخي آمن (بدون فقدان بيانات)
                         </span>
                     </div>
                     <p class="arch-desc text-xs mt-1 leading-relaxed">
-                        نقل الجلسات التاريخية المغلقة من جدول <code class="arch-code px-1.5 py-0.5 rounded font-mono text-[11px]">radacct</code> النشط إلى جدول الأرشيف <code class="arch-code px-1.5 py-0.5 rounded font-mono text-[11px]">radacct_archive</code> لتسريع استعلامات الـ RADIUS دون ضياع بيانات المشتركين
+                        حفظ الجلسات المغلقة المؤهلة في مخزن التاريخ الموحد، مع حماية الدورة الحالية والتجديد. لا يعني نقل السجلات تحرير مساحة القرص فعليًا.
                     </p>
                 </div>
             </div>
-            
+
             <!-- Archiver Controls: Duration Dropdown & Action Button -->
             <div class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap sm:flex-nowrap">
                 <select id="archiveDaysSelect" class="arch-select text-xs rounded-xl px-4 py-2.5 focus:border-amber-500 focus:outline-none flex-1 sm:flex-none">
@@ -264,7 +264,7 @@
                 </select>
                 <button onclick="triggerArchivingFromMaintenance()" id="btnStartArchiving" class="arch-btn-run px-5 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-600/20 whitespace-nowrap flex-1 sm:flex-none">
                     <i class="fa-solid fa-play"></i>
-                    <span>بدء الأرشفة والضغط</span>
+                    <span>بدء الأرشفة</span>
                 </button>
             </div>
         </div>
@@ -286,7 +286,7 @@
             <!-- 2. Archived radacct_archive -->
             <div class="arch-mini-card rounded-xl p-3.5 flex flex-col justify-between">
                 <div class="flex items-center justify-between">
-                    <span class="arch-mini-label text-[11px]">الجلسات المؤرشفة</span>
+                    <span class="arch-mini-label text-[11px]">الجلسات المحفوظة</span>
                     <i class="fa-solid fa-file-zipper text-emerald-500 text-xs"></i>
                 </div>
                 <h4 id="arch_archive_count" class="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
@@ -304,7 +304,7 @@
                 <h4 id="arch_older_90d" class="text-xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
                     {{ stats.archiver.older_90d_count if stats.archiver else 0 }}
                 </h4>
-                <span class="arch-mini-sub text-[10px] block mt-0.5">جاهزة للترحيل فوراً</span>
+                <span class="arch-mini-sub text-[10px] block mt-0.5">مؤهلة حاليًا؛ يعاد التحقق عند النقل</span>
             </div>
 
             <!-- 4. Oldest session date -->
@@ -375,19 +375,23 @@
                     <div class="flex items-center justify-between">
                         <span class="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold flex items-center gap-1.5">
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            مفعل تلقائياً
+                            جدولة كل 7 أيام
                         </span>
                         <i class="fa-solid fa-robot text-emerald-400 text-sm"></i>
                     </div>
                     <h4 class="text-base font-bold text-white">الصيانة التلقائية الأسبوعية (Auto-Cleanup)</h4>
                     <p class="text-xs text-slate-400 leading-relaxed">
-                        ينظف محرك المراقبة السجلات القديمة أسبوعياً مع حماية الدورة الحالية. ضغط الجداول إجراء منفصل بعد تأكيد العملية.
+                        ينظف السجلات المؤهلة الأقدم من 90 يومًا، ويحفظ تفاصيل الاستهلاك ويعالج النسخ المكررة. تحسين الجداول إجراء مستقل.
                     </p>
                 </div>
                 <div class="mt-5 pt-4 border-t border-[#162136] flex items-center justify-between text-xs text-emerald-400 font-mono">
                     <span>دورة التنظيف:</span>
                     <span>كل 7 أيام (90+ يوم)</span>
                 </div>
+                {% set weekly = stats.weekly_maintenance|default({}) %}
+                <p id="weeklyCleanupSummary" class="text-xs text-slate-400 mt-3 leading-relaxed">{{ weekly.summary|default('لا توجد نتيجة تنفيذ مسجلة') }}</p>
+                <p class="text-xs text-slate-400 mt-2">آخر نتيجة: <span id="weeklyCleanupLast" dir="ltr">{{ weekly.last_at or 'غير مسجلة' }}</span></p>
+                <p class="text-xs text-slate-400 mt-2">الموعد المتوقع: <span id="weeklyCleanupNext" dir="ltr">{{ weekly.next_due or 'بعد تهيئة الجدولة' }}</span></p>
             </div>
         </div>
 
@@ -916,7 +920,7 @@ fetch('{{ url_for("api_factory_reset_status") }}').then(res => res.json())
 function refreshStats() {
     const icon = document.getElementById('refreshStatsIcon');
     icon.classList.add('fa-spin');
-    
+
     fetch('{{ url_for("api_maintenance_stats") }}')
         .then(res => res.json())
         .then(data => {
@@ -929,10 +933,15 @@ function refreshStats() {
                 document.getElementById('stat_expired_total').innerText = s.expired_total.toLocaleString();
                 document.getElementById('stat_radcheck').innerText = s.radcheck_count.toLocaleString();
                 document.getElementById('stat_radacct').innerText = s.radacct_count.toLocaleString() + ' جلسة';
-                
+
                 document.getElementById('card_quota_count').innerText = s.expired_by_quota.toLocaleString();
                 document.getElementById('card_time_count').innerText = s.expired_by_time.toLocaleString();
                 document.getElementById('card_all_count').innerText = s.expired_total.toLocaleString();
+                if (s.weekly_maintenance) {
+                    document.getElementById('weeklyCleanupSummary').textContent = s.weekly_maintenance.summary;
+                    document.getElementById('weeklyCleanupLast').textContent = s.weekly_maintenance.last_at || 'غير مسجلة';
+                    document.getElementById('weeklyCleanupNext').textContent = s.weekly_maintenance.next_due || 'بعد تهيئة الجدولة';
+                }
                 if (s.archiver) {
                     if (document.getElementById('arch_live_count')) document.getElementById('arch_live_count').innerText = (s.archiver.live_sessions_count || 0).toLocaleString();
                     if (document.getElementById('arch_archive_count')) document.getElementById('arch_archive_count').innerText = (s.archiver.archived_sessions_count || 0).toLocaleString();
@@ -985,7 +994,7 @@ function loadTableSizes() {
                         iconBg = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
                     }
 
-                    let technicalTag = tbl.table_name !== 'other_tables' 
+                    let technicalTag = tbl.table_name !== 'other_tables'
                         ? `<span class="px-2 py-0.5 rounded bg-[#070b14] border border-[#162136] text-[10px] font-mono text-slate-400 font-normal">${tbl.table_name}</span>`
                         : '';
 
@@ -1030,21 +1039,22 @@ function loadTableSizes() {
 
 // Archiving Action Handler
 function triggerArchivingFromMaintenance() {
+    const operationSwal = window.createOperationNotification();
     const days = document.getElementById('archiveDaysSelect').value;
-    Swal.fire({
+    operationSwal.fire({
         title: `أرشفة السجلات الأقدم من ${days} يوماً`,
-        html: `سيتم نقل هذه الجلسات بأمان من جدول <strong class="text-sky-400">radacct</strong> النشط إلى جدول الأرشيف <strong class="text-amber-400">radacct_archive</strong> وضغط الجداول دون ضياع أي سجل.<br><span class="text-xs text-slate-400">البيانات ستبقى محفوظة في الأرشيف للرجوع إليها تاريخياً.</span>`,
+        html: `سيتم حفظ الجلسات المؤهلة في مخزن التاريخ الموحد بعد التحقق من الهوية والعدادات، ثم إزالة النسخة الأصلية. لن يتم ضغط جداول قاعدة البيانات تلقائيًا.<br><span class="text-xs text-slate-400">البيانات ستبقى محفوظة في الأرشيف للرجوع إليها تاريخياً.</span>`,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#d97706',
         cancelButtonColor: '#334155',
-        confirmButtonText: 'نعم، ابدأ الأرشفة والضغط',
+        confirmButtonText: 'نعم، ابدأ الأرشفة',
         cancelButtonText: 'إلغاء'
     }).then(result => {
         if (result.isConfirmed) {
-            Swal.fire({
+            operationSwal.fire({
                 title: 'جارٍ نقل وأرشفة السجلات...',
-                text: 'يرجى الانتظار لحين اكتمال الأرشفة وضغط الجداول دون إيقاف الخدمة...',
+                text: 'يجري نقل دفعات الجلسات المؤهلة والتحقق من حفظ تفاصيلها...',
                 allowOutsideClick: false,
                 didOpen: () => Swal.showLoading()
             });
@@ -1054,21 +1064,22 @@ function triggerArchivingFromMaintenance() {
                 .then(r => r.json())
                 .then(res => {
                     if (res.success) {
-                        Swal.fire('تمت الأرشفة بنجاح', res.message, 'success').then(() => {
+                        operationSwal.fire('تمت الأرشفة بنجاح', res.message, 'success').then(() => {
                             refreshStats();
                         });
                     } else {
-                        Swal.fire('خطأ', res.message || 'فشلت عملية الأرشفة', 'error');
+                        operationSwal.fire('خطأ', res.message || 'فشلت عملية الأرشفة', 'error');
                     }
                 })
-                .catch(err => Swal.fire('خطأ غير متوقع', err.message, 'error'));
+                .catch(err => operationSwal.uncertain('خطأ غير متوقع', err.message, 'error'));
         }
     });
 }
 
 // 3. Confirm & Execute Historical Log Pruning
 function confirmPruneLogs(days) {
-    Swal.fire({
+    const operationSwal = window.createOperationNotification();
+    operationSwal.fire({
         title: `تنظيف السجلات الأقدم من ${days} يوماً`,
         html: `هل تريد حذف جلسات المحاسبة المغلقة القديمة في <strong>radacct</strong> ومحاولات المصادقة في <strong>radpostauth</strong> الأقدم من <strong>${days} يوماً</strong>؟<br><span class="text-xs text-slate-400">تُحفظ الجلسات الحية وسجلات دورة الاشتراك الحالية وخطوط أساس التجديد.</span>`,
         icon: 'warning',
@@ -1079,7 +1090,7 @@ function confirmPruneLogs(days) {
         cancelButtonText: 'إلغاء'
     }).then((result) => {
         if (result.isConfirmed) {
-            Swal.fire({
+            operationSwal.fire({
                 title: 'جاري تنظيف السجلات القديمة...',
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
@@ -1093,14 +1104,14 @@ function confirmPruneLogs(days) {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire('اكتمل تنظيف السجلات!', data.message, 'success');
+                    operationSwal.fire('اكتمل تنظيف السجلات!', data.message, 'success');
                     refreshStats();
                 } else {
-                    Swal.fire('خطأ أثناء التنظيف', data.message || 'فشلت العملية', 'error');
+                    operationSwal.fire('خطأ أثناء التنظيف', data.message || 'فشلت العملية', 'error');
                 }
             })
             .catch(err => {
-                Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error');
             });
         }
     });
@@ -1108,7 +1119,8 @@ function confirmPruneLogs(days) {
 
 // 4. Optimize Tables & Reclaim Space (InnoDB Defragmentation)
 function optimizeTables() {
-    Swal.fire({
+    const operationSwal = window.createOperationNotification();
+    operationSwal.fire({
         title: 'تحسين الجداول واستعادة المساحة',
         text: 'سيقوم النظام بتنفيذ OPTIMIZE TABLE على جداول راديوس وقاعدة البيانات لإلغاء التجزئة واستعادة المساحة غير المستخدمة.',
         icon: 'question',
@@ -1122,7 +1134,7 @@ function optimizeTables() {
             const icon = document.getElementById('optimizeIcon');
             if (icon) icon.className = 'fa-solid fa-arrows-rotate fa-spin';
 
-            Swal.fire({
+            operationSwal.fire({
                 title: 'جاري إعادة بناء الجداول وتحرير المساحة...',
                 text: 'يرجى الانتظار بضع ثوانٍ ريثما يقوم محرك MariaDB بإلغاء التجزئة',
                 allowOutsideClick: false,
@@ -1138,7 +1150,7 @@ function optimizeTables() {
             .then(data => {
                 if (icon) icon.className = 'fa-solid fa-compress';
                 if (data.success) {
-                    Swal.fire({
+                    operationSwal.fire({
                         icon: 'success',
                         title: 'تم تحسين الجداول بنجاح!',
                         html: `${data.message}<br><strong class="text-emerald-400">المساحة المستعادة: ${data.freed_mb} MB</strong>`,
@@ -1146,12 +1158,12 @@ function optimizeTables() {
                     });
                     refreshStats();
                 } else {
-                    Swal.fire('خطأ أثناء التحسين', data.message || 'فشلت العملية', 'error');
+                    operationSwal.fire('خطأ أثناء التحسين', data.message || 'فشلت العملية', 'error');
                 }
             })
             .catch(err => {
                 if (icon) icon.className = 'fa-solid fa-compress';
-                Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                operationSwal.fire('خطأ في الاتصال', err.toString(), 'error');
             });
         }
     });
@@ -1160,7 +1172,7 @@ function optimizeTables() {
 // 5. Cascade Delete Confirmation
 function confirmCascadeDelete(deleteType, label) {
     const deleteAcct = document.getElementById('chkDeleteAcct') ? document.getElementById('chkDeleteAcct').checked : false;
-    
+
     let acctWarning = '';
     if (deleteType === 'all' && deleteAcct) {
         acctWarning = '<br><strong class="text-rose-400">تنبيه: سيتم أيضاً مسح سجلات الجلسات (radacct) التابعة لهذه الكروت!</strong>';
@@ -1214,7 +1226,7 @@ function notifyCleanupFinished(job) {
     cleanupNotifiedJob = job.job_id;
     const r = job.result || {};
     const completed = job.state === 'completed';
-    Swal.fire({title:completed ? 'اكتملت معالجة الحذف' : 'لم تكتمل عملية الحذف',text:r.message || 'توقفت المهمة؛ يمكنك إعادة المحاولة لمعالجة المتبقي.',icon:completed ? (r.pending ? 'info' : 'success') : 'warning',confirmButtonText:'حسنًا'});
+    Swal.fire({title:completed ? (r.pending ? 'انتهت المعالجة مع كروت مؤجلة' : 'اكتملت معالجة الحذف') : 'لم تكتمل عملية الحذف',text:r.message || 'توقفت المهمة؛ يمكنك إعادة المحاولة لمعالجة المتبقي.',icon:completed ? (r.pending ? 'info' : 'success') : 'warning',confirmButtonText:'حسنًا'});
 }
 function pollCleanupJob(notifyFinished=true) {
     clearTimeout(cleanupPollTimer);
@@ -1274,7 +1286,7 @@ function runDatabaseAudit() {
     const spinner = document.getElementById('auditSpinner');
     const btn = document.getElementById('btnRunAudit');
     const btnTop = document.getElementById('btnRunAuditTop');
-    
+
     spinner.className = 'fa-solid fa-arrows-rotate fa-spin';
     btn.disabled = true;
     if (btnTop) btnTop.disabled = true;
@@ -1293,12 +1305,12 @@ function runDatabaseAudit() {
             const a = data.audit;
             currentAuditIssues = a.issues || [];
             if (a.truncated) Swal.fire('نتائج الفحص محدودة', 'تجاوزت النتائج حد العرض؛ الأعداد المعروضة تخص البنود المرصودة فقط. أعد الفحص بعد المعالجة.', 'warning');
-            
+
             document.getElementById('audit_total_issues').innerText = a.total_issues;
             document.getElementById('audit_orphaned').innerText = a.orphaned_count;
             document.getElementById('audit_missing_limits').innerText = a.missing_limits_count;
             document.getElementById('audit_mismatches').innerText = a.status_mismatch_count;
-            
+
             document.getElementById('count_tab_all').innerText = a.total_issues;
             document.getElementById('count_tab_orphaned').innerText = a.orphaned_count;
             document.getElementById('count_tab_missing').innerText = a.missing_limits_count;
@@ -1313,7 +1325,7 @@ function runDatabaseAudit() {
             }
 
             renderAuditTable();
-            
+
             if (a.total_issues === 0) {
                 Swal.fire({
                     icon: 'success',
@@ -1353,7 +1365,7 @@ function auditText(value) {
 function renderAuditTable() {
     const tbody = document.getElementById('auditTableBody');
     let filtered = currentAuditIssues;
-    
+
     if (activeFilter !== 'all') {
         filtered = currentAuditIssues.filter(item => item.category === activeFilter);
     }
@@ -1471,7 +1483,8 @@ function fixSingleIssue(actionCode, username, sessionId, rowId) {
 
 // 11. Fix All Audit Issues
 function fixAllAuditIssues() {
-    Swal.fire({
+    const operationSwal = window.createOperationNotification();
+    operationSwal.fire({
         title: 'تأكيد الإصلاح الشامل',
         text: `هل تريد إصلاح جميع الـ (${currentAuditIssues.length}) مشكلة المكتشفة تلقائياً؟`,
         icon: 'question',
@@ -1482,7 +1495,7 @@ function fixAllAuditIssues() {
         cancelButtonText: 'إلغاء'
     }).then((result) => {
         if (result.isConfirmed) {
-            Swal.fire({
+            operationSwal.fire({
                 title: 'جاري تنفيذ الإصلاح الهندسي الشامل...',
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
@@ -1495,17 +1508,17 @@ function fixAllAuditIssues() {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire('اكتمل الإصلاح الشامل!', data.message, 'success');
+                    operationSwal.fire('اكتمل الإصلاح الشامل!', data.message, 'success');
                     runDatabaseAudit();
                     refreshStats();
                 } else {
-                    Swal.fire('لم تكتمل المعالجة', data.message || 'فشلت العملية', 'warning');
+                    operationSwal.fire('لم تكتمل المعالجة', data.message || 'فشلت العملية', 'warning');
                     runDatabaseAudit();
                     refreshStats();
                 }
             })
             .catch(err => {
-                Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error');
             });
         }
     });

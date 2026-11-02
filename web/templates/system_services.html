@@ -166,6 +166,7 @@
 
                 <!-- Right: Control Actions -->
                 <div class="flex items-center gap-2.5 w-full lg:w-auto justify-end">
+                    {% if svc.can_control|default(true) %}
                     <!-- Restart Button -->
                     <button type="button" onclick="triggerServiceAction('{{ svc.id }}', 'restart', '{{ svc.name }}')" class="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm">
                         <i class="fa-solid fa-rotate-right text-xs"></i>
@@ -186,6 +187,7 @@
                     </button>
                     {% endif %}
                     {% endif %}
+                    {% else %}<span class="text-xs text-slate-400">{{ 'خدمة داخل النظام' if svc.id == 'autoheal' else 'خدمة مشتركة — التحكم من المضيف' }}</span>{% endif %}
                 </div>
 
             </div>
@@ -245,6 +247,7 @@
 
     // 2. Trigger Service Action with Confirmation
     function triggerServiceAction(serviceId, action, serviceName) {
+        const operationSwal = window.createOperationNotification();
         const actionLabels = {
             'restart': 'إعادة تشغيل',
             'stop': 'إيقاف',
@@ -253,7 +256,7 @@
         const actionLabel = actionLabels[action] || action;
         const isDangerous = action === 'stop';
 
-        Swal.fire({
+        operationSwal.fire({
             title: `تأكيد ${actionLabel} الخدمة`,
             html: `
                 <div class="text-right text-xs space-y-2 text-slate-300">
@@ -271,7 +274,7 @@
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: `جارٍ ${actionLabel} الخدمة...`,
                     text: 'يرجى الانتظار حتى استجابة محرك النظام...',
                     allowOutsideClick: false,
@@ -286,7 +289,7 @@
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
-                            Swal.fire({
+                            operationSwal.fire({
                                 title: 'تم بنجاح',
                                 text: data.message,
                                 icon: 'success',
@@ -294,20 +297,19 @@
                                 showConfirmButton: true
                             }).then(() => {
                                 if (serviceId === 'web') {
-                                    setTimeout(() => location.reload(), 2000);
+                                    operationSwal.reloadWhenIdle(2000);
                                 } else {
                                     refreshServicesStatus();
                                 }
                             });
                         } else {
-                            Swal.fire('خطأ في العملية', data.message || 'فشل تنفيذ الأمر', 'error');
+                            operationSwal.fire('خطأ في العملية', data.message || 'فشل تنفيذ الأمر', 'error');
                         }
                     })
                     .catch(err => {
+                        operationSwal.uncertain('تعذر قراءة الرد', err.message, 'warning');
                         if (serviceId === 'web' && action === 'restart') {
-                            setTimeout(() => location.reload(), 3000);
-                        } else {
-                            Swal.fire('خطأ غير متوقع', err.message, 'error');
+                            operationSwal.reloadWhenIdle(3000);
                         }
                     });
             }
@@ -316,7 +318,8 @@
 
     // 3. Run Manual Watchdog Check
     function runManualWatchdogCheck() {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'جارٍ فحص الصحة الذاتية...',
             text: 'يتم الآن فحص اتصال MariaDB، منفذ FreeRADIUS، ومساحة التخزين...',
             allowOutsideClick: false,
@@ -327,7 +330,7 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire({
+                    operationSwal.fire({
                         title: 'اكتمل الفحص الصحي',
                         html: `
                             <div class="text-right text-xs space-y-2 text-slate-200">
@@ -339,11 +342,11 @@
                         icon: 'success'
                     }).then(() => refreshServicesStatus());
                 } else {
-                    Swal.fire('خطأ', data.message, 'error');
+                    operationSwal.fire('خطأ', data.message, 'error');
                 }
             })
             .catch(err => {
-                Swal.fire('خطأ', err.message, 'error');
+                operationSwal.uncertain('خطأ', err.message, 'error');
             });
     }
 </script>

@@ -1,0 +1,1914 @@
+{
+  "date": "2026-10-31",
+  "domain": "m.max-net.net",
+  "scope": "read-only comparison of four existing backup files, daily noon snapshots",
+  "current_web_image": "sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+  "files": [
+    {
+      "name": "max_radius_backup_20261028_120000_833.tar.gz",
+      "bytes": 27464650,
+      "metadata": {
+        "created_at": "2026-10-28 12:00:00",
+        "system_version": "2.6.9",
+        "table_count": 80,
+        "db_engine": "mysql"
+      },
+      "components": {
+        "database": {
+          "files": 1,
+          "bytes": 158240675,
+          "gzip9_bytes": 28300972
+        },
+        "configuration-and-templates": {
+          "files": 2,
+          "bytes": 15821,
+          "gzip9_bytes": 4047
+        },
+        "uploads": {
+          "files": 1,
+          "bytes": 63354,
+          "gzip9_bytes": 63167
+        }
+      },
+      "tables": {
+        "_preamble": {
+          "rows": 0,
+          "bytes": 866,
+          "gzip9_bytes": 402
+        },
+        "nas": {
+          "rows": 1,
+          "bytes": 1150,
+          "gzip9_bytes": 592
+        },
+        "nasreload": {
+          "rows": 1,
+          "bytes": 797,
+          "gzip9_bytes": 407
+        },
+        "radacct": {
+          "rows": 53140,
+          "bytes": 18354994,
+          "gzip9_bytes": 4220963
+        },
+        "radacct_archive": {
+          "rows": 0,
+          "bytes": 2783,
+          "gzip9_bytes": 839
+        },
+        "radacct_archive_owned": {
+          "rows": 0,
+          "bytes": 3418,
+          "gzip9_bytes": 849
+        },
+        "radacct_owned": {
+          "rows": 0,
+          "bytes": 3246,
+          "gzip9_bytes": 815
+        },
+        "radcheck": {
+          "rows": 6194,
+          "bytes": 365461,
+          "gzip9_bytes": 71723
+        },
+        "radgroupcheck": {
+          "rows": 11,
+          "bytes": 1900,
+          "gzip9_bytes": 653
+        },
+        "radgroupreply": {
+          "rows": 22,
+          "bytes": 2911,
+          "gzip9_bytes": 730
+        },
+        "radpostauth": {
+          "rows": 35079,
+          "bytes": 4434911,
+          "gzip9_bytes": 1147845
+        },
+        "radreply": {
+          "rows": 5,
+          "bytes": 1220,
+          "gzip9_bytes": 564
+        },
+        "radusergroup": {
+          "rows": 5828,
+          "bytes": 397836,
+          "gzip9_bytes": 52090
+        },
+        "user_audit_logs": {
+          "rows": 17,
+          "bytes": 4783,
+          "gzip9_bytes": 1560
+        },
+        "wisp_access_points": {
+          "rows": 0,
+          "bytes": 1401,
+          "gzip9_bytes": 630
+        },
+        "wisp_account_mac_addresses": {
+          "rows": 1,
+          "bytes": 1034,
+          "gzip9_bytes": 461
+        },
+        "wisp_account_mac_policies": {
+          "rows": 29984,
+          "bytes": 630625,
+          "gzip9_bytes": 78548
+        },
+        "wisp_account_mac_receipts": {
+          "rows": 0,
+          "bytes": 1042,
+          "gzip9_bytes": 457
+        },
+        "wisp_account_mac_usernames": {
+          "rows": 0,
+          "bytes": 1847,
+          "gzip9_bytes": 525
+        },
+        "wisp_admins": {
+          "rows": 2,
+          "bytes": 1395,
+          "gzip9_bytes": 764
+        },
+        "wisp_audit_logs": {
+          "rows": 164,
+          "bytes": 26380,
+          "gzip9_bytes": 4156
+        },
+        "wisp_automation_logs": {
+          "rows": 0,
+          "bytes": 1056,
+          "gzip9_bytes": 500
+        },
+        "wisp_automation_rules": {
+          "rows": 4,
+          "bytes": 1913,
+          "gzip9_bytes": 932
+        },
+        "wisp_backups": {
+          "rows": 24,
+          "bytes": 8764,
+          "gzip9_bytes": 2556
+        },
+        "wisp_card_templates": {
+          "rows": 1,
+          "bytes": 5313,
+          "gzip9_bytes": 1645
+        },
+        "wisp_global_sequence": {
+          "rows": 29986,
+          "bytes": 1410416,
+          "gzip9_bytes": 148884
+        },
+        "wisp_imported_session_history": {
+          "rows": 285864,
+          "bytes": 94515588,
+          "gzip9_bytes": 19706549
+        },
+        "wisp_imported_session_history_owned": {
+          "rows": 0,
+          "bytes": 3422,
+          "gzip9_bytes": 834
+        },
+        "wisp_invoices": {
+          "rows": 10,
+          "bytes": 3860,
+          "gzip9_bytes": 1232
+        },
+        "wisp_l2tp_tunnels": {
+          "rows": 0,
+          "bytes": 1418,
+          "gzip9_bytes": 588
+        },
+        "wisp_license_info": {
+          "rows": 1,
+          "bytes": 3757,
+          "gzip9_bytes": 1417
+        },
+        "wisp_license_runtime_state": {
+          "rows": 1,
+          "bytes": 1276,
+          "gzip9_bytes": 588
+        },
+        "wisp_loyalty_rewards": {
+          "rows": 0,
+          "bytes": 1107,
+          "gzip9_bytes": 508
+        },
+        "wisp_loyalty_transactions": {
+          "rows": 0,
+          "bytes": 1074,
+          "gzip9_bytes": 479
+        },
+        "wisp_loyalty_wallets": {
+          "rows": 0,
+          "bytes": 1161,
+          "gzip9_bytes": 526
+        },
+        "wisp_mac_radcheck": {
+          "rows": 0,
+          "bytes": 1562,
+          "gzip9_bytes": 531
+        },
+        "wisp_maintenance_jobs": {
+          "rows": 0,
+          "bytes": 1167,
+          "gzip9_bytes": 487
+        },
+        "wisp_manager_invoices": {
+          "rows": 17,
+          "bytes": 5977,
+          "gzip9_bytes": 1482
+        },
+        "wisp_managers": {
+          "rows": 5,
+          "bytes": 2825,
+          "gzip9_bytes": 1327
+        },
+        "wisp_nas_devices": {
+          "rows": 1,
+          "bytes": 1534,
+          "gzip9_bytes": 761
+        },
+        "wisp_nas_session_seals": {
+          "rows": 6,
+          "bytes": 2065,
+          "gzip9_bytes": 798
+        },
+        "wisp_notification_channels": {
+          "rows": 1,
+          "bytes": 1577,
+          "gzip9_bytes": 673
+        },
+        "wisp_notification_logs": {
+          "rows": 52,
+          "bytes": 106171,
+          "gzip9_bytes": 7373
+        },
+        "wisp_online_policy_outbox": {
+          "rows": 13,
+          "bytes": 2112,
+          "gzip9_bytes": 761
+        },
+        "wisp_packages": {
+          "rows": 11,
+          "bytes": 5070,
+          "gzip9_bytes": 1231
+        },
+        "wisp_permissions": {
+          "rows": 162,
+          "bytes": 38133,
+          "gzip9_bytes": 4925
+        },
+        "wisp_quick_card_issues": {
+          "rows": 18,
+          "bytes": 3155,
+          "gzip9_bytes": 1443
+        },
+        "wisp_renewal_guards": {
+          "rows": 0,
+          "bytes": 822,
+          "gzip9_bytes": 389
+        },
+        "wisp_reseller_transactions": {
+          "rows": 0,
+          "bytes": 1234,
+          "gzip9_bytes": 548
+        },
+        "wisp_resellers": {
+          "rows": 0,
+          "bytes": 1144,
+          "gzip9_bytes": 534
+        },
+        "wisp_revoked_licenses": {
+          "rows": 0,
+          "bytes": 861,
+          "gzip9_bytes": 399
+        },
+        "wisp_role_permissions": {
+          "rows": 271,
+          "bytes": 10496,
+          "gzip9_bytes": 1947
+        },
+        "wisp_roles": {
+          "rows": 4,
+          "bytes": 1766,
+          "gzip9_bytes": 890
+        },
+        "wisp_sale_source_audit": {
+          "rows": 24875,
+          "bytes": 19137508,
+          "gzip9_bytes": 367721
+        },
+        "wisp_sale_sources": {
+          "rows": 24875,
+          "bytes": 4294637,
+          "gzip9_bytes": 132938
+        },
+        "wisp_session_baselines": {
+          "rows": 4,
+          "bytes": 1677,
+          "gzip9_bytes": 697
+        },
+        "wisp_session_reservations": {
+          "rows": 247,
+          "bytes": 38865,
+          "gzip9_bytes": 14949
+        },
+        "wisp_sstp_tunnels": {
+          "rows": 0,
+          "bytes": 1340,
+          "gzip9_bytes": 576
+        },
+        "wisp_subscriber_edit_receipts": {
+          "rows": 2,
+          "bytes": 1693,
+          "gzip9_bytes": 810
+        },
+        "wisp_subscriber_names": {
+          "rows": 2,
+          "bytes": 999,
+          "gzip9_bytes": 466
+        },
+        "wisp_subscribers": {
+          "rows": 56,
+          "bytes": 17234,
+          "gzip9_bytes": 3880
+        },
+        "wisp_system_alerts": {
+          "rows": 17,
+          "bytes": 5194,
+          "gzip9_bytes": 1055
+        },
+        "wisp_system_settings": {
+          "rows": 52,
+          "bytes": 6883,
+          "gzip9_bytes": 2463
+        },
+        "wisp_tower_locations": {
+          "rows": 0,
+          "bytes": 1341,
+          "gzip9_bytes": 599
+        },
+        "wisp_traffic_checkpoints": {
+          "rows": 8114,
+          "bytes": 1675729,
+          "gzip9_bytes": 528269
+        },
+        "wisp_traffic_history": {
+          "rows": 0,
+          "bytes": 3097,
+          "gzip9_bytes": 923
+        },
+        "wisp_traffic_history_owned": {
+          "rows": 0,
+          "bytes": 4758,
+          "gzip9_bytes": 1242
+        },
+        "wisp_traffic_rollup_state": {
+          "rows": 1,
+          "bytes": 1180,
+          "gzip9_bytes": 520
+        },
+        "wisp_traffic_rollups": {
+          "rows": 1810,
+          "bytes": 282437,
+          "gzip9_bytes": 32334
+        },
+        "wisp_userman_import_batches": {
+          "rows": 0,
+          "bytes": 885,
+          "gzip9_bytes": 395
+        },
+        "wisp_userman_import_journal": {
+          "rows": 0,
+          "bytes": 1020,
+          "gzip9_bytes": 445
+        },
+        "wisp_username_write_lock": {
+          "rows": 1,
+          "bytes": 829,
+          "gzip9_bytes": 377
+        },
+        "wisp_voucher_batches": {
+          "rows": 98,
+          "bytes": 18429,
+          "gzip9_bytes": 2731
+        },
+        "wisp_voucher_edit_receipts": {
+          "rows": 0,
+          "bytes": 1010,
+          "gzip9_bytes": 444
+        },
+        "wisp_voucher_names": {
+          "rows": 0,
+          "bytes": 850,
+          "gzip9_bytes": 405
+        },
+        "wisp_voucher_sales": {
+          "rows": 24865,
+          "bytes": 4363342,
+          "gzip9_bytes": 661897
+        },
+        "wisp_vouchers": {
+          "rows": 29930,
+          "bytes": 7986492,
+          "gzip9_bytes": 1078319
+        },
+        "wisp_whatsapp_logs": {
+          "rows": 0,
+          "bytes": 1286,
+          "gzip9_bytes": 571
+        },
+        "wisp_whatsapp_settings": {
+          "rows": 0,
+          "bytes": 1570,
+          "gzip9_bytes": 664
+        },
+        "wisp_whatsapp_templates": {
+          "rows": 0,
+          "bytes": 1148,
+          "gzip9_bytes": 524
+        },
+        "wisp_wireguard_tunnels": {
+          "rows": 0,
+          "bytes": 1446,
+          "gzip9_bytes": 611
+        }
+      },
+      "sha256": "f19486ed5d24c4d3e51a0e4f6a3695cd24249287d3acc160513c1a1eb3257bfd"
+    },
+    {
+      "name": "max_radius_backup_20261029_120000_756.tar.gz",
+      "bytes": 28147122,
+      "metadata": {
+        "created_at": "2026-10-29 12:00:00",
+        "system_version": "2.6.9",
+        "table_count": 80,
+        "db_engine": "mysql"
+      },
+      "components": {
+        "database": {
+          "files": 1,
+          "bytes": 161426177,
+          "gzip9_bytes": 29008658
+        },
+        "configuration-and-templates": {
+          "files": 2,
+          "bytes": 15821,
+          "gzip9_bytes": 4048
+        },
+        "uploads": {
+          "files": 1,
+          "bytes": 63354,
+          "gzip9_bytes": 63167
+        }
+      },
+      "tables": {
+        "_preamble": {
+          "rows": 0,
+          "bytes": 866,
+          "gzip9_bytes": 402
+        },
+        "nas": {
+          "rows": 1,
+          "bytes": 1150,
+          "gzip9_bytes": 592
+        },
+        "nasreload": {
+          "rows": 1,
+          "bytes": 797,
+          "gzip9_bytes": 407
+        },
+        "radacct": {
+          "rows": 56748,
+          "bytes": 19678026,
+          "gzip9_bytes": 4592277
+        },
+        "radacct_archive": {
+          "rows": 0,
+          "bytes": 2783,
+          "gzip9_bytes": 839
+        },
+        "radacct_archive_owned": {
+          "rows": 0,
+          "bytes": 3418,
+          "gzip9_bytes": 849
+        },
+        "radacct_owned": {
+          "rows": 0,
+          "bytes": 3246,
+          "gzip9_bytes": 815
+        },
+        "radcheck": {
+          "rows": 6416,
+          "bytes": 378788,
+          "gzip9_bytes": 74569
+        },
+        "radgroupcheck": {
+          "rows": 12,
+          "bytes": 1978,
+          "gzip9_bytes": 662
+        },
+        "radgroupreply": {
+          "rows": 24,
+          "bytes": 3078,
+          "gzip9_bytes": 743
+        },
+        "radpostauth": {
+          "rows": 43465,
+          "bytes": 5313342,
+          "gzip9_bytes": 1343742
+        },
+        "radreply": {
+          "rows": 5,
+          "bytes": 1220,
+          "gzip9_bytes": 564
+        },
+        "radusergroup": {
+          "rows": 6029,
+          "bytes": 411306,
+          "gzip9_bytes": 53859
+        },
+        "user_audit_logs": {
+          "rows": 26,
+          "bytes": 7231,
+          "gzip9_bytes": 1970
+        },
+        "wisp_access_points": {
+          "rows": 0,
+          "bytes": 1401,
+          "gzip9_bytes": 630
+        },
+        "wisp_account_mac_addresses": {
+          "rows": 6,
+          "bytes": 1299,
+          "gzip9_bytes": 596
+        },
+        "wisp_account_mac_policies": {
+          "rows": 29984,
+          "bytes": 630625,
+          "gzip9_bytes": 78552
+        },
+        "wisp_account_mac_receipts": {
+          "rows": 2,
+          "bytes": 1673,
+          "gzip9_bytes": 814
+        },
+        "wisp_account_mac_usernames": {
+          "rows": 0,
+          "bytes": 1847,
+          "gzip9_bytes": 525
+        },
+        "wisp_admins": {
+          "rows": 2,
+          "bytes": 1395,
+          "gzip9_bytes": 764
+        },
+        "wisp_audit_logs": {
+          "rows": 188,
+          "bytes": 30740,
+          "gzip9_bytes": 4657
+        },
+        "wisp_automation_logs": {
+          "rows": 0,
+          "bytes": 1056,
+          "gzip9_bytes": 500
+        },
+        "wisp_automation_rules": {
+          "rows": 4,
+          "bytes": 1913,
+          "gzip9_bytes": 932
+        },
+        "wisp_backups": {
+          "rows": 29,
+          "bytes": 10343,
+          "gzip9_bytes": 2923
+        },
+        "wisp_card_templates": {
+          "rows": 1,
+          "bytes": 5313,
+          "gzip9_bytes": 1645
+        },
+        "wisp_global_sequence": {
+          "rows": 29987,
+          "bytes": 1410463,
+          "gzip9_bytes": 148897
+        },
+        "wisp_imported_session_history": {
+          "rows": 284021,
+          "bytes": 93916967,
+          "gzip9_bytes": 19599330
+        },
+        "wisp_imported_session_history_owned": {
+          "rows": 0,
+          "bytes": 3422,
+          "gzip9_bytes": 834
+        },
+        "wisp_invoices": {
+          "rows": 16,
+          "bytes": 5302,
+          "gzip9_bytes": 1462
+        },
+        "wisp_l2tp_tunnels": {
+          "rows": 0,
+          "bytes": 1418,
+          "gzip9_bytes": 588
+        },
+        "wisp_license_info": {
+          "rows": 1,
+          "bytes": 3757,
+          "gzip9_bytes": 1417
+        },
+        "wisp_license_runtime_state": {
+          "rows": 1,
+          "bytes": 1276,
+          "gzip9_bytes": 588
+        },
+        "wisp_loyalty_rewards": {
+          "rows": 0,
+          "bytes": 1107,
+          "gzip9_bytes": 508
+        },
+        "wisp_loyalty_transactions": {
+          "rows": 0,
+          "bytes": 1074,
+          "gzip9_bytes": 479
+        },
+        "wisp_loyalty_wallets": {
+          "rows": 0,
+          "bytes": 1161,
+          "gzip9_bytes": 526
+        },
+        "wisp_mac_radcheck": {
+          "rows": 0,
+          "bytes": 1562,
+          "gzip9_bytes": 531
+        },
+        "wisp_maintenance_jobs": {
+          "rows": 0,
+          "bytes": 1167,
+          "gzip9_bytes": 487
+        },
+        "wisp_manager_invoices": {
+          "rows": 18,
+          "bytes": 6229,
+          "gzip9_bytes": 1516
+        },
+        "wisp_managers": {
+          "rows": 5,
+          "bytes": 2825,
+          "gzip9_bytes": 1327
+        },
+        "wisp_nas_devices": {
+          "rows": 1,
+          "bytes": 1534,
+          "gzip9_bytes": 761
+        },
+        "wisp_nas_session_seals": {
+          "rows": 6,
+          "bytes": 2065,
+          "gzip9_bytes": 798
+        },
+        "wisp_notification_channels": {
+          "rows": 1,
+          "bytes": 1577,
+          "gzip9_bytes": 673
+        },
+        "wisp_notification_logs": {
+          "rows": 73,
+          "bytes": 147495,
+          "gzip9_bytes": 9420
+        },
+        "wisp_online_policy_outbox": {
+          "rows": 20,
+          "bytes": 2614,
+          "gzip9_bytes": 887
+        },
+        "wisp_packages": {
+          "rows": 12,
+          "bytes": 5242,
+          "gzip9_bytes": 1272
+        },
+        "wisp_permissions": {
+          "rows": 162,
+          "bytes": 38133,
+          "gzip9_bytes": 4925
+        },
+        "wisp_quick_card_issues": {
+          "rows": 19,
+          "bytes": 3254,
+          "gzip9_bytes": 1485
+        },
+        "wisp_renewal_guards": {
+          "rows": 0,
+          "bytes": 822,
+          "gzip9_bytes": 389
+        },
+        "wisp_reseller_transactions": {
+          "rows": 0,
+          "bytes": 1234,
+          "gzip9_bytes": 548
+        },
+        "wisp_resellers": {
+          "rows": 0,
+          "bytes": 1144,
+          "gzip9_bytes": 534
+        },
+        "wisp_revoked_licenses": {
+          "rows": 0,
+          "bytes": 861,
+          "gzip9_bytes": 399
+        },
+        "wisp_role_permissions": {
+          "rows": 271,
+          "bytes": 10496,
+          "gzip9_bytes": 1947
+        },
+        "wisp_roles": {
+          "rows": 4,
+          "bytes": 1766,
+          "gzip9_bytes": 890
+        },
+        "wisp_sale_source_audit": {
+          "rows": 24947,
+          "bytes": 19208690,
+          "gzip9_bytes": 374270
+        },
+        "wisp_sale_sources": {
+          "rows": 24947,
+          "bytes": 4313770,
+          "gzip9_bytes": 135599
+        },
+        "wisp_session_baselines": {
+          "rows": 4,
+          "bytes": 1677,
+          "gzip9_bytes": 697
+        },
+        "wisp_session_reservations": {
+          "rows": 278,
+          "bytes": 43538,
+          "gzip9_bytes": 16493
+        },
+        "wisp_sstp_tunnels": {
+          "rows": 0,
+          "bytes": 1340,
+          "gzip9_bytes": 576
+        },
+        "wisp_subscriber_edit_receipts": {
+          "rows": 2,
+          "bytes": 1693,
+          "gzip9_bytes": 810
+        },
+        "wisp_subscriber_names": {
+          "rows": 2,
+          "bytes": 999,
+          "gzip9_bytes": 466
+        },
+        "wisp_subscribers": {
+          "rows": 51,
+          "bytes": 15919,
+          "gzip9_bytes": 3623
+        },
+        "wisp_system_alerts": {
+          "rows": 18,
+          "bytes": 5433,
+          "gzip9_bytes": 1070
+        },
+        "wisp_system_settings": {
+          "rows": 52,
+          "bytes": 6883,
+          "gzip9_bytes": 2464
+        },
+        "wisp_tower_locations": {
+          "rows": 0,
+          "bytes": 1341,
+          "gzip9_bytes": 599
+        },
+        "wisp_traffic_checkpoints": {
+          "rows": 7751,
+          "bytes": 1600218,
+          "gzip9_bytes": 504223
+        },
+        "wisp_traffic_history": {
+          "rows": 1848,
+          "bytes": 918006,
+          "gzip9_bytes": 193916
+        },
+        "wisp_traffic_history_owned": {
+          "rows": 0,
+          "bytes": 4758,
+          "gzip9_bytes": 1242
+        },
+        "wisp_traffic_rollup_state": {
+          "rows": 1,
+          "bytes": 1172,
+          "gzip9_bytes": 516
+        },
+        "wisp_traffic_rollups": {
+          "rows": 5082,
+          "bytes": 789695,
+          "gzip9_bytes": 86538
+        },
+        "wisp_userman_import_batches": {
+          "rows": 0,
+          "bytes": 885,
+          "gzip9_bytes": 395
+        },
+        "wisp_userman_import_journal": {
+          "rows": 0,
+          "bytes": 1020,
+          "gzip9_bytes": 445
+        },
+        "wisp_username_write_lock": {
+          "rows": 1,
+          "bytes": 829,
+          "gzip9_bytes": 377
+        },
+        "wisp_voucher_batches": {
+          "rows": 100,
+          "bytes": 18870,
+          "gzip9_bytes": 2814
+        },
+        "wisp_voucher_edit_receipts": {
+          "rows": 0,
+          "bytes": 1010,
+          "gzip9_bytes": 444
+        },
+        "wisp_voucher_names": {
+          "rows": 0,
+          "bytes": 850,
+          "gzip9_bytes": 405
+        },
+        "wisp_voucher_sales": {
+          "rows": 24931,
+          "bytes": 4375126,
+          "gzip9_bytes": 663944
+        },
+        "wisp_vouchers": {
+          "rows": 30131,
+          "bytes": 8036204,
+          "gzip9_bytes": 1084011
+        },
+        "wisp_whatsapp_logs": {
+          "rows": 0,
+          "bytes": 1286,
+          "gzip9_bytes": 571
+        },
+        "wisp_whatsapp_settings": {
+          "rows": 0,
+          "bytes": 1570,
+          "gzip9_bytes": 664
+        },
+        "wisp_whatsapp_templates": {
+          "rows": 0,
+          "bytes": 1148,
+          "gzip9_bytes": 524
+        },
+        "wisp_wireguard_tunnels": {
+          "rows": 0,
+          "bytes": 1446,
+          "gzip9_bytes": 611
+        }
+      },
+      "sha256": "06df7268f1cb21a7d408bf9074797e4e8f8b6146cafa8ca51ed61302780ee5ef"
+    },
+    {
+      "name": "max_radius_backup_20261030_120000_293.tar.gz",
+      "bytes": 30058712,
+      "metadata": {
+        "created_at": "2026-10-30 12:00:00",
+        "system_version": "2.6.9",
+        "table_count": 80,
+        "db_engine": "mysql"
+      },
+      "components": {
+        "database": {
+          "files": 1,
+          "bytes": 168466186,
+          "gzip9_bytes": 31006723
+        },
+        "configuration-and-templates": {
+          "files": 2,
+          "bytes": 28880,
+          "gzip9_bytes": 4844
+        },
+        "uploads": {
+          "files": 1,
+          "bytes": 63354,
+          "gzip9_bytes": 63167
+        }
+      },
+      "tables": {
+        "_preamble": {
+          "rows": 0,
+          "bytes": 866,
+          "gzip9_bytes": 402
+        },
+        "nas": {
+          "rows": 1,
+          "bytes": 1150,
+          "gzip9_bytes": 592
+        },
+        "nasreload": {
+          "rows": 1,
+          "bytes": 797,
+          "gzip9_bytes": 407
+        },
+        "radacct": {
+          "rows": 32894,
+          "bytes": 11950717,
+          "gzip9_bytes": 3224397
+        },
+        "radacct_archive": {
+          "rows": 0,
+          "bytes": 2783,
+          "gzip9_bytes": 839
+        },
+        "radacct_archive_owned": {
+          "rows": 0,
+          "bytes": 3418,
+          "gzip9_bytes": 849
+        },
+        "radacct_owned": {
+          "rows": 0,
+          "bytes": 3246,
+          "gzip9_bytes": 815
+        },
+        "radcheck": {
+          "rows": 7355,
+          "bytes": 434446,
+          "gzip9_bytes": 85204
+        },
+        "radgroupcheck": {
+          "rows": 12,
+          "bytes": 1978,
+          "gzip9_bytes": 662
+        },
+        "radgroupreply": {
+          "rows": 24,
+          "bytes": 3078,
+          "gzip9_bytes": 743
+        },
+        "radpostauth": {
+          "rows": 53367,
+          "bytes": 6316270,
+          "gzip9_bytes": 1558316
+        },
+        "radreply": {
+          "rows": 8,
+          "bytes": 1376,
+          "gzip9_bytes": 591
+        },
+        "radusergroup": {
+          "rows": 6971,
+          "bytes": 476299,
+          "gzip9_bytes": 61817
+        },
+        "user_audit_logs": {
+          "rows": 28,
+          "bytes": 7538,
+          "gzip9_bytes": 2004
+        },
+        "wisp_access_points": {
+          "rows": 0,
+          "bytes": 1401,
+          "gzip9_bytes": 630
+        },
+        "wisp_account_mac_addresses": {
+          "rows": 6,
+          "bytes": 1299,
+          "gzip9_bytes": 596
+        },
+        "wisp_account_mac_policies": {
+          "rows": 29984,
+          "bytes": 630625,
+          "gzip9_bytes": 78552
+        },
+        "wisp_account_mac_receipts": {
+          "rows": 2,
+          "bytes": 1673,
+          "gzip9_bytes": 814
+        },
+        "wisp_account_mac_usernames": {
+          "rows": 0,
+          "bytes": 1847,
+          "gzip9_bytes": 525
+        },
+        "wisp_admins": {
+          "rows": 2,
+          "bytes": 1395,
+          "gzip9_bytes": 764
+        },
+        "wisp_audit_logs": {
+          "rows": 205,
+          "bytes": 33772,
+          "gzip9_bytes": 5041
+        },
+        "wisp_automation_logs": {
+          "rows": 0,
+          "bytes": 1056,
+          "gzip9_bytes": 500
+        },
+        "wisp_automation_rules": {
+          "rows": 4,
+          "bytes": 1913,
+          "gzip9_bytes": 932
+        },
+        "wisp_backups": {
+          "rows": 33,
+          "bytes": 11635,
+          "gzip9_bytes": 3217
+        },
+        "wisp_card_templates": {
+          "rows": 4,
+          "bytes": 15978,
+          "gzip9_bytes": 2281
+        },
+        "wisp_global_sequence": {
+          "rows": 29991,
+          "bytes": 1410651,
+          "gzip9_bytes": 148953
+        },
+        "wisp_imported_session_history": {
+          "rows": 284021,
+          "bytes": 93916967,
+          "gzip9_bytes": 19599330
+        },
+        "wisp_imported_session_history_owned": {
+          "rows": 0,
+          "bytes": 3422,
+          "gzip9_bytes": 834
+        },
+        "wisp_invoices": {
+          "rows": 17,
+          "bytes": 5541,
+          "gzip9_bytes": 1504
+        },
+        "wisp_l2tp_tunnels": {
+          "rows": 0,
+          "bytes": 1418,
+          "gzip9_bytes": 588
+        },
+        "wisp_license_info": {
+          "rows": 1,
+          "bytes": 3757,
+          "gzip9_bytes": 1417
+        },
+        "wisp_license_runtime_state": {
+          "rows": 1,
+          "bytes": 1276,
+          "gzip9_bytes": 587
+        },
+        "wisp_loyalty_rewards": {
+          "rows": 0,
+          "bytes": 1107,
+          "gzip9_bytes": 508
+        },
+        "wisp_loyalty_transactions": {
+          "rows": 0,
+          "bytes": 1074,
+          "gzip9_bytes": 479
+        },
+        "wisp_loyalty_wallets": {
+          "rows": 0,
+          "bytes": 1161,
+          "gzip9_bytes": 526
+        },
+        "wisp_mac_radcheck": {
+          "rows": 0,
+          "bytes": 1562,
+          "gzip9_bytes": 531
+        },
+        "wisp_maintenance_jobs": {
+          "rows": 0,
+          "bytes": 1167,
+          "gzip9_bytes": 487
+        },
+        "wisp_manager_invoices": {
+          "rows": 22,
+          "bytes": 7239,
+          "gzip9_bytes": 1654
+        },
+        "wisp_managers": {
+          "rows": 5,
+          "bytes": 2825,
+          "gzip9_bytes": 1330
+        },
+        "wisp_nas_devices": {
+          "rows": 1,
+          "bytes": 1534,
+          "gzip9_bytes": 761
+        },
+        "wisp_nas_session_seals": {
+          "rows": 6,
+          "bytes": 2065,
+          "gzip9_bytes": 798
+        },
+        "wisp_notification_channels": {
+          "rows": 1,
+          "bytes": 1577,
+          "gzip9_bytes": 673
+        },
+        "wisp_notification_logs": {
+          "rows": 83,
+          "bytes": 167846,
+          "gzip9_bytes": 10387
+        },
+        "wisp_online_policy_outbox": {
+          "rows": 21,
+          "bytes": 2688,
+          "gzip9_bytes": 905
+        },
+        "wisp_packages": {
+          "rows": 12,
+          "bytes": 5242,
+          "gzip9_bytes": 1272
+        },
+        "wisp_permissions": {
+          "rows": 162,
+          "bytes": 38133,
+          "gzip9_bytes": 4925
+        },
+        "wisp_quick_card_issues": {
+          "rows": 23,
+          "bytes": 3652,
+          "gzip9_bytes": 1668
+        },
+        "wisp_renewal_guards": {
+          "rows": 0,
+          "bytes": 822,
+          "gzip9_bytes": 389
+        },
+        "wisp_reseller_transactions": {
+          "rows": 0,
+          "bytes": 1234,
+          "gzip9_bytes": 548
+        },
+        "wisp_resellers": {
+          "rows": 0,
+          "bytes": 1144,
+          "gzip9_bytes": 534
+        },
+        "wisp_revoked_licenses": {
+          "rows": 0,
+          "bytes": 861,
+          "gzip9_bytes": 399
+        },
+        "wisp_role_permissions": {
+          "rows": 271,
+          "bytes": 10496,
+          "gzip9_bytes": 1947
+        },
+        "wisp_roles": {
+          "rows": 4,
+          "bytes": 1766,
+          "gzip9_bytes": 890
+        },
+        "wisp_sale_source_audit": {
+          "rows": 25027,
+          "bytes": 19289296,
+          "gzip9_bytes": 381795
+        },
+        "wisp_sale_sources": {
+          "rows": 25027,
+          "bytes": 4335724,
+          "gzip9_bytes": 133590
+        },
+        "wisp_session_baselines": {
+          "rows": 4,
+          "bytes": 1677,
+          "gzip9_bytes": 697
+        },
+        "wisp_session_reservations": {
+          "rows": 255,
+          "bytes": 40036,
+          "gzip9_bytes": 15195
+        },
+        "wisp_sstp_tunnels": {
+          "rows": 0,
+          "bytes": 1340,
+          "gzip9_bytes": 576
+        },
+        "wisp_subscriber_edit_receipts": {
+          "rows": 2,
+          "bytes": 1693,
+          "gzip9_bytes": 810
+        },
+        "wisp_subscriber_names": {
+          "rows": 2,
+          "bytes": 999,
+          "gzip9_bytes": 466
+        },
+        "wisp_subscribers": {
+          "rows": 51,
+          "bytes": 15920,
+          "gzip9_bytes": 3625
+        },
+        "wisp_system_alerts": {
+          "rows": 18,
+          "bytes": 5433,
+          "gzip9_bytes": 1070
+        },
+        "wisp_system_settings": {
+          "rows": 57,
+          "bytes": 7271,
+          "gzip9_bytes": 2597
+        },
+        "wisp_tower_locations": {
+          "rows": 0,
+          "bytes": 1341,
+          "gzip9_bytes": 599
+        },
+        "wisp_traffic_checkpoints": {
+          "rows": 7592,
+          "bytes": 1568262,
+          "gzip9_bytes": 494232
+        },
+        "wisp_traffic_history": {
+          "rows": 29469,
+          "bytes": 13749494,
+          "gzip9_bytes": 3253756
+        },
+        "wisp_traffic_history_owned": {
+          "rows": 0,
+          "bytes": 4758,
+          "gzip9_bytes": 1242
+        },
+        "wisp_traffic_rollup_state": {
+          "rows": 1,
+          "bytes": 1172,
+          "gzip9_bytes": 517
+        },
+        "wisp_traffic_rollups": {
+          "rows": 8221,
+          "bytes": 1277059,
+          "gzip9_bytes": 139252
+        },
+        "wisp_userman_import_batches": {
+          "rows": 0,
+          "bytes": 885,
+          "gzip9_bytes": 395
+        },
+        "wisp_userman_import_journal": {
+          "rows": 0,
+          "bytes": 1020,
+          "gzip9_bytes": 445
+        },
+        "wisp_username_write_lock": {
+          "rows": 1,
+          "bytes": 829,
+          "gzip9_bytes": 377
+        },
+        "wisp_voucher_batches": {
+          "rows": 105,
+          "bytes": 19995,
+          "gzip9_bytes": 2964
+        },
+        "wisp_voucher_edit_receipts": {
+          "rows": 0,
+          "bytes": 1010,
+          "gzip9_bytes": 444
+        },
+        "wisp_voucher_names": {
+          "rows": 0,
+          "bytes": 850,
+          "gzip9_bytes": 405
+        },
+        "wisp_voucher_sales": {
+          "rows": 25010,
+          "bytes": 4389297,
+          "gzip9_bytes": 666441
+        },
+        "wisp_vouchers": {
+          "rows": 31072,
+          "bytes": 8240592,
+          "gzip9_bytes": 1103146
+        },
+        "wisp_whatsapp_logs": {
+          "rows": 0,
+          "bytes": 1286,
+          "gzip9_bytes": 571
+        },
+        "wisp_whatsapp_settings": {
+          "rows": 0,
+          "bytes": 1570,
+          "gzip9_bytes": 664
+        },
+        "wisp_whatsapp_templates": {
+          "rows": 0,
+          "bytes": 1148,
+          "gzip9_bytes": 524
+        },
+        "wisp_wireguard_tunnels": {
+          "rows": 0,
+          "bytes": 1446,
+          "gzip9_bytes": 611
+        }
+      },
+      "sha256": "8a184b154f615095f93d22fe0ddef6ada09c3cd091607894f192ac04de97bc6b"
+    },
+    {
+      "name": "max_radius_backup_20261031_120000_738.tar.gz",
+      "bytes": 30877048,
+      "metadata": {
+        "created_at": "2026-10-31 12:00:00",
+        "system_version": "2.6.9",
+        "table_count": 80,
+        "db_engine": "mysql"
+      },
+      "components": {
+        "database": {
+          "files": 1,
+          "bytes": 171996852,
+          "gzip9_bytes": 31856190
+        },
+        "configuration-and-templates": {
+          "files": 2,
+          "bytes": 41228,
+          "gzip9_bytes": 5084
+        },
+        "uploads": {
+          "files": 1,
+          "bytes": 63354,
+          "gzip9_bytes": 63167
+        }
+      },
+      "tables": {
+        "_preamble": {
+          "rows": 0,
+          "bytes": 866,
+          "gzip9_bytes": 402
+        },
+        "nas": {
+          "rows": 1,
+          "bytes": 1150,
+          "gzip9_bytes": 592
+        },
+        "nasreload": {
+          "rows": 1,
+          "bytes": 797,
+          "gzip9_bytes": 407
+        },
+        "radacct": {
+          "rows": 37019,
+          "bytes": 13462011,
+          "gzip9_bytes": 3648403
+        },
+        "radacct_archive": {
+          "rows": 0,
+          "bytes": 2783,
+          "gzip9_bytes": 839
+        },
+        "radacct_archive_owned": {
+          "rows": 0,
+          "bytes": 3418,
+          "gzip9_bytes": 849
+        },
+        "radacct_owned": {
+          "rows": 0,
+          "bytes": 3246,
+          "gzip9_bytes": 815
+        },
+        "radcheck": {
+          "rows": 7381,
+          "bytes": 436259,
+          "gzip9_bytes": 85926
+        },
+        "radgroupcheck": {
+          "rows": 12,
+          "bytes": 1978,
+          "gzip9_bytes": 662
+        },
+        "radgroupreply": {
+          "rows": 24,
+          "bytes": 3078,
+          "gzip9_bytes": 743
+        },
+        "radpostauth": {
+          "rows": 61959,
+          "bytes": 7407566,
+          "gzip9_bytes": 1834185
+        },
+        "radreply": {
+          "rows": 11,
+          "bytes": 1532,
+          "gzip9_bytes": 614
+        },
+        "radusergroup": {
+          "rows": 6976,
+          "bytes": 476640,
+          "gzip9_bytes": 61906
+        },
+        "user_audit_logs": {
+          "rows": 32,
+          "bytes": 8174,
+          "gzip9_bytes": 2093
+        },
+        "wisp_access_points": {
+          "rows": 0,
+          "bytes": 1401,
+          "gzip9_bytes": 630
+        },
+        "wisp_account_mac_addresses": {
+          "rows": 6,
+          "bytes": 1299,
+          "gzip9_bytes": 596
+        },
+        "wisp_account_mac_policies": {
+          "rows": 29984,
+          "bytes": 630625,
+          "gzip9_bytes": 78552
+        },
+        "wisp_account_mac_receipts": {
+          "rows": 2,
+          "bytes": 1673,
+          "gzip9_bytes": 814
+        },
+        "wisp_account_mac_usernames": {
+          "rows": 0,
+          "bytes": 1847,
+          "gzip9_bytes": 525
+        },
+        "wisp_admins": {
+          "rows": 2,
+          "bytes": 1395,
+          "gzip9_bytes": 764
+        },
+        "wisp_audit_logs": {
+          "rows": 223,
+          "bytes": 37074,
+          "gzip9_bytes": 5383
+        },
+        "wisp_automation_logs": {
+          "rows": 0,
+          "bytes": 1056,
+          "gzip9_bytes": 500
+        },
+        "wisp_automation_rules": {
+          "rows": 4,
+          "bytes": 1913,
+          "gzip9_bytes": 932
+        },
+        "wisp_backups": {
+          "rows": 37,
+          "bytes": 12927,
+          "gzip9_bytes": 3505
+        },
+        "wisp_card_templates": {
+          "rows": 7,
+          "bytes": 26625,
+          "gzip9_bytes": 2498
+        },
+        "wisp_global_sequence": {
+          "rows": 29999,
+          "bytes": 1411027,
+          "gzip9_bytes": 149070
+        },
+        "wisp_imported_session_history": {
+          "rows": 283255,
+          "bytes": 93664573,
+          "gzip9_bytes": 19550391
+        },
+        "wisp_imported_session_history_owned": {
+          "rows": 0,
+          "bytes": 3422,
+          "gzip9_bytes": 834
+        },
+        "wisp_invoices": {
+          "rows": 21,
+          "bytes": 6496,
+          "gzip9_bytes": 1644
+        },
+        "wisp_l2tp_tunnels": {
+          "rows": 0,
+          "bytes": 1418,
+          "gzip9_bytes": 588
+        },
+        "wisp_license_info": {
+          "rows": 1,
+          "bytes": 3757,
+          "gzip9_bytes": 1416
+        },
+        "wisp_license_runtime_state": {
+          "rows": 1,
+          "bytes": 1276,
+          "gzip9_bytes": 588
+        },
+        "wisp_loyalty_rewards": {
+          "rows": 0,
+          "bytes": 1107,
+          "gzip9_bytes": 508
+        },
+        "wisp_loyalty_transactions": {
+          "rows": 0,
+          "bytes": 1074,
+          "gzip9_bytes": 479
+        },
+        "wisp_loyalty_wallets": {
+          "rows": 0,
+          "bytes": 1161,
+          "gzip9_bytes": 526
+        },
+        "wisp_mac_radcheck": {
+          "rows": 0,
+          "bytes": 1562,
+          "gzip9_bytes": 531
+        },
+        "wisp_maintenance_jobs": {
+          "rows": 0,
+          "bytes": 1167,
+          "gzip9_bytes": 487
+        },
+        "wisp_manager_invoices": {
+          "rows": 26,
+          "bytes": 8248,
+          "gzip9_bytes": 1780
+        },
+        "wisp_managers": {
+          "rows": 5,
+          "bytes": 2824,
+          "gzip9_bytes": 1329
+        },
+        "wisp_nas_devices": {
+          "rows": 1,
+          "bytes": 1534,
+          "gzip9_bytes": 761
+        },
+        "wisp_nas_session_seals": {
+          "rows": 6,
+          "bytes": 2065,
+          "gzip9_bytes": 798
+        },
+        "wisp_notification_channels": {
+          "rows": 1,
+          "bytes": 1577,
+          "gzip9_bytes": 673
+        },
+        "wisp_notification_logs": {
+          "rows": 93,
+          "bytes": 188069,
+          "gzip9_bytes": 11757
+        },
+        "wisp_online_policy_outbox": {
+          "rows": 25,
+          "bytes": 2983,
+          "gzip9_bytes": 975
+        },
+        "wisp_packages": {
+          "rows": 12,
+          "bytes": 5242,
+          "gzip9_bytes": 1272
+        },
+        "wisp_permissions": {
+          "rows": 162,
+          "bytes": 38133,
+          "gzip9_bytes": 4925
+        },
+        "wisp_quick_card_issues": {
+          "rows": 27,
+          "bytes": 4049,
+          "gzip9_bytes": 1842
+        },
+        "wisp_renewal_guards": {
+          "rows": 0,
+          "bytes": 822,
+          "gzip9_bytes": 389
+        },
+        "wisp_reseller_transactions": {
+          "rows": 0,
+          "bytes": 1234,
+          "gzip9_bytes": 548
+        },
+        "wisp_resellers": {
+          "rows": 0,
+          "bytes": 1144,
+          "gzip9_bytes": 534
+        },
+        "wisp_revoked_licenses": {
+          "rows": 0,
+          "bytes": 861,
+          "gzip9_bytes": 399
+        },
+        "wisp_role_permissions": {
+          "rows": 271,
+          "bytes": 10496,
+          "gzip9_bytes": 1947
+        },
+        "wisp_roles": {
+          "rows": 4,
+          "bytes": 1766,
+          "gzip9_bytes": 890
+        },
+        "wisp_sale_source_audit": {
+          "rows": 25116,
+          "bytes": 19378693,
+          "gzip9_bytes": 390267
+        },
+        "wisp_sale_sources": {
+          "rows": 25117,
+          "bytes": 4360319,
+          "gzip9_bytes": 137103
+        },
+        "wisp_session_baselines": {
+          "rows": 8,
+          "bytes": 2070,
+          "gzip9_bytes": 829
+        },
+        "wisp_session_reservations": {
+          "rows": 305,
+          "bytes": 47641,
+          "gzip9_bytes": 17904
+        },
+        "wisp_sstp_tunnels": {
+          "rows": 0,
+          "bytes": 1340,
+          "gzip9_bytes": 576
+        },
+        "wisp_subscriber_edit_receipts": {
+          "rows": 2,
+          "bytes": 1693,
+          "gzip9_bytes": 810
+        },
+        "wisp_subscriber_names": {
+          "rows": 2,
+          "bytes": 999,
+          "gzip9_bytes": 466
+        },
+        "wisp_subscribers": {
+          "rows": 50,
+          "bytes": 15655,
+          "gzip9_bytes": 3592
+        },
+        "wisp_system_alerts": {
+          "rows": 23,
+          "bytes": 6628,
+          "gzip9_bytes": 1135
+        },
+        "wisp_system_settings": {
+          "rows": 57,
+          "bytes": 7271,
+          "gzip9_bytes": 2597
+        },
+        "wisp_tower_locations": {
+          "rows": 0,
+          "bytes": 1341,
+          "gzip9_bytes": 599
+        },
+        "wisp_traffic_checkpoints": {
+          "rows": 8118,
+          "bytes": 1676573,
+          "gzip9_bytes": 528262
+        },
+        "wisp_traffic_history": {
+          "rows": 30236,
+          "bytes": 14137218,
+          "gzip9_bytes": 3338448
+        },
+        "wisp_traffic_history_owned": {
+          "rows": 0,
+          "bytes": 4758,
+          "gzip9_bytes": 1242
+        },
+        "wisp_traffic_rollup_state": {
+          "rows": 1,
+          "bytes": 1172,
+          "gzip9_bytes": 516
+        },
+        "wisp_traffic_rollups": {
+          "rows": 11385,
+          "bytes": 1768067,
+          "gzip9_bytes": 192322
+        },
+        "wisp_userman_import_batches": {
+          "rows": 0,
+          "bytes": 885,
+          "gzip9_bytes": 395
+        },
+        "wisp_userman_import_journal": {
+          "rows": 0,
+          "bytes": 1020,
+          "gzip9_bytes": 445
+        },
+        "wisp_username_write_lock": {
+          "rows": 1,
+          "bytes": 829,
+          "gzip9_bytes": 377
+        },
+        "wisp_voucher_batches": {
+          "rows": 109,
+          "bytes": 20901,
+          "gzip9_bytes": 3060
+        },
+        "wisp_voucher_edit_receipts": {
+          "rows": 0,
+          "bytes": 1010,
+          "gzip9_bytes": 444
+        },
+        "wisp_voucher_names": {
+          "rows": 0,
+          "bytes": 850,
+          "gzip9_bytes": 405
+        },
+        "wisp_voucher_sales": {
+          "rows": 25096,
+          "bytes": 4404954,
+          "gzip9_bytes": 669161
+        },
+        "wisp_vouchers": {
+          "rows": 31077,
+          "bytes": 8253095,
+          "gzip9_bytes": 1105973
+        },
+        "wisp_whatsapp_logs": {
+          "rows": 0,
+          "bytes": 1286,
+          "gzip9_bytes": 571
+        },
+        "wisp_whatsapp_settings": {
+          "rows": 0,
+          "bytes": 1570,
+          "gzip9_bytes": 664
+        },
+        "wisp_whatsapp_templates": {
+          "rows": 0,
+          "bytes": 1148,
+          "gzip9_bytes": 524
+        },
+        "wisp_wireguard_tunnels": {
+          "rows": 0,
+          "bytes": 1446,
+          "gzip9_bytes": 611
+        }
+      },
+      "sha256": "ff366f5c4ed7c53d36606fec054ead2c231c77ec6a9fa68b789dc665ee74c2bc"
+    }
+  ],
+  "cohort": {
+    "snapshots": [
+      {
+        "name": "max_radius_backup_20261028_120000_833.tar.gz",
+        "unique_sessions_by_table": {
+          "radacct": 53140,
+          "radacct_archive": 0,
+          "wisp_imported_session_history": 285864,
+          "wisp_traffic_history": 0
+        },
+        "history_overlaps": {
+          "radacct": 0,
+          "radacct_archive": 0,
+          "wisp_imported_session_history": 0
+        },
+        "history_origins": {},
+        "history_capture_hours": {}
+      },
+      {
+        "name": "max_radius_backup_20261029_120000_756.tar.gz",
+        "unique_sessions_by_table": {
+          "radacct": 56748,
+          "radacct_archive": 0,
+          "wisp_imported_session_history": 284021,
+          "wisp_traffic_history": 1848
+        },
+        "history_overlaps": {
+          "radacct": 0,
+          "radacct_archive": 0,
+          "wisp_imported_session_history": 0
+        },
+        "history_origins": {
+          "radacct": 5,
+          "wisp_imported_session_history": 1843
+        },
+        "history_capture_hours": {
+          "2026-10-28 15": 1848
+        }
+      },
+      {
+        "name": "max_radius_backup_20261030_120000_293.tar.gz",
+        "unique_sessions_by_table": {
+          "radacct": 32894,
+          "radacct_archive": 0,
+          "wisp_imported_session_history": 284021,
+          "wisp_traffic_history": 29469
+        },
+        "history_overlaps": {
+          "radacct": 0,
+          "radacct_archive": 0,
+          "wisp_imported_session_history": 0
+        },
+        "history_origins": {
+          "radacct": 27626,
+          "wisp_imported_session_history": 1843
+        },
+        "history_capture_hours": {
+          "2026-10-28 15": 1848,
+          "2026-10-29 21": 27621
+        }
+      },
+      {
+        "name": "max_radius_backup_20261031_120000_738.tar.gz",
+        "unique_sessions_by_table": {
+          "radacct": 37019,
+          "radacct_archive": 0,
+          "wisp_imported_session_history": 283255,
+          "wisp_traffic_history": 30236
+        },
+        "history_overlaps": {
+          "radacct": 0,
+          "radacct_archive": 0,
+          "wisp_imported_session_history": 0
+        },
+        "history_origins": {
+          "radacct": 27627,
+          "wisp_imported_session_history": 2609
+        },
+        "history_capture_hours": {
+          "2026-10-28 15": 1848,
+          "2026-10-29 21": 27621,
+          "2026-10-30 21": 767
+        }
+      }
+    ],
+    "transitions": [
+      {
+        "from": "max_radius_backup_20261028_120000_833.tar.gz",
+        "to": "max_radius_backup_20261029_120000_756.tar.gz",
+        "new_unique_sessions": 3613,
+        "no_longer_retained_unique": 0,
+        "retained_unique_before": 339004,
+        "retained_unique_after": 342617
+      },
+      {
+        "from": "max_radius_backup_20261029_120000_756.tar.gz",
+        "to": "max_radius_backup_20261030_120000_293.tar.gz",
+        "new_unique_sessions": 3767,
+        "no_longer_retained_unique": 0,
+        "retained_unique_before": 342617,
+        "retained_unique_after": 346384
+      },
+      {
+        "from": "max_radius_backup_20261030_120000_293.tar.gz",
+        "to": "max_radius_backup_20261031_120000_738.tar.gz",
+        "new_unique_sessions": 4126,
+        "no_longer_retained_unique": 0,
+        "retained_unique_before": 346384,
+        "retained_unique_after": 350510
+      }
+    ],
+    "Oct29_radacct_to_Oct30_history_same_identity": {
+      "before": {
+        "rows": 27621,
+        "raw_bytes": 9109644,
+        "gzip9_bytes": 1756600
+      },
+      "after": {
+        "rows": 27621,
+        "raw_bytes": 12830941,
+        "gzip9_bytes": 3059123
+      },
+      "matching_sessions": 27621,
+      "removed_from_Oct30_live": 27621,
+      "still_in_Oct30_live": 0
+    },
+    "key_method": "exact common session identity fields, NULL/empty coalesced; unknown identity includes source/id; no username or session identity published",
+    "compression_method": "same matched cohort, original SQL tuple representation, gzip9 independently measured locally"
+  },
+  "verification": {
+    "archives": [
+      {
+        "name": "max_radius_backup_20261028_120000_833.tar.gz",
+        "gzip_CRC_valid": true,
+        "original_size_mtime_unchanged": true
+      },
+      {
+        "name": "max_radius_backup_20261029_120000_756.tar.gz",
+        "gzip_CRC_valid": true,
+        "original_size_mtime_unchanged": true
+      },
+      {
+        "name": "max_radius_backup_20261030_120000_293.tar.gz",
+        "gzip_CRC_valid": true,
+        "original_size_mtime_unchanged": true
+      },
+      {
+        "name": "max_radius_backup_20261031_120000_738.tar.gz",
+        "gzip_CRC_valid": true,
+        "original_size_mtime_unchanged": true
+      }
+    ],
+    "web_db_identity_unchanged": true,
+    "host_match": true,
+    "no_backup_created": true,
+    "read_only": true
+  },
+  "delta_bytes": 3412398,
+  "delta_percent": 12.424691376005148,
+  "uploads_identical": true,
+  "compression_note": "Per-table and cohort gzip9 values are independent local measurements, not exact additive attribution to original archive.",
+  "no_backup_created": true,
+  "no_SQL_restore_or_cleanup": true,
+  "no_service_restart_or_update": true,
+  "no_monitoring_resumed": true,
+  "evidence": "PRIVATE/m-backup-growth-20261031-r1"
+}

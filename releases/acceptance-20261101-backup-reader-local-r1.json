@@ -1,0 +1,50 @@
+{
+  "status": "local_reader_fix_verified",
+  "source_manifest": {
+    "after.py": "fb33dc1629ea8858255c6b1b2fcd7d53dd519e7b1b070728cdd9e6658b90f5c1",
+    "before.py": "a17e976582a3ad984b3f5348e013f9301ad81162e51f026dc9b4faf1a330f66a"
+  },
+  "before_seconds": 120.61171147596906,
+  "after_seconds": 54.472488814004464,
+  "compact_before": 99.55308633597451,
+  "compact_after": 39.97029839199968,
+  "compact_improvement_pct": 59.85026696499713,
+  "archive_bytes": 17612088,
+  "archive_sha256": "6d4588d7b17935a0e65326de17d5707643ddc21f3b486c10a1553e81e0796243",
+  "same_all_member_hashes": true,
+  "same_retention_receipt": true,
+  "same_business_tables": true,
+  "same_accounting_totals": true,
+  "same_triggers": true,
+  "target_licenses_preserved": true,
+  "rows": {
+    "wisp_vouchers": 31080,
+    "wisp_subscribers": 50,
+    "wisp_voucher_sales": 25145,
+    "wisp_packages": 12,
+    "wisp_invoices": 21,
+    "wisp_session_baselines": 8
+  },
+  "source_unit_tests": 53,
+  "compiled_unit_tests_per_module": 18,
+  "live_changes": false,
+  "published_image_built": false,
+  "baseline_restore_time_valid": false,
+  "cleanup": {
+    "new_containers_removed": 8,
+    "anonymous_volumes_removed": 1,
+    "work_volume_removed": true,
+    "network_removed": true,
+    "preexisting_containers_missing": 93
+  },
+  "evidence_reference": "PRIVATE/backup-reader-fix-local-20261101-r1",
+  "inventory_limit": "Resolved by user confirmation and 93 historical ID matches; old test containers, no protected runtime container among them.",
+  "inventory_resolution": {
+    "user_confirmed_deletion": true,
+    "historical_matches": 93,
+    "historical_exited": 83,
+    "historical_created": 10,
+    "protected_runtime_containers_deleted": false,
+    "current_dev_login_http": 200
+  }
+}

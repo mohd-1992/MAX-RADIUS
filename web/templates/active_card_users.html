@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% set list_sort = list_sort|default({'key':'id','direction':'desc','table':'cards'}) %}
+{% from "components/list_sort.html" import heading with context %}
 
 {% block title %}مشتركو الكروت{% endblock %}
 
@@ -329,31 +331,31 @@
             <span class="text-xs text-slate-500">انقر على أي كرت للانتقال لصفحة تفاصيله المستقلة وتعديله</span>
         </div>
         <div class="overflow-x-auto table-responsive">
-            <table class="w-full text-right text-sm">
+            <table data-list-sort-table="cards" data-sort-key="{{ list_sort.key }}" data-sort-dir="{{ list_sort.direction }}" class="w-full text-right text-sm">
                 <thead class="bg-[#070b14] text-slate-300 text-xs uppercase font-bold border-b border-[#1c2840]">
                     <tr>
                         <th class="py-3.5 px-3 text-center w-10">
                             <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="w-4 h-4 rounded border-slate-700 bg-[#070b14] text-emerald-600 focus:ring-0 cursor-pointer">
                         </th>
-                        <th class="py-3.5 px-3 text-center w-16 col-id whitespace-nowrap">ID</th>
-                        <th class="py-3.5 px-4 col-username whitespace-nowrap min-w-[150px]">اسم المستخدم / رمز الكرت</th>
-                        <th class="py-3.5 px-4 text-center col-days whitespace-nowrap min-w-[110px]">الأيام المتبقية</th>
-                        <th class="py-3.5 px-4 col-lastseen whitespace-nowrap min-w-[150px]">آخر ظهور</th>
-                        <th class="py-3.5 px-4 col-package whitespace-nowrap min-w-[130px]">الباقة</th>
-                        <th class="py-3.5 px-4 col-accesspoint whitespace-nowrap min-w-[130px]">نقطة الاتصال</th>
-                        <th class="py-3.5 px-4 col-consumption min-w-[220px] whitespace-nowrap">الاستهلاك والكوتا</th>
+                        <th class="py-3.5 px-3 text-center w-16 col-id whitespace-nowrap" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='id' else 'none' }}">{{ heading('id', 'ID') }}</th>
+                        <th class="py-3.5 px-4 col-username whitespace-nowrap min-w-[150px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='username' else 'none' }}">{{ heading('username', 'اسم المستخدم / رمز الكرت') }}</th>
+                        <th class="py-3.5 px-4 text-center col-days whitespace-nowrap min-w-[110px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='days' else 'none' }}">{{ heading('days', 'الأيام المتبقية') }}</th>
+                        <th class="py-3.5 px-4 col-lastseen whitespace-nowrap min-w-[150px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='lastseen' else 'none' }}">{{ heading('lastseen', 'آخر ظهور') }}</th>
+                        <th class="py-3.5 px-4 col-package whitespace-nowrap min-w-[130px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='package' else 'none' }}">{{ heading('package', 'الباقة') }}</th>
+                        <th class="py-3.5 px-4 col-accesspoint whitespace-nowrap min-w-[130px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='accesspoint' else 'none' }}">{{ heading('accesspoint', 'نقطة الاتصال') }}</th>
+                        <th class="py-3.5 px-4 col-consumption min-w-[220px] whitespace-nowrap" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='consumption' else 'none' }}">{{ heading('consumption', 'الاستهلاك والكوتا') }}</th>
                         
                         <!-- الأعمدة الإضافية الافتراضية مخفية -->
-                        <th class="py-3.5 px-4 col-expires hidden whitespace-nowrap min-w-[140px]">تاريخ الانتهاء</th>
-                        <th class="py-3.5 px-4 col-ip hidden whitespace-nowrap min-w-[125px]">عنوان IP</th>
-                        <th class="py-3.5 px-4 col-balance hidden whitespace-nowrap min-w-[110px]">الرصيد المالي</th>
-                        <th class="py-3.5 px-4 col-batch hidden whitespace-nowrap min-w-[140px]">الحزمة الأصلية</th>
-                        <th class="py-3.5 px-4 col-mac hidden whitespace-nowrap min-w-[140px]">الماك المسجل (MAC)</th>
-                        <th class="py-3.5 px-4 col-reseller hidden whitespace-nowrap min-w-[130px]">الموزع / البائع</th>
-                        <th class="py-3.5 px-4 col-createdat hidden whitespace-nowrap min-w-[140px]">تاريخ التفعيل / الإنشاء</th>
-                        <th class="py-3.5 px-4 col-notes hidden whitespace-nowrap min-w-[160px]">ملاحظات</th>
+                        <th class="py-3.5 px-4 col-expires hidden whitespace-nowrap min-w-[140px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='expires' else 'none' }}">{{ heading('expires', 'تاريخ الانتهاء') }}</th>
+                        <th class="py-3.5 px-4 col-ip hidden whitespace-nowrap min-w-[125px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='ip' else 'none' }}">{{ heading('ip', 'عنوان IP') }}</th>
+                        <th class="py-3.5 px-4 col-balance hidden whitespace-nowrap min-w-[110px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='balance' else 'none' }}">{{ heading('balance', 'الرصيد المالي') }}</th>
+                        <th class="py-3.5 px-4 col-batch hidden whitespace-nowrap min-w-[140px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='batch' else 'none' }}">{{ heading('batch', 'الحزمة الأصلية') }}</th>
+                        <th class="py-3.5 px-4 col-mac hidden whitespace-nowrap min-w-[140px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='mac' else 'none' }}">{{ heading('mac', 'الماك المسجل (MAC)') }}</th>
+                        <th class="py-3.5 px-4 col-reseller hidden whitespace-nowrap min-w-[130px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='reseller' else 'none' }}">{{ heading('reseller', 'الموزع / البائع') }}</th>
+                        <th class="py-3.5 px-4 col-createdat hidden whitespace-nowrap min-w-[140px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='createdat' else 'none' }}">{{ heading('createdat', 'تاريخ التفعيل / الإنشاء') }}</th>
+                        <th class="py-3.5 px-4 col-notes hidden whitespace-nowrap min-w-[160px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='notes' else 'none' }}">{{ heading('notes', 'ملاحظات') }}</th>
 
-                        <th class="py-3.5 px-4 text-center col-service whitespace-nowrap min-w-[115px]">نوع الخدمة</th>
+                        <th class="py-3.5 px-4 text-center col-service whitespace-nowrap min-w-[115px]" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='service' else 'none' }}">{{ heading('service', 'نوع الخدمة') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-[#1c2840]">
@@ -379,6 +381,7 @@
                                 </div>
                                 <!-- مجموعة 1: الصلاحية والباقة -->
                                 <div class="py-1">
+                                    {% if has_permission('detail.vouchers.card_edit') %}<button type="button" onclick="openAccountMacPolicy('voucher', {{ c.id }})" class="w-full text-right px-3.5 py-2 text-blue-400 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition"><i class="fa-solid fa-list-check w-4 text-center"></i><span>الماكات المسموحة</span></button>{% endif %}
                                     {% if can_access_account_action('extend-time', 'voucher') %}<button onclick="openExtendModal('voucher', {{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.expires_at|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-emerald-600 hover:text-white flex items-center gap-2.5 transition">
                                         <i class="fa-solid fa-hourglass-half text-amber-400 w-4 text-center"></i>
                                         <span>تمديد الصلاحية</span>
@@ -451,7 +454,10 @@
                         <!-- 2. اسم المستخدم / رمز الكرت (بدون عمود اسم المشترك) -->
                         <td class="py-3.5 px-4 col-username whitespace-nowrap min-w-[150px]">
                             <div class="flex items-center gap-2">
-                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 {% if c.is_online %}bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse{% else %}bg-slate-600{% endif %}"></span>
+                                <span class="inline-flex items-center gap-1 shrink-0" title="{{ 'متصل — عدد الجلسات: ' ~ c.active_session_count if c.is_online else 'غير متصل' }}">
+                                    <span class="w-2.5 h-2.5 rounded-full flex-shrink-0 {% if c.is_online %}bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse{% else %}bg-slate-600{% endif %}"></span>
+                                    {% if c.is_online and c.active_session_count %}<span class="text-[10px] font-bold font-mono leading-none text-emerald-400 tabular-nums" data-active-session-count="{{ c.active_session_count }}" aria-label="عدد الجلسات المتصلة: {{ c.active_session_count }}">{{ c.active_session_count }}</span>{% endif %}
+                                </span>
                                 {% if can_access_endpoint('active_card_user_details') %}<a href="{{ url_for('active_card_user_details', card_id=c.id) }}" class="font-bold font-mono text-emerald-400 hover:text-emerald-300 transition" onclick="event.stopPropagation()">
                                     {{ c.username }}
                                 </a>{% endif %}
@@ -1054,6 +1060,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='list-sort.js', v='20261026-traffic-r1') }}" data-owner="{{ session.get('admin_id', '') }}" defer></script>
 <script>
     function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
@@ -1362,6 +1369,7 @@
 
     // 0. Delete Action
     function confirmDelete(type, idOrIds, label) {
+        const operationSwal = window.createOperationNotification();
         closeAllActionDropdowns();
         const isBulk = Array.isArray(idOrIds);
         const count = isBulk ? idOrIds.length : 1;
@@ -1370,7 +1378,7 @@
             ? `هل أنت متأكد من حذف ${count} كرت محدد نهائياً من النظام ومسح بياناتهم من FreeRADIUS وطرد جلساتهم من الميكروتيك؟ لا يمكن التراجع عن هذا الإجراء!`
             : `هل أنت متأكد من حذف الكرت [${label}] نهائياً من النظام ومسح بياناته من FreeRADIUS وطرد جلسته؟`;
 
-        Swal.fire({
+        operationSwal.fire({
             title: title,
             text: text,
             icon: 'warning',
@@ -1381,7 +1389,7 @@
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ الحذف...',
                     text: 'يرجى الانتظار لحين اكتمال عملية الحذف',
                     allowOutsideClick: false,
@@ -1398,16 +1406,16 @@
                 fetch('/api/actions/delete', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(data => {
-                        Swal.close();
+                        operationSwal.close();
                         if (data.success) {
                             window.toast.success(data.message || 'تم حذف الكروت بنجاح', 'تم الحذف');
-                            setTimeout(() => location.reload(), 1200);
+                            operationSwal.reloadWhenIdle(1200);
                         } else {
-                            Swal.fire('خطأ', data.message || 'فشلت عملية الحذف', 'error');
+                            operationSwal.fire('خطأ', data.message || 'فشلت عملية الحذف', 'error');
                         }
                     })
                     .catch(err => {
-                        Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                        operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error');
                     });
             }
         });
@@ -1423,9 +1431,10 @@
         document.getElementById('modalExtend').classList.remove('hidden');
     }
     function submitExtendTime(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         closeModal('modalExtend');
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ تمديد الصلاحية...',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -1436,23 +1445,24 @@
         fetch('/api/actions/extend-time', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(res => {
-                Swal.close();
+                operationSwal.close();
                 if (res.success) {
                     window.toast.success(res.message || 'تم تمديد الصلاحية بنجاح', 'تم التمديد');
-                    setTimeout(() => location.reload(), 1200);
+                    operationSwal.reloadWhenIdle(1200);
                 } else {
-                    Swal.fire('خطأ', res.message || 'فشل التمديد', 'error');
+                    operationSwal.fire('خطأ', res.message || 'فشل التمديد', 'error');
                 }
             })
-            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+            .catch(err => operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error'));
     }
 
     // 2. Terminate Subscription
     function confirmTerminate(type, idOrIds, label) {
+        const operationSwal = window.createOperationNotification();
         closeAllActionDropdowns();
         const isBulk = Array.isArray(idOrIds);
         const count = isBulk ? idOrIds.length : 1;
-        Swal.fire({
+        operationSwal.fire({
             title: 'تأكيد إنهاء الاشتراك',
             text: isBulk 
                 ? `هل أنت متأكد من إنهاء اشتراك ${count} كرت محدد فوراً وتصفير رصيد الكوتا وفصلهم من الميكروتيك؟`
@@ -1464,7 +1474,7 @@
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ إنهاء الاشتراك...',
                     allowOutsideClick: false,
                     showConfirmButton: false,
@@ -1480,25 +1490,26 @@
                 fetch('/api/actions/terminate', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(data => {
-                        Swal.close();
+                        operationSwal.close();
                         if (data.success) {
                             window.toast.success(data.message || 'تم إنهاء الاشتراك بنجاح', 'تم الإنهاء');
-                            setTimeout(() => location.reload(), 1200);
+                            operationSwal.reloadWhenIdle(1200);
                         } else {
-                            Swal.fire('خطأ', data.message || 'فشلت العملية', 'error');
+                            operationSwal.fire('خطأ', data.message || 'فشلت العملية', 'error');
                         }
                     })
-                    .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+                    .catch(err => operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error'));
             }
         });
     }
 
     // 3. Renew Package
     function confirmRenew(type, idOrIds, label, pkgName) {
+        const operationSwal = window.createOperationNotification();
         closeAllActionDropdowns();
         const isBulk = Array.isArray(idOrIds);
         const count = isBulk ? idOrIds.length : 1;
-        Swal.fire({
+        operationSwal.fire({
             title: 'تجديد الباقة',
             text: isBulk 
                 ? `هل تريد تجديد الباقة لـ ${count} كرت محدد وإعادة تعيين الصلاحية والكوتا؟`
@@ -1510,7 +1521,7 @@
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ تجديد الباقة...',
                     allowOutsideClick: false,
                     showConfirmButton: false,
@@ -1526,15 +1537,15 @@
                 fetch('/api/actions/renew', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(data => {
-                        Swal.close();
+                        operationSwal.close();
                         if (data.success) {
                             window.toast.success(data.message || 'تم تجديد الباقة بنجاح', 'تم التجديد');
-                            setTimeout(() => location.reload(), 1200);
+                            operationSwal.reloadWhenIdle(1200);
                         } else {
-                            Swal.fire('خطأ', data.message || 'فشل التجديد', 'error');
+                            operationSwal.fire('خطأ', data.message || 'فشل التجديد', 'error');
                         }
                     })
-                    .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+                    .catch(err => operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error'));
             }
         });
     }
@@ -1550,9 +1561,10 @@
         document.getElementById('modalChangePkg').classList.remove('hidden');
     }
     function submitChangePackage(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         closeModal('modalChangePkg');
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ تغيير الباقة...',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -1563,15 +1575,15 @@
         fetch('/api/actions/change-package', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(res => {
-                Swal.close();
+                operationSwal.close();
                 if (res.success) {
                     window.toast.success(res.message || 'تم تغيير الباقة بنجاح', 'تم التغيير');
-                    setTimeout(() => location.reload(), 1200);
+                    operationSwal.reloadWhenIdle(1200);
                 } else {
-                    Swal.fire('خطأ', res.message || 'فشل تغيير الباقة', 'error');
+                    operationSwal.fire('خطأ', res.message || 'فشل تغيير الباقة', 'error');
                 }
             })
-            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+            .catch(err => operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error'));
     }
 
     // 5. Add Quota
@@ -1586,9 +1598,10 @@
         document.getElementById('modalAddQuota').classList.remove('hidden');
     }
     function submitAddQuota(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         closeModal('modalAddQuota');
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ إضافة الكوتا...',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -1599,15 +1612,15 @@
         fetch('/api/actions/add-quota', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(res => {
-                Swal.close();
+                operationSwal.close();
                 if (res.success) {
                     window.toast.success(res.message || 'تمت إضافة الكوتا بنجاح', 'تمت الإضافة');
-                    setTimeout(() => location.reload(), 1200);
+                    operationSwal.reloadWhenIdle(1200);
                 } else {
-                    Swal.fire('خطأ', res.message || 'فشلت إضافة الكوتا', 'error');
+                    operationSwal.fire('خطأ', res.message || 'فشلت إضافة الكوتا', 'error');
                 }
             })
-            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+            .catch(err => operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error'));
     }
 
     // 6. Usage History
@@ -1661,9 +1674,10 @@
         document.getElementById('modalAddWallet').classList.remove('hidden');
     }
     function submitAddWallet(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         closeModal('modalAddWallet');
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ إيداع الرصيد...',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -1674,15 +1688,15 @@
         fetch('/api/actions/add-wallet', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(res => {
-                Swal.close();
+                operationSwal.close();
                 if (res.success) {
                     window.toast.success(res.message || 'تم الإيداع بنجاح', 'تم الإيداع');
-                    setTimeout(() => location.reload(), 1200);
+                    operationSwal.reloadWhenIdle(1200);
                 } else {
-                    Swal.fire('خطأ', res.message || 'فشل الإيداع', 'error');
+                    operationSwal.fire('خطأ', res.message || 'فشل الإيداع', 'error');
                 }
             })
-            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+            .catch(err => operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error'));
     }
 
     // 8. Deduct Wallet Balance
@@ -1696,9 +1710,10 @@
         document.getElementById('modalDeductWallet').classList.remove('hidden');
     }
     function submitDeductWallet(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         closeModal('modalDeductWallet');
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ خصم الرصيد...',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -1709,23 +1724,24 @@
         fetch('/api/actions/deduct-wallet', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(res => {
-                Swal.close();
+                operationSwal.close();
                 if (res.success) {
                     window.toast.success(res.message || 'تم الخصم بنجاح', 'تم الخصم');
-                    setTimeout(() => location.reload(), 1200);
+                    operationSwal.reloadWhenIdle(1200);
                 } else {
-                    Swal.fire('خطأ', res.message || 'فشل الخصم', 'error');
+                    operationSwal.fire('خطأ', res.message || 'فشل الخصم', 'error');
                 }
             })
-            .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+            .catch(err => operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error'));
     }
 
     // 9. Disconnect Kick
     function confirmDisconnect(type, idOrIds, label) {
+        const operationSwal = window.createOperationNotification();
         closeAllActionDropdowns();
         const isBulk = Array.isArray(idOrIds);
         const count = isBulk ? idOrIds.length : 1;
-        Swal.fire({
+        operationSwal.fire({
             title: 'قطع الاتصال الفوري (CoA)',
             text: isBulk 
                 ? `هل تريد إرسال Disconnect-Request لـ ${count} كرت محدد لطردهم فوراً من المتصلين؟`
@@ -1737,7 +1753,7 @@
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ إرسال أمر الفصل...',
                     allowOutsideClick: false,
                     showConfirmButton: false,
@@ -1750,18 +1766,20 @@
                 } else {
                     fd.append('target_id', idOrIds);
                 }
+                fd.set('operation_id', window.newSessionOperationId());
                 fetch('/api/actions/disconnect', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(data => {
-                        Swal.close();
+                    if (data.pending) return operationSwal.follow(() => window.watchSessionOperations(data));
+                        operationSwal.close();
                         if (data.success) {
                             window.toast.success(data.message || 'تم قطع الاتصال بنجاح', 'تم الفصل');
-                            setTimeout(() => location.reload(), 1200);
+                            operationSwal.reloadWhenIdle(1200);
                         } else {
-                            Swal.fire('إشعار', data.message || 'فشل إرسال أمر الفصل', 'info');
+                            operationSwal.fire('إشعار', data.message || 'فشل إرسال أمر الفصل', 'info');
                         }
                     })
-                    .catch(err => Swal.fire('خطأ في الاتصال', err.toString(), 'error'));
+                    .catch(err => operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error'));
             }
         });
     }

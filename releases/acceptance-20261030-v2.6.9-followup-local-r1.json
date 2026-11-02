@@ -1,0 +1,143 @@
+{
+  "date": "2026-10-30",
+  "result": "incomplete-local-runtime-unavailable",
+  "ready_for_publish": false,
+  "web_image": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+  "core_image": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+  "mariadb_image": "sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+  "limits_MiB": {
+    "web": 384,
+    "db": 512,
+    "core": 192,
+    "issuer": 96,
+    "test_docker_proxy": 64
+  },
+  "rate_limited_load": true,
+  "partial_result": {
+    "scope": "Pinned269 local followup, no270 code, no product edits or deployment",
+    "partial": true,
+    "acceptance_passed": false,
+    "reason": "Local Docker API, WSL and SQL unavailable; full observation and cleanup not confirmable",
+    "last_saved_progress_elapsed_seconds": 122.5,
+    "resource_window_seconds": 101.74,
+    "recorded_counts_lower_bounds": {
+      "RADIUS_packets": 1782,
+      "RADIUS_auth": 350,
+      "RADIUS_1": 350,
+      "RADIUS_3": 700,
+      "RADIUS_7": 20,
+      "RADIUS_2": 346,
+      "completed_RADIUS_sessions": 346,
+      "accounting_SQL_oracles": 346,
+      "HTTP": 335,
+      "HTTP_mutation": 151,
+      "financial_SQL_oracles": 99,
+      "admin-subscriber_add-wallet": 11,
+      "admin-voucher_add-wallet": 11,
+      "admin-subscriber_deduct-wallet": 11,
+      "admin-voucher_deduct-wallet": 11,
+      "expected_insufficient_funds_rejections": 6,
+      "HTTP_read": 184,
+      "admin-subscriber_extend": 11,
+      "admin-voucher_extend": 11,
+      "portal-subscriber_paid_renew_change": 13,
+      "portal-voucher_paid_renew_change": 8,
+      "admin-subscriber_quota": 11,
+      "admin-voucher_quota": 10,
+      "admin-subscriber_disable_activate": 2,
+      "concurrent_recharge_one_winner": 6,
+      "recharge_gross": 60,
+      "admin-voucher_renew": 5,
+      "admin-subscriber_renew": 5,
+      "RADIUS_8": 16,
+      "admin-voucher_change-package": 5,
+      "admin-subscriber_change-package": 5
+    },
+    "resources_before_loss_of_observation": {
+      "web": {
+        "first_MiB": 215.62,
+        "last_MiB": 231.12,
+        "peak_MiB": 259.21,
+        "last_events": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "average_cpu_cores": 0.4726
+      },
+      "core": {
+        "first_MiB": 86.0,
+        "last_MiB": 83.62,
+        "peak_MiB": 92.22,
+        "last_events": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "average_cpu_cores": 0.0443
+      },
+      "db": {
+        "first_MiB": 112.68,
+        "last_MiB": 221.38,
+        "peak_MiB": 233.16,
+        "last_events": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "average_cpu_cores": 0.2828
+      }
+    },
+    "raw_worker_error_count": 10,
+    "watchdog_15min_accepted": false,
+    "crash_recovery_executed": false,
+    "cleanup_confirmed": false,
+    "native_probe_stop_requested": true,
+    "financial_requests_replayed": false
+  },
+  "coverage": {
+    "signed_test_authority": true,
+    "actual_http_and_core_radius_and_mariadb": true,
+    "actual_router_or_production": false,
+    "new_20min_acceptance_completed": false,
+    "fifteen_minute_watchdog_accepted": false,
+    "intentional_database_crash_recovery_executed": false,
+    "post_runtime_failure_financial_reconciliation_completed": false,
+    "owned_cleanup_confirmed": false
+  },
+  "earlier_pressure_differences": [
+    "Reduced rate and smaller caps due shared local VM headroom",
+    "No270 source or allocator profile added",
+    "No equivalence claim to prior20minute failure or production limits"
+  ],
+  "fixture_notes": [
+    "r1 internal network host published ports unavailable; removed before product initialization",
+    "r2 initial license template path corrected without reinitializing business data",
+    "orphan seed completed then final read failed due literal percent; five rows verified read-only, no reseed",
+    "observer wrapper literal percent prevented purge capture; no positive or negative product conclusion for watchdog",
+    "host observer SQL age omitted configured +03:00 session clock, producing negative ages; those ages are not valid timeout evidence",
+    "test Docker proxy upstream filtering and HTTP Connection:close were prepared but phase2 did not start before runtime loss"
+  ],
+  "recovery_constraints": [
+    "Do not replay attempted seed, bootstrap or financial load scripts",
+    "Native test observer deadline expired by protected local file",
+    "No Docker/WSL restart or changes to unrelated containers",
+    "After runtime recovery verify exact owner/image/ID, preserve committed data and audit, then remove only owned resources"
+  ],
+  "publication": {
+    "product_code_changed": false,
+    "images_built": false,
+    "registry_push": false,
+    "latest_changed": false,
+    "domain_updates": false
+  }
+}

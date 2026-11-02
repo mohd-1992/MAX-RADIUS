@@ -1,0 +1,54 @@
+{
+  "status": "published-registry-only",
+  "version": "2.6.9",
+  "target": "mohd777/max-radius-web:2.6.9-backup-reader-20261101-r1",
+  "registry_digest": "sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+  "tested_image_id": "sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+  "pulled_image_id": "sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+  "registry_repo_digests": [
+    "max-radius-web@sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+    "mohd777/max-radius-web@sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832"
+  ],
+  "rootfs_exact": true,
+  "runtime_config_exact": true,
+  "latest_unchanged": {
+    "web-latest": true,
+    "core-latest": true
+  },
+  "domains_updated": false,
+  "catalog_changed": false,
+  "core_pushed": false,
+  "delta": {
+    "changed_runtime": [
+      "services/backup_compaction.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "added_runtime": [],
+    "removed_runtime": [],
+    "unchanged_runtime_files": 218,
+    "publisher_key_unchanged": true,
+    "integrity_verified": true,
+    "source_absent": true
+  },
+  "unit_tests": {
+    "cases": 70,
+    "failures": 0,
+    "errors": 0
+  },
+  "hosted_contract_tests": 23,
+  "native_restore": {
+    "success": true,
+    "exact_business_tables": true,
+    "exact_accounting_totals": true,
+    "exact_triggers": true,
+    "target_license_preserved": true,
+    "attachments_verified": 1,
+    "seconds": 55.648864037008025
+  },
+  "test_containers_removed": 12,
+  "preexisting_containers_missing": 0,
+  "source_reader_sha256": "fb33dc1629ea8858255c6b1b2fcd7d53dd519e7b1b070728cdd9e6658b90f5c1",
+  "base_web_image": "sha256:f62a87801ca942486821387ecfce3e1f099fcc9036415ad353240f8721dc2666",
+  "core_unchanged": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+  "evidence_reference": "PRIVATE/backup-reader269-publish-20261101-r1",
+  "report": "docs/RELEASE_269_BACKUP_READER_PUBLISHED_20261101.md"
+}

@@ -1,0 +1,25 @@
+{
+  "version": "2.7.0",
+  "status": "scope-reviewed-no-build-no-deploy",
+  "report": "docs/RELEASE_270_CONTAINER_SCOPE_AUDIT_20261102.md",
+  "base_web": "mohd777/max-radius-web@sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+  "base_core": "mohd777/max-radius-core@sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+  "last_built_web": "sha256:1c797dc9baf7b1ed25fd45a4cb59fcc3ba984dd26a1c5d127fa72de429848d44",
+  "identity_fix_in_last_built_web": false,
+  "core270_rootfs_identical_to_base_core": true,
+  "db_memory_profile_auto_applied": false,
+  "shared_native_host_component_integration_accepted": false,
+  "panel_current_update_scope": "web-only-with-exact-core-reference-match",
+  "pending": [
+    "compile-identity-fix-in-final-web",
+    "qualify-db-profile-and-pinned-image-planner",
+    "native-max-r-ownership-integration-and-complete-host-participants",
+    "approve-core-transitions-and-panel-release-catalog"
+  ],
+  "read_only_host_check": true,
+  "build": false,
+  "push": false,
+  "domains_updated": false,
+  "latest_changed": false,
+  "private_evidence": "PRIVATE/release270-container-scope-20261102-r1"
+}

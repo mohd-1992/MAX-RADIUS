@@ -129,8 +129,9 @@
 {% block scripts %}
 <script>
     function triggerArchiving() {
+        const operationSwal = window.createOperationNotification();
         const days = document.getElementById('archiveDays').value;
-        Swal.fire({
+        operationSwal.fire({
             title: `تأكيد أرشفة السجلات الأقدم من ${days} يوماً`,
             text: 'سيتم نقل هذه السجلات من جدول radacct النشط إلى radacct_archive وضغط قاعدة البيانات.',
             icon: 'question',
@@ -139,7 +140,7 @@
             cancelButtonText: 'إلغاء'
         }).then(result => {
             if (result.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ نقل وأرشفة السجلات...',
                     text: 'يرجى الانتظار لحين اكتمال الأرشفة وضغط الجداول...',
                     allowOutsideClick: false,
@@ -151,12 +152,12 @@
                     .then(r => r.json())
                     .then(res => {
                         if (res.success) {
-                            Swal.fire('تمت الأرشفة بنجاح', res.message, 'success').then(() => location.reload());
+                            operationSwal.fire('تمت الأرشفة بنجاح', res.message, 'success').then(() => location.reload());
                         } else {
-                            Swal.fire('خطأ', res.message || 'فشلت عملية الأرشفة', 'error');
+                            operationSwal.fire('خطأ', res.message || 'فشلت عملية الأرشفة', 'error');
                         }
                     })
-                    .catch(err => Swal.fire('خطأ غير متوقع', err.message, 'error'));
+                    .catch(err => operationSwal.uncertain('خطأ غير متوقع', err.message, 'error'));
             }
         });
     }

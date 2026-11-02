@@ -227,6 +227,7 @@
 
 
     window.testCoa = function(nasId, nasIp, nasName) {
+        const operationSwal = window.createOperationNotification();
 
         if (typeof Swal === 'undefined') {
 
@@ -250,7 +251,7 @@
 
         var label = nasName ? ('[' + nasName + '] - ' + nasIp) : nasIp;
 
-        Swal.fire({
+        operationSwal.fire({
 
             title: 'اختبار حزمة CoA RFC 5176',
 
@@ -278,7 +279,7 @@
 
             if (result.isConfirmed) {
 
-                Swal.fire({
+                operationSwal.fire({
 
                     title: 'جارٍ فحص منفذ CoA...',
 
@@ -308,7 +309,7 @@
 
                     }
 
-                    Swal.fire({
+                    operationSwal.fire({
 
                         title: title,
 
@@ -332,7 +333,7 @@
 
                 .catch(function(err) {
 
-                    Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                    operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error');
 
                 });
 
@@ -1691,8 +1692,9 @@
     // -------------------------------------------------------------
 
     function testCoa(nasId, nasIp) {
+        const operationSwal = window.createOperationNotification();
 
-        Swal.fire({
+        operationSwal.fire({
 
             title: 'اختبار حزمة CoA RFC 5176',
 
@@ -1712,7 +1714,7 @@
 
             if (result.isConfirmed) {
 
-                Swal.fire({
+                operationSwal.fire({
 
                     title: 'جارٍ الإرسال...',
 
@@ -1732,7 +1734,7 @@
 
                 .then(data => {
 
-                    Swal.fire({
+                    operationSwal.fire({
 
                         title: data.success ? 'نجح الاتصال' : 'نتيجة الإرسال',
 
@@ -1744,7 +1746,7 @@
 
                 })
 
-                .catch(err => Swal.fire('خطأ شبكة', err.toString(), 'error'));
+                .catch(err => operationSwal.uncertain('خطأ شبكة', err.toString(), 'error'));
 
             }
 

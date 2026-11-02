@@ -26,12 +26,19 @@ def current_radius_container():
     """
     import os
     import re
-    from services.autoheal_service import docker_api_request, _runtime_container_ids
 
     def unavailable(reason):
         raise SettlementPending('تعذر التحقق من حاوية الراديوس الحالية: ' + reason +
                                 ' لم تُنفذ العملية ولم يتم الخصم.')
 
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        try:
+            return hosted.current_core()
+        except Exception as exc:
+            unavailable(str(exc))
+
+    from services.autoheal_service import docker_api_request, _runtime_container_ids
     fleet, error = docker_api_request('GET', '/containers/json?all=1')
     if error or not isinstance(fleet, list):
         unavailable('اتصال Docker غير متاح.')
@@ -118,31 +125,55 @@ def _disconnect(row, username):
         require_accounting_stop=True)
 
 
-def wait_for_final_accounting(username):
+def identity_pending_sessions(username, session_ids):
+    """Check this edit's live generations; historical uncertainty stays intact."""
+    ids = tuple(sorted(set(int(rid) for rid in session_ids)))
+    clause = ' OR a.radacctid IN (' + ','.join(['%s'] * len(ids)) + ')' if ids else ''
+    rows = query_all("""SELECT a.radacctid,a.acctstoptime,a.acctterminatecause,
+        s.radacctid AS sealed FROM radacct_owned a
+        LEFT JOIN wisp_nas_session_seals s ON s.radacctid=a.radacctid
+          AND s.nasipaddress=a.nasipaddress AND s.acctsessionid=a.acctsessionid
+        WHERE a.username=%s AND (a.acctstoptime IS NULL""" + clause + ')', (username,) + ids)
+    if not set(ids).issubset({int(row['radacctid']) for row in rows}):
+        raise SettlementPending('تغيرت سجلات الجلسات أثناء تعديل الحساب؛ لم تُحفظ التغييرات.')
+    from services.nas_session_settlement import actual_stop
+    return [row for row in rows if not row.get('acctstoptime') or
+            (not actual_stop(row) and not row.get('sealed'))]
+
+
+def wait_for_final_accounting(username, *, session_ids=None):
+    # A scoped identity edit has already inventoried every configured NAS and
+    # frozen/disconnected its current sessions. Old synthetic closures cannot
+    # supply missing lifetime counters and must not be relabelled as actual Stop.
+    identity_edit = session_ids is not None
+    pending = (lambda: identity_pending_sessions(username, session_ids)) if identity_edit else (lambda: pending_sessions(username))
     deadline = time.monotonic() + WAIT_SECONDS
     requested = set()
     while True:
-        rows = pending_sessions(username)
+        rows = pending()
         for row in rows:
-            if row['radacctid'] not in requested:
+            if not identity_edit and row['radacctid'] not in requested:
                 requested.add(row['radacctid'])
                 _disconnect(row, username)
-        rows = pending_sessions(username)
+        rows = pending()
         reservation = query_one("""SELECT 1 AS pending FROM wisp_session_reservations
             WHERE username=%s AND radacctid IS NULL AND expires_at>NOW() LIMIT 1""", (username,))
-        if not rows and not reservation and not has_unaccounted_accept(username):
+        if not rows and not reservation and (identity_edit or not has_unaccounted_accept(username)):
             return
         if time.monotonic() >= deadline:
+            if identity_edit:
+                raise SettlementPending('لم يتأكد إغلاق الجلسات الحالية؛ لم تُحفظ تعديلات الحساب. أعد المحاولة بعد اكتمال التحقق من الجلسات.')
             raise SettlementPending('لم يكتمل وصول المحاسبة النهائية لجميع الجلسات؛ لم يتم التجديد أو الخصم. أعد المحاولة بعد وصول Accounting-Stop.')
         time.sleep(0.15)
 
 
 @contextmanager
-def settled_account(username):
+def settled_account(username, *, identity_change=False):
     """A named lock serializes operations; a leased SQL guard blocks fresh logins."""
     conn = get_connection()
     token = uuid.uuid4().hex
-    lock = 'max-cycle:' + hashlib.sha256(username.casefold().encode()).hexdigest()[:48]
+    from services.account_lock_service import account_lock_name
+    lock=account_lock_name(conn,username)
     locked = False
     guarded = False
     try:
@@ -165,7 +196,7 @@ def settled_account(username):
         if query_one("SELECT 1 AS pending FROM wisp_session_reservations WHERE username=%s AND radacctid IS NULL AND expires_at>NOW() LIMIT 1",(username,)):
             from services.online_policy_service import fail
             fail()
-        snapshot = checkpoint(username)
+        snapshot = checkpoint(username, all_nas=True) if identity_change else checkpoint(username)
         # A cycle timestamp has second precision; never overwrite a same-second cut.
         latest = query_one("SELECT last_renewed_at FROM wisp_subscribers WHERE username=%s UNION ALL SELECT last_renewed_at FROM wisp_vouchers WHERE username=%s LIMIT 1", (username, username))
         if latest and latest.get('last_renewed_at'):
@@ -188,6 +219,10 @@ def settled_account(username):
             else:
                 from database.db import execute_write
                 execute_write("UPDATE wisp_online_policy_outbox SET status='skipped',last_error='operation_rejected' WHERE username=%s",(username,))
+    except SettlementPending as exc:
+        if identity_change:
+            raise SettlementPending('تعذر تأكيد سلامة الجلسات لتعديل بيانات الحساب؛ لم تُحفظ التغييرات. تحقق من اتصال الراوترات واكتمال إغلاق الجلسات الحالية.') from exc
+        raise
     finally:
         try:
             conn.rollback()

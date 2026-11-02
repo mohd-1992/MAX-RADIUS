@@ -382,6 +382,10 @@ function startPollingProgress() {
         })
         .then(data => {
             if (!data) return;
+            if (data.status === 'unavailable') {
+                document.getElementById('progressLiveLabel').innerText = 'جار إعادة الاتصال بمحرك التحديث؛ انتظر دون تكرار الطلب';
+                return;
+            }
             const pct = data.percent || 0;
             const stage = data.stage || 'جاري التحديث...';
 
@@ -450,7 +454,7 @@ document.addEventListener('DOMContentLoaded', function() {
     fetch('{{ url_for("api_system_update_progress") }}')
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-            if (data && ['queued', 'running', 'unknown'].includes(data.status)) {
+            if (data && ['queued', 'running', 'unknown', 'handoff_pending'].includes(data.status)) {
                 document.getElementById('updateProgressModal').classList.remove('hidden');
                 startPollingProgress();
             }

@@ -3,6 +3,7 @@
 {% block title %}تسجيل الدخول - {{ network_name }}{% endblock %}
 
 {% block content %}
+{% from "components/product_brand.html" import logo as product_logo %}
 <div class="max-w-md mx-auto w-full py-8 px-4 space-y-6">
 
     <div class="portal-card rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl border border-[#1c2840]">
@@ -14,9 +15,7 @@
                 <img src="{{ logo_url }}" alt="Logo" class="h-14 max-h-14 w-auto object-contain block mx-auto">
             </div>
             {% else %}
-            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-500 text-slate-950 flex items-center justify-center text-2xl shadow-xl shadow-cyan-500/25 border border-cyan-300/40 mb-3">
-                <i class="fa-solid fa-users-gear text-white"></i>
-            </div>
+            {{ product_logo() }}
             {% endif %}
             
             <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[11px] font-bold mb-2">

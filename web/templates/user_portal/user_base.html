@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+    {% from "components/product_brand.html" import logo as product_logo, credit as product_credit %}
+    {% include "components/product_brand_head.html" %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>{{ product_identity.name }} - {% block title %}بوابة المشتركين الذكية{% endblock %}</title>
@@ -822,9 +824,7 @@
                     {% if logo_url %}
                     <img src="{{ logo_url }}" alt="Logo" class="w-10 h-10 rounded-xl object-contain shadow-md shadow-blue-500/20 p-1 bg-[#070b14] border border-blue-500/30 group-hover:scale-105 transition">
                     {% else %}
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-lg shadow-md shadow-blue-500/25 group-hover:scale-105 transition">
-                        <i class="fa-solid fa-wifi text-white"></i>
-                    </div>
+                    {{ product_logo('icon') }}
                     {% endif %}
                     <div>
                         <h1 class="font-bold text-white text-base leading-tight">{{ network_name }}</h1>
@@ -933,7 +933,7 @@
     <footer class="mt-auto border-t border-slate-800/60 py-4 text-center text-xs text-slate-400">
         <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
             <span>جميع الحقوق محفوظة &copy; {{ network_name|default('MAX RADIUS') }}</span>
-            <span class="font-mono text-[11px] text-slate-400">{{ product_identity.name }} v{{ app_version }}</span>
+            {{ product_credit(website=product_identity.website) }}
         </div>
     </footer>
 
@@ -1163,7 +1163,6 @@
 
         // Bridge SweetAlert2 seamlessly
         if (window.Swal) {
-            let activeLoadingToast = null;
             const origSwalFire = window.Swal.fire.bind(window.Swal);
             const origSwalClose = (typeof window.Swal.close === 'function') ? window.Swal.close.bind(window.Swal) : function() {};
 
@@ -1182,10 +1181,6 @@
             }
 
             window.Swal.close = function() {
-                if (activeLoadingToast) {
-                    activeLoadingToast.close();
-                    activeLoadingToast = null;
-                }
                 forceCleanupSwalContainers();
                 return origSwalClose();
             };
@@ -1205,10 +1200,6 @@
 
                 // Interactive Confirmation Modal Dialog (Centered & Styled)
                 if (isConfirm || isExplicitModal) {
-                    if (activeLoadingToast) {
-                        activeLoadingToast.close();
-                        activeLoadingToast = null;
-                    }
                     const isDanger = (opts.confirmButtonColor === '#e11d48') || (opts.title && opts.title.includes('حذف')) || (opts.text && opts.text.includes('حذف'));
                     const isSuccess = (opts.confirmButtonColor === '#10b981') || (opts.confirmButtonColor === '#059669') || (opts.title && (opts.title.includes('تجديد') || opts.title.includes('إيداع')));
                     const isIndigo = (opts.confirmButtonColor === '#4f46e5') || (opts.confirmButtonColor === '#6366f1');
@@ -1233,11 +1224,6 @@
                 // Close any open modal dialog before rendering toast notification
                 forceCleanupSwalContainers();
 
-                if (activeLoadingToast) {
-                    activeLoadingToast.close();
-                    activeLoadingToast = null;
-                }
-
                 const isLoading = Boolean(opts.didOpen && opts.didOpen.toString().includes('showLoading'));
 
                 // Only store pending toast in sessionStorage if explicitly requested via persist: true
@@ -1252,18 +1238,15 @@
                     } catch(e) {}
                 }
 
-                const duration = opts.timer || (opts.icon === 'error' ? 5000 : 3800);
+                const duration = isLoading ? 0 : (opts.timer ?? (opts.icon === 'error' ? 5000 : 3800));
                 const toastInstance = window.showToastNotification({
                     title: opts.title || '',
                     html: opts.html || opts.text || '',
                     icon: opts.icon || 'info',
                     isLoading: isLoading,
+                    dismissible: !isLoading,
                     duration: duration
                 });
-
-                if (isLoading) {
-                    activeLoadingToast = toastInstance;
-                }
 
                 // Allow users to see the toast notification for 1.2s before any chained promise (like reload) fires
                 const resolveDelay = isLoading ? 50 : Math.min(1300, duration);

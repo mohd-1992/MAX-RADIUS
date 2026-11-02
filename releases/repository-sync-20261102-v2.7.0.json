@@ -1,0 +1,14 @@
+{
+  "date": "2026-11-02",
+  "scope": "Repository synchronization only; isolated source regressions, no hosted operations",
+  "python_regression_files_passed": 27,
+  "python_cases_passed": 303,
+  "javascript_suites_passed": 4,
+  "linux_rerun_reason": "Windows lacks fcntl, local tzdata and pypdf; rerun affected suites in pinned Python3.11 Linux image with network=none. Chromium writable HOME placed on tmpfs.",
+  "runtime_source_changes_from_270_checkpoint": false,
+  "known_limitation": "Connected identity edits reject when enabled FastTrack exists; documented, not corrected by Git sync.",
+  "installer_version_preserved": "2.6.5",
+  "docker_images_built_or_pushed": false,
+  "hosted_tenants_updated": false,
+  "private_evidence": "PRIVATE/repository-sync-20261102-r1"
+}

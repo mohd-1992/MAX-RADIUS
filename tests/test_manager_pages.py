@@ -15,6 +15,12 @@ from manager_page_fixture import fixture, ROOT
 
 class ManagerSafety(unittest.TestCase):
     def setUp(self):
+        # Direct service calls below run outside the fixture's HTTP/module stubs.
+        # Keep this role/money suite explicitly licensed, independently of a
+        # developer machine's installed license. Signed runtime gates are native tests.
+        entitlement = patch('core.license_feature_policy.verified_state', return_value={'valid': True, 'features': {}})
+        entitlement.start()
+        self.addCleanup(entitlement.stop)
         self.app,self.db,self.ns,self.stubs,self.seed,self.wallet=fixture()
         self.client=self.app.test_client()
         self.login(['managers.view','managers.manage','managers.billing','roles.manage'])
@@ -197,9 +203,10 @@ class ManagerSafety(unittest.TestCase):
         # Execute actual template JS in Node with UI/network stubs, no real POST.
         html=self.client.get('/roles').data.decode()
         js=html.split('let roleLoadVersion')[1].split('</script>')[0]
-        code='''let roleLoadVersion'''+js+'''
+        code='''
         let visible=false,alerted=false;
-        const els={};global.document={getElementById:id=>els[id]||(els[id]={value:'',classList:{add:()=>{visible=false},remove:()=>{visible=true}}}),querySelectorAll:()=>[]};
+        const els={};global.document={getElementById:id=>els[id]||(els[id]={value:'',addEventListener:()=>{},classList:{add:()=>{visible=false},remove:()=>{visible=true}}}),querySelectorAll:()=>[]};
+        let roleLoadVersion'''+js+'''
         global.fetch=()=>Promise.reject(new Error('isolated'));
         global.Swal={fire:()=>{alerted=true}};
         openEditRoleModal(2,"O'Name",'',0,'restricted2');

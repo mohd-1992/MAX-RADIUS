@@ -1,0 +1,39 @@
+{
+  "version": "2.6.9",
+  "image": {
+    "version": "2.6.9",
+    "image_id": "sha256:4bddb43f8cfbc972556f1e02dfc011f0f07be4c81dc16ebc6c52a3875040343e",
+    "tag": "mohd777/max-radius-web:2.6.9-reports-r1",
+    "digest": "sha256:4bddb43f8cfbc972556f1e02dfc011f0f07be4c81dc16ebc6c52a3875040343e",
+    "reference": "mohd777/max-radius-web@sha256:4bddb43f8cfbc972556f1e02dfc011f0f07be4c81dc16ebc6c52a3875040343e",
+    "config_and_rootfs_match": true
+  },
+  "targets": [
+    {
+      "project": "max1",
+      "current_version": "2.6.8",
+      "offered_version": "2.6.9",
+      "release_id": "c69fca27049986c4dda91330697b2c05",
+      "signature_and_audience_verified": true,
+      "notes_verified": true,
+      "no_apply_or_new_job": true
+    },
+    {
+      "project": "4k",
+      "current_version": "2.6.8",
+      "offered_version": "2.6.9",
+      "release_id": "b34d4b5912e49d9be2199e8de2162de8",
+      "signature_and_audience_verified": true,
+      "notes_verified": true,
+      "no_apply_or_new_job": true
+    }
+  ],
+  "automatic_install": false,
+  "installation_started": false,
+  "existing_target_containers_unchanged": true,
+  "existing_releases_and_targets_unchanged": true,
+  "other_audiences_excluded": true,
+  "latest_unchanged": true,
+  "encrypted_control_backup_verified_offhost": true,
+  "completed_at": "2026-10-27T10:47:15.269159+00:00"
+}

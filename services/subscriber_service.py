@@ -220,6 +220,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
     
     usernames = [s['username'] for s in subs if s.get('username')]
     active_sessions = {}
+    active_session_counts = {}
     last_sessions = {}
     usage_map = {}
 
@@ -240,7 +241,8 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
                 (acctupdatetime IS NULL AND acctstarttime >= ?)
               )
         ''', tuple(usernames) + (cutoff_str, cutoff_str))
-        active_sessions = {r['username'].lower(): r for r in (active_sessions_list or [])}
+        from services.session_display_service import index_live_sessions
+        active_sessions, active_session_counts = index_live_sessions(active_sessions_list)
         
         # 2. Last known closed session per subscriber (scoped to loaded subscribers)
         last_sessions_list = query_all(f'''
@@ -266,6 +268,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
     for sub in subs:
         u_key = (sub['username'] or '').lower()
         active_session = active_sessions.get(u_key)
+        sub['active_session_count'] = active_session_counts.get(u_key, 0)
         last_session = last_sessions.get(u_key)
         usage_data = usage_map.get(u_key)
 
@@ -340,6 +343,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
             sub['days_remaining_num'] = 9999
             sub['is_expired'] = False
 
+        sub['sort_remaining_seconds'] = max(0, (exp_dt - now).total_seconds()) if exp_dt else None
         # 3. Consumption & Quota Progress Bar
         sub['accounting_available'] = usage_data is not None
         total_in_bytes = int(usage_data['up_bytes']) if usage_data is not None else None
@@ -348,6 +352,7 @@ def get_subscribers(search=None, service_type=None, status=None, package_id=None
         sub['bytes_in'] = format_bytes(total_in_bytes) if usage_data is not None else 'غير متاح'
         sub['bytes_out'] = format_bytes(total_out_bytes) if usage_data is not None else 'غير متاح'
         sub['used_bytes_str'] = format_bytes(used_bytes) if usage_data is not None else 'غير متاح'
+        sub['sort_used_bytes'] = used_bytes
 
         base_quota_mb = int(sub.get('volume_quota_mb') or 0)
         extra_quota_mb = int(sub.get('extra_quota_mb') or 0)
@@ -460,6 +465,8 @@ def create_subscriber(data, admin_username='admin', conn=None):
         int((query_one('SELECT volume_quota_mb FROM wisp_packages WHERE id=?', (int(data['package_id']),)) or {}).get('volume_quota_mb') or 0)
     ))
     
+    from services.account_mac_service import initialize_mac_policy
+    initialize_mac_policy(conn, 'subscriber', sub_id, data['username'], explicit_mac=data.get('mac_binding'))
     if not sync_subscriber_to_radius(sub_id, conn=conn):
         raise ValueError('تعذرت مزامنة المشترك؛ لم تُحفظ الإضافة.')
     execute_write('''INSERT INTO wisp_audit_logs (admin_id, username, action, module, details)
@@ -505,7 +512,9 @@ def update_subscriber(sub_id, data, admin_username='admin', conn=None, record_au
     new_phone = data.get('phone', '').strip()
     new_national_id = data.get('national_id', '').strip()
     new_address = data.get('address', '').strip()
-    new_mac = data.get('mac_binding', '').strip()
+    new_mac = data.get('mac_binding', old_sub.get('mac_binding') or '').strip()
+    from services.account_mac_service import reject_legacy_mac_change
+    reject_legacy_mac_change('subscriber', old_sub, new_mac, conn)
     new_ip = data.get('static_ip', '').strip()
     new_notes = data.get('notes', '')
 
@@ -554,31 +563,9 @@ def delete_subscriber(sub_id, admin_username='admin'):
     return bool(result.get('deleted'))
 
 def get_subscriber_sessions(username, limit=15):
-    cutoff_str = get_heartbeat_cutoff_str(5)
-    # Imported details are display-only; quota/authentication read radacct exclusively.
-    columns = 'radacctid,acctsessionid,acctuniqueid,username,original_username,nasipaddress,acctstarttime,acctupdatetime,acctstoptime,acctsessiontime,acctinputoctets,acctoutputoctets,acctterminatecause,framedipaddress,callingstationid'
-    sessions = query_all(f"""
-        SELECT * FROM (
-          SELECT {columns}, CASE WHEN acctstoptime IS NULL
-            AND COALESCE(acctupdatetime,acctstarttime)>=? THEN 1 ELSE 0 END is_active,
-            0 imported_history FROM radacct_owned r WHERE LOWER(username)=LOWER(?)
-            AND (COALESCE(acctterminatecause,'')<>'Consolidated-Historical-Import'
-              OR NOT EXISTS (SELECT 1 FROM wisp_imported_session_history_owned h WHERE h.username=r.username))
-          UNION ALL
-          SELECT {columns},0 is_active,1 imported_history
-            FROM wisp_imported_session_history_owned WHERE LOWER(username)=LOWER(?)
-        ) history ORDER BY acctstarttime DESC,radacctid DESC LIMIT ?
-    """, (cutoff_str,username,username,limit))
-    
-    for s in sessions:
-        down_bytes = float(int(s.get('acctoutputoctets') or 0))
-        up_bytes = float(int(s.get('acctinputoctets') or 0))
-        s['download_str'] = format_bytes(down_bytes)
-        s['upload_str'] = format_bytes(up_bytes)
-        s['total_str'] = format_bytes(down_bytes + up_bytes)
-        s['duration_str'] = format_duration(s.get('acctsessiontime', 0))
-        s['is_active'] = bool(s['is_active'])
-    return sessions
+    from services.session_history_service import get_session_history
+    return get_session_history(username, page_size=limit)['rows']
+
 
 def disconnect_subscriber_session(username, admin_username='admin'):
     """Disconnect all user sessions through the shared, independently verified path."""

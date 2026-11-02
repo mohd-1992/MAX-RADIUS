@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% set list_sort = list_sort|default({'key':'id','direction':'desc','table':'batches'}) %}
+{% from "components/list_sort.html" import heading with context %}
 
 {% block extra_head %}
 <style>
@@ -235,18 +237,18 @@
             <span class="text-xs text-slate-400">اضغط على اسم أي حزمة للانتقال إلى صفحة محتوياتها | إجمالي: <strong class="text-white font-mono">{{ batches|length }}</strong> حزمة</span>
         </div>
         <div class="overflow-x-auto table-responsive">
-            <table class="w-full text-right text-sm">
+            <table data-list-sort-table="batches" data-sort-key="{{ list_sort.key }}" data-sort-dir="{{ list_sort.direction }}" class="w-full text-right text-sm">
                 <thead class="bg-[#070b14] text-slate-400 text-xs uppercase font-semibold border-b border-[#1c2840]">
                     <tr>
                         <th class="py-3.5 px-4 w-10 text-center" onclick="event.stopPropagation()">
                             <input type="checkbox" id="selectAllBatches" onchange="toggleSelectAllBatches(this)" class="w-4 h-4 rounded border-slate-700 bg-[#070b14] text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer">
                         </th>
-                        <th class="py-3.5 px-5">اسم الحزمة ورقمها</th>
-                        <th class="py-3.5 px-5 hidden sm:table-cell">الباقة المخصصة</th>
-                        <th class="py-3.5 px-5 hidden md:table-cell">الموزع</th>
-                        <th class="py-3.5 px-5">العدد الإجمالي</th>
-                        <th class="py-3.5 px-5 hidden lg:table-cell">حالات الكروت</th>
-                        <th class="py-3.5 px-5 hidden xl:table-cell">تاريخ التوليد</th>
+                        <th class="py-3.5 px-5" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='name' else 'none' }}">{{ heading('name', 'اسم الحزمة ورقمها') }}</th>
+                        <th class="py-3.5 px-5 hidden sm:table-cell" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='package' else 'none' }}">{{ heading('package', 'الباقة المخصصة') }}</th>
+                        <th class="py-3.5 px-5 hidden md:table-cell" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='reseller' else 'none' }}">{{ heading('reseller', 'الموزع') }}</th>
+                        <th class="py-3.5 px-5" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='count' else 'none' }}">{{ heading('count', 'العدد الإجمالي') }}</th>
+                        <th class="py-3.5 px-5 hidden lg:table-cell" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='states' else 'none' }}">{{ heading('states', 'حالات الكروت') }}</th>
+                        <th class="py-3.5 px-5 hidden xl:table-cell" aria-sort="{{ ('ascending' if list_sort.direction=='asc' else 'descending') if list_sort.key=='createdat' else 'none' }}">{{ heading('createdat', 'تاريخ التوليد') }}</th>
                         <th class="py-3.5 px-5 text-center">الإجراءات</th>
                     </tr>
                 </thead>
@@ -312,6 +314,7 @@
                                     <i class="fa-solid fa-file-pdf text-rose-400 w-4 text-center"></i><span>تصدير إلى ملف PDF</span>
                                 </button>{% endif %}
                                 {% if can_access_endpoint('export_batch_excel') %}<button type="button" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer" onclick="downloadBatchFile('/vouchers/batch/{{ b.id }}/excel', 'batch-{{ b.id }}.xlsx')"><i class="fa-solid fa-file-excel text-emerald-400 w-4 text-center"></i><span>تصدير الى ملف اكسل</span></button>{% endif %}
+                                {% if can_access_endpoint('export_batch_text') %}<button type="button" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer" onclick="downloadBatchFile('/vouchers/batch/{{ b.id }}/text', 'batch-{{ b.id }}.txt')"><i class="fa-solid fa-file-lines text-sky-400 w-4 text-center"></i><span>تصدير إلى ملف نصي</span></button>{% endif %}
                                 {% if can_access_endpoint('print_cards') %}<button type="button" class="w-full text-right px-3.5 py-2 text-slate-200 hover:bg-blue-600 hover:text-white flex items-center gap-2.5 transition cursor-pointer" data-batch-id="{{ b.id }}" data-batch-name="{{ b.name }}" data-package-name="{{ b.package_name }}" data-card-count="{{ b.card_count or 0 }}" data-export-mode="preview" onclick="handlePrintBtnClick(this)"><i class="fa-solid fa-eye text-amber-400 w-4 text-center"></i><span>معاينة</span></button>{% endif %}
                                 <!-- حذف الحزمة -->
                                 {% if can_access_endpoint('delete_batch_action') %}<button type="button" onclick="confirmDeleteBatch({{ b.id|tojson|forceescape }}, {{ b.name|tojson|forceescape }}, {{ b.batch_number|tojson|forceescape }})" class="w-full text-right px-3.5 py-2 mt-1 border-t border-[#1c2840] text-rose-400 hover:bg-rose-600 hover:text-white flex items-center gap-2.5 transition font-semibold cursor-pointer" title="حذف الحزمة">
@@ -546,6 +549,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='list-sort.js', v='20261026-traffic-r1') }}" data-owner="{{ session.get('admin_id', '') }}" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded',()=> {
  const auto=document.getElementById('batchAutoName');if(!auto)return;
@@ -801,12 +805,14 @@ document.addEventListener('DOMContentLoaded',()=> {
     window.addEventListener('scroll', event => {if (activeBatchMenu && (!(event.target instanceof Node) || !activeBatchMenu.contains(event.target))) closeBatchMenu();}, true);
     let batchDownloadPending = false;
     async function downloadBatchFile(url, filename) {
+        const operationSwal = window.createOperationNotification();
         if (batchDownloadPending) return;
         closeBatchMenu(); batchDownloadPending = true;
-        Swal.fire({title: 'جارٍ تجهيز الملف...', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading()});
+        operationSwal.fire({title: 'جارٍ تجهيز الملف...', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => Swal.showLoading()});
         try {
             const response = await fetch(url, {credentials: 'same-origin'});
-            if (!response.ok || !['application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].some(type => (response.headers.get('content-type') || '').includes(type))) {
+            const expectedTypes = filename.endsWith('.txt') ? ['text/plain'] : ['application/pdf','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+            if (!response.ok || !expectedTypes.some(type => (response.headers.get('content-type') || '').includes(type))) {
                 const result = await response.json().catch(() => ({}));
                 throw new Error(result.message || 'تعذر تجهيز الملف. أعد المحاولة.');
             }
@@ -821,8 +827,8 @@ document.addEventListener('DOMContentLoaded',()=> {
             const link = document.createElement('a'); link.href = objectUrl; link.download = filename;
             document.body.appendChild(link); link.click(); link.remove();
             setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
-            Swal.close();
-        } catch (error) { Swal.fire('تعذر التصدير', error.message, 'error'); }
+            operationSwal.fire('الملف جاهز', 'اكتمل تجهيز الملف وبدأ تنزيله.', 'success');
+        } catch (error) { operationSwal.uncertain('تعذر التصدير', error.message, 'error'); }
         finally { batchDownloadPending = false; }
     }
 
@@ -980,11 +986,12 @@ document.addEventListener('DOMContentLoaded',()=> {
     });
 
     function openBulkDeleteBatchesModal() {
+        const operationSwal = window.createOperationNotification();
         const ids = getSelectedBatchIds();
         if (!ids.length) return;
 
         closeBulkBatchesDropdown();
-        Swal.fire({
+        operationSwal.fire({
             title: 'حذف الحزم المحددة جماعياً',
             text: `هل أنت متأكد من حذف (${ids.length}) حزمة وكروتها؟ يُحفظ تاريخ المحاسبة والعمليات المالية، ويُحسب الاسترداد للكروت غير المستخدمة وفق خصم الإصدار المثبت. لا يمكن التراجع عن الحذف!`,
             icon: 'warning',
@@ -995,7 +1002,7 @@ document.addEventListener('DOMContentLoaded',()=> {
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ الحذف...',
                     text: 'يرجى الانتظار بينما يتم تصفية الحزم من السيرفر',
                     allowOutsideClick: false,
@@ -1019,12 +1026,12 @@ document.addEventListener('DOMContentLoaded',()=> {
                         details.appendChild(line);
                     }
                     const pending = (data.results || []).some(result => result.status === 'pending');
-                    Swal.fire({title: data.partial ? 'اكتمل الحذف جزئيًا' : data.success ? 'اكتمل الحذف' : pending ? 'الحذف ينتظر إغلاق الجلسات' : 'لم يكتمل الحذف',
+                    operationSwal.fire({title: data.partial ? 'اكتمل الحذف جزئيًا' : data.success ? 'اكتمل الحذف' : pending ? 'الحذف ينتظر إغلاق الجلسات' : 'لم يكتمل الحذف',
                         html: details, icon: data.partial ? 'warning' : data.success ? 'success' : pending ? 'info' : 'error'})
                         .then(() => { if (data.success || pending) location.reload(); });
                 })
                 .catch(() => {
-                    Swal.fire('خطأ', 'حدث خطأ في الاتصال بالخادم', 'error');
+                    operationSwal.uncertain('خطأ', 'حدث خطأ في الاتصال بالخادم', 'error');
                 });
             }
         });

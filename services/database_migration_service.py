@@ -2,14 +2,15 @@
 """
 services/database_migration_service.py
 ---------------------------------------
-Ultra-Fast Bulk Database Migration & Extraction Engine for MAX RADIUS.
-Processes 150k+ records in sub-15 seconds by bypassing live triggers during bulk load.
+Bounded Database Migration & Extraction Engine for MAX RADIUS.
 Includes live progress tracking, safe cancellation & rollback.
 """
 
+from services.heavy_operation_service import heavy_operation
 from core.license_feature_policy import guarded as _license_guarded
 import os
 import gzip
+from services.sql_import_stream import bounded_sql_lines, split_insert_rows
 import re
 import io
 import datetime
@@ -211,6 +212,7 @@ def rollback_cancelled_import(tracking_data, db):
 
 
 @_license_guarded('data_import')
+@heavy_operation
 def analyze_backup_file(file_input):
     profiles_list = []
     admins_list = []
@@ -231,7 +233,7 @@ def analyze_backup_file(file_input):
     stream = _open_backup_stream(file_input)
     try:
         current_table = None
-        for line in stream:
+        for line in bounded_sql_lines(stream):
             line_str = line.strip()
             if not line_str:
                 continue
@@ -271,7 +273,7 @@ def analyze_backup_file(file_input):
                 elif raw_rows_str.endswith(';'):
                     raw_rows_str = raw_rows_str[:-1]
 
-                rows_chunks = raw_rows_str.split("),(")
+                rows_chunks = split_insert_rows(raw_rows_str)
                 row_count = len(rows_chunks)
 
                 cols = table_columns.get(tname, [])
@@ -499,6 +501,7 @@ def verify_migration_license(db):
 
 
 @_license_guarded('data_import')
+@heavy_operation
 def execute_database_migration(file_input, options=None):
     """
     High-Performance Database Migration Engine.
@@ -560,6 +563,9 @@ def execute_database_migration(file_input, options=None):
         message = 'ملف قاعدة البيانات لا يحتوي حسابات وباقات متوافقة مع محرك الاستيراد؛ لم يتم تغيير البيانات. نسخ MAX RADIUS تستعاد من محرك النسخ الاحتياطي.'
         update_migration_progress(status='error', error=message, message=message)
         raise ValueError(message)
+
+    if selected_rows>100000:
+        raise ValueError('ترحيل أكثر من 100000 حساب دفعة واحدة غير مدعوم؛ قسّم قاعدة المصدر.')
 
     total_work_units = 0
     if import_subscribers:
@@ -648,10 +654,12 @@ def execute_database_migration(file_input, options=None):
                 cur.execute("SET unique_checks = 0;")
                 cur.execute("SET foreign_key_checks = 0;")
                 # Keep trigger definitions installed; suppress activation only on this import connection.
-                cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('wisp_vouchers','wisp_subscribers','wisp_voucher_batches','radacct','wisp_imported_session_history','radcheck','radreply','radusergroup','wisp_packages','wisp_managers','wisp_global_sequence') AND engine <> 'InnoDB'")
+                cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('wisp_vouchers','wisp_subscribers','wisp_voucher_batches','radacct','wisp_imported_session_history','wisp_traffic_history','radcheck','radreply','radusergroup','wisp_packages','wisp_managers','wisp_global_sequence') AND engine <> 'InnoDB'")
                 if cur.fetchone():
                     raise RuntimeError('Database migration requires transactional InnoDB tables.')
                 cur.execute("SET @max_radius_import = 1")
+                from services.traffic_history_service import preserve_before_replacement
+                preserve_before_replacement(db)
                 cur.execute("DELETE FROM wisp_vouchers;")
                 cur.execute("DELETE FROM wisp_subscribers;")
                 cur.execute("DELETE FROM wisp_voucher_batches;")
@@ -825,7 +833,7 @@ def execute_database_migration(file_input, options=None):
                         raw_rows_str = raw_rows_str[:-2]
                     elif raw_rows_str.endswith(';'):
                         raw_rows_str = raw_rows_str[:-1]
-                    rows_chunks = raw_rows_str.split("),(")
+                    rows_chunks = split_insert_rows(raw_rows_str)
 
                     if tname == 'user_qutas':
                         for rc in rows_chunks:
@@ -944,7 +952,7 @@ def execute_database_migration(file_input, options=None):
         last_progress_time = time.time()
 
         try:
-            for line in stream:
+            for line in bounded_sql_lines(stream):
                 if _CANCEL_EVENT.is_set():
                     raise RuntimeError("تم إلغاء عملية الاستيراد بناءً على طلب المستخدم.")
 
@@ -963,7 +971,7 @@ def execute_database_migration(file_input, options=None):
                 elif raw_rows_str.endswith(';'):
                     raw_rows_str = raw_rows_str[:-1]
 
-                rows_chunks = raw_rows_str.split("),(")
+                rows_chunks = split_insert_rows(raw_rows_str)
 
                 # Capture quotas for accurate expiration and limits
                 if tname == 'user_qutas':
@@ -1597,6 +1605,30 @@ def execute_database_migration(file_input, options=None):
 @_license_guarded('data_import')
 def start_async_migration(file_input, options=None):
     """Launches migration in a background worker thread for smooth progress polling."""
-    t = threading.Thread(target=execute_database_migration, args=(file_input, options), daemon=True)
+    from services.heavy_operation_service import operation_slot
+    ready = threading.Event()
+    admission = {}
+    def run():
+        try:
+            with operation_slot():
+                admission['accepted'] = True
+                ready.set()
+                try:
+                    execute_database_migration(file_input, options)
+                except Exception as exc:
+                    # The executor records rollback/cancellation itself. Also
+                    # cover rejection before its body (e.g. license admission).
+                    if get_migration_progress().get('status') not in ('error', 'cancelled'):
+                        update_migration_progress(status='error', error=str(exc), message=str(exc))
+        except Exception as exc:
+            # Admission failed: do not replace progress of an existing import.
+            admission['error'] = str(exc)
+        finally:
+            ready.set()
+    t = threading.Thread(target=run, daemon=True)
     t.start()
+    if not ready.wait(5):
+        return {'success': False, 'message': 'لم يتأكد بدء العامل بعد؛ تحقق من حالة الاستيراد قبل إعادة المحاولة.'}
+    if not admission.get('accepted'):
+        return {'success': False, 'message': admission.get('error', 'تعذر بدء عامل الاستيراد.')}
     return {'success': True, 'message': 'تم بدء الاستيراد في الخلفية.'}

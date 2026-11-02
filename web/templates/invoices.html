@@ -3,6 +3,7 @@
 {% block title %}فواتير المشتركين{% endblock %}
 
 {% block content %}
+{% from "components/product_brand.html" import credit as product_credit %}
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840]">
@@ -205,8 +206,9 @@
         const logoHtml = `{% if logo_url %}<img src="{{ logo_url }}" style="max-height: 48px; margin-bottom: 6px; object-fit: contain;">{% endif %}`;
         const w = window.open('', '_blank');
         w.document.write(`
-            <html lang="ar" dir="rtl">
+            <html lang="ar" dir="rtl" class="theme-light">
             <head>
+                {% include "components/product_brand_head.html" %}
                 <title>فاتورة ${invNum} - {{ network_name }}</title>
                 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/tajawal.css') }}">
                 <style>
@@ -263,6 +265,7 @@
                     </div>
                     {% endif %}
                 </div>
+                <div style="text-align:center;margin-top:16px">{{ product_credit() }}</div>
             </body>
             </html>
         `);

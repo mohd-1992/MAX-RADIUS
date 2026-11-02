@@ -127,7 +127,32 @@ def get_maintenance_stats():
     except Exception as e:
         print(f"[ERROR] get_maintenance_stats: {str(e)}")
 
+    stats['weekly_maintenance']=get_weekly_maintenance_status()
     return stats
+
+
+def get_weekly_maintenance_status():
+    """Read-only receipt; a configured cadence is not a worker liveness claim."""
+    import json
+    from core.time_service import get_system_timezone
+    try:
+        rows=query_all("SELECT `key`,value FROM wisp_system_settings WHERE `key` IN ('history_cleanup_last_success','history_cleanup_last_result')")
+        values={r['key']:r['value'] for r in rows}
+        marker=float(values.get('history_cleanup_last_success') or 0)
+        receipt=json.loads(values.get('history_cleanup_last_result') or '{}')
+        state=receipt.get('state')
+        text={'initialized':'تهيئة الجدولة؛ لم ينفذ تنظيف بعد',
+              'success':'آخر تنفيذ ناجح','failed':'تعذر آخر تنفيذ؛ يحتاج مراجعة'}.get(state,'لا توجد نتيجة تنفيذ مسجلة')
+        if state=='success':
+            text+=f" — جلسات: {receipt.get('deleted_sessions',0)}، محاولات دخول: {receipt.get('deleted_auth',0)}، نسخ مكررة: {receipt.get('compacted_duplicates',0)}"
+            if receipt.get('compaction_pending'):text+='؛ معالجة التكرار لم تكتمل بعد'
+        zone=get_system_timezone()
+        date=lambda epoch:datetime.datetime.fromtimestamp(epoch,zone).strftime('%Y-%m-%d %H:%M')
+        return dict(state=state or 'unknown',summary=text,
+                    last_at=date(float(receipt['at'])) if receipt.get('at') else None,
+                    next_due=date(marker+604800) if marker else None)
+    except Exception:
+        return dict(state='unavailable',summary='تعذر قراءة نتيجة الصيانة',last_at=None,next_due=None)
 
 
 def get_detailed_table_sizes():
@@ -162,9 +187,21 @@ def get_detailed_table_sizes():
         },
         'radacct_archive': {
             'arabic_name': 'أرشيف سجلات المحاسبة',
-            'desc': 'الجلسات التاريخية المؤرشفة والمضغوطة',
+            'desc': 'الأرشيف السابق؛ تدمج نسخه المكررة بعد التحقق من تفاصيلها',
             'icon': 'fa-file-zipper',
             'color': 'teal'
+        },
+        'wisp_traffic_history': {
+            'arabic_name': 'تاريخ الجلسات المحفوظ',
+            'desc': 'تفاصيل الجلسات المحفوظة في مخزن التاريخ الموحد',
+            'icon': 'fa-clock-rotate-left',
+            'color': 'teal'
+        },
+        'wisp_imported_session_history': {
+            'arabic_name': 'سجلات الجلسات المستوردة',
+            'desc': 'التاريخ المستورد؛ لا يحذف بالتنظيف الدوري العادي',
+            'icon': 'fa-file-import',
+            'color': 'sky'
         },
         'radpostauth': {
             'arabic_name': 'سجلات محاولات الدخول',
@@ -272,6 +309,8 @@ def prune_historical_logs(days=30, prune_postauth=True, prune_audit=False):
                         return 0
                     ids = [row['radacctid'] for row in rows]
                     marks = ','.join(['?']*len(ids))
+                    from services.traffic_history_service import preserve_sessions
+                    preserve_sessions(conn,'radacct',f'a.radacctid IN ({marks})',tuple(ids))
                     return sql(conn, f'DELETE a FROM radacct a WHERE a.radacctid IN ({marks}) AND '+HISTORY_ELIGIBLE, tuple(ids)+(days,))
                 count = run_transaction(chunk)
                 result['deleted_radacct'] += count
@@ -391,12 +430,14 @@ def run_auto_maintenance_job(retention_days=90):
     if not result['success']:
         raise RuntimeError(result['message'])
     # Compaction is explicit maintenance, never an automatic consequence of pruning.
-    return True
+    from services.traffic_history_service import compact_duplicate_history
+    compact = compact_duplicate_history()
+    return dict(result, duplicate_compaction=compact)
 
 
 def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000, min_age_days=0, progress_callback=None):
     from services.account_lifecycle_service import delete_account, job_lock
-    result=dict(success=True,deleted_vouchers=0,deleted_radcheck=0,deleted_radusergroup=0,deleted_radreply=0,deleted_radacct=0,pending=0,skipped=0,processed=0,total=0,queue_failures=0)
+    result=dict(success=True,deleted_vouchers=0,deleted_radcheck=0,deleted_radusergroup=0,deleted_radreply=0,deleted_radacct=0,pending=0,skipped=0,processed=0,total=0,queue_failures=0,pending_reasons={})
     started=time.time()
     if delete_type not in ('all','time','quota'):
         return dict(result,success=False,message='نوع حذف غير صالح')
@@ -424,6 +465,8 @@ def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50
                         state=delete_account('voucher',row['id'],expected_expired=True,delete_acct=delete_acct,min_age_days=min_age_days,expected_cycle=str(row.get('last_renewed_at') or ''),expected_reason=row.get('expire_reason'),connection=conn)
                         result['deleted_vouchers']+=bool(state.get('deleted'))
                         result['pending']+=bool(state.get('pending'))
+                        for reason in state.get('pending_reasons',[]):
+                            result['pending_reasons'][reason]=result['pending_reasons'].get(reason,0)+1
                         result['skipped']+=not state.get('deleted') and not state.get('pending')
                         result['queue_failures']+=state.get('queue_failures',0)
                         for field in ('deleted_radcheck','deleted_radusergroup','deleted_radreply'):result[field]+=state.get(field,0)
@@ -439,6 +482,10 @@ def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50
     result.pop('current_card_id',None)
     result['duration_seconds']=round(time.time()-started,2)
     result['message']=f"تم حذف {result['deleted_vouchers']} كرت؛ {result['pending']} ينتظر إغلاق الجلسات و{result['skipped']} تغيرت حالته. السجل المالي والمحاسبي محفوظ."
+    if result['pending']:
+        labels={'open_session':'جلسات مفتوحة','uncertain_close':'إغلاقات تحتاج تسوية','auth_reservation':'حجوزات دخول جارية'}
+        result['message']+=' أسباب التأجيل: '+ '، '.join(f"{labels[k]}: {v}" for k,v in result['pending_reasons'].items())+'.'
+    result['deletion_complete']=bool(result['success'] and not result['pending'] and not result['skipped'])
     if not result['success']:result['message']+=' لم تكتمل العملية: '+result['error']
     return result
 
@@ -761,7 +808,7 @@ def fix_all_audit_issues():
                     message=f'لم تكتمل المعالجة: {exc}',duration_seconds=round(time.time()-started,2))
 
 
-FACTORY_RESET_TABLES = ('wisp_voucher_names','wisp_voucher_edit_receipts','wisp_subscriber_names','wisp_subscriber_edit_receipts','wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
+FACTORY_RESET_TABLES = ('wisp_traffic_checkpoints','wisp_traffic_rollups','wisp_traffic_rollup_state','wisp_traffic_samples','wisp_traffic_history','wisp_sale_source_audit','wisp_sale_sources','wisp_account_mac_addresses','wisp_account_mac_policies','wisp_account_mac_receipts','wisp_voucher_names','wisp_voucher_edit_receipts','wisp_subscriber_names','wisp_subscriber_edit_receipts','wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
 
 
 def _wipe_factory_database(keep_packages=True, keep_resellers=False, job_id=None):

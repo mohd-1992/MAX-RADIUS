@@ -79,6 +79,7 @@
     };
 
     window.testCoa = function(nasId, ip, nasName) {
+        const operationSwal = window.createOperationNotification();
         var routerLabel = nasName ? ('[' + nasName + '] - ' + ip) : ip;
         if (typeof Swal === 'undefined') {
             if (confirm('هل تريد إرسال فحص CoA تجريبي للراوتر ' + routerLabel + '؟')) {
@@ -90,7 +91,7 @@
             return;
         }
 
-        Swal.fire({
+        operationSwal.fire({
             title: 'اختبار حزمة CoA RFC 5176',
             html: '<div class="text-right text-xs space-y-2 text-slate-300">' +
                   '<p>سيتم إرسال حزمة Disconnect-Request تجريبية للراوتر: <strong class="text-cyan-400 font-mono">' + routerLabel + '</strong></p>' +
@@ -104,7 +105,7 @@
             cancelButtonColor: '#475569'
         }).then(function(result) {
             if (result.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ فحص منفذ CoA...',
                     html: '<p class="text-xs text-slate-400 mt-2">يتم إرسال حزمة UDP واستقبال الرد من الراوتر...</p>',
                     allowOutsideClick: false,
@@ -119,7 +120,7 @@
                     if (data.status === 'secret_mismatch') {
                         title = 'خطأ في المفتاح المشترك (Secret)';
                     }
-                    Swal.fire({
+                    operationSwal.fire({
                         title: title,
                         html: '<div class="text-right text-xs space-y-2 mt-2 leading-relaxed text-slate-200">' +
                               '<p class="font-semibold">' + data.message + '</p>' +
@@ -131,7 +132,7 @@
                     });
                 })
                 .catch(function(err) {
-                    Swal.fire('خطأ في الاتصال', err.toString(), 'error');
+                    operationSwal.uncertain('خطأ في الاتصال', err.toString(), 'error');
                 });
             }
         });
@@ -600,7 +601,8 @@
     }
 
     function testCoa(nasId, ip) {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'جارٍ اختبار حزمة CoA...',
             text: `يتم إرسال حزمة RFC 5176 UDP إلى الراوتر [${ip}]...`,
             allowOutsideClick: false,
@@ -610,14 +612,14 @@
         fetch(`/api/nas/test-coa/${nasId}`, { method: 'POST' })
             .then(r => r.json())
             .then(data => {
-                Swal.fire({
+                operationSwal.fire({
                     title: data.success ? 'الراوتر يستجيب!' : 'نتيجة الفحص',
                     text: data.message,
                     icon: data.success ? 'success' : (data.status === 'timeout' ? 'warning' : 'info')
                 });
             })
             .catch(err => {
-                Swal.fire('خطأ في الاتصال', err.message, 'error');
+                operationSwal.uncertain('خطأ في الاتصال', err.message, 'error');
             });
     }
 

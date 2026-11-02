@@ -94,6 +94,10 @@ def prepare(api, config, response, current, folder):
     if not manifest:
         raise UpdateError('No approved release')
     old = owned_snapshot(api, config)
+    if manifest.get('requirements') and manifest.get('migration') != 'explicit':
+        for role,reference in manifest['requirements']['rollback']['images'].items():
+            image=api('GET','/images/'+urllib.parse.quote(old[role]['Image'],safe='')+'/json')
+            if reference not in image.get('RepoDigests',[]):raise UpdateError('Retained image does not match signed rollback plan')
     before = execute(api, old['web']['Id'], PROBE)
     if before['version'] != current or not all(before.get(k) for k in ('verified','license','lease')):
         raise UpdateError('Current runtime failed preflight')
@@ -128,11 +132,27 @@ def prepare(api, config, response, current, folder):
             raise UpdateError('Compose definition is unavailable')
         import yaml
         document = yaml.safe_load(path.read_text(encoding='utf-8'))
+        if set(images)=={'web'}:
+            from services.system_update_handoff import freeze
+            controller=freeze(api,config,document)
+            if controller:plan['controller']=controller
         for role, service in config['services'].items():
             if service not in document['services']:
                 raise UpdateError('Compose service is missing')
         plan.update(compose_path=str(path), compose_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
                     compose_services=config['services'])
+        # Only the tested baseline bridge may attest this schema. Version alone
+        # never grants SQL eligibility to the next release.
+        if (current == '2.6.6' and manifest['version'] == '2.6.7'
+                and set(images) == {'web'}):
+            from services.system_update_sequence import BASELINE_PROBE
+            proof = execute(api, old['web']['Id'], BASELINE_PROBE)
+            if proof != {'verified': True, 'schema_revision': 'features267'}:
+                raise UpdateError('Bridge baseline schema did not verify')
+            plan['schema_preparation'] = proof
+            channel = folder.parent.parent/'update-channel.private.json'
+            plan['channel_sha256'] = hashlib.sha256(channel.read_bytes()).hexdigest()
+            (folder/'channel-before.private').write_bytes(channel.read_bytes())
         (folder/'compose-before.private').write_bytes(path.read_bytes())
         bridge = config.get('enrollment_socket')
         if bridge:
@@ -150,6 +170,9 @@ def prepare(api, config, response, current, folder):
                 plan['enrollment_socket'] = bridge
     else:
         raise UpdateError('Persistent Compose definition is required')
+    if manifest.get('migration') == 'explicit':
+        from services.system_update_migrations import attach
+        attach(api, manifest, plan)
     write_json(folder/'plan.private.json', plan)
     return plan
 
@@ -215,6 +238,10 @@ def persist_compose(plan, folder, rollback=False):
 
 def run_job(folder, api=None, wait=None):
     import fcntl
+    preliminary = json.loads((Path(folder)/'plan.private.json').read_text(encoding='utf-8'))
+    if preliminary.get('migration'):
+        from services.system_update_migrations import run
+        return run(folder,api,wait)
     api, folder = api or Docker(), Path(folder)
     wait = wait or wait_ready
     with (folder/'execution.lock').open('a') as lock:
@@ -254,7 +281,7 @@ def run_job(folder, api=None, wait=None):
                 record['touched'] = True; write_json(state_path, state)
                 api('POST','/containers/'+old['Id']+'/update',{'RestartPolicy':{'Name':'no'}})
                 api('POST','/containers/'+old['Id']+'/stop?t=25')
-                for net in old['NetworkSettings']['Networks']:
+                for net in endpoints_for(old):
                     api('POST','/networks/'+urllib.parse.quote(net,safe='')+'/disconnect',{'Container':old['Id'],'Force':True})
                 api('POST','/containers/'+old['Id']+'/rename?name='+old['Name'].lstrip('/')+'_previous_'+plan['job'])
             for role in ('core','web'):
@@ -271,7 +298,15 @@ def run_job(folder, api=None, wait=None):
             if database['Image'] != plan['old']['db']['Image'] or database['State']['StartedAt'] != plan['old']['db']['State']['StartedAt']:
                 raise UpdateError('Database identity changed')
             persist_compose(plan,folder)
-            state.update(status='completed',percent=100,stage='اكتمل التحديث بعد التحقق من التشغيل والمحاسبة',completed_at=time.time())
+            if plan.get('controller'):
+                state.update(status='handoff_pending',percent=95,stage='اكتمل تحديث Web؛ جار تسليم محرك التحديث')
+            else:
+                if plan.get('schema_preparation'):
+                    from services.system_update_sequence import BASELINE_PROBE, persist_schema
+                    proof=execute(api,state['services']['web']['new_id'],BASELINE_PROBE)
+                    if proof!=plan['schema_preparation']:raise UpdateError('Host bridge schema did not verify')
+                    persist_schema(plan,folder)
+                state.update(status='completed',percent=100,stage='اكتمل التحديث بعد التحقق من التشغيل والمحاسبة',completed_at=time.time())
         except Exception as exc:
             write_json(folder/'failure.private.json',{'type':type(exc).__name__})
             if not state.get('switch_attempted'):

@@ -48,6 +48,9 @@ def check(current):
     try:
         result = request('GET','check')
         if result.get('current_version') != current: raise ValueError('Runtime version mismatch')
+        if result.get('has_update'):
+            from services.system_update_sequence import gate
+            result = gate(result, request('GET','progress'))
         return result
     except Exception:
         return {'success':False,'has_update':False,'current_version':current,'latest_version':None,

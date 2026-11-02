@@ -3,6 +3,7 @@
 MAX RADIUS Web - Voucher Batch Generation, Printing, and Card Inspection Routes Module.
 """
 
+from services.heavy_operation_service import heavy_operation
 import os
 import sys
 import json
@@ -65,7 +66,7 @@ vouchers_bp = Blueprint('vouchers_bp', __name__)
 @vouchers_bp.before_request
 def guard_voucher_permissions():
     endpoint = (request.endpoint or '').split('.')[-1]
-    if 'design' in endpoint or endpoint in ('print_cards','export_batch_excel','upload_card_bg_api'):
+    if 'design' in endpoint or endpoint in ('print_cards','export_batch_excel','export_batch_text','upload_card_bg_api'):
         permission = 'vouchers.print'
     elif endpoint=='generate_vouchers_action':
         permission = 'vouchers.generate'
@@ -87,9 +88,18 @@ def guard_voucher_permissions():
 
 
 
+@vouchers_bp.route('/api/vouchers/<int:account_id>/mac-policy', methods=['GET', 'POST'], endpoint='api_voucher_mac_policy')
+@login_required
+def api_voucher_mac_policy(account_id):
+    from web.mac_policy_routes import account_mac_response
+    return account_mac_response('voucher', account_id)
+
+
 @vouchers_bp.route('/vouchers', endpoint="vouchers")
 
 def vouchers():
+    from services.list_sort_service import sort_state, sort_rows
+    list_sort = sort_state(request.args, 'batches')
     sync_voucher_activations()
     batch_id = request.args.get('batch_id')
     status = request.args.get('status')
@@ -98,6 +108,7 @@ def vouchers():
     reseller_id = request.args.get('reseller_id', '').strip()
     
     batches = get_batches(search=search, package_id=package_id, reseller_id=reseller_id)
+    batches = sort_rows(batches, list_sort)
     batch_stats = get_voucher_summary_counts()
     
     selected_batch = None
@@ -128,6 +139,7 @@ def vouchers():
         ORDER BY m.id ASC
     """)
     return render_template('vouchers.html',
+                           list_sort=list_sort,
                            batches=batches,
                            cards=cards,
                            packages=packages,
@@ -378,6 +390,9 @@ def edit_card_action(card_id):
 @vouchers_bp.route('/vouchers/active-users', endpoint="active_card_users")
 
 def active_card_users():
+    from services.list_sort_service import sort_state, sort_rows, card_order
+    list_sort = sort_state(request.args, 'cards')
+    sql_order = card_order(list_sort)
     sync_voucher_activations()
     
     search = request.args.get('q', '').strip()
@@ -474,6 +489,13 @@ def active_card_users():
     count_row = query_one(f"SELECT COUNT(*) as cnt FROM wisp_vouchers v WHERE {where_sql}", tuple(params))
     total_records = count_row['cnt'] if count_row else 0
     total_pages = max(1, (total_records + per_page - 1) // per_page)
+    page = min(page, total_pages)
+    offset = (page - 1) * per_page
+    # Derived session/accounting columns use the existing hydration for the
+    # complete filtered result, then sort before slicing into pages.
+    load_limit = per_page if sql_order else total_records
+    load_offset = offset if sql_order else 0
+    query_order = sql_order or 'v.id DESC'
     
     cards_query = f'''
         SELECT v.*,
@@ -490,25 +512,29 @@ def active_card_users():
                r.name as reseller_name
         FROM (
             SELECT v.id FROM wisp_vouchers v
+            JOIN wisp_packages p ON v.package_id=p.id
+            JOIN wisp_voucher_batches b ON v.batch_id=b.id
+            LEFT JOIN wisp_resellers r ON v.reseller_id=r.id
             WHERE {where_sql}
-            ORDER BY v.id DESC
+            ORDER BY {query_order}
             LIMIT ? OFFSET ?
         ) page
         JOIN wisp_vouchers v ON page.id = v.id
         JOIN wisp_packages p ON v.package_id = p.id
         JOIN wisp_voucher_batches b ON v.batch_id = b.id
         LEFT JOIN wisp_resellers r ON v.reseller_id = r.id
-        ORDER BY v.id DESC
+        ORDER BY {query_order}
     '''
-    page_params = list(params) + [per_page, offset]
+    page_params = list(params) + [load_limit, load_offset]
     cards = query_all(cards_query, tuple(page_params))
     
     for idx, c in enumerate(cards):
-        c['seq_id'] = c.get('global_seq_id') or (offset + idx + 1)
+        c['seq_id'] = c.get('global_seq_id') or c['id']
         
     usernames = [c['username'] for c in cards if c.get('username')]
     traffic_map = {}
     active_map = {}
+    active_session_counts = {}
     last_map = {}
     
     if usernames:
@@ -533,8 +559,8 @@ def active_card_users():
                   (acctupdatetime IS NULL AND acctstarttime >= ?)
               )
         ''', tuple(active_params))
-        for ar in (active_rows or []):
-            active_map[ar['username'].lower()] = ar
+        from services.session_display_service import index_live_sessions
+        active_map, active_session_counts = index_live_sessions(active_rows)
 
         last_rows = query_all(f'''
             SELECT a.username, a.acctstoptime, a.calledstationid, a.nasipaddress, a.framedipaddress
@@ -555,6 +581,7 @@ def active_card_users():
         u_key = c['username'].lower() if c.get('username') else ''
         t_data = traffic_map.get(u_key)
         a_data = active_map.get(u_key)
+        c['active_session_count'] = active_session_counts.get(u_key, 0)
         l_data = last_map.get(u_key)
         
         c['accounting_unavailable'] = t_data is None
@@ -562,6 +589,7 @@ def active_card_users():
         up_b = float(t_data['up_bytes']) if t_data else 0
         dur_s = float(t_data['uptime_secs']) if t_data else 0
         total_used_b = down_b + up_b
+        c['sort_used_bytes'] = total_used_b if t_data is not None else None
         
         c['service_type'] = c.get('service_type') or c.get('package_service_type') or 'hotspot'
         
@@ -627,6 +655,10 @@ def active_card_users():
             c['days_remaining_num'] = 9999
             c['days_remaining_str'] = 'غير محدد'
             
+        c['sort_remaining_seconds'] = (0 if c.get('is_expired') else
+            max(0, (exp_dt - now).total_seconds()) if exp_dt else
+            float(c['validity_value']) * {'minutes':60,'hours':3600,'days':86400,'months':2592000}.get(c.get('validity_unit'),86400)
+            if str(c.get('validity_value') or '').isdigit() else None)
         # Consumption calculation
         base_quota_mb = float(c.get('volume_quota_mb') or 0)
         extra_quota_mb = float(c.get('extra_quota_mb') or 0)
@@ -681,9 +713,12 @@ def active_card_users():
         c['upload_str'] = format_bytes(up_b)
         c['uptime_str'] = format_duration(dur_s)
 
+    if not sql_order:
+        cards = sort_rows(cards, list_sort)[offset:offset + per_page]
     packages = query_all("SELECT id, name, price, service_type, rate_download, rate_upload FROM wisp_packages WHERE is_active = 1")
     batches = query_all("SELECT id, name, batch_number FROM wisp_voucher_batches ORDER BY id DESC")
     return render_template('active_card_users.html',
+                           list_sort=list_sort,
                            active_cards=cards,
                            packages=packages,
                            batches=batches,
@@ -816,7 +851,9 @@ def active_card_user_details(card_id):
         except Exception:
             pass
 
-    sessions = get_subscriber_sessions(card['username'], limit=50)
+    from services.session_history_service import get_session_history
+    session_history = get_session_history(card['username'], page=max(1, request.args.get('session_page', 1, type=int)))
+    sessions = session_history['rows']
     invoices = query_all('''
         SELECT id, COALESCE(serial_number, CONCAT('V-SALE-', id)) as invoice_number, 
                activated_at as created_at,
@@ -831,7 +868,9 @@ def active_card_user_details(card_id):
 
     from services.voucher_edit_service import revision
     import secrets
+    from services.account_mac_service import get_mac_policy
     return render_template('active_card_user_details.html',
+                           mac_policy=get_mac_policy('voucher', card['id']),
                            edit_revision=revision(card),edit_operation_id=secrets.token_hex(16),package_operation_id=secrets.token_hex(16),
                            card=card,
                            total_download=total_download,
@@ -842,7 +881,7 @@ def active_card_user_details(card_id):
                            usage_percent=usage_percent,
                            remaining_days_text=remaining_days_text,
                            is_expired=is_expired,
-                           sessions=sessions,
+                           sessions=sessions, session_history=session_history,
                            invoices=invoices if has_permission('invoices.view') else [],
                            audit_logs=audit_logs if has_permission('system.audit_logs') else [],
                            analytics=analytics,
@@ -874,7 +913,7 @@ def edit_active_card_action(card_id):
 def edit_active_card_package(card_id):
     from web.access_policy import can_access_account_action
     from services.voucher_edit_service import revision,receipt,fingerprint
-    if not has_permission('vouchers.card_edit') or not can_access_account_action('change-package','voucher'):
+    if not has_permission('detail.vouchers.card_edit') or not can_access_account_action('change-package','voucher'):
         return jsonify(success=False,message='لا تملك صلاحية تغيير باقة الكرت.'),403
     row=query_one('SELECT * FROM wisp_vouchers WHERE id=?',(card_id,))
     if not row:return jsonify(success=False,message='الكرت غير موجود.'),404
@@ -1074,7 +1113,9 @@ def api_reset_voucher_mac():
         card=query_one('SELECT * FROM wisp_vouchers WHERE username=?',(str(data.get('username') or '').strip(),))
         if not card:
             return jsonify(success=False,message='الكرت غير موجود.'),404
-        update_voucher_card(card['id'],card['username'],card['password'],bound_mac='',admin_username=session.get('admin_username') or 'admin')
+        from services.account_mac_service import get_mac_policy,save_mac_policy
+        policy=get_mac_policy('voucher',card['id'])
+        save_mac_policy('voucher',card['id'],dict(policy,enabled=False,operation_id=secrets.token_hex(16)),actor=session.get('admin_username') or 'admin')
         return jsonify(success=True,message='تم فك قيد الماك ومزامنة الراديوس.')
     except ValueError as exc:
         return jsonify(success=False,message=str(exc)),400
@@ -1103,8 +1144,8 @@ def api_disconnect_voucher():
     card=query_one('SELECT id FROM wisp_vouchers WHERE username=?',(str(data.get('username') or '').strip(),))
     if not card:
         return jsonify(success=False,message='الكرت غير موجود.'),404
-    success,message=action_disconnect_user('voucher',card['id'],admin_username=session.get('admin_username') or 'admin')
-    return jsonify(success=success,message=message)
+    success,message=action_disconnect_user('voucher',card['id'],admin_username=session.get('admin_username') or 'admin',operation_id=data.get('operation_id'))
+    return jsonify(dict(success=success, **message) if isinstance(message,dict) else dict(success=success,message=message))
 
 
 @vouchers_bp.route('/api/vouchers/activate',methods=['POST'])
@@ -1302,11 +1343,16 @@ def duplicate_card_design_api(design_id):
 
 @vouchers_bp.route('/vouchers/print/<int:batch_id>', endpoint="print_cards")
 
+@heavy_operation
 def print_cards(batch_id):
     # Check ownership before the print service performs its unscoped reads.
     if not query_one('SELECT id FROM wisp_voucher_batches WHERE id=?', (batch_id,)):
         return jsonify(success=False, message='الحزمة غير موجودة.'), 404
     pdf_export = request.args.get('export') == 'pdf'
+    if pdf_export:
+        size=query_one('SELECT COUNT(*) AS n FROM wisp_vouchers WHERE batch_id=?',(batch_id,))['n']
+        if not 1 <= size <= 2000:
+            return jsonify(success=False,message='تصدير PDF متاح للحزم من 1 إلى 2000 كرت.'),400
     batch, cards, template = get_batch_cards_for_print(batch_id)
     if not batch:
         flash('الدفعة المطلوبة غير موجودة.', 'danger')
@@ -1355,33 +1401,49 @@ def print_cards(batch_id):
     setting_row = query_one("SELECT `value` FROM wisp_system_settings WHERE `key` = 'voucher_custom_design_config'")
     saved_config_json = setting_row['value'] if setting_row and setting_row.get('value') else None
 
-    html = render_template('print_cards.html',
-                           batch=batch,
-                           cards=cards,
-                           card_pages=card_pages,
-                           tpl=template,
-                           saved_config_json=saved_config_json,
-                           designs=designs,
-                           selected_design=selected_design,
-                           selected_design_id=int(design_id) if (design_id and str(design_id).isdigit()) else None)
     if not pdf_export:
+        html = render_template('print_cards.html',
+                               batch=batch,
+                               cards=cards,
+                               card_pages=card_pages,
+                               tpl=template,
+                               saved_config_json=saved_config_json,
+                               designs=designs,
+                               selected_design=selected_design,
+                               selected_design_id=int(design_id) if (design_id and str(design_id).isdigit()) else None)
         return html
     if not cards or len(cards) > 2000:
         return jsonify(success=False, message='تصدير PDF متاح للحزم من 1 إلى 2000 كرت.'), 400
     try:
         import io
-        from services.batch_export_service import render_pdf, batch_download_name
-        response = send_file(io.BytesIO(render_pdf(html, current_app.static_folder)), mimetype='application/pdf',
+        from services.batch_export_service import batch_download_name
+        from services.pdf_export_service import render_parts
+        from services.heavy_operation_service import ExportCancelled
+        def parts():
+            # Keep custom page grids intact at each PDF boundary.
+            chunk_size=cards_per_page if selected_design else 48
+            for offset in range(0,len(cards),chunk_size):
+                subset=cards[offset:offset+chunk_size]
+                yield render_template('print_cards.html',batch=batch,cards=subset,
+                    card_pages=[subset],tpl=template,saved_config_json=saved_config_json,
+                    designs=designs,selected_design=selected_design,
+                    selected_design_id=int(design_id) if design_id and str(design_id).isdigit() else None)
+        payload=render_parts(parts(),current_app.static_folder,timeout=600)
+        response = send_file(payload, mimetype='application/pdf',
                              as_attachment=True, download_name=batch_download_name(batch['name'], 'pdf'), max_age=0)
+        response.call_on_close(payload.close)
         response.headers['Cache-Control'] = 'no-store, private'
         response.headers['X-Content-Type-Options'] = 'nosniff'
         return response
+    except ExportCancelled:
+        return jsonify(success=False,message='أُلغي التصدير ولم يُصدر ملف جزئي.'),409
     except Exception:
         logger.exception('Batch PDF export failed')
         return jsonify(success=False, message='تعذر تجهيز PDF. تحقق من صور التصميم أو أعد المحاولة بعد قليل.'), 503
 
 
 @vouchers_bp.route('/vouchers/batch/<int:batch_id>/excel', endpoint='export_batch_excel')
+@heavy_operation
 def export_batch_excel(batch_id):
     batch = query_one('SELECT * FROM wisp_voucher_batches WHERE id=?', (batch_id,))
     if not batch:
@@ -1400,6 +1462,36 @@ def export_batch_excel(batch_id):
         return jsonify(success=False, message='تعذر تصدير الملف بسبب عدم اكتمال بيانات العقد أو محاسبة الدورة.'), 409
 
 
+@vouchers_bp.route('/vouchers/batch/<int:batch_id>/text', endpoint='export_batch_text')
+def export_batch_text(batch_id):
+    if not query_one('SELECT id FROM wisp_voucher_batches WHERE id=?', (batch_id,)):
+        return jsonify(success=False, message='الحزمة غير موجودة.'), 404
+    from services.batch_export_service import export_usernames_text, batch_download_name
+    payload = None
+    try:
+        name, payload, _ = export_usernames_text(batch_id, owner_id())
+        response = send_file(payload, mimetype='text/plain', as_attachment=True,
+                             download_name=batch_download_name(name, 'txt'), max_age=0)
+        response.content_length = os.fstat(payload.fileno()).st_size
+        response.call_on_close(payload.close)
+        response.headers['Cache-Control'] = 'no-store, private'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        return response
+    except LookupError:
+        if payload is not None:
+            payload.close()
+        return jsonify(success=False, message='الحزمة غير موجودة.'), 404
+    except ValueError:
+        if payload is not None:
+            payload.close()
+        return jsonify(success=False, message='تعذر التصدير لوجود اسم مستخدم غير صالح داخل الحزمة.'), 409
+    except Exception:
+        if payload is not None:
+            payload.close()
+        logger.exception('Batch text export failed')
+        return jsonify(success=False, message='تعذر تجهيز الملف النصي. أعد المحاولة بعد قليل.'), 503
+
+
 @vouchers_bp.route('/vouchers/delete-batch/<int:batch_id>', methods=['POST'], endpoint="delete_batch_action")
 
 def delete_batch_action(batch_id):
@@ -1411,3 +1503,12 @@ def delete_batch_action(batch_id):
     return redirect(url_for('vouchers'))
 
 
+
+
+@vouchers_bp.route('/vouchers/active-users/<int:card_id>/sessions.pdf', endpoint='voucher_sessions_pdf')
+def voucher_sessions_pdf(card_id):
+    account = query_one('SELECT id,username FROM wisp_vouchers WHERE id=?', (card_id,))
+    if not account:
+        return jsonify(success=False, message='الحساب غير موجود.'), 404
+    from web.session_export import session_pdf_response
+    return session_pdf_response(account, 'voucher')

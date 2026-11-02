@@ -517,6 +517,9 @@ def update_voucher_card(card_id, new_username, new_password, admin_username='adm
         card = tx.one('SELECT * FROM wisp_vouchers WHERE id=?'+lock, (card_id,))
         if not card:
             raise ValueError('الكرت غير موجود.')
+        if bound_mac is not None:
+            from services.account_mac_service import reject_legacy_mac_change
+            reject_legacy_mac_change('voucher', card, bound_mac, conn)
         old_username = card['username']
         if old_username != new_username:
             if card['status'] != 'unused' or card.get('first_used_at') or card.get('policy_frozen_at') or tx.one('SELECT radacctid FROM radacct WHERE LOWER(username)=LOWER(?) LIMIT 1',(old_username,)):
@@ -669,20 +672,13 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
             simul = int(policy('simultaneous_sessions', 1) or 1)
             mgroup = str(policy('mikrotik_group', '') or '').strip()
             
-            rate_str = card.get('snap_rate_limit_str')
-            if rate_str is None or not str(rate_str).strip():
-                rate_str = build_mikrotik_rate_limit(
-                    download=policy('rate_download', '0'),
-                    upload=policy('rate_upload', '0'),
-                    burst_down=card.get('burst_download'),
-                    burst_up=card.get('burst_upload'),
-                    threshold_down=card.get('burst_threshold_down'),
-                    threshold_up=card.get('burst_threshold_up'),
-                    burst_time=card.get('burst_time', 16),
-                    priority=card.get('priority', 8),
-                    min_down=card.get('min_download'),
-                    min_up=card.get('min_upload')
-                )
+            from services.rate_policy_service import snapshot_rate_limit, package_rate_limit
+            if card.get('policy_frozen_at') is not None:
+                rate_str = snapshot_rate_limit(card.get('snap_rate_limit_str'),
+                                               card.get('snap_rate_download'), card.get('snap_rate_upload'))
+            else:
+                rate_str = package_rate_limit(dict(card,
+                    rate_download=policy('rate_download', '0'), rate_upload=policy('rate_upload', '0')))
     
             # 1. Update card status and freeze snapshot on voucher record
             update_sql = adapt_query('''
@@ -781,6 +777,8 @@ def activate_voucher_card(username, bound_mac=None, nas_ip=None):
                     card['serial_number'], card['package_name'], pkg_price,
                     pkg_cost, card['reseller_id']
                 ))
+                from services.sales_source_service import record_sale_source
+                record_sale_source(conn, 'voucher', cursor.lastrowid, card['username'])
 
             log_audit(1, 'system', 'ACTIVATE_VOUCHER', 'vouchers',
                       f'Card {card["username"]} activated with frozen package snapshot ({quota_mb}MB / {rate_str or "Unlimited"}).')

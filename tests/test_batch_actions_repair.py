@@ -99,6 +99,7 @@ class RefundTests(unittest.TestCase):
 CREATE TABLE wisp_voucher_batches(id INTEGER PRIMARY KEY,batch_number TEXT,reseller_id INT,card_count INT,cost NUMERIC,price NUMERIC);
 CREATE TABLE wisp_vouchers(id INTEGER PRIMARY KEY,batch_id INT,username TEXT,status TEXT);
 CREATE TABLE radacct(username TEXT,acctstoptime TEXT,acctterminatecause TEXT);
+CREATE VIEW radacct_owned AS SELECT * FROM radacct;
 CREATE TABLE wisp_session_reservations(username TEXT,expires_at TEXT);
 CREATE TABLE wisp_managers(id INT,wallet_balance NUMERIC);
 CREATE TABLE wisp_resellers(id INT,balance NUMERIC);
@@ -115,9 +116,19 @@ INSERT INTO radcheck VALUES('synthetic-a');
         load('services/account_lifecycle_service.py', ['BatchDeletionPending','batch_refund_amount','delete_voucher_batch'], self.ns)
         module=types.ModuleType('database.db'); module.query_all=lambda q,p=():self.sql(self.db,q,p,'all')
         self.modules=patch.dict(sys.modules,{'database.db':module}); self.modules.start()
+        # This SQLite fixture tests refunds and transaction boundaries. History
+        # preservation uses MariaDB-specific SQL and has its own native suite.
+        # Keep that collaborator explicit and verify failure rolls this operation
+        # back rather than silently omitting it from the production function.
+        self.history=types.ModuleType('services.traffic_history_service')
+        from unittest.mock import Mock
+        self.history.preserve_accounts=Mock(return_value=0)
+        self.history_patch=patch.dict(sys.modules,{'services.traffic_history_service':self.history})
+        self.history_patch.start()
         self.deferred=[]
 
     def tearDown(self):
+        self.history_patch.stop()
         self.modules.stop(); self.db.close()
 
     def defer(self,kind,ident): self.deferred.append((kind,ident))
@@ -147,9 +158,21 @@ INSERT INTO radcheck VALUES('synthetic-a');
 
     def test_paid_refund_preserves_history_and_ledger(self):
         self.purchase(16); self.assertTrue(self.delete()); self.assertEqual(self.balance(),116)
+        self.history.preserve_accounts.assert_called_once()
+        self.assertIs(self.history.preserve_accounts.call_args.args[0],self.db)
+        self.assertEqual(self.history.preserve_accounts.call_args.args[1],'voucher')
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM radacct').fetchone()[0],1)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_manager_invoices').fetchone()[0],2)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM radcheck').fetchone()[0],0)
+
+    def test_history_preservation_failure_rolls_back_refund_and_deletion(self):
+        self.purchase(16)
+        self.history.preserve_accounts.side_effect=RuntimeError('fixture preservation failure')
+        with self.assertRaisesRegex(RuntimeError,'preservation failure'):
+            self.delete()
+        self.assertEqual(self.balance(),100)
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_vouchers').fetchone()[0],2)
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_manager_invoices').fetchone()[0],1)
 
     def test_only_unused_share_is_refunded(self):
         self.purchase(16);self.db.execute("UPDATE wisp_vouchers SET status='expired' WHERE id=2");self.db.commit()

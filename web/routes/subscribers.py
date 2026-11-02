@@ -10,6 +10,7 @@ import time
 import datetime
 import secrets
 import logging
+from decimal import Decimal, InvalidOperation
 
 from flask import (
     Blueprint, render_template, request, jsonify, redirect,
@@ -62,12 +63,18 @@ from core.ownership import scoped_query_all as query_all, scoped_query_one as qu
 
 subscribers_bp = Blueprint('subscribers_bp', __name__)
 
+@subscribers_bp.route('/api/subscribers/<int:account_id>/mac-policy', methods=['GET', 'POST'], endpoint='api_subscriber_mac_policy')
+@login_required
+def api_subscriber_mac_policy(account_id):
+    from web.mac_policy_routes import account_mac_response
+    return account_mac_response('subscriber', account_id)
+
 @subscribers_bp.before_request
 def guard_subscriber_permissions():
     endpoint = (request.endpoint or '').split('.')[-1]
     permission = {
         'subscribers': 'subscribers.view', 'subscriber_details': 'subscribers.view',
-        'subscriber_sessions': 'subscribers.view',
+        'subscriber_sessions': 'subscribers.view', 'subscriber_sessions_pdf': 'subscribers.view',
         'subscriber_create_page': 'subscribers.create', 'add_subscriber_action': 'subscribers.create',
         'edit_subscriber_action': 'subscribers.edit', 'delete_subscriber_action': 'subscribers.delete',
         'api_disconnect_subscriber': 'subscribers.disconnect',
@@ -84,6 +91,8 @@ def guard_subscriber_permissions():
 @subscribers_bp.route('/subscribers', endpoint="subscribers")
 
 def subscribers():
+    from services.list_sort_service import sort_state, sort_rows
+    list_sort = sort_state(request.args, 'subscribers')
     search = request.args.get('q', '').strip()
     stype = request.args.get('type', '').strip()
     package_id = request.args.get('package_id', '').strip()
@@ -94,7 +103,7 @@ def subscribers():
     subs = get_subscribers(search=search, service_type=stype, status=status, package_id=package_id if package_id else None)
     status_counts = get_subscriber_status_counts(search=search, service_type=stype, package_id=package_id if package_id else None)
     packages = query_all('SELECT id, name, service_type, price FROM wisp_packages WHERE is_active = 1 ORDER BY service_type, price ASC')
-    return render_template('subscribers.html', subscribers=[filter_account_money(row) for row in subs], packages=packages, q=search, type=stype, status=status, status_counts=status_counts, package_id=package_id)
+    return render_template('subscribers.html', list_sort=list_sort, subscribers=sort_rows([filter_account_money(row) for row in subs], list_sort), packages=packages, q=search, type=stype, status=status, status_counts=status_counts, package_id=package_id)
 
 
 @subscribers_bp.route('/subscribers/create', methods=['GET', 'POST'], endpoint="subscriber_create_page")
@@ -245,14 +254,18 @@ def subscriber_details(sub_id):
         except Exception:
             pass
 
-    sessions = get_subscriber_sessions(sub['username'], limit=50)
+    from services.session_history_service import get_session_history
+    session_history = get_session_history(sub['username'], page=max(1, request.args.get('session_page', 1, type=int)))
+    sessions = session_history['rows']
     invoices = query_all('SELECT * FROM wisp_invoices WHERE subscriber_id = ? OR LOWER(subscriber_name) = LOWER(?) ORDER BY id DESC LIMIT 50', (sub_id, sub['username'])) if has_permission('invoices.view') else []
     packages = query_all('SELECT id,name,price,service_type,rate_download,rate_upload,volume_quota_mb,validity_value,validity_unit,validity_days FROM wisp_packages WHERE is_active = 1')
     audit_logs = get_user_audit_logs('subscriber', sub_id, sub['username'])
     analytics = get_user_usage_analytics(sub['username'])
 
     from services.subscriber_edit_service import revision
+    from services.account_mac_service import get_mac_policy
     return render_template('subscriber_details.html',
+                           mac_policy=get_mac_policy('subscriber', sub['id']),
                            edit_revision=revision(sub), edit_operation_id=secrets.token_hex(16), package_operation_id=secrets.token_hex(16),
                            subscriber=filter_account_money(sub),
                            total_download=total_download,
@@ -263,7 +276,7 @@ def subscriber_details(sub_id):
                            usage_percent=usage_percent,
                            remaining_days_text=remaining_days_text,
                            is_expired=is_expired,
-                           sessions=sessions,
+                           sessions=sessions, session_history=session_history,
                            invoices=invoices,
                            audit_logs=audit_logs if has_permission('system.audit_logs') else [],
                            analytics=analytics,
@@ -353,16 +366,19 @@ def subscriber_sessions(username):
 
 @subscribers_bp.route('/api/subscribers/disconnect', methods=['POST'], endpoint="api_disconnect_subscriber")
 def api_disconnect_subscriber():
-    data = request.get_json() or request.form
+    data = request.get_json(silent=True) or request.form
     username = data.get('username')
     if not username:
         return jsonify({'success': False, 'message': 'اسم المشترك مطلوب.'}), 400
-    if not query_one('SELECT id FROM wisp_subscribers WHERE LOWER(username) = LOWER(?)', (username,)):
+    row=query_one('SELECT id,username FROM wisp_subscribers WHERE LOWER(username)=LOWER(?)',(username,))
+    if not row:
         return jsonify(success=False, message='المشترك غير موجود.'), 404
-    from services.coa_queue_service import enqueue_disconnect
-    success, msg = enqueue_disconnect(username, reason="Admin Manual Disconnect",
-        admin_username=get_current_manager().get('username') or 'admin')
-    return jsonify({'success': success, 'message': msg})
+    from services.session_control_service import submit_manual
+    try:
+        result=submit_manual('subscriber',row['id'],row['username'],get_current_manager().get('username') or 'admin',data.get('operation_id'))
+    except (ValueError,RuntimeError,OSError):
+        return jsonify(success=False,message='تعذر قبول طلب الفصل؛ لم يُؤكد أي فصل.'),409
+    return jsonify(success=True,**result)
 
 
 @subscribers_bp.route('/invoices', endpoint="invoices")
@@ -385,23 +401,39 @@ def create_invoice_action():
     try:
         sub_id = int(request.form['subscriber_id'])
         sub = query_one('''
-            SELECT s.full_name, p.name as package_name
+            SELECT s.full_name, s.username, p.name as package_name
             FROM wisp_subscribers s
             JOIN wisp_packages p ON s.package_id = p.id
             WHERE s.id = ?
         ''', (sub_id,))
-        sub_name = sub['full_name'] if sub else 'مشترك'
+        if not sub:
+            raise ValueError('المشترك غير موجود.')
+        sub_name = sub['full_name']
         pkg_name = sub['package_name'] if sub else 'باقة إنترنت'
-        amount = float(request.form['amount'])
+        try:
+            amount = Decimal(request.form['amount'])
+            if not amount.is_finite() or amount < 0 or amount > Decimal('99999999.99') or amount != amount.quantize(Decimal('0.01')):
+                raise ValueError()
+        except (InvalidOperation, ValueError, TypeError):
+            raise ValueError('مبلغ الفاتورة غير صالح.')
         status = request.form.get('status', 'unpaid')
+        if status not in ('paid', 'unpaid'):
+            raise ValueError('حالة الفاتورة غير صالحة.')
         due_date = request.form.get('due_date') or None
         notes = request.form.get('notes', '')
-        inv_num = f"INV-{datetime.datetime.now().strftime('%Y%m%d')}-{query_one('SELECT COUNT(*)+1 as cnt FROM wisp_invoices')['cnt']:03d}"
+        inv_num = f"INV-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}-{secrets.token_hex(8)}"
 
-        execute_write('''
-            INSERT INTO wisp_invoices (invoice_number, subscriber_id, subscriber_name, package_name, amount, status, due_date, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (inv_num, sub_id, sub_name, pkg_name, amount, status, due_date, notes))
+        from database.db import db_session, adapt_query
+        from services.sales_source_service import record_sale_source
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(adapt_query("""INSERT INTO wisp_invoices
+                    (invoice_number,subscriber_id,subscriber_name,package_name,amount,status,due_date,notes,paid_at)
+                    VALUES (?,?,?,?,?,?,?,?,CASE WHEN ?='paid' THEN CURRENT_TIMESTAMP ELSE NULL END)""", conn),
+                    (inv_num,sub_id,sub_name,pkg_name,amount,status,due_date,notes,status))
+                ident = cur.lastrowid
+            if status == 'paid' and sub:
+                record_sale_source(conn,'invoice',ident,sub['username'])
         flash(f'تم إصدار الفاتورة {inv_num} بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء إنشاء الفاتورة: {str(e)}', 'danger')
@@ -412,9 +444,18 @@ def create_invoice_action():
 
 def pay_invoice_action(inv_id):
     try:
-        execute_write('''
-            UPDATE wisp_invoices SET status = 'paid', paid_at = CURRENT_TIMESTAMP WHERE id = ?
-        ''', (inv_id,))
+        from database.db import db_session, adapt_query
+        from services.sales_source_service import record_sale_source
+        with db_session() as conn:
+            with conn.cursor() as cur:
+                cur.execute(adapt_query("SELECT i.status,s.username FROM wisp_invoices i LEFT JOIN wisp_subscribers s ON s.id=i.subscriber_id WHERE i.id=? FOR UPDATE",conn),(inv_id,))
+                invoice = cur.fetchone()
+                if not invoice:
+                    raise ValueError('الفاتورة غير موجودة.')
+                if invoice['status'] != 'paid':
+                    cur.execute(adapt_query("UPDATE wisp_invoices SET status='paid',paid_at=CURRENT_TIMESTAMP WHERE id=?",conn),(inv_id,))
+                    if invoice.get('username'):
+                        record_sale_source(conn,'invoice',inv_id,invoice['username'])
         flash('تم تسجيل سداد الفاتورة بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ: {str(e)}', 'danger')
@@ -439,3 +480,12 @@ def save_invoice_design_action():
     return redirect(url_for('invoices'))
 
 
+
+
+@subscribers_bp.route('/subscribers/<int:sub_id>/sessions.pdf', endpoint='subscriber_sessions_pdf')
+def subscriber_sessions_pdf(sub_id):
+    account = query_one('SELECT id,username FROM wisp_subscribers WHERE id=?', (sub_id,))
+    if not account:
+        return jsonify(success=False, message='الحساب غير موجود.'), 404
+    from web.session_export import session_pdf_response
+    return session_pdf_response(account, 'subscriber')

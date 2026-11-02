@@ -11,6 +11,7 @@ FIELD_LABELS = {
     'address': 'العنوان', 'notes': 'الملاحظات', 'password': 'كلمة المرور',
 }
 ACTION_LABELS = {'EDIT_CONTRACT': 'تعديل بيانات المشترك',
+                 'EDIT_MAC_POLICY': 'تعديل الماكات المسموحة',
                  'EDIT_CARD': 'تعديل بيانات الكرت',
                  'UPDATE_PROFILE': 'تحديث البيانات الشخصية'}
 
@@ -51,7 +52,19 @@ def present_subscriber_audit(logs):
         log = dict(original)
         log['action_label'] = ACTION_LABELS.get(log['action'], log['action'])
         details = log.get('change_details') or ''
-        if log['action'] in ('EDIT_CONTRACT', 'EDIT_CARD'):
+        if log['action'] == 'EDIT_MAC_POLICY':
+            try:
+                change = json.loads(details)['mac_policy']
+                lines = []
+                for key, label in (('before', 'قبل'), ('after', 'بعد')):
+                    state = change[key]
+                    mode = 'مفعّل' if state['enabled'] else 'غير مقيّد'
+                    lines.append(f"{label}: {mode}، {len(state['addresses'])} عنوان مسجل")
+                    lines.extend(f"{item['mac']} — {item['note']}" if item['note'] else item['mac'] for item in state['addresses'])
+                log['detail_lines'] = lines
+            except (ValueError, TypeError, KeyError):
+                log['detail_lines'] = ['تعديل قائمة الماكات المسموحة.']
+        elif log['action'] in ('EDIT_CONTRACT', 'EDIT_CARD'):
             try:
                 changes = json.loads(details)
                 if not isinstance(changes, dict):

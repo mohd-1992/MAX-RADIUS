@@ -1,0 +1,216 @@
+{
+  "application_version": "2.6.9",
+  "acceptance_id": "intensive-20min-local-20261030-r1",
+  "report": "docs/INTENSIVE_269_20MIN_LOCAL_20261030.md",
+  "web_image": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+  "core_image": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+  "DB_image": "sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+  "target_seconds": 1200,
+  "uninterrupted_stress_passed": false,
+  "DB_OOM_after_seconds": 928.74,
+  "DB_RAM_limit_MiB": 768,
+  "DB_buffer_pool_MiB": 128,
+  "DB_OOM_confirmed": true,
+  "core_SQL_deadlock_entries": 5,
+  "resources_pre_outage": {
+    "web": {
+      "first_MiB": 223.36,
+      "last_observed_MiB": 251.96,
+      "max_observed_MiB": 312.26,
+      "peak_observed_MiB": 324.42,
+      "average_CPU_cores_before_outage": 0.5852,
+      "last_pre_outage_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "io_first": "8:48 rbytes=84193280 wbytes=0 rios=4178 wios=0 dbytes=0 dios=0\n",
+      "io_last": "7:1 rbytes=20480 wbytes=0 rios=5 wios=0 dbytes=0 dios=0\n8:48 rbytes=111833088 wbytes=0 rios=6194 wios=0 dbytes=0 dios=0\n"
+    },
+    "core": {
+      "first_MiB": 83.77,
+      "last_observed_MiB": 93.23,
+      "max_observed_MiB": 93.23,
+      "peak_observed_MiB": 98.12,
+      "average_CPU_cores_before_outage": 0.0417,
+      "last_pre_outage_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "io_first": "8:48 rbytes=0 wbytes=1912832 rios=0 wios=257 dbytes=0 dios=0\n",
+      "io_last": "7:1 rbytes=57344 wbytes=0 rios=10 wios=0 dbytes=0 dios=0\n8:48 rbytes=1122304 wbytes=15712256 rios=92 wios=831 dbytes=0 dios=0\n"
+    },
+    "db": {
+      "first_MiB": 108.55,
+      "last_observed_MiB": 758.96,
+      "max_observed_MiB": 758.96,
+      "peak_observed_MiB": 762.63,
+      "average_CPU_cores_before_outage": 0.3883,
+      "last_pre_outage_events": {
+        "low": 0,
+        "high": 0,
+        "max": 0,
+        "oom": 0,
+        "oom_kill": 0,
+        "oom_group_kill": 0
+      },
+      "io_first": "8:48 rbytes=6451200 wbytes=52920320 rios=364 wios=5418 dbytes=0 dios=0\n",
+      "io_last": "7:1 rbytes=28672 wbytes=0 rios=7 wios=0 dbytes=0 dios=0\n8:48 rbytes=9285632 wbytes=648654848 rios=655 wios=275393 dbytes=0 dios=0\n"
+    }
+  },
+  "resource_sample_count": 75,
+  "DB_allocated_first_last_MiB": [
+    219.86,
+    253.5
+  ],
+  "saved_success_counter_lower_bounds": {
+    "RADIUS_packets": 18201,
+    "RADIUS_auth": 3570,
+    "RADIUS_1": 3569,
+    "RADIUS_3": 7134,
+    "RADIUS_7": 185,
+    "RADIUS_2": 3565,
+    "completed_RADIUS_sessions": 3562,
+    "accounting_SQL_oracles": 3562,
+    "HTTP": 4903,
+    "HTTP_mutation": 2129,
+    "financial_SQL_oracles": 1421,
+    "admin-subscriber_add-wallet": 141,
+    "admin-subscriber_deduct-wallet": 141,
+    "expected_insufficient_funds_rejections": 62,
+    "admin-voucher_add-wallet": 161,
+    "admin-voucher_deduct-wallet": 161,
+    "HTTP_read": 2774,
+    "admin-subscriber_extend": 141,
+    "admin-voucher_extend": 161,
+    "portal-voucher_paid_renew_change": 175,
+    "portal-subscriber_paid_renew_change": 175,
+    "admin-subscriber_quota": 140,
+    "admin-voucher_quota": 160,
+    "concurrent_recharge_one_winner": 88,
+    "recharge_gross": 880,
+    "admin-voucher_renew": 80,
+    "admin-voucher_change-package": 80,
+    "admin-subscriber_change-package": 70,
+    "RADIUS_8": 178,
+    "admin-subscriber_renew": 69,
+    "admin-subscriber_disable_activate": 17,
+    "RADIUS_response_timeouts": 7,
+    "RADIUS_retransmissions": 7
+  },
+  "HTTP_latency_scope": "saved primary HTTP subset only; counters incomplete after original sampler failed during DB outage",
+  "HTTP_latency": {
+    "read": {
+      "saved_n": 2633,
+      "median_s": 0.56,
+      "p95_s": 1.0685,
+      "max_s": 9.5486
+    },
+    "mutation": {
+      "saved_n": 1368,
+      "median_s": 1.281,
+      "p95_s": 3.5139,
+      "max_s": 12.0193
+    }
+  },
+  "financial_SQL_audit": {
+    "checks": [
+      {
+        "actor": "admin-subscriber",
+        "actual_wallet": "100564.00",
+        "expected_from_committed_audit_and_ledger": "100564",
+        "passed": true,
+        "recharge_credits": "0",
+        "portal_paid_packages": "0"
+      },
+      {
+        "actor": "admin-voucher",
+        "actual_wallet": "100652.00",
+        "expected_from_committed_audit_and_ledger": "100652",
+        "passed": true,
+        "recharge_credits": "0",
+        "portal_paid_packages": "0"
+      },
+      {
+        "actor": "portal-subscriber",
+        "actual_wallet": "97800.00",
+        "expected_from_committed_audit_and_ledger": "97800.00",
+        "passed": true,
+        "recharge_credits": "450",
+        "portal_paid_packages": "2650.00"
+      },
+      {
+        "actor": "portal-voucher",
+        "actual_wallet": "97780.00",
+        "expected_from_committed_audit_and_ledger": "97780.00",
+        "passed": true,
+        "recharge_credits": "450",
+        "portal_paid_packages": "2670.00"
+      }
+    ],
+    "all_wallet_reconciliations_passed": true,
+    "sales": {
+      "n": 431,
+      "gross": "6020.00",
+      "cost": "862.00"
+    },
+    "invoices": [
+      {
+        "status": "paid",
+        "n": 460,
+        "gross": "5741.00"
+      },
+      {
+        "status": "refunded",
+        "n": 141,
+        "gross": "423.00"
+      }
+    ],
+    "split_session_groups": 0,
+    "premature_NAS_Reboot_closures": 0,
+    "open_sessions_after_pressure": 4,
+    "total_sessions": 3569,
+    "epoch": 1793377408.0757446,
+    "elapsed": 1287.3038997650146
+  },
+  "extra_operations_checks_passed": 10,
+  "actual_router_in_this_round": false,
+  "RADIUS_scope": "actual FreeRADIUS/SQL with synthetic UDP clients; 64-bit counters intentionally artificial",
+  "license_scope": "real signed Ed25519/TLS simulation authority in process; no production issuer",
+  "compiled_native_collectors": "ran concurrently; monitor failed during DB outage, not accepted as uninterrupted",
+  "same_DB_container_recovered_without_restore": true,
+  "financial_requests_automatically_retried": false,
+  "RADIUS_same_packet_retransmissions": 7,
+  "recovery_probe_fresh_sessions": 3,
+  "unresolved_synthetic_accounting_rows_preserved": 4,
+  "cleanup": {
+    "removed_owned_containers": 5,
+    "remaining_containers": "",
+    "remaining_networks": "",
+    "remaining_volumes": "",
+    "preexisting_checked": 1185,
+    "preexisting_changed": 0,
+    "private_evidence_preserved": true,
+    "synthetic_pending_rows_evidence_preserved_before_disposing_fixture": 4,
+    "real_NAS_accessed": false
+  },
+  "source_or_images_changed_this_round": false,
+  "production_approved": false,
+  "published": false,
+  "deployed": false,
+  "latest_changed": false,
+  "remote_git_push": false,
+  "private_evidence_ref": "PRIVATE/intensive269-20m-20261030-r1",
+  "required_before_acceptance": [
+    "resolve accounting/online-policy locking overlap while preserving contract safeguards",
+    "isolate and bound DB memory growth under target load/settings",
+    "repeat final-pair stress and unresolved-request/accounting recovery acceptance"
+  ]
+}

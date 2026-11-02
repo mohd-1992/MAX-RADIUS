@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" class="scroll-smooth">
 <head>
+    {% from "components/product_brand.html" import logo as product_logo, credit as product_credit %}
+    {% include "components/product_brand_head.html" %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تفعيل ترخيص النظام والأمان الرقمي | MAX RADIUS</title>
@@ -223,7 +225,7 @@
 
     <!-- Footer -->
     <footer class="border-t border-white/5 bg-[#0a0f1d] py-6 text-center text-xs text-slate-500">
-        {{ product_identity.name }} v{{ app_version }} • جميع الحقوق محفوظة © {{ current_year }} {{ product_identity.owner }}
+        {{ product_credit() }}
     </footer>
 
     <!-- Copy Helper Script -->

@@ -1,0 +1,175 @@
+{
+  "customer_execution_requires_explicit_incident_binding": true,
+  "isolated_suite": {
+    "tests": 63,
+    "passed": 63,
+    "signed_udp_responses": 52
+  },
+  "current_candidate": "customer_operator.py",
+  "files": [
+    {
+      "path": "deploy/clock-record-repair/customer_operator.py",
+      "sha256": "738a425899ce8b7d1829ded61e87c1d91b0aecf281e52fd23f52e5defa9cedc1",
+      "definitions": [
+        {
+          "name": "CustomerOperator",
+          "line": 20
+        }
+      ]
+    },
+    {
+      "path": "deploy/clock-record-repair/host_dispatch.py",
+      "sha256": "2551abfadaa23323f1a22cfdfb97a13bf3b391a7372f74c5ca780d900f4389af",
+      "definitions": [
+        {
+          "name": "atomic_json",
+          "line": 19
+        },
+        {
+          "name": "Dispatcher",
+          "line": 31
+        },
+        {
+          "name": "main",
+          "line": 168
+        }
+      ]
+    },
+    {
+      "path": "deploy/clock-record-repair/lab_repair.py",
+      "sha256": "380ddff8aa4f351b45c6fb52c0734b997c6bf18966c99d0b99e17f531d934bb3",
+      "definitions": [
+        {
+          "name": "Refused",
+          "line": 12
+        },
+        {
+          "name": "canonical",
+          "line": 16
+        },
+        {
+          "name": "digest",
+          "line": 20
+        },
+        {
+          "name": "LabRepair",
+          "line": 24
+        }
+      ]
+    },
+    {
+      "path": "deploy/clock-record-repair/operator_kernel.py",
+      "sha256": "76559819f4f3830d11430ca5a3a4fa259dd469e8dbebce5fb28aa7e1f2ecc42f",
+      "definitions": [
+        {
+          "name": "run",
+          "line": 15
+        },
+        {
+          "name": "main",
+          "line": 80
+        }
+      ]
+    },
+    {
+      "path": "deploy/clock-record-repair/plan_codec.py",
+      "sha256": "8a512056fd90a8a96eca14c7bf48f8847be3e977ec38208b7b23ba1572e27d3b",
+      "definitions": [
+        {
+          "name": "encode",
+          "line": 7
+        },
+        {
+          "name": "decode",
+          "line": 18
+        },
+        {
+          "name": "dumps",
+          "line": 33
+        },
+        {
+          "name": "loads",
+          "line": 36
+        }
+      ]
+    },
+    {
+      "path": "deploy/clock-record-repair/priority_repair.py",
+      "sha256": "87671a312a87b996da36104abe02f179b43cd6a9806640af0bdf8b27a038ee2c",
+      "definitions": [
+        {
+          "name": "Deferred",
+          "line": 15
+        },
+        {
+          "name": "PriorityLabRepair",
+          "line": 19
+        }
+      ]
+    },
+    {
+      "path": "tests/run_clock_record_repair_lab.py",
+      "sha256": "751bd1212a757969024674b7a7520e38d2a370b0f7109d9cc4e094106057a547",
+      "definitions": [
+        {
+          "name": "connect",
+          "line": 51
+        },
+        {
+          "name": "Checks",
+          "line": 56
+        },
+        {
+          "name": "install_triggers",
+          "line": 373
+        }
+      ]
+    },
+    {
+      "path": "tests/clock_record_priority_cases.py",
+      "sha256": "09aa1fa9f749b8cc4bf59a902e0e4d8d0a0730c41d9f3d0e6bccfebe5108824e",
+      "definitions": [
+        {
+          "name": "constants",
+          "line": 20
+        },
+        {
+          "name": "install_fixture",
+          "line": 28
+        },
+        {
+          "name": "make_cases",
+          "line": 55
+        },
+        {
+          "name": "summary",
+          "line": 370
+        },
+        {
+          "name": "cleanup",
+          "line": 386
+        }
+      ]
+    },
+    {
+      "path": "tests/clock_record_udp_fixture.py",
+      "sha256": "53616145c4ba4bf2ec3244fea66430117c6e23f27a2b15fb05b26919507b097f",
+      "definitions": [
+        {
+          "name": "RadiusFixture",
+          "line": 16
+        }
+      ]
+    },
+    {
+      "path": "tests/clock_record_operator_cases.py",
+      "sha256": "a95a2b8ad73e5e98c9e87eea0a27e0930e75dc81d1223d2c008518e2bc497485",
+      "definitions": [
+        {
+          "name": "extend_cases",
+          "line": 12
+        }
+      ]
+    }
+  ]
+}

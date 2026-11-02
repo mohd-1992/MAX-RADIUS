@@ -9,6 +9,7 @@ Features:
 4. FreeRADIUS live synchronization (radcheck, radusergroup).
 """
 
+from services.heavy_operation_service import heavy_operation
 from core.license_feature_policy import guarded as _license_guarded
 import io
 import os
@@ -249,47 +250,73 @@ def generate_sample_template(import_type='vouchers'):
 # 3. Read Excel Data Rows from File Storage
 # -----------------------------------------------------------------------------
 @_license_guarded('data_import')
+@heavy_operation
 def parse_excel_file(file_storage):
     """
     Parses an uploaded file (.xlsx or .xls) and returns a list of dictionaries with raw row numbers.
     """
     filename = file_storage.filename.lower()
     raw_rows = []
+    text_size = 0
 
     if filename.endswith('.xlsx'):
         if openpyxl is None:
             raise RuntimeError("مكتبة openpyxl غير مثبتة لمعالجة ملفات .xlsx.")
         
-        file_bytes = file_storage.read()
-        wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
-        ws = wb.active
-        
-        header_map = _excel_header_map(
-            (col_idx, ws.cell(row=1, column=col_idx).value)
-            for col_idx in range(1, ws.max_column + 1))
-
-        for row_idx in range(2, ws.max_row + 1):
-            row_dict = {}
-            has_data = False
-            for col_idx, std_key in header_map.items():
-                cell_val = ws.cell(row=row_idx, column=col_idx).value
-                if cell_val is not None and str(cell_val).strip() != '':
-                    has_data = True
-                    row_dict[std_key] = str(cell_val).strip()
-                else:
-                    row_dict[std_key] = ''
-            
-            if has_data:
-                row_dict['_row_number'] = row_idx
-                raw_rows.append(row_dict)
+        import zipfile
+        stream=file_storage.stream if hasattr(file_storage,'stream') else file_storage
+        if not hasattr(stream,'seek'):
+            import tempfile
+            stream=tempfile.SpooledTemporaryFile(max_size=1024**2)
+            while True:
+                block=file_storage.read(65536)
+                if not block:break
+                stream.write(block)
+                if stream.tell()>32*1024**2:
+                    stream.close();raise ValueError('ملف Excel يتجاوز 32 MiB مضغوطًا.')
+        stream.seek(0)
+        with zipfile.ZipFile(stream) as archive:
+            if len(archive.infolist())>1000 or sum(m.file_size for m in archive.infolist())>256*1024**2:
+                raise ValueError('ملف Excel يتجاوز حجم المعالجة المسموح بعد فك الضغط (256 MiB).')
+        stream.seek(0)
+        wb=openpyxl.load_workbook(stream,data_only=True,read_only=True)
+        try:
+            ws=wb.active
+            if ws.max_column and ws.max_column>64:
+                raise ValueError('الملف يتجاوز 64 عمودًا؛ احذف الأعمدة الفارغة الزائدة.')
+            if ws.max_row and ws.max_row>100001:
+                raise ValueError('الملف يتجاوز 100000 صف بيانات؛ قسّمه قبل الاستيراد.')
+            rows=ws.iter_rows(values_only=True)
+            header=next(rows,())
+            header_map=_excel_header_map(enumerate(header,1))
+            for row_idx,values in enumerate(rows,2):
+                if row_idx>100001:
+                    raise ValueError('الملف يتجاوز 100000 صف بيانات.')
+                if len(values)>64 or any(len(str(v))>8192 for v in values if v is not None):
+                    raise ValueError('صف Excel يتجاوز حد الأعمدة أو طول الخلية (8192 حرفًا).')
+                row_dict={key:'' if i>len(values) or values[i-1] is None else str(values[i-1]).strip()
+                          for i,key in header_map.items()}
+                text_size+=sum(len(v) for v in row_dict.values())
+                if text_size>48*1024**2:
+                    raise ValueError('محتوى Excel النصي يتجاوز 48 MiB؛ قسّم الملف.')
+                if any(row_dict.values()):
+                    row_dict['_row_number']=row_idx
+                    raw_rows.append(row_dict)
+        finally:
+            wb.close()
+            if not hasattr(file_storage,'seek') and not hasattr(file_storage,'stream'):stream.close()
 
     elif filename.endswith('.xls'):
         if xlrd is None:
             raise RuntimeError("مكتبة xlrd غير مثبتة لمعالجة ملفات .xls.")
             
-        file_bytes = file_storage.read()
+        file_bytes = file_storage.read(32*1024**2+1)
+        if len(file_bytes)>32*1024**2:
+            raise ValueError("ملف XLS يتجاوز 32 MiB؛ استخدم XLSX.")
         book = xlrd.open_workbook(file_contents=file_bytes)
         sheet = book.sheet_by_index(0)
+        if sheet.ncols>64 or sheet.nrows>100001:
+            raise ValueError("الملف يتجاوز 64 عمودًا أو 100000 صف.")
         
         if sheet.nrows < 1:
             raise ValueError("الملف فارغ أو لا يحتوي على صف ترويسة.")
@@ -325,6 +352,7 @@ def parse_excel_file(file_storage):
 # 4. Strict Zero-Tolerance Validation Engine
 # -----------------------------------------------------------------------------
 @_license_guarded('data_import')
+@heavy_operation
 def validate_import_data(raw_rows, import_type='vouchers', default_reseller_id=None):
     """
     Performs comprehensive validation on all rows before any database write.
@@ -376,7 +404,11 @@ def validate_import_data(raw_rows, import_type='vouchers', default_reseller_id=N
     seen_file_usernames = {}  # lower_user -> first_row_number
     cleaned_rows = []
 
+    seen_serials=set()
     for r in raw_rows:
+        if len(errors)>=200:
+            errors.append('توقف التحقق بعد 200 خطأ؛ أصلحها ثم أعد رفع الملف. لم يستورد أي صف.')
+            break
         row_num = r.get('_row_number', '?')
         u = r.get('username', '').strip()
         p = r.get('password', '').strip()
@@ -458,12 +490,17 @@ def validate_import_data(raw_rows, import_type='vouchers', default_reseller_id=N
         first_used_raw = r.get('first_used_at', '').strip() or None
         expires_raw = r.get('expires_at', '').strip() or None
 
+        serial=r.get('serial_number','').strip() or secrets.token_hex(12)
+        if import_type=='vouchers' and (serial in seen_serials or len(serial)>32):
+            errors.append(f'الصف رقم {row_num}: الرقم التسلسلي مكرر أو يتجاوز 32 حرفًا.')
+            continue
+        seen_serials.add(serial)
         cleaned_item = {
             'row_num': row_num,
             'username': u,
             'password': p,
             'pin_code': r.get('pin_code', '').strip() or u,
-            'serial_number': r.get('serial_number', '').strip() or f"{datetime.datetime.now().strftime('%y%m')}{secrets.randbelow(100000000):08d}",
+            'serial_number': serial,
             'package_id': matched_pkg['id'],
             'package_name': matched_pkg['name'],
             'package_price': float(matched_pkg['price']),
@@ -494,6 +531,7 @@ def validate_import_data(raw_rows, import_type='vouchers', default_reseller_id=N
 # 5. Atomic Batch Import Execution
 # -----------------------------------------------------------------------------
 @_license_guarded('data_import')
+@heavy_operation
 def execute_import(import_type, cleaned_rows, batch_name=None, admin_username='admin', import_consumption=False):
     """
     Executes the entire database insertion inside an atomic transaction using chunked bulk queries.

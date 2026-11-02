@@ -20,6 +20,29 @@ logger = logging.getLogger('loyalty_rewards_service')
 _get_db = get_connection
 
 
+def _reward_terms(points_cost, reward_type, reward_value):
+    """Validate both catalog writes and old catalog entries before spending points."""
+    try:
+        cost = Decimal(str(points_cost))
+        value = Decimal(str(reward_value))
+        if not cost.is_finite() or cost <= 0 or cost != cost.to_integral_value() or cost > 2147483647:
+            raise ValueError()
+        if reward_type not in ('data_bonus_mb', 'validity_days', 'balance_credit', 'custom', 'discount_voucher'):
+            raise ValueError()
+        if not value.is_finite() or value < 0 or value > Decimal('99999999.99'):
+            raise ValueError()
+        if reward_type not in ('custom', 'discount_voucher') and value <= 0:
+            raise ValueError()
+        # The existing catalog stores BIGINT; never silently round a monetary reward.
+        if value != value.to_integral_value():
+            raise ValueError()
+        if reward_type == 'balance_credit' and value != value.quantize(Decimal('0.01')):
+            raise ValueError()
+        return int(cost), value
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError('تكلفة النقاط وقيمة المكافأة يجب أن تكونا قيمتين صالحتين لنوع المكافأة.')
+
+
 def ensure_loyalty_tables():
     """Ensure subscriber points, customizable rewards catalog, and transaction log tables exist and are up to date."""
     db = _get_db()
@@ -121,8 +144,12 @@ def get_reward_by_id(reward_id):
 def create_reward(reward_name, points_cost, reward_type, reward_value, description='', icon='fa-gift', is_active=1):
     """Add a new customizable reward to the catalog."""
     ensure_loyalty_tables()
-    if not reward_name or points_cost <= 0:
+    if not reward_name or not reward_name.strip():
         return False, "اسم المكافأة وتكلفة النقاط مطلوبة ويجب أن تكون أكبر من صفر."
+    try:
+        points_cost, reward_value = _reward_terms(points_cost, reward_type, reward_value)
+    except ValueError as exc:
+        return False, str(exc)
 
     db = _get_db()
     try:
@@ -145,8 +172,12 @@ def create_reward(reward_name, points_cost, reward_type, reward_value, descripti
 def update_reward(reward_id, reward_name, points_cost, reward_type, reward_value, description='', icon='fa-gift', is_active=1):
     """Update an existing reward in the catalog."""
     ensure_loyalty_tables()
-    if not reward_id or not reward_name or points_cost <= 0:
+    if not reward_id or not reward_name or not reward_name.strip():
         return False, "بيانات المكافأة غير مكتملة."
+    try:
+        points_cost, reward_value = _reward_terms(points_cost, reward_type, reward_value)
+    except ValueError as exc:
+        return False, str(exc)
 
     db = _get_db()
     try:
@@ -306,7 +337,10 @@ def redeem_reward(username, reward_id):
             if not reward:
                 return False, "المكافأة المطلوبة غير متوفرة أو معطلة حالياً."
 
-            cost = reward['points_cost']
+            try:
+                cost, validated_value = _reward_terms(reward['points_cost'], reward.get('reward_type'), reward.get('reward_value'))
+            except ValueError as exc:
+                return False, str(exc)
 
             lock_clause = "FOR UPDATE" if is_mysql else ""
             entity = None
@@ -321,6 +355,11 @@ def redeem_reward(username, reward_id):
                 return False, "الحساب أو الكرت غير موجود."
             if entity['etype'] == 'voucher' and str(entity.get('status') or '').lower() not in ('unused', 'used', 'active', 'expired', 'disabled', 'suspended'):
                 return False, "لا يمكن صرف مكافأة لكرت مستهلك للشحن أو ملغى."
+            if (entity['etype'] == 'voucher' and reward.get('reward_type') == 'validity_days'
+                    and not entity.get('first_used_at') and not entity.get('last_renewed_at')):
+                # Setting an expiry on an unused voucher freezes its package policy
+                # and starts a clock before first use. Keep both points and contract.
+                return False, "يمكن استبدال مكافأة تمديد الصلاحية بعد استخدام الكرت لأول مرة."
 
             # 3. ATOMIC point deduction: prevents race conditions & negative balances
             cur.execute(f"""
@@ -348,7 +387,7 @@ def redeem_reward(username, reward_id):
 
             now_dt = get_db_storage_now().replace(tzinfo=None)
             reward_type = reward.get('reward_type') or 'data_bonus_mb'
-            val = reward.get('reward_value', 0)
+            val = validated_value
             applied_details = ""
 
             if reward_type == 'data_bonus_mb':
@@ -414,8 +453,8 @@ def redeem_reward(username, reward_id):
                 cur.execute(f"""
                     UPDATE wisp_vouchers 
                     SET expires_at = {ph},
-                        status = CASE WHEN status IN ('disabled', 'suspended') THEN status ELSE 'active' END,
-                        expire_reason = CASE WHEN status IN ('disabled', 'suspended') THEN expire_reason ELSE '' END
+                        status = CASE WHEN status IN ('unused', 'disabled', 'suspended') THEN status ELSE 'active' END,
+                        expire_reason = CASE WHEN status IN ('unused', 'disabled', 'suspended') THEN expire_reason ELSE '' END
                     WHERE LOWER(username) = LOWER({ph})
                 """, (new_exp_iso, username))
 

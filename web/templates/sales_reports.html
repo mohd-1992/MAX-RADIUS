@@ -1,78 +1,41 @@
 {% extends "base.html" %}
 
-{% block title %}المبيعات والتقارير المالية{% endblock %}
+{% block container_class %}max-w-none{% endblock %}
+{% block footer_container_class %}max-w-none{% endblock %}
+
+{% block title %}المبيعات والاستهلاك{% endblock %}
 
 {% block content %}
-<style>
-    /* Theme-adaptive overrides for light mode */
-    html.theme-light .sales-panel {
-        background-color: #ffffff !important;
-        border-color: #e2e8f0 !important;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
-    }
-    html.theme-light .sales-pill-inactive {
-        background-color: #f1f5f9 !important;
-        color: #334155 !important;
-        border-color: #cbd5e1 !important;
-    }
-    html.theme-light .sales-pill-inactive:hover {
-        background-color: #e2e8f0 !important;
-        color: #0f172a !important;
-    }
-    html.theme-light .sales-input {
-        background-color: #f8fafc !important;
-        border-color: #cbd5e1 !important;
-        color: #0f172a !important;
-    }
-    html.theme-light .sales-input:focus {
-        background-color: #ffffff !important;
-        border-color: #10b981 !important;
-    }
-    html.theme-light .sales-stat-card {
-        background-color: #ffffff !important;
-        border-color: #e2e8f0 !important;
-    }
-    html.theme-light .sales-isp-card {
-        background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%) !important;
-        border-color: #a7f3d0 !important;
-    }
-    html.theme-light .sales-isp-val {
-        color: #047857 !important;
-    }
-    html.theme-light .sales-table-th {
-        background-color: #f8fafc !important;
-        color: #475569 !important;
-        border-color: #e2e8f0 !important;
-    }
-    html.theme-light .sales-table-tr {
-        border-color: #f1f5f9 !important;
-        color: #1e293b !important;
-    }
-    html.theme-light .sales-table-tr:hover {
-        background-color: #f8fafc !important;
-    }
-    html.theme-light .sales-pagination {
-        background-color: #f8fafc !important;
-        border-color: #e2e8f0 !important;
-    }
-    html.theme-light .sales-page-btn {
-        background-color: #ffffff !important;
-        border-color: #cbd5e1 !important;
-        color: #334155 !important;
-    }
-    html.theme-light .sales-page-btn:hover {
-        background-color: #f1f5f9 !important;
-        color: #0f172a !important;
-    }
-    html.theme-light .sales-text-muted {
-        color: #64748b !important;
-    }
-    html.theme-light .sales-text-dark {
-        color: #0f172a !important;
-    }
-</style>
+{% set table_view = request.args.get('table_view', 'package') %}
+{% if table_view not in ('package', 'server', 'log') %}{% set table_view = 'package' %}{% endif %}
+{% set sort_query = {} %}
+{% for table, state in table_sorts.items() %}{% set _ = sort_query.update({table+'_sort':state.key, table+'_dir':state.direction}) %}{% endfor %}
+{% macro sort_header(table, key, label, classes='') -%}
+{% set state = table_sorts[table] %}
+{% set active = state.key == key %}
+{% set direction = 'desc' if active and state.direction == 'asc' else 'asc' %}
+{% set args = dict(request.args.to_dict(), **sort_query) %}
+{% set _ = args.update({table+'_sort':key, table+'_dir':direction, 'table_view':table}) %}
+{% if table == 'log' %}{% set _ = args.pop('page', none) %}{% endif %}
+<th class="{{ classes }}" aria-sort="{{ ('ascending' if state.direction=='asc' else 'descending') if active else 'none' }}">
+    <a href="{{ url_for('sales_reports', **args) }}#sales-tables" class="sales-sort-link" data-sort-table="{{ table }}" data-sort-key="{{ key }}" data-sort-direction="{{ direction }}" title="ترتيب حسب {{ label }}">
+        {{ label }}<i aria-hidden="true" class="fa-solid {{ ('fa-arrow-up' if state.direction=='asc' else 'fa-arrow-down') if active else 'fa-sort' }} {{ 'sales-sort-active' if active else 'sales-sort-idle' }}"></i>
+    </a>
+</th>
+{%- endmacro %}
+{% macro sort_reset(table) -%}
+{% set args = dict(request.args.to_dict(), **sort_query) %}
+{% set _ = args.update({table+'_sort':sort_defaults[table][0], table+'_dir':sort_defaults[table][1], 'table_view':table}) %}
+{% if table == 'log' %}{% set _ = args.pop('page', none) %}{% endif %}
+<a href="{{ url_for('sales_reports', **args) }}#sales-tables" data-sort-reset="{{ table }}" class="sales-sort-reset sales-text-muted text-xs text-slate-400">الترتيب الافتراضي</a>
+{%- endmacro %}
+{% macro table_money(value) -%}
+{% if value is none or value == 'غير محدد' %}<span class="sales-text-muted">—</span>{% else %}<span class="sales-money"><bdi dir="ltr">{{ value }}</bdi><small dir="rtl">{{ currency_symbol }}</small></span>{% endif %}
+{%- endmacro %}
+{% include 'components/sales_styles.html' %}
 
 <div class="space-y-6">
+    {% with active_report='sales' %}{% include 'components/report_tabs.html' %}{% endwith %}
     <!-- Header Section -->
     <div class="sales-panel flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-[#0b0f19] border border-[#1c2840] p-5 sm:p-6 rounded-2xl shadow-sm">
         <div>
@@ -80,20 +43,20 @@
                 <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
                     <i class="fa-solid fa-chart-line text-lg"></i>
                 </div>
-                <span>المبيعات والتقارير المالية</span>
+                <span>المبيعات والاستهلاك</span>
                 <span class="text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">مباشر • Live</span>
             </h2>
             <p class="sales-text-muted text-xs text-slate-400 mt-1.5 font-medium">متابعة إيرادات المشتركين، حصة صاحب الشبكة الفعلية، عمولات وأرباح الموزعين، وتفاصيل العمليات لحظياً</p>
         </div>
         <div class="flex items-center gap-2.5 flex-wrap">
             <!-- Export Excel -->
-            {% if can_access_endpoint('export_sales') %}<a href="{{ url_for('export_sales', period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, format='excel') }}"
+            {% if can_access_endpoint('export_sales') %}<a href="{{ url_for('export_sales', period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, record_kind=record_kind, service_type=selected_service, nas=selected_nas, server=selected_server, source_quality=selected_quality, format='excel', **sort_query) }}"
                class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-600/20 active:scale-95">
                 <i class="fa-solid fa-file-excel text-sm"></i>
                 <span>تصدير كشف Excel</span>
             </a>{% endif %}
             <!-- Export CSV -->
-            {% if can_access_endpoint('export_sales') %}<a href="{{ url_for('export_sales', period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, format='csv') }}"
+            {% if can_access_endpoint('export_sales') %}<a href="{{ url_for('export_sales', period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, record_kind=record_kind, service_type=selected_service, nas=selected_nas, server=selected_server, source_quality=selected_quality, format='csv', **sort_query) }}"
                class="sales-page-btn px-3.5 py-2.5 bg-[#070b14] hover:bg-slate-800 text-slate-200 border border-[#1c2840] rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
                 <i class="fa-solid fa-file-csv text-sky-400"></i>
                 <span>CSV</span>
@@ -106,9 +69,23 @@
         </div>
     </div>
 
+    <div class="flex gap-3 flex-wrap" aria-label="نوع السجل المالي">
+        <a aria-current="{{ 'page' if record_kind=='voucher' else 'false' }}" href="{{ url_for('sales_reports', table_view=table_view, record_kind='voucher', period=period, date_from=custom_date_from, date_to=custom_date_to, **sort_query) }}"
+           class="sales-page-btn px-4 py-2 rounded-xl border font-bold text-sm {% if record_kind=='voucher' %}bg-emerald-600 text-white border-emerald-500{% else %}bg-[#11192b] text-slate-300 border-[#1c2840]{% endif %}">مبيعات الكروت</a>
+        <a aria-current="{{ 'page' if record_kind=='invoice' else 'false' }}" href="{{ url_for('sales_reports', table_view=table_view, record_kind='invoice', period=period, date_from=custom_date_from, date_to=custom_date_to, **sort_query) }}"
+           class="sales-page-btn px-4 py-2 rounded-xl border font-bold text-sm {% if record_kind=='invoice' %}bg-emerald-600 text-white border-emerald-500{% else %}bg-[#11192b] text-slate-300 border-[#1c2840]{% endif %}">اشتراكات المشتركين</a>
+    </div>
+    <p class="sales-text-muted text-xs text-slate-400">{% if record_kind=='invoice' %}فواتير المشتركين المدفوعة، دون إيداع رصيد المحفظة أو سحبه.{% else %}عمليات بيع وتفعيل وتجديد الكروت المسجلة.{% endif %} إجماليات العرضين مستقلة ولا تُجمع معًا. الفترة بحسب {{ filter_timezone }}.</p>
+    {% if filter_error %}<p role="alert" class="text-red-500 font-bold">{{ filter_error }}</p>{% endif %}
+    {% if unknown_date_count %}<p class="sales-text-muted text-xs text-slate-400">يوجد {{ unknown_date_count }} سجلًا دون تاريخ عملية مثبت؛ تظهر مع كامل المدة ولا تدخل فلاتر الأيام.</p>{% endif %}
+    {% if unknown_cost_count %}<p class="text-amber-500 text-sm">تكلفة الموزع غير مسجلة في {{ unknown_cost_count }} عملية؛ إجمالي الدخل يشملها، وحصة الشبكة والعمولة تعرضان المبالغ المعلومة فقط.</p>{% endif %}
     <!-- Advanced Filtering Panel -->
     <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
         <form method="GET" action="{{ url_for('sales_reports') }}" id="salesFilterForm" class="space-y-4">
+            {% for key,value in sort_query.items() %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+            <input type="hidden" name="table_view" id="salesTableView" value="{{ table_view }}">
+<input type="hidden" name="record_kind" value="{{ record_kind }}">
+            <input type="hidden" name="period" id="salesSelectedPeriod" value="{{ period }}">
             <!-- Quick Periods Pills -->
             <div class="flex items-center gap-2 flex-wrap border-b border-[#1c2840]/70 pb-4">
                 <span class="sales-text-muted text-xs font-bold text-slate-400 ml-2 flex items-center gap-1.5">
@@ -116,17 +93,17 @@
                     الفترة:
                 </span>
                 {% set periods = [
-                    ('all', 'كامل المدة'),
                     ('today', 'اليوم'),
                     ('yesterday', 'الأمس'),
-                    ('this_week', 'هذا الأسبوع'),
+                    ('this_week', 'آخر 7 أيام'),
                     ('this_month', 'هذا الشهر'),
                     ('last_month', 'الشهر السابق'),
                     ('this_year', 'هذا العام'),
+                    ('all', 'كامل المدة'),
                     ('custom', 'نطاق مخصص')
                 ] %}
                 {% for p_key, p_label in periods %}
-                <button type="submit" name="period" value="{{ p_key }}" 
+                <button type="button" data-sales-period="{{ p_key }}" onclick="document.getElementById('salesSelectedPeriod').value=this.dataset.salesPeriod;document.getElementById('salesFilterForm').requestSubmit()"
                         class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition {% if period == p_key %}bg-emerald-500 text-white shadow-md shadow-emerald-500/20{% else %}sales-pill-inactive bg-[#11192b] text-slate-300 hover:text-white hover:bg-[#162136] border border-[#1c2840]{% endif %}">
                     {{ p_label }}
                 </button>
@@ -138,18 +115,18 @@
                 <!-- Custom From Date -->
                 <div>
                     <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">من تاريخ:</label>
-                    <input type="date" name="date_from" value="{{ custom_date_from }}" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition">
+                    <input type="date" name="date_from" value="{{ custom_date_from }}" onchange="document.getElementById('salesSelectedPeriod').value='custom'" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition">
                 </div>
 
                 <!-- Custom To Date -->
                 <div>
                     <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">إلى تاريخ:</label>
-                    <input type="date" name="date_to" value="{{ custom_date_to }}" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition">
+                    <input type="date" name="date_to" value="{{ custom_date_to }}" onchange="document.getElementById('salesSelectedPeriod').value='custom'" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition">
                 </div>
 
                 <!-- Reseller Filter -->
                 <div>
-                    <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">نقطة البيع / الموزع:</label>
+                    <label class="sales-text-muted block text-[11px] font-bold text-slate-400 mb-1">الموزع:</label>
                     <select name="reseller_id" class="sales-input w-full bg-[#070b14] border border-[#1c2840] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 transition">
                         <option value="all" {% if selected_reseller == 'all' or not selected_reseller %}selected{% endif %}>جميع الموزعين ونقاط البيع</option>
                         <option value="direct" {% if selected_reseller == 'direct' %}selected{% endif %}>مباشر (مبيعات الإدارة)</option>
@@ -184,6 +161,31 @@
                     </a>{% endif %}
                 </div>
             </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <label class="sales-text-muted text-xs text-slate-400">حالة التحديد
+                    <select name="source_quality" class="sales-input w-full mt-1 rounded-xl p-2 bg-[#070b14] border border-[#1c2840] text-white">
+                        {% for value,label in [('', 'كل الحالات'),('confirmed','مؤكد'),('incomplete','غير مكتمل'),('ambiguous','يحتاج مراجعة')] %}<option value="{{ value }}" {% if selected_quality==value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="sales-text-muted text-xs text-slate-400">نوع الخدمة
+                    <select name="service_type" class="sales-input w-full mt-1 rounded-xl p-2 bg-[#070b14] border border-[#1c2840] text-white">
+                        <option value="">كل الخدمات</option>
+                        {% for value,label in [('hotspot','Hotspot'),('pppoe','PPPoE'),('unknown','غير محدد')] %}<option value="{{ value }}" {% if selected_service==value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="sales-text-muted text-xs text-slate-400">جهاز الميكروتيك
+                    <select name="nas" class="sales-input w-full mt-1 rounded-xl p-2 bg-[#070b14] border border-[#1c2840] text-white">
+                        <option value="">كل الأجهزة</option><option value="unknown" {% if selected_nas=='unknown' %}selected{% endif %}>غير محدد</option>
+                        {% for address,label in nas_options %}<option value="{{ address }}" {% if selected_nas==address %}selected{% endif %}>{{ label or address }} — {{ address }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="sales-text-muted text-xs text-slate-400">السيرفر الداخلي
+                    <select name="server" class="sales-input w-full mt-1 rounded-xl p-2 bg-[#070b14] border border-[#1c2840] text-white">
+                        <option value="">كل السيرفرات</option><option value="unknown" {% if selected_server=='unknown' %}selected{% endif %}>غير محدد</option>
+                        {% for point in server_options if point.server_key!='unknown' %}<option value="{{ point.server_key }}" {% if selected_server==point.server_key %}selected{% endif %}>{{ point.server_label }} — {{ point.nas_label or point.nas_address }}</option>{% endfor %}
+                    </select>
+                </label>
+            </div>
         </form>
     </div>
 
@@ -193,7 +195,7 @@
         <div class="sales-stat-card bg-[#0b0f19] border border-[#1c2840] p-5 rounded-2xl shadow-sm relative overflow-hidden">
             <div class="absolute top-0 right-0 w-1.5 h-full bg-sky-500"></div>
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="sales-text-muted text-xs font-bold">إجمالي مبيعات الكروت (للمشترك)</span>
+                <span class="sales-text-muted text-xs font-bold">{{ 'إجمالي مبيعات الكروت' if record_kind=='voucher' else 'إجمالي اشتراكات المشتركين' }}</span>
                 <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center text-sm">
                     <i class="fa-solid fa-receipt"></i>
                 </div>
@@ -228,7 +230,7 @@
         <div class="sales-stat-card bg-[#0b0f19] border border-[#1c2840] p-5 rounded-2xl shadow-sm relative overflow-hidden">
             <div class="absolute top-0 right-0 w-1.5 h-full bg-amber-500"></div>
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="sales-text-muted text-xs font-bold">إجمالي أرباح وعمولات الموزعين</span>
+                <span class="sales-text-muted text-xs font-bold">عمولات الموزعين</span>
                 <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-sm">
                     <i class="fa-solid fa-handshake"></i>
                 </div>
@@ -246,16 +248,16 @@
         <div class="sales-stat-card bg-[#0b0f19] border border-[#1c2840] p-5 rounded-2xl shadow-sm relative overflow-hidden">
             <div class="absolute top-0 right-0 w-1.5 h-full bg-indigo-500"></div>
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="sales-text-muted text-xs font-bold">دخل الشبكة (اليوم والشهر)</span>
+                <span class="sales-text-muted text-xs font-bold">العمليات ضمن الفلاتر الحالية</span>
                 <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-sm">
                     <i class="fa-solid fa-calendar-check"></i>
                 </div>
             </div>
             <div class="text-lg font-black text-white font-mono flex items-center justify-between">
-                <span>اليوم: <strong class="text-indigo-400">{{ "{:,.2f}".format(today_isp_sales) }}</strong></span>
+                <span>العدد: <strong class="text-indigo-400">{{ total_items_count }}</strong></span>
             </div>
             <div class="sales-text-muted text-[11px] text-slate-400 mt-2 flex items-center justify-between border-t border-[#1c2840]/70 pt-2">
-                <span>الشهر الجاري: <strong class="sales-text-dark text-slate-200 font-mono">{{ "{:,.2f}".format(month_isp_sales) }}</strong> {{ currency_symbol }}</span>
+                <span>يشمل السيرفرات المثبتة وغير المحددة دون ازدواج</span>
             </div>
         </div>
     </div>
@@ -267,11 +269,12 @@
             <div class="flex items-center justify-between mb-4 border-b border-[#1c2840]/70 pb-3">
                 <h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2">
                     <i class="fa-solid fa-chart-column text-amber-400"></i>
-                    توزيع المبيعات والإيرادات (آخر 6 أشهر)
+                    المبيعات خلال الفترة المفلترة
                 </h4>
             </div>
-            <div class="h-64">
-                <canvas id="salesCompareChart"></canvas>
+            {% if not sales_chart.labels %}<p class="sales-text-muted text-xs mb-2">لا توجد مبيعات تطابق الفلاتر خلال الفترة.</p>{% endif %}
+            <div class="h-64 relative">
+                <canvas id="salesCompareChart" role="img" aria-label="قيمة المبيعات خلال الفترة المفلترة"></canvas>
             </div>
         </div>
 
@@ -280,52 +283,86 @@
             <div class="flex items-center justify-between mb-4 border-b border-[#1c2840]/70 pb-3">
                 <h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2">
                     <i class="fa-solid fa-network-wired text-emerald-400"></i>
-                    استهلاك ترافيك الشبكة الفعلي (Traffic Usage)
+                    الاستهلاك خلال الفترة
                 </h4>
             </div>
-            <div class="h-64">
-                <canvas id="generalTrafficChart"></canvas>
+            <p class="sales-text-muted text-xs mb-2">حسب فروقات تحديثات المحاسبة؛ الفراغات تعني نقص العينات. مستقل عن فلاتر البيع.</p>
+
+            {% if not traffic_chart.observations %}<p class="sales-text-muted text-xs mb-2">لا تتوفر عينات متتابعة كافية لهذه الفترة؛ إجماليات الجلسات التاريخية متاحة في استهلاك الشبكة.</p>{% endif %}
+            <div class="h-64 relative">
+                <canvas id="generalTrafficChart" role="img" aria-label="التحميل والرفع حسب فروقات عدادات المحاسبة خلال الفترة"></canvas>
             </div>
         </div>
     </div>
 
+    <section id="sales-tables" class="space-y-4" aria-label="جداول المبيعات">
+        <div class="sales-table-tabs flex gap-2 overflow-x-auto p-1" role="tablist" aria-label="عرض جدول المبيعات">
+            {% for view,label,icon in [('package','حسب الباقة','fa-layer-group'),('server','حسب السيرفر','fa-network-wired'),('log','سجل العمليات','fa-receipt')] %}
+            {% set tab_args = request.args.to_dict() %}
+            {% set _ = tab_args.update({'table_view':view}) %}
+            <a id="sales-tab-{{ view }}" role="tab" href="{{ url_for('sales_reports', **tab_args) }}#sales-tables"
+               aria-controls="sales-panel-{{ view }}" aria-selected="{{ 'true' if table_view==view else 'false' }}" tabindex="{{ '0' if table_view==view else '-1' }}"
+               data-sales-table="{{ view }}" class="sales-table-tab sales-page-btn inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[#1c2840] bg-[#11192b] text-slate-300 text-sm font-bold transition">
+                <i class="fa-solid {{ icon }}" aria-hidden="true"></i>{{ label }}
+            </a>
+            {% endfor %}
+        </div>
+    <div id="sales-panel-server" role="tabpanel" aria-labelledby="sales-tab-server" class="sales-table-panel sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm" {% if table_view != 'server' %}hidden{% endif %}>
+        <div class="p-4 sm:p-5 border-b border-[#1c2840] flex items-center justify-between gap-3"><h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2"><i class="fa-solid fa-table-list text-sky-400"></i>المبيعات حسب السيرفر</h4>{{ sort_reset('server') }}</div>
+        <div class="overflow-x-auto"><table class="sales-table w-full text-right text-sm">
+            <thead class="sales-table-th bg-[#070b14] text-slate-400 text-xs font-semibold border-b border-[#1c2840]"><tr>
+                {{ sort_header('server', 'nas', 'جهاز الميكروتيك', 'p-4') }}{{ sort_header('server', 'server', 'السيرفر الداخلي', 'p-4') }}{{ sort_header('server', 'count', 'عدد العمليات', 'p-4') }}
+                {{ sort_header('server', 'gross', 'إجمالي المبيعات', 'sales-amount p-4') }}{{ sort_header('server', 'net', 'دخل الشبكة', 'sales-amount p-4') }}{{ sort_header('server', 'commission', 'عمولات الموزعين', 'p-4') }}
+            </tr></thead><tbody class="divide-y divide-[#1c2840]">
+            {% for point in server_breakdown %}<tr class="sales-table-tr hover:bg-[#11192b] transition text-white">
+                <td class="p-4 sales-text-dark">{{ point.nas_label or point.nas_address or '—' }}</td>
+                <td class="p-4 sales-point-cell sales-text-dark">{{ point.server_label if point.server_key != 'unknown' else '—' }}</td><td class="p-4 sales-text-dark">{{ point.sold_count }}</td>
+                <td class="sales-amount p-4 sales-text-dark">{{ table_money('{:,.2f}'.format(point.total_gross_revenue)) }}</td>
+                <td class="sales-amount p-4 text-emerald-400 font-bold">{{ table_money('{:,.2f}'.format(point.total_isp_revenue)) }}</td>
+                <td class="sales-amount p-4 text-amber-400 font-bold">{{ table_money('{:,.2f}'.format(point.total_reseller_profit)) }}</td>
+            </tr>{% else %}<tr><td colspan="6" class="p-5 text-center sales-text-muted text-slate-400">لا توجد عمليات مطابقة.</td></tr>{% endfor %}
+            </tbody></table></div>
+    </div>
     <!-- 1. Breakdown Table by Package / Voucher Category -->
-    <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+    <div id="sales-panel-package" role="tabpanel" aria-labelledby="sales-tab-package" class="sales-table-panel sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm" {% if table_view != 'package' %}hidden{% endif %}>
         <div class="p-4 sm:p-5 border-b border-[#1c2840] flex items-center justify-between">
             <h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2">
                 <i class="fa-solid fa-table-list text-sky-400"></i>
-                تفصيل دخل الشبكة وعمولات الموزعين حسب فئات الباقات
+                الدخل والعمولات حسب الباقة
             </h4>
+            {{ sort_reset('package') }}
         </div>
         <div class="overflow-x-auto table-responsive">
-            <table class="w-full text-right text-sm">
+            <table class="sales-table w-full text-right text-sm">
                 <thead class="sales-table-th bg-[#070b14] text-slate-400 text-xs uppercase font-semibold border-b border-[#1c2840]">
                     <tr>
-                        <th class="py-3 px-5">اسم الباقة / الفئة</th>
-                        <th class="py-3 px-5">نوع الخدمة</th>
-                        <th class="py-3 px-5">سعر المشترك</th>
-                        <th class="py-3 px-5">سعر الموزع (الجملة)</th>
-                        <th class="py-3 px-5">الكمية المباعة</th>
-                        <th class="py-3 px-5">إجمالي مبيعات المشتركين</th>
-                        <th class="py-3 px-5 text-emerald-400">إجمالي دخل الشبكة</th>
-                        <th class="py-3 px-5 text-amber-400">إجمالي عمولات الموزعين</th>
+                        {{ sort_header('package', 'name', 'الباقة', 'py-3 px-5 sales-package-cell') }}
+                        {{ sort_header('package', 'service', 'نوع الخدمة', 'py-3 px-5') }}
+                        {{ sort_header('package', 'price', 'سعر البيع', 'sales-amount py-3 px-5') }}
+                        {{ sort_header('package', 'share', 'حصة الشبكة', 'sales-amount py-3 px-5') }}
+                        {{ sort_header('package', 'count', 'العدد', 'py-3 px-5') }}
+                        {{ sort_header('package', 'gross', 'إجمالي المبيعات', 'sales-amount py-3 px-5') }}
+                        {{ sort_header('package', 'net', 'دخل الشبكة', 'sales-amount py-3 px-5 text-emerald-400') }}
+                        {{ sort_header('package', 'commission', 'العمولات', 'sales-amount py-3 px-5 text-amber-400') }}
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-[#1c2840]/60">
                     {% for p in package_breakdown %}
                     <tr class="sales-table-tr hover:bg-[#11192b] transition">
-                        <td class="py-3.5 px-5 font-bold sales-text-dark text-white">{{ p.name }}</td>
+                        <td class="py-3.5 px-5 sales-package-cell font-bold sales-text-dark text-white">{{ p.name }}</td>
                         <td class="py-3.5 px-5">
-                            <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase {% if p.service_type == 'pppoe' %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
-                                {{ p.service_type }}
+                            {% for kind in p.service_types %}
+                            <span class="px-2 py-0.5 rounded-lg text-[11px] font-bold {% if kind == 'pppoe' %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
+                                {{ 'PPPoE' if kind == 'pppoe' else 'Hotspot' if kind == 'hotspot' else '—' }}
                             </span>
+                            {% endfor %}
                         </td>
-                        <td class="py-3.5 px-5 font-mono sales-text-muted text-slate-300">{{ p.price }} {{ currency_symbol }}</td>
-                        <td class="py-3.5 px-5 font-mono sales-text-muted text-slate-300">{{ p.cost }} {{ currency_symbol }}</td>
+                        <td class="sales-amount py-3.5 px-5 font-mono sales-text-muted text-slate-300">{{ table_money(p.price) }}</td>
+                        <td class="sales-amount py-3.5 px-5 font-mono sales-text-muted text-slate-300">{{ table_money(p.isp_unit_price) }}</td>
                         <td class="py-3.5 px-5 font-bold sales-text-dark text-slate-200 font-mono">{{ p.sold_count }}</td>
-                        <td class="py-3.5 px-5 font-black sales-text-dark text-white font-mono">{{ p.total_gross_revenue }} {{ currency_symbol }}</td>
-                        <td class="py-3.5 px-5 font-black text-emerald-400 font-mono">{{ p.total_isp_revenue }} {{ currency_symbol }}</td>
-                        <td class="py-3.5 px-5 font-black text-amber-400 font-mono">+{{ p.total_reseller_profit }} {{ currency_symbol }}</td>
+                        <td class="sales-amount py-3.5 px-5 font-black sales-text-dark text-white font-mono">{{ table_money(p.total_gross_revenue) }}</td>
+                        <td class="sales-amount py-3.5 px-5 font-black text-emerald-400 font-mono">{{ table_money(p.total_isp_revenue) }}</td>
+                        <td class="sales-amount py-3.5 px-5 font-black text-amber-400 font-mono">{{ table_money(p.total_reseller_profit) }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -334,76 +371,89 @@
     </div>
 
     <!-- 2. Paginated Sales Log Table (Detailed Log) -->
-    <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
+    <div id="sales-panel-log" role="tabpanel" aria-labelledby="sales-tab-log" class="sales-table-panel sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm" {% if table_view != 'log' %}hidden{% endif %}>
         <div class="p-4 sm:p-5 border-b border-[#1c2840] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
                 <h4 class="sales-text-dark font-bold text-white text-sm flex items-center gap-2">
                     <i class="fa-solid fa-receipt text-emerald-400"></i>
-                    سجل عمليات البيع والتفعيل المفصل (Sales & Activations Log)
+                    سجل البيع والتفعيل
                 </h4>
                 <p class="sales-text-muted text-xs text-slate-400 mt-0.5">عرض تفصيلي لكل كرت مبيوع مع توضيح سعر المشترك وحصة الشبكة وفائدة الموزع (إجمالي المطابق: <strong class="text-emerald-400 font-mono">{{ total_items_count }}</strong>)</p>
             </div>
             <div class="sales-text-muted text-xs text-slate-400 font-bold">
+                {{ sort_reset('log') }}<span class="mx-2">·</span>
                 صفحة <span class="sales-text-dark text-white font-mono">{{ page }}</span> من <span class="sales-text-dark text-white font-mono">{{ total_pages }}</span>
             </div>
         </div>
 
         <div class="overflow-x-auto table-responsive">
-            <table class="w-full text-right text-sm">
+            <table class="sales-table w-full text-right text-sm">
                 <thead class="sales-table-th bg-[#070b14] text-slate-400 text-xs uppercase font-semibold border-b border-[#1c2840]">
                     <tr>
-                        <th class="py-3 px-4">#</th>
-                        <th class="py-3 px-4">اسم الكرت / المستخدم</th>
-                        <th class="py-3 px-4">الرقم التسلسلي</th>
-                        <th class="py-3 px-4">الحزمة / الدفعة</th>
-                        <th class="py-3 px-4">الباقة</th>
-                        <th class="py-3 px-4">سعر المشترك</th>
-                        <th class="py-3 px-4 text-emerald-400">حصة الشبكة</th>
-                        <th class="py-3 px-4 text-amber-400">عمولة الموزع</th>
-                        <th class="py-3 px-4">نقطة البيع / الموزع</th>
-                        <th class="py-3 px-4">تاريخ ووقت التفعيل</th>
+                        {{ sort_header('log', 'id', '#', 'py-3 px-4') }}
+                        {{ sort_header('log', 'username', 'الكرت / المستخدم', 'py-3 px-4') }}
+                        {{ sort_header('log', 'batch', 'الحزمة / الدفعة', 'py-3 px-4') }}
+                        {{ sort_header('log', 'package', 'الباقة', 'py-3 px-4 sales-package-cell') }}
+                        {{ sort_header('log', 'price', 'سعر البيع', 'sales-amount py-3 px-4') }}
+                        {{ sort_header('log', 'share', 'حصة الشبكة', 'sales-amount py-3 px-4 text-emerald-400') }}
+                        {{ sort_header('log', 'commission', 'عمولة الموزع', 'sales-amount py-3 px-4 text-amber-400') }}
+                        {{ sort_header('log', 'reseller', 'الموزع', 'py-3 px-4 sales-reseller-cell') }}
+{{ sort_header('log', 'server', 'السيرفر', 'py-3 px-4 sales-point-cell') }}
+                        {{ sort_header('log', 'date', 'التاريخ', 'py-3 px-4 sales-date') }}
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-[#1c2840]/60">
                     {% for s in recent_sales %}
                     <tr class="sales-table-tr hover:bg-[#11192b] transition">
                         <td class="py-3 px-4 text-xs font-mono text-slate-500">{{ s.id }}</td>
-                        <td class="py-3 px-4 font-mono font-bold sales-text-dark text-white flex items-center gap-2">
-                            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                            {% if can_access_endpoint('card_inspect') %}<a href="{{ url_for('card_inspect', q=s.username) }}" class="hover:text-emerald-400 transition" title="فحص الكرت">
+                        <td class="py-3 px-4 font-mono font-bold sales-text-dark text-white">
+                            {% if s.event_kind=='voucher' and can_access_endpoint('card_inspect') %}<a href="{{ url_for('card_inspect', q=s.username) }}" class="hover:text-emerald-400 transition" title="فحص الكرت">
                                 {{ s.username }}
-                            </a>{% endif %}
+                            </a>{% else %}{{ s.username }}{% endif %}
+                            <div class="sales-text-muted text-[11px] font-normal mt-1">{{ s.operation }}</div>
                         </td>
-                        <td class="py-3 px-4 font-mono text-xs sales-text-muted text-slate-300">{{ s.serial_number or '-' }}</td>
                         <td class="py-3 px-4 text-xs font-medium">
-                            <span class="px-2 py-0.5 rounded bg-[#070b14] border border-[#1c2840] sales-text-muted text-slate-300 font-mono">
+                            <span class="inline-flex leading-relaxed px-2 py-0.5 rounded bg-[#070b14] border border-[#1c2840] sales-text-muted text-slate-300 font-mono">
                                 {{ s.batch_name or '-' }}
                             </span>
                         </td>
-                        <td class="py-3 px-4 text-xs font-bold text-sky-400">{{ s.package_name }}</td>
-                        <td class="py-3 px-4 font-mono font-bold sales-text-dark text-white">{{ s.price }} {{ currency_symbol }}</td>
-                        <td class="py-3 px-4 font-mono font-bold text-emerald-400">
-                            {{ "{:,.2f}".format(s.isp_share) }} {{ currency_symbol }}
+                        <td class="py-3 px-4 sales-package-cell text-xs font-bold text-sky-400">{{ s.package_name }}</td>
+                        <td class="sales-amount py-3 px-4 font-mono font-bold sales-text-dark text-white">{{ table_money("{:,.2f}".format(s.price)) }}</td>
+                        <td class="sales-amount py-3 px-4 font-mono font-bold text-emerald-400">
+                            {% if s.isp_share is not none %}{{ table_money("{:,.2f}".format(s.isp_share)) }}{% else %}—{% endif %}
                         </td>
-                        <td class="py-3 px-4 font-mono text-xs font-bold {% if s.reseller_margin > 0 %}text-amber-400{% else %}text-slate-500{% endif %}">
-                            {% if s.reseller_margin > 0 %}
-                            +{{ "{:,.2f}".format(s.reseller_margin) }} {{ currency_symbol }}
+                        <td class="sales-amount py-3 px-4 font-mono text-xs font-bold {% if s.reseller_margin is not none and s.reseller_margin > 0 %}text-amber-400{% else %}text-slate-500{% endif %}">
+                            {% if s.reseller_margin is none %}—
+                            {% elif s.reseller_margin != 0 %}
+                            {{ table_money("{:,.2f}".format(s.reseller_margin)) }}
                             {% else %}
                             -
                             {% endif %}
                         </td>
-                        <td class="py-3 px-4 text-xs font-medium">
+                        <td class="py-3 px-4 sales-reseller-cell text-xs font-medium">
                             {% if s.reseller_name and s.reseller_id %}
-                            <span class="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-bold">
+                            <span class="sales-reseller-badge font-bold">
                                 {{ s.reseller_name }}
                             </span>
                             {% else %}
-                            <span class="px-2.5 py-1 rounded-lg bg-[#070b14] border border-[#1c2840] text-slate-400 font-bold">
+                            <span class="sales-reseller-badge font-bold">
                                 مباشر (الإدارة)
                             </span>
                             {% endif %}
                         </td>
-                        <td class="py-3 px-4 text-xs sales-text-muted text-slate-400 font-mono">{{ s.activated_at }}</td>
+                        <td class="py-3 px-4 sales-point-cell text-xs sales-text-dark text-white">
+                            <div>{{ s.server_label if s.server_key != 'unknown' else '—' }}
+                                {% if s.server_key=='unknown' and s.service_type %}<span class="sales-text-muted text-slate-400"> · {{ 'PPPoE' if s.service_type=='pppoe' else 'Hotspot' }}</span>{% endif %}
+                                {% if s.resolution_status == 'ambiguous' %}<span class="text-amber-500" title="{{ s.source_reason_label }}"> · {{ s.source_status_label }}</span>{% endif %}
+                            </div><div class="sales-text-muted text-slate-400">{{ s.nas_label or s.nas_address }}</div>
+                        </td>
+                        <td class="py-3 px-4 sales-date text-xs sales-text-muted text-slate-400">
+                            {% if s.activated_at %}
+                            {% set date_parts = (s.activated_at|string).replace('T',' ').split(' ',1) %}
+                            <bdi dir="ltr">{{ date_parts[0] }}</bdi>
+                            {% if date_parts|length > 1 %}<bdi dir="ltr" class="sales-time">{{ date_parts[1][:8] }}</bdi>{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
                     </tr>
                     {% else %}
                     <tr>
@@ -426,11 +476,11 @@
             <div class="flex items-center gap-1">
                 <!-- First Page -->
                 {% if page > 1 %}
-                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', page=1, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q) }}"
+                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', table_view='log', page=1, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, record_kind=record_kind, service_type=selected_service, nas=selected_nas, server=selected_server, source_quality=selected_quality, **sort_query) }}"
                    class="sales-page-btn px-2.5 py-1.5 rounded-lg bg-[#11192b] hover:bg-slate-800 text-slate-300 text-xs font-bold transition border border-[#1c2840]">
                     <i class="fa-solid fa-angles-right"></i>
                 </a>{% endif %}
-                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', page=page-1, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q) }}"
+                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', table_view='log', page=page-1, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, record_kind=record_kind, service_type=selected_service, nas=selected_nas, server=selected_server, source_quality=selected_quality, **sort_query) }}"
                    class="sales-page-btn px-3 py-1.5 rounded-lg bg-[#11192b] hover:bg-slate-800 text-slate-300 text-xs font-bold transition border border-[#1c2840]">
                     السابق
                 </a>{% endif %}
@@ -438,7 +488,7 @@
 
                 <!-- Page numbers (smart window) -->
                 {% for p_num in range([1, page - 2]|max, [total_pages + 1, page + 3]|min) %}
-                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', page=p_num, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q) }}"
+                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', table_view='log', page=p_num, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, record_kind=record_kind, service_type=selected_service, nas=selected_nas, server=selected_server, source_quality=selected_quality, **sort_query) }}"
                    class="px-3 py-1.5 rounded-lg text-xs font-bold transition {% if p_num == page %}bg-emerald-500 text-white shadow-sm{% else %}sales-page-btn bg-[#11192b] hover:bg-slate-800 text-slate-400 border border-[#1c2840]{% endif %}">
                     {{ p_num }}
                 </a>{% endif %}
@@ -446,11 +496,11 @@
 
                 <!-- Next Page -->
                 {% if page < total_pages %}
-                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', page=page+1, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q) }}"
+                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', table_view='log', page=page+1, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, record_kind=record_kind, service_type=selected_service, nas=selected_nas, server=selected_server, source_quality=selected_quality, **sort_query) }}"
                    class="sales-page-btn px-3 py-1.5 rounded-lg bg-[#11192b] hover:bg-slate-800 text-slate-300 text-xs font-bold transition border border-[#1c2840]">
                     التالي
                 </a>{% endif %}
-                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', page=total_pages, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q) }}"
+                {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports', table_view='log', page=total_pages, period=period, date_from=custom_date_from, date_to=custom_date_to, reseller_id=selected_reseller, package_name=selected_package, q=search_q, record_kind=record_kind, service_type=selected_service, nas=selected_nas, server=selected_server, source_quality=selected_quality, **sort_query) }}"
                    class="sales-page-btn px-2.5 py-1.5 rounded-lg bg-[#11192b] hover:bg-slate-800 text-slate-300 text-xs font-bold transition border border-[#1c2840]">
                     <i class="fa-solid fa-angles-left"></i>
                 </a>{% endif %}
@@ -459,129 +509,90 @@
         </div>
         {% endif %}
     </div>
+    </section>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static',filename='report-charts.js',v='20261027-r3') }}"></script>
 <script>
-    const isDark = !document.documentElement.classList.contains('theme-light');
-    const chartTextColor = isDark ? '#94a3b8' : '#475569';
-    const chartGridColor = isDark ? '#1c2840' : '#e2e8f0';
-
-    // 1. Sales Compare Chart (Live Data from DB)
-    const salesCanvas = document.getElementById('salesCompareChart');
-    if (salesCanvas) {
-        const salesCtx = salesCanvas.getContext('2d');
-        new Chart(salesCtx, {
-            type: 'bar',
-            data: {
-                labels: {{ sales_chart.labels | tojson }},
-                datasets: [
-                    {
-                        label: 'مبيعات الكروت',
-                        data: {{ sales_chart.voucher_sales | tojson }},
-                        backgroundColor: '#10b981',
-                        hoverBackgroundColor: '#059669',
-                        borderRadius: 6,
-                        maxBarThickness: 32
-                    },
-                    {
-                        label: 'اشتراكات وفواتير الباقات',
-                        data: {{ sales_chart.package_sales | tojson }},
-                        backgroundColor: '#3b82f6',
-                        hoverBackgroundColor: '#2563eb',
-                        borderRadius: 6,
-                        maxBarThickness: 32
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { 
-                    legend: { 
-                        position: 'top',
-                        align: 'end',
-                        labels: { 
-                            color: chartTextColor, 
-                            font: { family: "'Tajawal', sans-serif", size: 11, weight: 'bold' },
-                            usePointStyle: true,
-                            boxWidth: 8
-                        } 
-                    } 
-                },
-                scales: {
-                    x: { grid: { display: false }, ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10, weight: 'bold' } } },
-                    y: { grid: { color: chartGridColor }, ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10 } }, beginAtZero: true }
+    (() => {
+        const states = {{ table_sorts | tojson }};
+        const prefix = 'max-sales-sort-v1:' + {{ (session.get('admin_id', '')|string) | tojson }} + ':';
+        const url = new URL(window.location.href);
+        let restore = false;
+        try {
+            Object.entries(states).forEach(([table, state]) => {
+                if (url.searchParams.has(table + '_sort')) {
+                    localStorage.setItem(prefix + table, JSON.stringify(state));
+                    return;
                 }
-            }
-        });
-    }
-
-    // 2. General Traffic Chart (Live Data from radacct)
-    const trafficCanvas = document.getElementById('generalTrafficChart');
-    if (trafficCanvas) {
-        const trafficCtx = trafficCanvas.getContext('2d');
-        const gradientDown = trafficCtx.createLinearGradient(0, 0, 0, 240);
-        gradientDown.addColorStop(0, isDark ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.20)');
-        gradientDown.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
-
-        const gradientUp = trafficCtx.createLinearGradient(0, 0, 0, 240);
-        gradientUp.addColorStop(0, isDark ? 'rgba(56, 189, 248, 0.28)' : 'rgba(56, 189, 248, 0.20)');
-        gradientUp.addColorStop(1, 'rgba(56, 189, 248, 0.0)');
-
-        new Chart(trafficCtx, {
-            type: 'line',
-            data: {
-                labels: {{ traffic_chart.labels | tojson }},
-                datasets: [
-                    {
-                        label: 'إجمالي التحميل Download (GB)',
-                        data: {{ traffic_chart.download | tojson }},
-                        borderColor: '#10b981',
-                        borderWidth: 2.5,
-                        backgroundColor: gradientDown,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 3,
-                        pointHoverRadius: 6,
-                        pointBackgroundColor: '#10b981'
-                    },
-                    {
-                        label: 'إجمالي الرفع Upload (GB)',
-                        data: {{ traffic_chart.upload | tojson }},
-                        borderColor: '#38bdf8',
-                        borderWidth: 2.5,
-                        backgroundColor: gradientUp,
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 3,
-                        pointHoverRadius: 6,
-                        pointBackgroundColor: '#38bdf8'
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { 
-                    legend: { 
-                        position: 'top',
-                        align: 'end',
-                        labels: { 
-                            color: chartTextColor, 
-                            font: { family: "'Tajawal', sans-serif", size: 11, weight: 'bold' },
-                            usePointStyle: true,
-                            boxWidth: 8
-                        } 
-                    } 
-                },
-                scales: {
-                    x: { grid: { color: chartGridColor }, ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10, weight: 'bold' } } },
-                    y: { grid: { color: chartGridColor }, ticks: { color: chartTextColor, font: { family: "'Tajawal', sans-serif", size: 10 } }, beginAtZero: true }
+                let saved;
+                try { saved = JSON.parse(localStorage.getItem(prefix + table)); } catch (_) { return; }
+                const allowed = [...document.querySelectorAll('[data-sort-table]')].some(link => link.dataset.sortTable === table && link.dataset.sortKey === saved?.key);
+                if (!allowed || !['asc', 'desc'].includes(saved?.direction)) return;
+                if (saved.key !== state.key || saved.direction !== state.direction) {
+                    url.searchParams.set(table + '_sort', saved.key);
+                    url.searchParams.set(table + '_dir', saved.direction);
+                    restore = true;
                 }
+            });
+            if (restore) {
+                // A restored order must be applied by SQL before pagination.
+                url.searchParams.delete('page');
+                window.location.replace(url);
+                return;
             }
+            document.querySelectorAll('[data-sort-table]').forEach(link => link.addEventListener('click', () => {
+                localStorage.setItem(prefix + link.dataset.sortTable, JSON.stringify({key:link.dataset.sortKey, direction:link.dataset.sortDirection}));
+            }));
+            document.querySelectorAll('[data-sort-reset]').forEach(link => link.addEventListener('click', () => {
+                localStorage.removeItem(prefix + link.dataset.sortReset);
+            }));
+        } catch (_) { /* Sorting links still work if browser storage is unavailable. */ }
+    })();
+    (() => {
+        const tabs = Array.from(document.querySelectorAll('[data-sales-table]'));
+        const selectTable = (view, focus = false) => {
+            if (!tabs.some(tab => tab.dataset.salesTable === view)) return;
+            tabs.forEach(tab => {
+                const active = tab.dataset.salesTable === view;
+                tab.setAttribute('aria-selected', String(active));
+                tab.tabIndex = active ? 0 : -1;
+                document.getElementById(tab.getAttribute('aria-controls')).hidden = !active;
+                if (active && focus) tab.focus();
+            });
+            document.getElementById('salesTableView').value = view;
+            const current = new URL(window.location.href);
+            current.searchParams.set('table_view', view);
+            window.history.replaceState(null, '', current);
+            document.querySelectorAll('a[href]').forEach(link => {
+                const url = new URL(link.href, window.location.href);
+                if (url.origin !== current.origin || url.pathname !== current.pathname || link.dataset.salesTable) return;
+                url.searchParams.set('table_view', link.closest('.sales-pagination') ? 'log' : view);
+                link.href = url.href;
+            });
+        };
+        tabs.forEach((tab, index) => {
+            tab.addEventListener('click', event => {
+                if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                event.preventDefault();
+                selectTable(tab.dataset.salesTable);
+            });
+            tab.addEventListener('keydown', event => {
+                let next;
+                if (event.key === 'ArrowLeft') next = (index + 1) % tabs.length;
+                else if (event.key === 'ArrowRight') next = (index + tabs.length - 1) % tabs.length;
+                else if (event.key === 'Home') next = 0;
+                else if (event.key === 'End') next = tabs.length - 1;
+                else return;
+                event.preventDefault();
+                selectTable(tabs[next].dataset.salesTable, true);
+            });
         });
-    }
+    })();
+    MaxReportCharts.sales(document.getElementById('salesCompareChart'),
+        {{ sales_chart | tojson }}, {{ ('مبيعات الكروت' if record_kind=='voucher' else 'اشتراكات المشتركين') | tojson }});
+    MaxReportCharts.periodTraffic(document.getElementById('generalTrafficChart'), {{ traffic_chart | tojson }});
 </script>
 {% endblock %}

@@ -42,7 +42,7 @@ def check_database_health():
     """Verify database responsiveness and auto-reconnect if needed."""
     global _last_db_state
     is_healthy = False
-    
+
     try:
         conn = get_connection()
         if conn:
@@ -89,7 +89,7 @@ def check_disk_space():
     global _last_disk_alert_time
     now = time.time()
     now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
+
     try:
         target_path = str(__import__('core.config', fromlist=['STORAGE_DIR']).STORAGE_DIR)
         total, used, free = shutil.disk_usage(target_path)
@@ -162,11 +162,28 @@ def check_auto_database_cleanup():
         row=query_one("SELECT value FROM wisp_system_settings WHERE `key`='history_cleanup_last_success'")
         if not row:
             execute_write("INSERT IGNORE INTO wisp_system_settings (`key`,value) VALUES ('history_cleanup_last_success',?)",(str(now),))
+            _record_cleanup_result(dict(state='initialized',at=now))
             return
         if now-float(row['value'] or now)<604800:return
         from services.db_maintenance_service import run_auto_maintenance_job
-        if run_auto_maintenance_job(retention_days=90):
-            execute_write("UPDATE wisp_system_settings SET value=? WHERE `key`='history_cleanup_last_success'",(str(now),))
+        try:
+            result=run_auto_maintenance_job(retention_days=90)
+            if result:
+                _record_cleanup_result(dict(state='success',at=time.time(),
+                    deleted_sessions=result.get('deleted_radacct',0),
+                    deleted_auth=result.get('deleted_radpostauth',0),
+                    compacted_duplicates=result.get('duplicate_compaction',{}).get('removed',0),
+                    compaction_pending=result.get('duplicate_compaction',{}).get('pending',False)))
+                execute_write("UPDATE wisp_system_settings SET value=? WHERE `key`='history_cleanup_last_success'",(str(now),))
+        except Exception as exc:
+            _record_cleanup_result(dict(state='failed',at=time.time(),error_type=type(exc).__name__))
+            raise
+
+
+def _record_cleanup_result(result):
+    execute_write("""INSERT INTO wisp_system_settings (`key`,value)
+        VALUES ('history_cleanup_last_result',?) ON DUPLICATE KEY UPDATE value=VALUES(value)""",
+        (json.dumps(result,separators=(',',':')),))
 
 def enforce_license_compliance_hook():
     """
@@ -300,7 +317,7 @@ def _watchdog_loop():
     # Initial run
     time.sleep(10)
     run_watchdog_cycle()
-    
+
     while not _stop_event.is_set():
         if _stop_event.wait(WATCHDOG_INTERVAL_SECONDS):
             break

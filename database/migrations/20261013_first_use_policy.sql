@@ -28,6 +28,11 @@ BEGIN
       FROM wisp_vouchers WHERE username=p_username LIMIT 1 FOR UPDATE;
     IF v_id IS NULL THEN RETURN 1; END IF;
     IF v_frozen IS NULL AND v_status='unused' THEN
+        IF EXISTS(SELECT 1 FROM radgroupreply r JOIN wisp_packages p ON p.name=r.groupname
+          WHERE p.id=(SELECT package_id FROM wisp_vouchers WHERE id=v_id)
+            AND LOWER(r.attribute)='mikrotik-rate-limit' AND (r.value IS NULL OR TRIM(r.value)='')) THEN
+            RETURN 0;
+        END IF;
         UPDATE wisp_vouchers v JOIN wisp_packages p ON p.id=v.package_id
         SET v.snap_price=COALESCE(p.price,0), v.snap_cost=COALESCE(p.cost,0),
             v.snap_volume_quota_mb=COALESCE(p.volume_quota_mb,0),

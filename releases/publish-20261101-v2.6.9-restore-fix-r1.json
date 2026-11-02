@@ -1,0 +1,179 @@
+{
+  "status": "published_and_new_creation_default_verified",
+  "version": "2.6.9",
+  "web": {
+    "reference": "mohd777/max-radius-web:2.6.9-restore-fix-20261101-r1",
+    "digest": "sha256:886f3786bb9a0415e724f2df41edc3a179606135364f7733a85be6e9469c055b",
+    "pinned": "mohd777/max-radius-web@sha256:886f3786bb9a0415e724f2df41edc3a179606135364f7733a85be6e9469c055b",
+    "rootfs_matches": true,
+    "runtime_configuration_matches": true,
+    "latest_web_unchanged": true,
+    "latest_core_unchanged": true
+  },
+  "core": "mohd777/max-radius-core@sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+  "tests": {
+    "compiled_unit_cases": 67,
+    "source_sqlite_transaction_cases": 8,
+    "compiled_sqlite_helper_identical_and_verified": true,
+    "actual_cases": [
+      {
+        "case": "failure",
+        "success": false,
+        "seconds": 18.977725508011645,
+        "target_license_exact": true,
+        "target_rows": 2,
+        "native_calls": 1,
+        "cards": 0,
+        "subscribers": 0,
+        "sales": 0,
+        "triggers": 17,
+        "open_accounting": 0,
+        "restore_audit": 0
+      },
+      {
+        "case": "malformed",
+        "success": false,
+        "seconds": 15.088111304008635,
+        "target_license_exact": true,
+        "target_rows": 2,
+        "native_calls": 0,
+        "cards": 0,
+        "subscribers": 0,
+        "sales": 0,
+        "triggers": 17,
+        "open_accounting": 0,
+        "restore_audit": 0,
+        "guard_amount": "11.01"
+      },
+      {
+        "case": "ddl",
+        "success": true,
+        "seconds": 14.807518522982718,
+        "target_license_exact": true,
+        "target_rows": 2,
+        "native_calls": 1,
+        "cards": 0,
+        "subscribers": 0,
+        "sales": 0,
+        "triggers": 18,
+        "open_accounting": 0,
+        "restore_audit": 1,
+        "ddl_function_value": 7,
+        "ddl_trigger_value": 7,
+        "ddl_literal_unchanged": true,
+        "ddl_procedure_literal": true,
+        "event_disabled": true,
+        "mac_function": {
+          "allowed": 1
+        },
+        "mac_view_placeholder": false
+      },
+      {
+        "case": "original",
+        "success": true,
+        "seconds": 136.85362010699464,
+        "target_license_exact": true,
+        "target_rows": 2,
+        "native_calls": 1,
+        "cards": 31080,
+        "subscribers": 50,
+        "sales": 25145,
+        "triggers": 17,
+        "open_accounting": 0,
+        "restore_audit": 1,
+        "mac_function": {
+          "allowed": 1
+        },
+        "mac_view_placeholder": false
+      },
+      {
+        "case": "large",
+        "success": true,
+        "seconds": 171.15161693800474,
+        "target_license_exact": true,
+        "target_rows": 2,
+        "native_calls": 1,
+        "cards": 181077,
+        "subscribers": 50,
+        "sales": 25096,
+        "triggers": 17,
+        "open_accounting": 0,
+        "restore_audit": 1,
+        "mac_function": {
+          "allowed": 1
+        },
+        "mac_view_placeholder": false
+      },
+      {
+        "case": "root",
+        "success": true,
+        "seconds": 110.60273465199862,
+        "target_license_exact": true,
+        "target_rows": 2,
+        "native_calls": 1,
+        "cards": 31080,
+        "subscribers": 50,
+        "sales": 25145,
+        "triggers": 17,
+        "open_accounting": 0,
+        "restore_audit": 1,
+        "mac_function": {
+          "allowed": 1
+        },
+        "mac_view_placeholder": false
+      }
+    ]
+  },
+  "image_scope": {
+    "candidate_image": "sha256:886f3786bb9a0415e724f2df41edc3a179606135364f7733a85be6e9469c055b",
+    "unchanged_runtime_files": 216,
+    "changed": [
+      "services/backup_service.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "added": [
+      "services/mysql_restore_stream.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "signature_verified": true,
+    "publisher_key_unchanged": true,
+    "base_layers_preserved": true,
+    "runtime_configuration_preserved": true,
+    "backup_module_binary_equal_to_r3": true
+  },
+  "data_audit": {
+    "tables": 18,
+    "row_counts_exact": true,
+    "financial_balances_exact": true,
+    "only_difference": "1128 previously NULL global_seq_id values assigned; zero existing IDs changed"
+  },
+  "new_creation": {
+    "at_utc": "2026-11-01T08:43:21.481506+00:00",
+    "default_release": "2.6.9",
+    "web": "mohd777/max-radius-web@sha256:886f3786bb9a0415e724f2df41edc3a179606135364f7733a85be6e9469c055b",
+    "core": "mohd777/max-radius-core@sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+    "image_pulled_and_rootfs_verified": true,
+    "ui_inventory_verified": true,
+    "creation_default_verified": true,
+    "changed_config_paths": [
+      "releases.2.6.9.web"
+    ],
+    "existing_containers_unchanged": 9,
+    "protected_bindings_unchanged": 8,
+    "panel_process_unchanged": true,
+    "nginx_process_unchanged": true,
+    "executor_reloaded_once": true,
+    "jobs_interrupted": 0,
+    "created_tenants": 0
+  },
+  "existing_domains_updated": false,
+  "new_live_tenants_created": 0,
+  "git_pushed": false,
+  "cleanup": {
+    "removed_containers": 18,
+    "removed_volumes": 1,
+    "removed_networks": 1,
+    "owned_remaining": 0,
+    "baseline_containers": 998,
+    "baseline_ids_still_present": 998
+  },
+  "report": "docs/RESTORE_FIX_269_PUBLISHED_20261101.md"
+}

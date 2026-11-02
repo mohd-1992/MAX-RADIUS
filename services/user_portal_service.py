@@ -724,6 +724,12 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
         with db_session() as conn:
             cursor = conn.cursor()
             lock_clause = "FOR UPDATE" if is_mysql_conn(conn) else ""
+
+            # Account writers lock their account before reading package policy.
+            # A locking LOWER(username) scan can also reserve unrelated accounts.
+            sub, target_type, _ = _lock_portal_account(cursor, conn, username)
+            if not sub:
+                return False, "حساب المشترك غير مسجل في قائمة الاشتراكات أو الكروت."
             
             # 1. Lock and find unused card with package details including loyalty & rollover
             sql_card = adapt_query(f"""
@@ -763,24 +769,6 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
 
             card_value = float(card['card_price'] or 0.0)
 
-            # 2. Lock target user (check wisp_subscribers first, then wisp_vouchers)
-            sql_sub = adapt_query(f"SELECT * FROM wisp_subscribers WHERE LOWER(username) = LOWER(?) LIMIT 1 {lock_clause}", conn)
-            cursor.execute(sql_sub, (username,))
-            sub = cursor.fetchone()
-            target_type = 'subscriber'
-            if sub and not isinstance(sub, dict):
-                sub = dict(sub)
-
-            if not sub:
-                sql_voucher = adapt_query(f"SELECT * FROM wisp_vouchers WHERE LOWER(username) = LOWER(?) LIMIT 1 {lock_clause}", conn)
-                cursor.execute(sql_voucher, (username,))
-                v_target = cursor.fetchone()
-                if v_target:
-                    target_type = 'voucher'
-                    sub = dict(v_target) if not isinstance(v_target, dict) else v_target
-                else:
-                    return False, "حساب المشترك غير مسجل في قائمة الاشتراكات أو الكروت."
-
             if str(sub['username']).lower() == str(card['username']).lower():
                 return False, 'لا يمكن استخدام الكرت لشحن الحساب نفسه'
             if recharge_type == 'package' and str(sub.get('status') or '').lower() in ('disabled', 'suspended', 'recharged'):
@@ -811,6 +799,9 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
             db_now_str = db_now_dt.strftime('%Y-%m-%d %H:%M:%S')
 
             if recharge_type == 'package':
+                from services.rate_policy_service import snapshot_rate_limit
+                card['policy_rate_limit_str'] = snapshot_rate_limit(
+                    card.get('policy_rate_limit_str'), card.get('policy_rate_download'), card.get('policy_rate_upload'))
                 new_base_quota_mb = float(card.get('volume_quota_mb') or 0.0)
                 add_quota_mb = new_base_quota_mb
 
@@ -960,6 +951,8 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, conn)
                 cursor.execute(sql_sales, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value, card['policy_cost'], card['reseller_id']))
+                from services.sales_source_service import record_sale_source
+                record_sale_source(conn, 'voucher', cursor.lastrowid, username)
 
             else:
                 # Balance recharge
@@ -997,6 +990,8 @@ def recharge_user_wallet_by_card(username, card_code, recharge_type='balance'):
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, conn)
                 cursor.execute(sql_sales, (card['id'], card['batch_id'], card['batch_name'], card['username'], card['serial_number'], card['package_name'], card_value, card['policy_cost'], card['reseller_id']))
+                from services.sales_source_service import record_sale_source
+                record_sale_source(conn, 'voucher', cursor.lastrowid, username)
 
             if recharge_type == 'package':
                 _sync_recharge_radius(cursor, conn, username, sub, card, target_type, new_fr_exp)
@@ -1107,14 +1102,17 @@ def request_data_loan(username):
         cursor = conn.cursor()
         lock_clause = "FOR UPDATE" if is_mysql_conn(conn) else ""
 
+        identity = _lock_named_portal_account(cursor, conn, 'wisp_subscribers', username)
+        if not identity:
+            return False, "حساب المشترك غير مسجل في قائمة الاشتراكات."
         sql_sub = adapt_query(f"""
             SELECT s.*, p.name as package_name, COALESCE(s.snap_volume_quota_mb, p.volume_quota_mb, 0) as volume_quota_mb
             FROM wisp_subscribers s
             JOIN wisp_packages p ON s.package_id = p.id
-            WHERE LOWER(s.username) = LOWER(?)
+            WHERE s.id = ?
             LIMIT 1 {lock_clause}
         """, conn)
-        cursor.execute(sql_sub, (username,))
+        cursor.execute(sql_sub, (identity['id'],))
         sub = cursor.fetchone()
         if not sub:
             return False, "حساب المشترك غير مسجل في قائمة الاشتراكات."
@@ -1267,14 +1265,32 @@ def apply_portal_speed(username, rate_formatted):
             'results': outcomes}
 
 
+def _lock_named_portal_account(cursor, conn, table, username):
+    """Resolve case-insensitive identity without range locks, then lock its PK.
+
+    Rechecking the name under that lock prevents using a concurrently renamed
+    account. Missing identities never take a locking scan or a whole-table gap.
+    """
+    if table not in ('wisp_subscribers', 'wisp_vouchers'):
+        raise ValueError('Unsupported portal account table')
+    cursor.execute(adapt_query(
+        f'SELECT id FROM {table} WHERE LOWER(username)=LOWER(?) LIMIT 1', conn),
+        (username,))
+    identity = cursor.fetchone()
+    if not identity:
+        return None
+    lock = ' FOR UPDATE' if is_mysql_conn(conn) else ''
+    cursor.execute(adapt_query(
+        f'SELECT * FROM {table} WHERE id=? AND LOWER(username)=LOWER(?)' + lock, conn),
+        (dict(identity)['id'], username))
+    row = cursor.fetchone()
+    return dict(row) if row else None
+
+
 def _lock_portal_account(cursor, conn, username):
     """Resolve the same subscriber-first identity used by portal authentication."""
-    lock = 'FOR UPDATE' if is_mysql_conn(conn) else ''
     for kind, table in (('subscriber', 'wisp_subscribers'), ('voucher', 'wisp_vouchers')):
-        cursor.execute(adapt_query(
-            f'SELECT * FROM {table} WHERE LOWER(username)=LOWER(?) LIMIT 1 {lock}', conn),
-            (username,))
-        row = cursor.fetchone()
+        row = _lock_named_portal_account(cursor, conn, table, username)
         if row:
             return dict(row), kind, table
     return None, None, None
@@ -1309,6 +1325,12 @@ def renew_or_change_package(username, new_pkg_id):
             return False, "الباقة المطلوبة غير متوفرة أو تم إيقافها"
         if not isinstance(pkg, dict):
             pkg = dict(pkg)
+
+        from services.rate_policy_service import package_rate_limit
+        try:
+            complete_rate = package_rate_limit(pkg) if account_type == 'voucher' else None
+        except ValueError as exc:
+            return False, str(exc)
 
         pkg_price = float(pkg['price'] or 0.0)
         user_balance = float(sub['balance'] or 0.0)
@@ -1427,8 +1449,7 @@ def renew_or_change_package(username, new_pkg_id):
         if account_type == 'subscriber':
             cursor.execute(upd_sql, (pkg_price, new_base_quota_mb, pkg['id'], db_now_str, new_extra_mb, new_expiry, new_loan_balance_mb, new_loan_status, sub['id'], pkg_price))
         else:
-            from core.rate_limit import build_mikrotik_rate_limit
-            rate = pkg.get('rate_limit_str') or build_mikrotik_rate_limit(pkg.get('rate_download'), pkg.get('rate_upload')) or '0/0'
+            rate = complete_rate
             uptime = sub.get('snap_uptime_limit_mins') if same_voucher_package and sub.get('snap_uptime_limit_mins') is not None else (pkg.get('uptime_limit_mins') or 0)
             cursor.execute(adapt_query("""UPDATE wisp_vouchers SET
                 balance=COALESCE(balance,0)-?, package_id=?, status='active',
@@ -1455,6 +1476,8 @@ def renew_or_change_package(username, new_pkg_id):
                 (sub['id'], sub.get('batch_id'), 'UserPortal', sub['username'],
                  sub.get('serial_number') or '', pkg['name'], pkg_price,
                  pkg.get('cost') or 0, sub.get('reseller_id'), db_now_str))
+            from services.sales_source_service import record_sale_source
+            record_sale_source(conn, 'voucher', cursor.lastrowid, username)
         _sync_recharge_radius(cursor, conn, sub['username'], sub,
                               {'package_name': pkg['name'],
                                'policy_rate_limit_str': rate if account_type == 'voucher' else None,
@@ -1470,6 +1493,8 @@ def renew_or_change_package(username, new_pkg_id):
                 (generate_invoice_number(sub['id']), sub['id'],
                  sub.get('full_name') or sub['username'], pkg_price, pkg['name'],
                  'شراء أو تجديد باقة من محفظة المشترك عبر البوابة', db_now_str))
+            from services.sales_source_service import record_sale_source
+            record_sale_source(conn, 'invoice', cursor.lastrowid, username)
 
     # Sessions were finalized before billing; no delayed disconnect can hit a new login.
 

@@ -1,0 +1,711 @@
+{
+  "date": "2026-10-31",
+  "version": "2.6.9",
+  "scope": "local-only account row-lock fix",
+  "image": {
+    "base": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+    "tag": "max-radius-web:2.6.9-locks-local-20261031-r2",
+    "image": "sha256:ddce804366a6d14de6519a47bc456597fe145404a451fdfe10a3ca286ae7a06c",
+    "source_sha256": "bbbf3fdd335501b5fd64131c8e0330fde8a0d7b8d8efd1634c36bf0cbde41c21",
+    "changed_module": "services.online_policy_service",
+    "pushed": false
+  },
+  "artifact_audit": {
+    "runtime_changed": [
+      "services/online_policy_service.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "unchanged_files": 215,
+    "only_rows_for_source_changed": true,
+    "no_270_features_imported": true,
+    "core_unchanged": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+    "no_schema_change": true
+  },
+  "root_lock_fix_accepted_in_tested_scope": true,
+  "publication_approved": false,
+  "publication_remaining": "Independent pre-existing Core detail-directory first-Start race reproduced; no full release approval",
+  "sql_baseline": {
+    "label": "baseline",
+    "seconds": 90,
+    "checks": [
+      {
+        "name": "owned-view-exact-projection-and-history-alias",
+        "passed": true
+      }
+    ],
+    "counts": {
+      "select_ok": 247821,
+      "stop_ok": 22846,
+      "deadlock_select": 1518,
+      "deadlock_stop": 9559,
+      "other_errors": 0
+    },
+    "plan": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "radacct",
+        "type": "ref",
+        "possible_keys": "idx_radacct_stop,idx_subscriber_account_read",
+        "key": "idx_radacct_stop",
+        "key_len": "6",
+        "ref": "const",
+        "rows": "10",
+        "Extra": "Using index condition; Using where"
+      }
+    ],
+    "other_errors": [],
+    "compiled_module": true,
+    "isolated_sql_not_radius": true
+  },
+  "sql_fixed_final": {
+    "label": "fixed-final",
+    "seconds": 90,
+    "checks": [
+      {
+        "name": "owned-view-exact-projection-and-history-alias",
+        "passed": true
+      },
+      {
+        "name": "same-account-write-blocked",
+        "passed": true
+      },
+      {
+        "name": "other-account-write-not-blocked",
+        "passed": true
+      }
+    ],
+    "counts": {
+      "select_ok": 69749,
+      "stop_ok": 10956,
+      "deadlock_select": 0,
+      "deadlock_stop": 0,
+      "other_errors": 0
+    },
+    "plan": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "target",
+        "type": "ref",
+        "possible_keys": "idx_subscriber_account_read",
+        "key": "idx_subscriber_account_read",
+        "key_len": "259",
+        "ref": "const",
+        "rows": "402",
+        "Extra": "Using where"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "a",
+        "type": "eq_ref",
+        "possible_keys": "PRIMARY",
+        "key": "PRIMARY",
+        "key_len": "8",
+        "ref": "lock269_fixed.target.radacctid",
+        "rows": "1",
+        "Extra": ""
+      }
+    ],
+    "other_errors": [],
+    "compiled_module": true,
+    "isolated_sql_not_radius": true
+  },
+  "history_scale": {
+    "history_rows": 10000,
+    "open_rows": 2,
+    "samples": 10,
+    "median_seconds": 0.009926135502610123,
+    "max_seconds": 0.016242876001342665,
+    "case_insensitive_owner_and_old_name_preserved": true
+  },
+  "load_seconds": 1209.4,
+  "main_counts": {
+    "RADIUS_packets": 18909,
+    "RADIUS_auth": 3709,
+    "RADIUS_1": 3707,
+    "RADIUS_3": 7414,
+    "RADIUS_7": 186,
+    "RADIUS_2": 3707,
+    "completed_RADIUS_sessions": 3707,
+    "accounting_SQL_oracles": 3707,
+    "HTTP": 6176,
+    "HTTP_mutation": 2613,
+    "financial_SQL_oracles": 1827,
+    "admin-subscriber_add-wallet": 253,
+    "admin-subscriber_deduct-wallet": 253,
+    "admin-voucher_add-wallet": 38,
+    "expected_insufficient_funds_rejections": 59,
+    "admin-voucher_deduct-wallet": 38,
+    "HTTP_read": 3563,
+    "admin-voucher_extend": 37,
+    "admin-subscriber_extend": 253,
+    "admin-voucher_quota": 37,
+    "admin-subscriber_quota": 253,
+    "admin-subscriber_disable_activate": 32,
+    "portal-voucher_paid_renew_change": 345,
+    "portal-subscriber_paid_renew_change": 346,
+    "admin-voucher_renew": 19,
+    "admin-subscriber_renew": 126,
+    "RADIUS_8": 186,
+    "admin-voucher_change-package": 18,
+    "admin-subscriber_change-package": 126,
+    "concurrent_recharge_one_winner": 174,
+    "recharge_gross": 1740
+  },
+  "main_worker_events": [
+    {
+      "worker": "RADIUS-0",
+      "error": "TimeoutError('timed out')",
+      "elapsed": 10.39
+    },
+    {
+      "worker": "RADIUS-2",
+      "error": "TimeoutError('timed out')",
+      "elapsed": 10.39
+    },
+    {
+      "worker": "admin-voucher",
+      "error": "AssertionError(('/api/actions/extend-time', {'message': 'انتظر ثانية قبل تكرار العملية.', 'success': False}))",
+      "elapsed": 84.53
+    },
+    {
+      "worker": "admin-subscriber",
+      "error": "AssertionError(('/api/actions/renew', {'message': 'يوجد تجديد أو شحن باقة جارٍ للحساب نفسه؛ انتظر اكتماله.', 'success': False}))",
+      "elapsed": 531.47
+    }
+  ],
+  "extra_admin": {
+    "checks": [
+      {
+        "kind": "subscriber",
+        "passed": true,
+        "successful_operations": 365,
+        "expected_guards_without_effect": 0,
+        "ledger_count": 365
+      },
+      {
+        "kind": "voucher",
+        "passed": true,
+        "successful_operations": 366,
+        "expected_guards_without_effect": 0,
+        "ledger_count": 366
+      }
+    ],
+    "errors": [],
+    "counts": {
+      "HTTP": 731,
+      "HTTP_mutation": 731
+    },
+    "fresh_actors": true,
+    "no_automatic_financial_retry": true
+  },
+  "extra_radius": {
+    "counts": {
+      "RADIUS_packets": 10788,
+      "RADIUS_auth": 2697,
+      "RADIUS_1": 2697,
+      "RADIUS_3": 2697,
+      "RADIUS_2": 2697,
+      "completed_retry_sessions": 2697,
+      "retransmissions": 3
+    },
+    "errors": [],
+    "same_wire_retransmission_limit": 3,
+    "no_financial_requests": true
+  },
+  "operations": {
+    "checks": [
+      {
+        "name": "admin-missing-CSRF-rejected-without-write",
+        "passed": true
+      },
+      {
+        "name": "portal-cannot-call-admin-wallet",
+        "passed": true
+      },
+      {
+        "name": "bulk-wallet-each-target-exactly-once",
+        "passed": true
+      },
+      {
+        "name": "offline-disconnect-does-not-change-contract",
+        "passed": true
+      },
+      {
+        "name": "terminate-blocks-account",
+        "passed": true
+      },
+      {
+        "name": "renew-reactivates-with-one-paid-invoice",
+        "passed": true
+      },
+      {
+        "name": "delete-keeps-financial-invoice",
+        "passed": true
+      },
+      {
+        "name": "portal-wrong-old-password-no-change",
+        "passed": true
+      },
+      {
+        "name": "portal-password-and-RADIUS-sync",
+        "passed": true
+      },
+      {
+        "name": "portal-login-new-password",
+        "passed": true
+      }
+    ],
+    "counts": {
+      "HTTP": 7,
+      "HTTP_mutation": 7
+    }
+  },
+  "final_protocol": {
+    "checks": [
+      {
+        "name": "genuine-final-stop-original-start-0",
+        "passed": true
+      },
+      {
+        "name": "genuine-final-stop-original-start-2",
+        "passed": true
+      },
+      {
+        "name": "renewed-full-Burst-snapshot-admin",
+        "passed": true
+      },
+      {
+        "name": "actual-Core-full-Burst-reply-admin",
+        "passed": true
+      },
+      {
+        "name": "actual-Core-final-Stop-admin",
+        "passed": true
+      },
+      {
+        "name": "renewed-full-Burst-snapshot-portal",
+        "passed": true
+      },
+      {
+        "name": "actual-Core-full-Burst-reply-portal",
+        "passed": true
+      },
+      {
+        "name": "actual-Core-final-Stop-portal",
+        "passed": true
+      },
+      {
+        "name": "renewed-full-Burst-snapshot-followup",
+        "passed": true
+      },
+      {
+        "name": "actual-Core-full-Burst-reply-followup",
+        "passed": true
+      },
+      {
+        "name": "actual-Core-final-Stop-followup",
+        "passed": true
+      },
+      {
+        "name": "no-policy-auth-extra-sale-or-invoice",
+        "passed": true
+      }
+    ],
+    "counts": {
+      "RADIUS_packets": 14,
+      "RADIUS_2": 5,
+      "RADIUS_auth": 3,
+      "RADIUS_1": 3,
+      "RADIUS_3": 3
+    },
+    "no_financial_replay": true,
+    "actual_radius_core": true,
+    "physical_NAS": false
+  },
+  "financial_verification": {
+    "checks": [
+      {
+        "name": "admin-subscriber-wallet-vs-successful-request-sequence",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "admin-subscriber-wallet-vs-committed-records",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "admin-subscriber-exact-ledger-entry-count",
+        "passed": true,
+        "details": {
+          "expected": 758,
+          "actual": 758
+        }
+      },
+      {
+        "name": "admin-voucher-wallet-vs-successful-request-sequence",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "admin-voucher-wallet-vs-committed-records",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "admin-voucher-exact-ledger-entry-count",
+        "passed": true,
+        "details": {
+          "expected": 37,
+          "actual": 37
+        }
+      },
+      {
+        "name": "portal-subscriber-package-ledger-vs-requested-prices",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "portal-subscriber-wallet-vs-committed-records",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "portal-subscriber-exact-ledger-entry-count",
+        "passed": true,
+        "details": {
+          "expected": 346,
+          "actual": 346
+        }
+      },
+      {
+        "name": "portal-voucher-package-ledger-vs-requested-prices",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "portal-voucher-wallet-vs-committed-records",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "portal-voucher-exact-ledger-entry-count",
+        "passed": true,
+        "details": {
+          "expected": 345,
+          "actual": 345
+        }
+      },
+      {
+        "name": "fresh-admin-subscriber-ledger-and-wallet",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "fresh-admin-voucher-ledger-and-wallet",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "fresh-admin-no-unexpected-errors",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "all-recharge-races-have-one-consumption",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "all-sales-count-and-fixed-cost",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "all-invoices-including-operation-fixtures",
+        "passed": true,
+        "details": {
+          "expected": 1472,
+          "actual": 1472
+        }
+      },
+      {
+        "name": "no-duplicate-first-activation-sales",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "no-split-session-identities",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "no-NAS-Reboot-premature-closures",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "all-native-test-sessions-closed-after-probes",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "main-received-http-responses-no5xx",
+        "passed": true,
+        "details": null
+      }
+    ],
+    "wallets": [
+      {
+        "actor": "admin-subscriber",
+        "actual": "101012.00",
+        "expected": "101012.00",
+        "recharge_credit": "0",
+        "portal_package_charge": "0"
+      },
+      {
+        "actor": "admin-voucher",
+        "actual": "100152.00",
+        "expected": "100152.00",
+        "recharge_credit": "0",
+        "portal_package_charge": "0"
+      },
+      {
+        "actor": "portal-subscriber",
+        "actual": "95680.00",
+        "expected": "95680",
+        "recharge_credit": "870",
+        "portal_package_charge": "5190"
+      },
+      {
+        "actor": "portal-voucher",
+        "actual": "95700.00",
+        "expected": "95700",
+        "recharge_credit": "870",
+        "portal_package_charge": "5170"
+      }
+    ],
+    "sales": {
+      "n": 922,
+      "gross": "12950.00",
+      "cost": "1844.00"
+    },
+    "invoice_count": 1472,
+    "invoices_by_status": [
+      {
+        "status": "paid",
+        "n": 1219,
+        "gross": "16225.00"
+      },
+      {
+        "status": "refunded",
+        "n": 253,
+        "gross": "759.00"
+      }
+    ],
+    "native_collectors": {
+      "checkpoints": 0,
+      "rollups": 0
+    },
+    "radacct_count": 6413,
+    "open_sessions": 0,
+    "main_counts": {
+      "RADIUS_packets": 18909,
+      "RADIUS_auth": 3709,
+      "RADIUS_1": 3707,
+      "RADIUS_3": 7414,
+      "RADIUS_7": 186,
+      "RADIUS_2": 3707,
+      "completed_RADIUS_sessions": 3707,
+      "accounting_SQL_oracles": 3707,
+      "HTTP": 6176,
+      "HTTP_mutation": 2613,
+      "financial_SQL_oracles": 1827,
+      "admin-subscriber_add-wallet": 253,
+      "admin-subscriber_deduct-wallet": 253,
+      "admin-voucher_add-wallet": 38,
+      "expected_insufficient_funds_rejections": 59,
+      "admin-voucher_deduct-wallet": 38,
+      "HTTP_read": 3563,
+      "admin-voucher_extend": 37,
+      "admin-subscriber_extend": 253,
+      "admin-voucher_quota": 37,
+      "admin-subscriber_quota": 253,
+      "admin-subscriber_disable_activate": 32,
+      "portal-voucher_paid_renew_change": 345,
+      "portal-subscriber_paid_renew_change": 346,
+      "admin-voucher_renew": 19,
+      "admin-subscriber_renew": 126,
+      "RADIUS_8": 186,
+      "admin-voucher_change-package": 18,
+      "admin-subscriber_change-package": 126,
+      "concurrent_recharge_one_winner": 174,
+      "recharge_gross": 1740
+    },
+    "main_worker_errors": [
+      {
+        "worker": "RADIUS-0",
+        "error": "TimeoutError('timed out')",
+        "elapsed": 10.39
+      },
+      {
+        "worker": "RADIUS-2",
+        "error": "TimeoutError('timed out')",
+        "elapsed": 10.39
+      },
+      {
+        "worker": "admin-voucher",
+        "error": "AssertionError(('/api/actions/extend-time', {'message': 'انتظر ثانية قبل تكرار العملية.', 'success': False}))",
+        "elapsed": 84.53
+      },
+      {
+        "worker": "admin-subscriber",
+        "error": "AssertionError(('/api/actions/renew', {'message': 'يوجد تجديد أو شحن باقة جارٍ للحساب نفسه؛ انتظر اكتماله.', 'success': False}))",
+        "elapsed": 531.47
+      }
+    ],
+    "samples": 101,
+    "resources": {
+      "web": {
+        "first_MiB": 140.35,
+        "last_MiB": 246.59,
+        "peak_MiB": 249.98,
+        "average_cpu_cores": 0.462,
+        "final_memory_events": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "io_first": "",
+        "io_last": "8:64 rbytes=4362240 wbytes=0 rios=425 wios=0 dbytes=0 dios=0\n"
+      },
+      "core": {
+        "first_MiB": 84.85,
+        "last_MiB": 110.19,
+        "peak_MiB": 114.74,
+        "average_cpu_cores": 0.0374,
+        "final_memory_events": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "io_first": "8:64 rbytes=2084864 wbytes=1908736 rios=174 wios=256 dbytes=0 dios=0\n",
+        "io_last": "8:64 rbytes=2088960 wbytes=23072768 rios=175 wios=592 dbytes=0 dios=0\n"
+      },
+      "db": {
+        "first_MiB": 132.41,
+        "last_MiB": 994.03,
+        "peak_MiB": 999.15,
+        "average_cpu_cores": 0.4367,
+        "final_memory_events": {
+          "low": 0,
+          "high": 0,
+          "max": 0,
+          "oom": 0,
+          "oom_kill": 0,
+          "oom_group_kill": 0
+        },
+        "io_first": "8:64 rbytes=13631488 wbytes=206868480 rios=1289 wios=63398 dbytes=0 dios=0\n",
+        "io_last": "8:64 rbytes=14143488 wbytes=1225048064 rios=1328 wios=512219 dbytes=0 dios=0\n"
+      }
+    },
+    "http_latency": {
+      "mutations": {
+        "n": 2615,
+        "median": 0.3883,
+        "p95": 1.9277,
+        "max": 9.6011
+      },
+      "reads": {
+        "n": 3563,
+        "median": 0.5055,
+        "p95": 1.3911,
+        "max": 9.09
+      }
+    },
+    "DB_disk_MiB_first_last": [
+      239.95,
+      280.76
+    ],
+    "resource_window_seconds": 1208.1859567165375,
+    "no_financial_request_replay": true
+  },
+  "Core_SQL_errors": {
+    "deadlock_1213": 0,
+    "lock_timeout_1205": 0
+  },
+  "cold_Core_probe": {
+    "core_image": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+    "initial_starts": [
+      {
+        "index": 0,
+        "response": true
+      },
+      {
+        "index": 1,
+        "response": false,
+        "error": "TimeoutError('timed out')"
+      },
+      {
+        "index": 2,
+        "response": true
+      },
+      {
+        "index": 3,
+        "response": true
+      }
+    ],
+    "initial_sql_rows": 3,
+    "directory_exists_errors": 1,
+    "deadlocks": 0,
+    "identical_wire_retries": [
+      {
+        "index": 1,
+        "same_wire_sha256": "428b55c2bf98ca883fe9c07592535639e1be677e0b4f87b1ff020cb91fe1d4b9",
+        "response": true
+      }
+    ],
+    "final": {
+      "n": 4,
+      "opened": "0"
+    },
+    "no_financial_operations": true
+  },
+  "http_log_quality": {
+    "shared_append_valid_lines": 6908,
+    "shared_append_invalid_lines": 1,
+    "shared_append_nul_bytes": 0,
+    "authoritative_main_json_records": 6178,
+    "main_latency_and_status_source": "HTTP.private.json, per-driver snapshot; shared append not complete evidence",
+    "extra_http_evidence": "per-driver request counters and successful assertions, independent SQL ledgers",
+    "financial_replayed": false
+  },
+  "cold_components_byte_identical_to_original": true,
+  "cleanup": {
+    "owner": "lock269-3fb185ca",
+    "removed_owned_containers": 5,
+    "removed_owned_volumes": 3,
+    "removed_owned_network": true,
+    "preexisting_count": 1174,
+    "preexisting_unchanged": 1174,
+    "preexisting_differences": [],
+    "new_external_ids": [],
+    "leftover_owned_containers": [],
+    "product_images_retained": true,
+    "prior_fixture_and_other_projects_not_changed_by_this_script": true
+  },
+  "pushed": false,
+  "deployed": false,
+  "latest_changed": false,
+  "physical_NAS_tested": false,
+  "no_financial_replay": true,
+  "evidence": "PRIVATE/locks269-fix-20261031-r1"
+}

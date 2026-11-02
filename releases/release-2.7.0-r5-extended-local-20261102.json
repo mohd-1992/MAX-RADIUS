@@ -1,0 +1,332 @@
+{
+  "version": "2.7.0",
+  "candidate": "r5",
+  "status": "all_available_local_extended_checks_passed",
+  "local_release_qualification": true,
+  "published": false,
+  "domain_updates": false,
+  "latest_changed": false,
+  "product_code_or_images_changed_during_this_round": false,
+  "web": "sha256:8bb3520a2501a53c3e71099cd8895a265ef7b0672560d833706a780006aa902a",
+  "core": "sha256:10cc88946c5ed6310a36c4c11b7e991277137da87eb019958f2eb45c8d2eabf5",
+  "pressure": {
+    "pressure_passed": true,
+    "duration": 3604.9,
+    "counts": {
+      "RADIUS_latency_lt_1s": 115807,
+      "RADIUS_packets": 115871,
+      "RADIUS_auth": 22720,
+      "RADIUS_1": 22719,
+      "RADIUS_3": 45438,
+      "RADIUS_7": 1139,
+      "RADIUS_2": 22719,
+      "completed_RADIUS_sessions": 22719,
+      "accounting_SQL_oracles": 22719,
+      "HTTP": 12090,
+      "HTTP_mutation": 4406,
+      "financial_SQL_oracles": 2997,
+      "admin-subscriber_add-wallet": 287,
+      "admin-subscriber_deduct-wallet": 287,
+      "expected_insufficient_funds_rejections": 116,
+      "admin-voucher_add-wallet": 288,
+      "admin-voucher_deduct-wallet": 288,
+      "HTTP_read": 7684,
+      "RADIUS_8": 1136,
+      "admin-subscriber_extend": 287,
+      "admin-voucher_extend": 288,
+      "portal-voucher_paid_renew_change": 446,
+      "portal-subscriber_paid_renew_change": 449,
+      "concurrent_recharge_one_winner": 225,
+      "recharge_gross": 2250,
+      "admin-subscriber_quota": 286,
+      "admin-subscriber_disable_activate": 36,
+      "admin-voucher_quota": 288,
+      "admin-subscriber_renew": 144,
+      "admin-voucher_renew": 144,
+      "admin-subscriber_change-package": 142,
+      "admin-voucher_change-package": 144,
+      "RADIUS_latency_ge_1s": 64,
+      "RADIUS_transport_timeouts": 10,
+      "RADIUS_identical_retransmissions": 10,
+      "expected_cycle_guard_rejections": 1,
+      "guard_rejection_account_exact": 1
+    },
+    "errors": 0,
+    "all_http_200": true,
+    "financial_and_accounting_final_audit": {
+      "financial": [
+        {
+          "role": "admin-subscriber",
+          "balance_exact": true,
+          "ledger_exact": true,
+          "entries": 860
+        },
+        {
+          "role": "admin-voucher",
+          "balance_exact": true,
+          "ledger_exact": true,
+          "entries": 288
+        },
+        {
+          "role": "portal-subscriber",
+          "balance_exact": true,
+          "ledger_exact": true,
+          "entries": 449
+        },
+        {
+          "role": "portal-voucher",
+          "balance_exact": true,
+          "ledger_exact": true,
+          "entries": 446
+        }
+      ],
+      "accounting": {
+        "rows": 22719,
+        "all_closed": true,
+        "counter_totals_exact": true,
+        "no_duplicate_session_ids": true
+      }
+    },
+    "resource_samples": 211,
+    "cgroup_peak_bytes": {
+      "web": 941072384,
+      "core": 203575296,
+      "db": 331898880
+    },
+    "images": {
+      "web": "sha256:8bb3520a2501a53c3e71099cd8895a265ef7b0672560d833706a780006aa902a",
+      "core": "sha256:10cc88946c5ed6310a36c4c11b7e991277137da87eb019958f2eb45c8d2eabf5",
+      "db": "sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e"
+    },
+    "physical_NAS_accepted": false,
+    "no_automatic_financial_retry": true,
+    "db_profile": {
+      "memory_mib": 1280,
+      "cpus": 1,
+      "buffer_pool_mib": 128,
+      "allocator_arenas": 2
+    },
+    "published": false
+  },
+  "resources": {
+    "web": {
+      "peak_mib": 897.48,
+      "end_load_mib": 421.14,
+      "average_cpu_percent_of_one_core": 39.7,
+      "read_mib": 106.03,
+      "write_mib": 203.75
+    },
+    "core": {
+      "peak_mib": 194.14,
+      "end_load_mib": 190.55,
+      "average_cpu_percent_of_one_core": 3.41,
+      "read_mib": 0.0,
+      "write_mib": 80.2
+    },
+    "db": {
+      "peak_mib": 316.52,
+      "end_load_mib": 309.33,
+      "average_cpu_percent_of_one_core": 32.36,
+      "read_mib": 0.65,
+      "write_mib": 1968.81
+    }
+  },
+  "http_latency": {
+    "read": {
+      "requests": 7684,
+      "median_seconds": 0.597,
+      "p95_seconds": 1.966,
+      "max_seconds": 11.227
+    },
+    "mutation": {
+      "requests": 4407,
+      "median_seconds": 3.28,
+      "p95_seconds": 5.342,
+      "max_seconds": 15.417
+    }
+  },
+  "collector": {
+    "success": true,
+    "seconds": 1416.34,
+    "cycles": 135,
+    "rss_peak_kib": 53680,
+    "error": null
+  },
+  "exports": {
+    "exports": [
+      {
+        "kind": "excel",
+        "seconds": 57.868,
+        "bytes": 2031437,
+        "rows": 20000,
+        "all_codes_exact": true
+      },
+      {
+        "kind": "pdf",
+        "seconds": 351.828,
+        "bytes": 30428438,
+        "cards": 2000,
+        "all_codes_present": true,
+        "pages": 209
+      }
+    ],
+    "client_rss_peak_kib": 222224
+  },
+  "actual_two_CHR_cases": 4,
+  "compiled_Web_UDP_CoA_ACK_absence_real_Stop": true,
+  "same_SID_two_NAS_native_RADIUS_SQL": {
+    "success": true,
+    "same_username_sessionid_IP_MAC_port": true,
+    "distinct_NAS_created_two_unique_accounting_rows": true,
+    "Stop_one_preserved_the_other": true,
+    "both_final_counters_exact": true,
+    "wallet_unchanged": true,
+    "real_RADIUS_SQL": true,
+    "physical_NAS_for_this_specific_collision": false,
+    "transport": {
+      "RADIUS_latency_lt_1s": 6,
+      "RADIUS_packets": 6,
+      "RADIUS_auth": 2,
+      "RADIUS_1": 2,
+      "RADIUS_2": 2
+    }
+  },
+  "actual_269_to_r5_rollback_return": {
+    "success": true,
+    "upgraded_from_actual_latest269_schema": true,
+    "restored_cards": 31077,
+    "business_accounting_managers_license_exact": true,
+    "only_own_manager_last_login_clock_excluded_with_archive_field_audit": true,
+    "all_8_pages_at_4_stages_HTTP200": true,
+    "same_storage_and_DB": true,
+    "no_DB_restore_during_switch": true,
+    "images": {
+      "269": "sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+      "r5": "sha256:8bb3520a2501a53c3e71099cd8895a265ef7b0672560d833706a780006aa902a"
+    },
+    "simulation_signature_and_binding_checked": true,
+    "production_license_tested": false
+  },
+  "components": {
+    "complete": true,
+    "cases": 9,
+    "owner": "components4-111c09fe7b",
+    "preexisting_identity_state_unchanged": true,
+    "owned_containers_remaining": 0,
+    "owned_volumes_remaining": 0,
+    "owned_networks_remaining": 0,
+    "customer_access": false,
+    "published": false,
+    "native_radius_sql": true,
+    "real_license_or_NAS_acceptance": false
+  },
+  "restore": {
+    "legacy": {
+      "seconds": 121.30939507801668,
+      "cards": 31077,
+      "subscribers": 50,
+      "license_exact": true,
+      "peak_mib": 370.45,
+      "cpu_seconds": 34.029169980999995,
+      "input_bytes": 30877048,
+      "input_sha256": "ff366f5c4ed7c53d36606fec054ead2c231c77ec6a9fa68b789dc665ee74c2bc",
+      "triggers_and_attachments": {
+        "attachments_hash_exact": 1,
+        "triggers": 17,
+        "trigger_and_view_owner_matches_limited_destination_user": true,
+        "owned_view_executes_and_matches_raw_count": true
+      }
+    },
+    "large": {
+      "seconds": 195.34942801200668,
+      "cards": 181077,
+      "subscribers": 50,
+      "license_exact": true,
+      "peak_mib": 790.05,
+      "cpu_seconds": 61.922599668000004,
+      "input_bytes": 124680226,
+      "input_sha256": "c4a201b2b06a5894c371d74c514801935893fdff3833db01d7e5005dc9ebaa44",
+      "triggers_and_attachments": {
+        "attachments_hash_exact": 1,
+        "triggers": 17,
+        "trigger_and_view_owner_matches_limited_destination_user": true,
+        "owned_view_executes_and_matches_raw_count": true
+      }
+    }
+  },
+  "candidate_identity": {
+    "web_tag_matches_tested_image": true,
+    "three_financial_sources_match_image_manifest": true,
+    "original_containers_preserved": 944,
+    "missing_original_containers": 0,
+    "no_registry_or_remote_actions": true
+  },
+  "outside_local_scope": [
+    "positive license signed by the actual trusted publisher",
+    "performance and DB profile on deployment host"
+  ],
+  "report": "docs/RELEASE_270_R5_EXTENDED_ACCEPTANCE_20261102.md",
+  "post_load_idle": {
+    "seconds": 80.54,
+    "services": {
+      "web": {
+        "ram_mib": 352.13,
+        "anonymous_mib": 215.41,
+        "file_cache_mib": 127.54,
+        "swap_end_observation": "memory.swap.current\n0\nmemory.swap.max\n1073741824\nmemory.swap.peak\n0\n"
+      },
+      "core": {
+        "ram_mib": 190.62,
+        "anonymous_mib": 126.89,
+        "file_cache_mib": 57.99,
+        "swap_end_observation": "memory.swap.current\n0\nmemory.swap.max\n268435456\nmemory.swap.peak\n0\n"
+      },
+      "db": {
+        "ram_mib": 308.7,
+        "anonymous_mib": 282.55,
+        "file_cache_mib": 8.01,
+        "swap_end_observation": "memory.swap.current\n0\nmemory.swap.max\n0\nmemory.swap.peak\n0\n"
+      }
+    }
+  },
+  "global_final_accounting_and_DB_status": {
+    "accounting": {
+      "n": 22721,
+      "open_n": "0"
+    },
+    "db_status": [
+      {
+        "Variable_name": "Innodb_deadlocks",
+        "Value": "0"
+      },
+      {
+        "Variable_name": "Max_used_connections",
+        "Value": "27"
+      },
+      {
+        "Variable_name": "Threads_connected",
+        "Value": "5"
+      }
+    ]
+  },
+  "http_logged_requests": 12091,
+  "expected_cycle_guard_rejection_excluded_from_completed_counter": 1,
+  "cleanup": {
+    "round_containers_preserved_stopped": 6,
+    "original_containers_preserved": 944,
+    "images_and_volumes_preserved": true,
+    "original_containers_missing": 0
+  },
+  "resource_interpretation": {
+    "early_5_to_10_min_median_RAM_mib": {
+      "web": 222.68,
+      "core": 98.57,
+      "db": 237.34
+    },
+    "same_workload_causal_before_after_comparison": false,
+    "reason": "Exports, extra SQL collector and file caches differ across phases; one hour does not establish days-long memory stability.",
+    "no_OOM": true,
+    "no_swap_peak_recorded": true,
+    "collector_started_after_midpoint": true
+  }
+}

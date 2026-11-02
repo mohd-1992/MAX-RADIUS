@@ -38,7 +38,8 @@ def provision(directory, project, private_root, socket_root, enrollment=None, ki
     root.mkdir(mode=0o700,parents=True,exist_ok=True);sockets.mkdir(mode=0o750,parents=True,exist_ok=True)
     mounts=[{'Type':'bind','Source':str(root),'Target':'/max-update-private','ReadOnly':False},
             {'Type':'bind','Source':'/var/run/docker.sock','Target':'/var/run/docker.sock','ReadOnly':False},
-            {'Type':'bind','Source':str(path),'Target':'/max-update-compose','ReadOnly':False}]
+            {'Type':'bind','Source':str(path),'Target':'/max-update-compose','ReadOnly':False},
+            {'Type':'bind','Source':str(sockets),'Target':'/max-update-socket','ReadOnly':False}]
     config=dict(TRUST,channel='https://control.max-net.net',kind='public',executor='host' if kind=='domain' else 'local',
                 project=project,services=roles,compose_path='/max-update-compose/'+compose_name,controller_mounts=mounts)
     if enrollment:

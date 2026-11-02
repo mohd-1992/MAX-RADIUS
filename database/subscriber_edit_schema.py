@@ -18,6 +18,8 @@ def clear_legacy_restore_ownership(conn, voucher_only=False):
 
 
 def install_subscriber_edit_schema(conn, mysql=True):
+    from database.account_mac_schema import install_account_mac_schema
+    install_account_mac_schema(conn)
     suffix = ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci' if mysql else ''
     with conn.cursor() as cur:
         cur.execute('''CREATE TABLE IF NOT EXISTS wisp_subscriber_names (

@@ -23,6 +23,8 @@ class BundleContracts(unittest.TestCase):
         manifest = json.loads((ROOT/'release.json').read_text())
         bundle = ROOT/'releases'/manifest['bundle']['url'].rsplit('/', 1)[-1]
         self.assertEqual(hashlib.sha256(bundle.read_bytes()).hexdigest(), manifest['bundle']['sha256'])
+        frozen = json.loads((ROOT/'releases'/('installer-bundle-'+manifest['release']+'.json')).read_text())
+        self.assertEqual(frozen['archive_sha256'], manifest['bundle']['sha256'])
         with tarfile.open(bundle) as archive:
             self.assertEqual(sorted(archive.getnames()), sorted(BASE+HOST))
             self.assertTrue(all(member.isfile() for member in archive.getmembers()))
@@ -32,8 +34,9 @@ class BundleContracts(unittest.TestCase):
                     for key, service in [('MAX_WEB_IMAGE','web'),('MAX_CORE_IMAGE','core'),('MAX_L2TP_IMAGE','l2tp'),('MAX_DB_IMAGE','database'),('MAX_AUTOHEAL_IMAGE','autoheal')]:
                         self.assertEqual(actual[key], manifest['images'][service])
                     continue
-                source = ROOT/('deploy/'+name[5:] if name.startswith('host/') else name)
-                self.assertEqual(archive.extractfile(name).read().replace(b'\r\n', b'\n'), source.read_bytes().replace(b'\r\n', b'\n'))
+                # Old approved bundles must remain valid as development advances.
+                actual = archive.extractfile(name).read().replace(b'\r\n', b'\n')
+                self.assertEqual(hashlib.sha256(actual).hexdigest(), frozen['members_lf_sha256'][name])
 
     def test_current_installation_matches_published_source_image(self):
         manifest = json.loads((ROOT/'release.json').read_text())

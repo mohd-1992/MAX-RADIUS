@@ -57,7 +57,7 @@ def filter_dashboard_metrics(metrics):
     if has_permission('vouchers.view'):
         allowed.update(('vouchers', 'voucher_summary'))
     if can_view_network_totals():
-        allowed.update(('active_sessions', 'total_unique_online', 'traffic_in_str', 'traffic_out_str', 'traffic_total_str'))
+        allowed.update(('active_sessions', 'total_unique_online', 'traffic_in_str', 'traffic_out_str', 'traffic_total_str', 'traffic_status_text'))
     if has_permission('nas.view') and owner_id() is None:
         allowed.add('total_nas')
     if has_permission('system.view_services') and owner_id() is None:
@@ -157,9 +157,8 @@ def owned_dashboard_metrics():
         disabled_subscribers=counts.get('disabled',0),recharged_subscribers=counts.get('recharged',0),
         online_devices=sessions.get('devices',0),online=sessions.get('devices',0),
         online_cards=sessions.get('users',0),online_subscribers=sessions.get('users',0))
-    from core.rate_limit import format_bytes
-    traffic = scoped_query_one('SELECT COALESCE(SUM(acctinputoctets),0) AS rx, COALESCE(SUM(acctoutputoctets),0) AS tx FROM radacct') or {}
+    from services.dashboard_reporting_service import daily_traffic_metrics
+    traffic = daily_traffic_metrics(owner=owner_id())
     return dict(vouchers=counts,voucher_summary=summary,active_sessions=sessions.get('devices',0),
                 total_unique_online=sessions.get('users',0), online_subscribers=0, online_subscriber_devices=0,
-                traffic_in_str=format_bytes(traffic.get('rx',0)),traffic_out_str=format_bytes(traffic.get('tx',0)),
-                traffic_total_str=format_bytes(traffic.get('rx',0)+traffic.get('tx',0)))
+                **traffic)

@@ -166,15 +166,21 @@ def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, m
                 old = sql(conn, f'SELECT 1 ok FROM {table} WHERE id=? AND expires_at < NOW()-INTERVAL ? DAY', (entity_id,min_age_days),'one')
                 if not old:
                     return {'deleted':False,'skipped':True}
-        sessions = sql(conn, "SELECT radacctid,acctsessionid,nasipaddress FROM radacct_owned WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) ORDER BY radacctid FOR UPDATE", (row['username'],),'all')
+        sessions = sql(conn, "SELECT radacctid,acctsessionid,nasipaddress,acctstoptime FROM radacct_owned WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) ORDER BY radacctid FOR UPDATE", (row['username'],),'all')
         reserved = sql(conn, 'SELECT id FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() FOR UPDATE', (row['username'],), 'all')
         if sessions or reserved:
             if not expected_expired:
                 sql(conn, f"UPDATE {table} SET status='suspended',pause_reason=? WHERE id=?",
                     ('إيقاف لحين إكمال حذف الحساب', entity_id))
             removed = sql(conn,"DELETE FROM radcheck WHERE username=? AND attribute='Cleartext-Password'",(row['username'],))
-            return {'deleted':False,'pending':True,'username':row['username'],'sessions':sessions,'deleted_radcheck':removed,'cycle':str(row.get('last_renewed_at') or '')}
+            reasons=[]
+            if any(not s.get('acctstoptime') for s in sessions):reasons.append('open_session')
+            if any(s.get('acctstoptime') for s in sessions):reasons.append('uncertain_close')
+            if reserved:reasons.append('auth_reservation')
+            return {'deleted':False,'pending':True,'pending_reasons':reasons,'username':row['username'],'sessions':sessions,'deleted_radcheck':removed,'cycle':str(row.get('last_renewed_at') or '')}
         removed = {}
+        from services.traffic_history_service import preserve_account
+        preserve_account(conn,kind,row)
         for radius_table in ('radcheck','radreply','radusergroup'):
             removed['deleted_' + radius_table] = sql(conn,f'DELETE FROM {radius_table} WHERE username=?',(row['username'],))
         if kind=='subscriber':
@@ -276,6 +282,8 @@ def delete_voucher_batch(batch_id, admin_username):
                     after=Decimal(str(old['balance'] or 0))+amount
                     sql(conn,'UPDATE wisp_resellers SET balance=? WHERE id=?',(after,reseller))
                     sql(conn,"INSERT INTO wisp_reseller_transactions (reseller_id,type,amount,balance_after,description,reference_id) VALUES (?,'refund',?,?,?,?)",(reseller,amount,after,'استرداد حذف الدفعة',str(batch_id)))
+        from services.traffic_history_service import preserve_accounts
+        preserve_accounts(conn,'voucher',cards)
         for row in cards:
             for table in ('radcheck','radreply','radusergroup'):
                 sql(conn,f'DELETE FROM {table} WHERE username=?',(row['username'],))
@@ -284,4 +292,5 @@ def delete_voucher_batch(batch_id, admin_username):
         return True
     return run_transaction(operation)
 
-HISTORY_ELIGIBLE = "\n        a.acctstoptime IS NOT NULL\n        AND a.acctstoptime < NOW() - INTERVAL %s DAY\n        AND COALESCE(a.acctterminatecause, '') NOT IN\n            ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed')\n        AND NOT EXISTS (\n            SELECT 1 FROM wisp_subscribers s WHERE s.username = a.username\n            AND (s.last_renewed_at IS NULL OR a.acctstarttime >= s.last_renewed_at\n                 OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid = a.radacctid AND b.renewed_at = s.last_renewed_at))\n        )\n        AND NOT EXISTS (\n            SELECT 1 FROM wisp_vouchers v WHERE v.username = a.username\n            AND (v.last_renewed_at IS NULL OR a.acctstarttime >= v.last_renewed_at\n                 OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid = a.radacctid AND b.renewed_at = v.last_renewed_at))\n        )\n    "
+# Shared by pruning, archival and duplicate compaction. One age parameter.
+HISTORY_ELIGIBLE = "\n        a.acctstoptime IS NOT NULL\n        AND a.acctstoptime<NOW()-INTERVAL 48 HOUR\n        AND (COALESCE(a.acctuniqueid,'')<>'' OR COALESCE(a.acctsessionid,'')<>'' OR a.acctstarttime IS NOT NULL)\n        AND a.acctstoptime < NOW() - INTERVAL %s DAY\n        AND COALESCE(a.acctterminatecause, '') NOT IN\n            ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed')\n        AND NOT EXISTS (\n            SELECT 1 FROM wisp_subscribers s\n            WHERE a.account_voucher_id IS NULL AND s.id=COALESCE(a.account_subscriber_id,\n                (SELECT MIN(owner.id) FROM wisp_subscribers owner WHERE owner.username=CONVERT(a.account_read_username USING utf8mb4) COLLATE utf8mb4_unicode_ci\n                 AND BINARY owner.username=BINARY a.account_read_username HAVING COUNT(*)=1))\n            AND (s.last_renewed_at IS NULL OR a.acctstarttime IS NULL OR a.acctstarttime>=s.last_renewed_at\n                OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid=a.radacctid AND b.renewed_at=s.last_renewed_at))\n        )\n        AND NOT EXISTS (\n            SELECT 1 FROM wisp_vouchers v\n            WHERE a.account_subscriber_id IS NULL AND v.id=COALESCE(a.account_voucher_id,\n                (SELECT MIN(owner.id) FROM wisp_vouchers owner WHERE owner.username=CONVERT(a.account_read_username USING utf8mb4) COLLATE utf8mb4_unicode_ci\n                 AND BINARY owner.username=BINARY a.account_read_username HAVING COUNT(*)=1))\n            AND (v.last_renewed_at IS NULL OR a.acctstarttime IS NULL OR a.acctstarttime>=v.last_renewed_at\n                OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid=a.radacctid AND b.renewed_at=v.last_renewed_at))\n        )\n"

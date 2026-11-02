@@ -27,6 +27,7 @@ pillow==13.0.0
 playwright==1.64.0
 pycparser==3.11
 pyee==13.0.1
+pypdf==6.1.1
 python-dotenv==1.2.4
 pytz==2026.5
 requests==2.34.2

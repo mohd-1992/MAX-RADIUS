@@ -1,0 +1,132 @@
+{
+  "version": "2.7.0",
+  "status": "historical_r3_acceptance_superseded_by_finance_r5",
+  "ready_for_general_publication": false,
+  "web": {
+    "tag": "max-radius-web:2.7.0-rc-local-20261102-r3",
+    "id": "sha256:9fcbfca04af5999956e1a8e82adcffa3aa13cde150f94eb4df2b3a879211bdda",
+    "bytes": 2631761313,
+    "base": "sha256:2ae36708f360dc4880446c6a515e4feda767e5f5302a1ef09fbf553908dba995",
+    "source_sha256": "0f1fdea988d70e1facdebf973348f38f0e9b3551afcb814e1c267f6af9cfb53a"
+  },
+  "core": {
+    "tag": "max-radius-core:2.7.0-rc-local-20261101-r1",
+    "id": "sha256:10cc88946c5ed6310a36c4c11b7e991277137da87eb019958f2eb45c8d2eabf5",
+    "runtime_identical_to_published_269": true
+  },
+  "base_web269": "sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+  "groups": 39,
+  "case_executions": 595,
+  "pressure": {
+    "pressure_passed": true,
+    "duration": 1202.2,
+    "counts": {
+      "RADIUS_latency_lt_1s": 42127,
+      "RADIUS_packets": 42139,
+      "RADIUS_auth": 8263,
+      "RADIUS_1": 8262,
+      "RADIUS_3": 16524,
+      "RADIUS_7": 416,
+      "RADIUS_2": 8262,
+      "completed_RADIUS_sessions": 8262,
+      "accounting_SQL_oracles": 8262,
+      "HTTP": 10567,
+      "HTTP_mutation": 6249,
+      "financial_SQL_oracles": 4037,
+      "admin-subscriber_add-wallet": 496,
+      "admin-subscriber_deduct-wallet": 496,
+      "expected_insufficient_funds_rejections": 201,
+      "admin-voucher_add-wallet": 501,
+      "admin-voucher_deduct-wallet": 501,
+      "admin-subscriber_extend": 496,
+      "admin-voucher_extend": 501,
+      "admin-subscriber_quota": 496,
+      "admin-voucher_quota": 501,
+      "HTTP_read": 4318,
+      "admin-subscriber_disable_activate": 62,
+      "admin-voucher_renew": 251,
+      "admin-subscriber_renew": 248,
+      "portal-subscriber_paid_renew_change": 316,
+      "portal-voucher_paid_renew_change": 310,
+      "RADIUS_8": 412,
+      "admin-voucher_change-package": 249,
+      "concurrent_recharge_one_winner": 157,
+      "recharge_gross": 1570,
+      "admin-subscriber_change-package": 248,
+      "RADIUS_latency_ge_1s": 12,
+      "RADIUS_transport_timeouts": 1,
+      "RADIUS_identical_retransmissions": 1,
+      "expected_cycle_guard_rejections": 1,
+      "guard_rejection_account_exact": 1
+    },
+    "financial_accounting_audited": true,
+    "HTTP_all_200": true,
+    "unchanged_export_modules_inherit_previous_concurrent_acceptance": true,
+    "final_r3_rollback_passed": true,
+    "idle_no_oom": true,
+    "cleanup_processes": {
+      "active_browser_processes": 0,
+      "renderer_processes": 0
+    },
+    "database_profile": "balanced",
+    "physical_NAS_accepted": false,
+    "published": false
+  },
+  "resources": {
+    "web": {
+      "minimum_observed_MiB": 205.28,
+      "maximum_observed_MiB": 325.2,
+      "last_observed_MiB": 259.26,
+      "cpu_seconds_between_samples": 636.031,
+      "note": "cgroup memory includes cache; sampled maxima are not process RSS"
+    },
+    "db": {
+      "minimum_observed_MiB": 308.19,
+      "maximum_observed_MiB": 332.95,
+      "last_observed_MiB": 332.16,
+      "cpu_seconds_between_samples": 652.856,
+      "note": "cgroup memory includes cache; sampled maxima are not process RSS"
+    },
+    "core": {
+      "minimum_observed_MiB": 161.75,
+      "maximum_observed_MiB": 207.42,
+      "last_observed_MiB": 207.42,
+      "cpu_seconds_between_samples": 37.642,
+      "note": "cgroup memory includes cache; sampled maxima are not process RSS"
+    }
+  },
+  "native_lock_graphs_fixed": 20,
+  "published269_deadlock_reproduced": true,
+  "loan_and_late_rollback_verified": {
+    "injection_reached_after_real_SQL": true,
+    "failed_response_identifies_injected_error": true,
+    "account_card_radius_sales_rolled_back": true,
+    "fresh_owned_actor_and_card": true
+  },
+  "mariadb118_legacy_restore_seconds": 113.06631263601594,
+  "remaining": [
+    "Physical CHR/NAS end-to-end disconnect/MAC/PPPoE requires working lab network",
+    "Decide and qualify host-side DB memory profile for target environment; image update alone does not apply it"
+  ],
+  "published": false,
+  "domains_updated": false,
+  "latest_changed": false,
+  "git_pushed": false,
+  "source_manifest_sha256": "5a274833f3d5e280230400acb2908015b5902c9bfa87f2a99ea8df1ef8075ce3",
+  "cleanup": {
+    "removed_owned_containers": 152,
+    "retained_stopped_fixtures": 12,
+    "preexisting_containers_preserved": 908,
+    "images_and_owned_data_volumes_preserved": true,
+    "old_shared_volume_db_container_removed_to_prevent_dual_start": true,
+    "published": false,
+    "closed_epoch": 1793571625.735221
+  },
+  "repository": {
+    "head": "ac6d9555059e1ec0f6fd40b8d7aa54aaea1eb60a",
+    "origin_main_verified": "e795ab1f7b2d4ae44bcdfb98a4354fa61a125de0",
+    "needs_reviewed_commit_and_remote_integration": true,
+    "committed_or_pushed_this_round": false
+  },
+  "superseded_by": "release-2.7.0-finance-local-20261102.json"
+}

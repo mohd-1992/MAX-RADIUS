@@ -1,0 +1,115 @@
+{
+  "application_version": "2.6.9",
+  "build_id": "renewal-policy-engine4-local-20261029-r2",
+  "tag": "max-radius-web:2.6.9-renewal-engine-local-20261029-r2",
+  "image_id": "sha256:87620a4bc1504cbec669f7183e57d5c9a00542eb895bf6c1714900e854261191",
+  "published": false,
+  "base_image_id": "sha256:ffdcaf5f0b76f41fa8fb75cec866d8e9245af044847201f74aeae6755fa4b925",
+  "source_inputs": "Frozen verified 2.6.8 modules unchanged in 2.6.9, plus verified 2.6.9 schema, and task-only patch; 2.7.0 changes excluded",
+  "source_files_sha256": {
+    "compile.py": "79a6d14f56a9342be680f9eeba74ac379271e083d48beabe763df29f0adfca19",
+    "seal.py": "1ed5c076543bbce1f5d073311d1b0be0a60d79716761c80e07a9a40bf1bdfb2e",
+    "core/radius_sync.py": "1c72b4d7ccb8fc77a07560f28c5680602d653faa292fa6b32ae3536ce02774c2",
+    "database/first_use_policy.py": "7f76ba3947d22cffaf13572da3ff3574e55621c3e826464901fe6c7713a0af6c",
+    "database/schema_mysql.sql": "ed161e24ed62f2c932a35968604a2f1bfc8742458ca135df8bc31b3ad66d6421",
+    "services/batch_export_service.py": "664f3fe1fd8bbe421d725517186fbd541782faa375226796345b8ec57e8b3524",
+    "services/import_state_service.py": "16b454fea50127d5f3ae8dfece9c142433c70c8565fa96ba4e5e79afed8e46df",
+    "services/online_policy_service.py": "84af26fa7356f7b873af0172b3410337a145926b07e9b587f746c2a978fee016",
+    "services/quick_action_service.py": "1cdb08765cfcb39e98bf2e3eac1d9bc7100a785c4c71f340ba64ef70e535e27c",
+    "services/rate_policy_service.py": "272e9b0de80d364b08af70c336710eb3a0e37699125c244a5f9a6848452a41bb",
+    "services/user_portal_service.py": "e8111976c097e17a4274b85be92133daa4d80b2fb80908bb609fe716de043b50",
+    "services/voucher_service.py": "f5ed490aa4b9a92a50169bce8221f6d4b849d5e05dd083f09f31db5abc24cd12",
+    "database/migrations/20261013_first_use_policy.sql": "588c6c6100535c2232e2964937b9cb7dd029b61d7ded201e1cf5eebee0d829a2"
+  },
+  "tests": {
+    "source": {
+      "rate_policy": {
+        "run": 11,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "portal": {
+        "run": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "batch_export_restore": {
+        "run": 21,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "package": {
+        "run": 16,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "import_rate": {
+        "run": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    "compiled_engine": 41,
+    "native_first_use_guard": 6,
+    "compiled_mariadb": {
+      "setup": {
+        "checks": 2,
+        "failed": 0
+      },
+      "restore-actual-old": {
+        "checks": 6,
+        "failed": 0
+      },
+      "native-policy": {
+        "checks": 11,
+        "failed": 0
+      },
+      "native-workbooks": {
+        "checks": 11,
+        "failed": 0
+      }
+    }
+  },
+  "image_audit": {
+    "image_id": "sha256:87620a4bc1504cbec669f7183e57d5c9a00542eb895bf6c1714900e854261191",
+    "publisher_preserved": true,
+    "engine_and_controller_files_unchanged": true,
+    "version": "2.6.9",
+    "integrity": "MAX RUNTIME INTEGRITY OK",
+    "changed_runtime_files": [
+      "core/radius_sync.cpython-311-x86_64-linux-gnu.so",
+      "database/first_use_policy.cpython-311-x86_64-linux-gnu.so",
+      "database/migrations/20261013_first_use_policy.sql",
+      "database/schema_mysql.sql",
+      "services/batch_export_service.cpython-311-x86_64-linux-gnu.so",
+      "services/import_state_service.cpython-311-x86_64-linux-gnu.so",
+      "services/online_policy_service.cpython-311-x86_64-linux-gnu.so",
+      "services/quick_action_service.cpython-311-x86_64-linux-gnu.so",
+      "services/rate_policy_service.cpython-311-x86_64-linux-gnu.so",
+      "services/user_portal_service.cpython-311-x86_64-linux-gnu.so",
+      "services/voucher_service.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "unchanged_runtime_files": 203,
+    "plain_python_absent": true
+  },
+  "legacy_ui_suite": {
+    "run": 32,
+    "before_failures": 13,
+    "after_failures": 13,
+    "same_failure_names": true,
+    "accepted": false
+  },
+  "candidate_protocol": 4,
+  "advertised_protocol": 3,
+  "controller_transition_and_enrollment_accepted": false,
+  "automatic_worker_crash_recovery_accepted": false,
+  "positive_real_license_or_NAS_PPP_acceptance": false,
+  "production_distribution_ready": false,
+  "deployed": false,
+  "report": "docs/RENEWAL_RATE_FIX_269_LOCAL_20261029.md"
+}

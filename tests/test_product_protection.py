@@ -73,7 +73,9 @@ class ProductProtectionTests(unittest.TestCase):
     def render_license(self, state='verified'):
         text = (ROOT / 'web/templates/license_status.html').read_text(encoding='utf-8-sig')
         env = Environment(loader=DictLoader({'license_status.html': text,
+            'components/product_brand.html': (ROOT / 'web/templates/components/product_brand.html').read_text(encoding='utf-8'),
             'base.html': '{% block content %}{% endblock %}'}), autoescape=select_autoescape())
+        env.globals['url_for'] = lambda *a, **k: '/fixture'
         return env.get_template('license_status.html').render(
             license={'valid': False, 'status': 'expired'},
             product_identity=identity.get_product_identity(), runtime_integrity={'state': state},

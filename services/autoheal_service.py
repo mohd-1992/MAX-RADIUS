@@ -29,7 +29,7 @@ from core.watchdog import (
 
 import core.watchdog as watchdog
 
-DOCKER_SOCKET_PATH = '/var/run/docker.sock'
+DOCKER_SOCKET_PATH = os.environ.get('MAX_CONTROL_SOCKET', '/var/run/docker.sock')
 MONITORED_CONTAINER_NAMES = [
     'max_radius_autoheal',
     'max_radius_core',
@@ -107,6 +107,13 @@ def get_container_fleet_status():
     """
     Inspects all system containers and returns clean, structured metadata for dashboard rendering.
     """
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        try:
+            return hosted.fleet()
+        except Exception:
+            return _get_fallback_container_fleet('تعذر التحقق من وصلة المضيف؛ لا توجد قراءة بديلة')
+
     raw_list, err = docker_api_request('GET', '/containers/json?all=1')
     if err or not isinstance(raw_list, list):
         return _get_fallback_container_fleet(err)
@@ -263,6 +270,9 @@ def _get_fallback_container_fleet(err_msg):
     ]
 
 def _resolve_managed_container(reference, require_id=False):
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        return hosted.resolve(reference, require_id)
     if not isinstance(reference, str):
         return None, 'مرجع الحاوية غير صالح؛ حدّث الصفحة.'
     reference = reference.strip()
@@ -406,14 +416,15 @@ def run_deep_system_diagnostic():
 
     # 1. Check Monitored Containers
     fleet = get_container_fleet_status()
-    total_containers = len(fleet)
-    healthy_containers = sum(1 for c in fleet if c['is_healthy'])
+    monitored_fleet = [c for c in fleet if c.get('monitored', True)]
+    total_containers = len(monitored_fleet)
+    healthy_containers = sum(1 for c in monitored_fleet if c['is_healthy'])
     
     if healthy_containers < total_containers:
         diff = total_containers - healthy_containers
         deduct = diff * 20
         score -= deduct
-        unhealthy_names = [c['name'] for c in fleet if not c['is_healthy']]
+        unhealthy_names = [c['name'] for c in monitored_fleet if not c['is_healthy']]
         findings.append({
             'type': 'danger',
             'title': f'حاويات متوقفة أو غير مستقرة ({len(unhealthy_names)} حاوية)',
@@ -640,6 +651,9 @@ def get_autoheal_dashboard_full(alert_filter=None):
 
     return {
         'fleet': fleet,
+        'hosted_control': __import__('services.hosted_control_service', fromlist=['configured']).configured(),
+        'monitored_count': sum(1 for c in fleet if c.get('monitored', True)),
+        'healthy_count': sum(1 for c in fleet if c.get('monitored', True) and c['is_healthy']),
         'ports': ports,
         'alerts': alerts,
         'unresolved_alerts_count': unresolved_alerts_count,

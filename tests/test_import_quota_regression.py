@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load(path, names, namespace):
+    from services.heavy_operation_service import heavy_operation
+    namespace.setdefault('heavy_operation',heavy_operation)
     tree = ast.parse((ROOT / path).read_text(encoding='utf-8'))
     nodes = [n for n in tree.body if
              isinstance(n, ast.FunctionDef) and n.name in names or
@@ -23,7 +25,9 @@ def load(path, names, namespace):
 
 class ExcelTests(unittest.TestCase):
     def setUp(self):
-        self.ns = dict(re=re, io=io, openpyxl=openpyxl, xlrd=None)
+        # Parser-only fixture; license denial has its own HTTP/feature suite.
+        self.ns = dict(re=re, io=io, openpyxl=openpyxl, xlrd=None,
+                       _license_guarded=lambda *keys:lambda fn:fn)
         load('services/import_service.py', {'COLUMN_ALIASES', 'normalize_header',
              '_excel_header_map', 'parse_excel_file'}, self.ns)
 

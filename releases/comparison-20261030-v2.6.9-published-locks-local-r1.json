@@ -1,0 +1,205 @@
+{
+  "date": "2026-10-30",
+  "scope": "local-only published artifact comparison; no product changes or deployment",
+  "published_tag": "mohd777/max-radius-web:2.6.9-reports-backup-r1",
+  "published_registry_index": "sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+  "published_linux_amd64_manifest": "sha256:6ec79491d96748e7f4d2662897b383459472952438680807d2c1d46f5bf75d66",
+  "candidate_image": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+  "artifact_comparison": {
+    "published_registry_index": "sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+    "candidate_local_image": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+    "captured_query_identical": true,
+    "published_query": [
+      {
+        "sql": "SELECT * FROM radacct_owned WHERE username=%s AND acctstoptime IS NULL FOR UPDATE",
+        "args": [
+          "lock-audit-user"
+        ]
+      }
+    ],
+    "module_comparison": {
+      "services/online_policy_service": false,
+      "services/renewal_settlement_service": true,
+      "database/db": true,
+      "database/cycle_safety": true,
+      "database/schema_healer": true
+    }
+  },
+  "core_stop_comparison": {
+    "old": {
+      "stop_sha256": "86eef3b2d6e61679efd3eef2a1f221dd687848611eb176922072747c60c088a6",
+      "stop_lines": 80
+    },
+    "new": {
+      "stop_sha256": "86eef3b2d6e61679efd3eef2a1f221dd687848611eb176922072747c60c088a6",
+      "stop_lines": 80
+    },
+    "identical_stop_block": true
+  },
+  "tests": [
+    {
+      "label": "published",
+      "seconds": 35,
+      "counts": {
+        "select_ok": 47655,
+        "stop_ok": 6475,
+        "deadlock_select": 0,
+        "deadlock_stop": 0,
+        "other_errors": []
+      },
+      "rows": {
+        "n": 6000
+      },
+      "plan": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "a",
+          "type": "ref|filter",
+          "possible_keys": "idx_radacct_stop,idx_subscriber_account_read",
+          "key": "idx_radacct_stop|idx_subscriber_account_read",
+          "key_len": "6|259",
+          "ref": "const",
+          "rows": "32 (1%)",
+          "Extra": "Using index condition; Using where; Using rowid filter"
+        }
+      ],
+      "compiled_query_actual": true,
+      "stop_sql_representative": true,
+      "real_radius_packets": false,
+      "financial_operations": false
+    },
+    {
+      "label": "candidate",
+      "seconds": 35,
+      "counts": {
+        "select_ok": 60838,
+        "stop_ok": 5946,
+        "deadlock_select": 0,
+        "deadlock_stop": 0,
+        "other_errors": []
+      },
+      "rows": {
+        "n": 6000
+      },
+      "plan": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "a",
+          "type": "ref|filter",
+          "possible_keys": "idx_radacct_stop,idx_subscriber_account_read",
+          "key": "idx_radacct_stop|idx_subscriber_account_read",
+          "key_len": "6|259",
+          "ref": "const",
+          "rows": "32 (1%)",
+          "Extra": "Using index condition; Using where; Using rowid filter"
+        }
+      ],
+      "compiled_query_actual": true,
+      "stop_sql_representative": true,
+      "real_radius_packets": false,
+      "financial_operations": false
+    },
+    {
+      "label": "published",
+      "seconds": 35,
+      "counts": {
+        "select_ok": 90729,
+        "stop_ok": 6816,
+        "deadlock_select": 0,
+        "deadlock_stop": 0,
+        "other_errors": []
+      },
+      "rows": {
+        "n": 6000
+      },
+      "plan": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "a",
+          "type": "ref",
+          "possible_keys": "idx_radacct_stop,idx_subscriber_account_read",
+          "key": "idx_subscriber_account_read",
+          "key_len": "259",
+          "ref": "const",
+          "rows": "1",
+          "Extra": "Using where"
+        }
+      ],
+      "compiled_query_actual": true,
+      "stop_sql_representative": true,
+      "real_radius_packets": false,
+      "financial_operations": false
+    },
+    {
+      "label": "candidate",
+      "seconds": 35,
+      "counts": {
+        "select_ok": 94770,
+        "stop_ok": 8329,
+        "deadlock_select": 0,
+        "deadlock_stop": 0,
+        "other_errors": []
+      },
+      "rows": {
+        "n": 6000
+      },
+      "plan": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "a",
+          "type": "ref",
+          "possible_keys": "idx_radacct_stop,idx_subscriber_account_read",
+          "key": "idx_subscriber_account_read",
+          "key_len": "259",
+          "ref": "const",
+          "rows": "1",
+          "Extra": "Using where"
+        }
+      ],
+      "compiled_query_actual": true,
+      "stop_sql_representative": true,
+      "real_radius_packets": false,
+      "financial_operations": false
+    }
+  ],
+  "conclusion": {
+    "locking_query_preexists_in_published_269": true,
+    "same_deadlock_reproduced_in_this_comparison": false,
+    "new_engine_regression_proven": false,
+    "published_version_exonerated": false,
+    "full_financial_radius_load_repeated": false,
+    "new_fix_added": false
+  },
+  "limitations": [
+    "Actual compiled rows_for with native MariaDB; database adapter stub only in disconnected SQL capture",
+    "Representative Stop SQL through native SQL client, no FreeRADIUS packets or full financial operations in these new rounds",
+    "Optimizer plans differ from original saved deadlock; absence in short focused checks does not disprove original event",
+    "r1 failed before resource creation: default Docker address pool exhausted; r2/r3 explicit nonoverlapping internal subnets",
+    "No replay of closed financial/accounting rounds; no NAS or production access"
+  ],
+  "cleanup": {
+    "r2": {
+      "owner": "lock269-ffc36b93b4",
+      "owned_removed": true,
+      "preexisting": 1237,
+      "unchanged": 1237,
+      "new_external_ids": 3
+    },
+    "r3": {
+      "owner": "lock269-ecc66ad7c7",
+      "owned_removed": true,
+      "preexisting": 1240,
+      "unchanged": 1240,
+      "new_external_ids": 0
+    }
+  },
+  "checks": {
+    "source_index": true,
+    "document_links_and_encoding": true,
+    "targeted_diff_check": true
+  }
+}

@@ -1,0 +1,6 @@
+# Explicit host-side opt-in after verifying the selected engine uses glibc.
+# Apply with the environment's main Compose file; never loaded by default.
+services:
+  mariadb:
+    environment:
+      MALLOC_ARENA_MAX: "2"

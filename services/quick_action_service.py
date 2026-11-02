@@ -257,12 +257,14 @@ def action_bulk_execute(action_fn, entity_type, target_ids, **kwargs):
     success_count = 0
     fail_count = 0
     errors = []
+    jobs = []
     
     for tid in target_ids:
         try:
             ok, msg = action_fn(entity_type, tid, **kwargs)
             if ok:
                 success_count += 1
+                if isinstance(msg, dict) and msg.get('job_id'): jobs.append(msg)
             else:
                 fail_count += 1
                 errors.append(f"#{tid}: {msg}")
@@ -275,6 +277,8 @@ def action_bulk_execute(action_fn, entity_type, target_ids, **kwargs):
     if fail_count > 0:
         summary += f" (تعذر التنفيذ على {fail_count})"
         
+    if jobs:
+        return is_success, dict(message=f'تم قبول {success_count} طلبًا؛ لم يتأكد الفصل بعد. تعذر قبول {fail_count}.',jobs=jobs,pending=True)
     return is_success, summary
 
 def action_extend_time(entity_type, entity_id, days, admin_username='admin'):
@@ -414,6 +418,12 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
             db_now_dt = db_now
         db_now_str = db_now_dt.strftime('%Y-%m-%d %H:%M:%S')
 
+        from services.rate_policy_service import package_rate_limit
+        try:
+            renewal_rate = package_rate_limit(pkg) if etype == 'voucher' else None
+        except ValueError as exc:
+            return False, str(exc)
+
         is_rollover_enabled = bool(pkg.get('is_rollover_enabled'))
 
         # 1. Defect 1: Calculate cycle consumption & rollover BEFORE updating session baselines
@@ -509,6 +519,8 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
                 VALUES (?, ?, ?, ?, 'paid', ?, 'تجديد باقة يدوي من لوحة التحكم', ?)
             """, conn)
             cursor.execute(ins_inv, (inv_num, entity['id'], entity.get('full_name') or username, pkg['price'], pkg['name'], db_now_str))
+            from services.sales_source_service import record_sale_source
+            record_sale_source(conn, 'invoice', cursor.lastrowid, username)
         else:
             snap_quota = entity.get('snap_volume_quota_mb') if entity.get('snap_volume_quota_mb') is not None else int(pkg.get('volume_quota_mb') or 0)
             snap_uptime = entity.get('snap_uptime_limit_mins') if entity.get('snap_uptime_limit_mins') is not None else int(pkg.get('uptime_limit_mins') or 0)
@@ -540,7 +552,7 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
                 val,
                 pkg.get('validity_unit') or 'days', int(pkg.get('validity_days') or 30),
                 pkg.get('rate_download') or '', pkg.get('rate_upload') or '',
-                pkg.get('rate_limit_str') or '',
+                renewal_rate,
                 int(pkg.get('simultaneous_sessions') or 1),
                 pkg.get('mikrotik_group') or '',
                 entity['id']
@@ -557,6 +569,8 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
                 entity['username'], entity.get('serial_number') or '',
                 pkg['name'], pkg['price'], pkg.get('cost') or 0, entity.get('reseller_id'), db_now_str
             ))
+            from services.sales_source_service import record_sale_source
+            record_sale_source(conn, 'voucher', cursor.lastrowid, username)
 
         # 6. RADIUS attributes
         cursor.execute(adapt_query("DELETE FROM radcheck WHERE LOWER(username) = LOWER(?) AND attribute = 'Expiration'", conn), (username,))
@@ -635,6 +649,12 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
             return False, "الباقة الجديدة المحددة غير موجودة"
         if not isinstance(new_pkg, dict):
             new_pkg = dict(new_pkg)
+
+        from services.rate_policy_service import package_rate_limit
+        try:
+            changed_rate = package_rate_limit(new_pkg) if etype == 'voucher' else None
+        except ValueError as exc:
+            return False, str(exc)
 
         # Defect 6: Retrieve subscriber's current / old package to calculate rollover from!
         old_pkg_id = entity.get('package_id')
@@ -755,6 +775,8 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
                 VALUES (?, ?, ?, ?, 'paid', ?, 'تغيير باقة وترقية من لوحة التحكم', ?)
             """, conn)
             cursor.execute(ins_inv, (inv_num, entity['id'], entity.get('full_name') or username, new_pkg['price'], new_pkg['name'], db_now_str))
+            from services.sales_source_service import record_sale_source
+            record_sale_source(conn, 'invoice', cursor.lastrowid, username)
         else:
             upd_vouch = adapt_query("""
                 UPDATE wisp_vouchers
@@ -785,12 +807,7 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
                 int(val),
                 unit, int(new_pkg.get('validity_days') or 30),
                 new_pkg.get('rate_download') or '', new_pkg.get('rate_upload') or '',
-                new_pkg.get('rate_limit_str') or build_mikrotik_rate_limit(
-                    download=new_pkg.get('rate_download') or '0', upload=new_pkg.get('rate_upload') or '0',
-                    burst_down=new_pkg.get('burst_download'), burst_up=new_pkg.get('burst_upload'),
-                    threshold_down=new_pkg.get('burst_threshold_down'), threshold_up=new_pkg.get('burst_threshold_up'),
-                    burst_time=new_pkg.get('burst_time') or 16, priority=new_pkg.get('priority') or 8,
-                    min_down=new_pkg.get('min_download'), min_up=new_pkg.get('min_upload')),
+                changed_rate,
                 int(new_pkg.get('simultaneous_sessions') or 1),
                 new_pkg.get('mikrotik_group') or '',
                 entity['id']
@@ -808,6 +825,8 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
                     entity['username'], entity.get('serial_number') or '',
                     new_pkg['name'], new_pkg['price'], new_pkg.get('cost') or 0, entity.get('reseller_id'), db_now_str
                 ))
+                from services.sales_source_service import record_sale_source
+                record_sale_source(conn, 'voucher', cursor.lastrowid, username)
 
         # 6. RADIUS attributes
         if voucher_profile is not None:
@@ -993,9 +1012,12 @@ def _change_wallet_balance(entity_type, entity_id, amount, notes, admin_username
         return True, f'تم خصم/سحب {val} من رصيد المحفظة بنجاح. الرصيد المتبقي: {remaining}'
     return True, f'تمت إضافة {val} إلى محفظة المشترك بنجاح.'
 
-def action_disconnect_user(entity_type, entity_id=None, admin_username='admin'):
+def action_disconnect_user(entity_type, entity_id=None, admin_username='admin', operation_id=None):
     entity, kind = get_target_entity(entity_type, entity_id)
     if not entity:
         return False, 'الحساب غير موجود'
-    from services.coa_queue_service import enqueue_disconnect
-    return enqueue_disconnect(entity['username'], reason='Admin Manual Disconnect All Sessions', admin_username=admin_username)
+    from services.session_control_service import submit_manual
+    try:
+        return True, submit_manual(kind, entity['id'], entity['username'], admin_username, operation_id)
+    except (ValueError, RuntimeError, OSError):
+        return False, 'تعذر قبول طلب الفصل؛ توجد عملية متعارضة أو بيانات جلسات غير مكتملة. لم يُؤكد أي فصل.'

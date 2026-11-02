@@ -3,7 +3,7 @@
 -- ============================================================
 SET FOREIGN_KEY_CHECKS=0;
 
-/*M!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
 CREATE TABLE `nas` (
@@ -102,6 +102,28 @@ CREATE TABLE IF NOT EXISTS `wisp_session_baselines` (
 /*!50003 SET collation_connection  = utf8mb4_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION' */ ;
+CREATE TABLE IF NOT EXISTS wisp_sale_sources (
+    event_kind VARCHAR(16) NOT NULL, event_id BIGINT NOT NULL,
+    server_key VARCHAR(64) NOT NULL DEFAULT 'unknown', nas_address VARCHAR(128) NOT NULL DEFAULT '',
+    nas_label VARCHAR(128) NOT NULL DEFAULT '', service_type VARCHAR(16) NOT NULL DEFAULT '',
+    server_name VARCHAR(128) NOT NULL DEFAULT '', server_interface VARCHAR(128) NOT NULL DEFAULT '',
+    evidence_uid VARCHAR(64) NOT NULL DEFAULT '', attribution VARCHAR(40) NOT NULL DEFAULT 'unknown',
+    service_attribution VARCHAR(40) NOT NULL DEFAULT '',
+    resolution_status VARCHAR(24) NOT NULL DEFAULT 'unknown',
+    resolution_reason VARCHAR(128) NOT NULL DEFAULT '',
+    resolution_version INT NOT NULL DEFAULT 0, reviewed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY(event_kind,event_id), INDEX idx_sale_server(server_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wisp_sale_source_audit (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    event_kind VARCHAR(16) NOT NULL,event_id BIGINT NOT NULL,
+    evidence_hash CHAR(64) NOT NULL,before_json TEXT NOT NULL,after_json TEXT NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_sale_source_event(event_kind,event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 DELIMITER ;;
 /*!50003 CREATE*/ /*!50017 DEFINER=`radius`@`%`*/ /*!50003 TRIGGER trg_radacct_subscriber_activate AFTER INSERT ON radacct
 FOR EACH ROW
@@ -170,7 +192,7 @@ BEGIN
         SET v_policy_result=fn_freeze_voucher_policy(NEW.username);
         IF v_policy_result=0 THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Voucher policy unavailable'; END IF;
     END IF;
-    
+
     -- Resolve username first, then legacy PIN, using their indexes.
     -- Read the current contract under a primary-key lock, not a metadata join.
     IF COALESCE(@max_radius_import, 0) = 0 THEN
@@ -234,15 +256,15 @@ BEGIN
             SET v_exp_date = DATE_ADD(COALESCE(NEW.acctstarttime, CURRENT_TIMESTAMP), INTERVAL v_val DAY);
             SET v_rad_exp = DATE_FORMAT(v_exp_date, '%d %b %Y %H:%i:%s');
         END IF;
-        
+
         INSERT INTO wisp_global_sequence (entity_type, entity_id, created_at)
         VALUES ('voucher', v_id, CURRENT_TIMESTAMP)
         ON DUPLICATE KEY UPDATE seq_id = seq_id;
-        
-        SELECT seq_id INTO v_assigned_seq 
-        FROM wisp_global_sequence 
+
+        SELECT seq_id INTO v_assigned_seq
+        FROM wisp_global_sequence
         WHERE entity_type = 'voucher' AND entity_id = v_id;
-        
+
         UPDATE wisp_vouchers
         SET status = 'active',
             first_used_at = IFNULL(first_used_at, COALESCE(NEW.acctstarttime, CURRENT_TIMESTAMP)),
@@ -262,7 +284,7 @@ BEGIN
             snap_simultaneous_sessions = COALESCE(snap_simultaneous_sessions, v_simul),
             snap_mikrotik_group = COALESCE(NULLIF(snap_mikrotik_group, ''), v_mgroup)
         WHERE id = v_id;
-        
+
         INSERT INTO wisp_voucher_sales (
             first_activation_voucher_id, voucher_id, batch_id, batch_name, username, serial_number,
             package_name, price, cost, reseller_id, activated_at
@@ -270,6 +292,16 @@ BEGIN
             v_id, v_id, v_batch_id, v_batch_name, NEW.username, v_serial_number,
             v_pkg_name, v_pkg_price, v_pkg_cost, v_reseller_id, CURRENT_TIMESTAMP
         ) ON DUPLICATE KEY UPDATE first_activation_voucher_id=first_activation_voucher_id;
+        INSERT IGNORE INTO wisp_sale_sources
+            (event_kind,event_id,server_key,nas_address,nas_label,service_type,server_name,server_interface,evidence_uid,attribution)
+        SELECT 'voucher',s.id,'pending',COALESCE(NEW.nasipaddress,''),
+            COALESCE((SELECT MIN(shortname) FROM nas WHERE nasname=NEW.nasipaddress COLLATE utf8mb4_unicode_ci),NEW.nasipaddress,''),
+            COALESCE(p.service_type,''),COALESCE(NEW.calledstationid,''),
+            CASE WHEN p.service_type='pppoe' THEN COALESCE(NEW.nasportid,'') ELSE '' END,
+            COALESCE(NEW.acctuniqueid,''),'accounting_start'
+        FROM wisp_voucher_sales s JOIN wisp_packages p ON p.id=v_package_id
+        WHERE s.first_activation_voucher_id=v_id;
+
 
         DELETE FROM radcheck WHERE LOWER(username) = LOWER(NEW.username) AND attribute = 'Expiration';
         IF v_rad_exp IS NOT NULL THEN
@@ -1049,7 +1081,7 @@ CREATE TABLE `wisp_wireguard_tunnels` (
   UNIQUE KEY `tunnel_ip` (`tunnel_ip`)
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-/*M!999999\- enable the sandbox mode */ 
+/*M!999999\- enable the sandbox mode */
 INSERT INTO `wisp_roles` VALUES
 (1,'المدير العام (Super Admin)','superadmin','صلاحيات كاملة وغير مقيدة على كافة أقسام النظام والخدمات',1,'2026-09-24 05:49:18'),
 (2,'مدير فرع / شبكة (Manager)','manager','إدارة المشتركين، الكروت، الباقات، ومراقبة الراوترات',0,'2026-09-24 05:49:18'),
@@ -1058,7 +1090,7 @@ INSERT INTO `wisp_roles` VALUES
 INSERT INTO `wisp_system_settings` VALUES
 ('address','المركز الرئيسي لخدمات الإنترنت','العنوان والمقر'),
 ('allow_data_loan','0','تفعيل أو تعطيل ميزة سلفة البيانات للمشتركين'),
-('company_name','شبكة ماكس نت الاسلكية','اسم الشركة'),
+('company_name','ماكس راديوس | MAX RADIUS','اسم الشركة'),
 ('currency','YER','رمز كود العملة'),
 ('currency_symbol','ر.ي','رمز العملة المعروض'),
 ('default_coa_port','3799','إعداد نظام'),
@@ -1068,12 +1100,12 @@ INSERT INTO `wisp_system_settings` VALUES
 ('hotspot_server_host','199.247.3.47',''),
 ('hotspot_total_download','150M',''),
 ('hotspot_total_upload','75M',''),
-('isp_name','شبكة ماكس نت الاسلكية','اسم مزود الخدمة'),
+('isp_name','ماكس راديوس | MAX RADIUS','اسم مزود الخدمة'),
 ('license_monotonic_timestamp','1790376518.9039583',''),
 ('loan_amount_mb','1024','حجم سلفة البيانات بالميجابايت الافتراضية'),
 ('loan_threshold_mb','100','حد الرصيد المتبقي بالميجابايت الذي يسمح بطلب السلفة عنده'),
 ('network_logo','logo_20260924_214947.png','مسار شعار الشبكة'),
-('network_name','شبكة ماكس نت الاسلكية','اسم الشبكة أو مزود الخدمة'),
+('network_name','ماكس راديوس | MAX RADIUS','اسم الشبكة أو مزود الخدمة'),
 ('portal_about_text','نبذة عن شبكة ماكس نت','إعداد نظام'),
 ('portal_allow_package_change','1','إعداد نظام'),
 ('portal_allow_password_change','0','إعداد نظام'),
@@ -1103,7 +1135,7 @@ INSERT INTO `wisp_system_settings` VALUES
 ('timezone','Asia/Aden','المنطقة الزمنية للنظام');
 
 -- Initial Default Super Admin Seed
-INSERT INTO `wisp_managers` (`id`, `username`, `password_hash`, `full_name`, `phone`, `email`, `role_id`, `wallet_balance`, `credit_limit`, `commission_percent`, `allowed_packages`, `is_active`, `is_deleted`, `notes`, `created_at`) 
+INSERT INTO `wisp_managers` (`id`, `username`, `password_hash`, `full_name`, `phone`, `email`, `role_id`, `wallet_balance`, `credit_limit`, `commission_percent`, `allowed_packages`, `is_active`, `is_deleted`, `notes`, `created_at`)
 VALUES (1, 'admin', 'admin', 'مدير النظام الرئيسي', '+967 770 000 000', 'admin@max-net.net', 1, 0.00, 0.00, 0.00, NULL, 1, 0, 'حساب المدير العام الأساسي للمنظومة', NOW())
 ON DUPLICATE KEY UPDATE `is_active` = 1;
 
@@ -1165,6 +1197,11 @@ BEGIN
       FROM wisp_vouchers WHERE username=p_username COLLATE utf8mb4_unicode_ci LIMIT 1 FOR UPDATE;
     IF v_id IS NULL THEN RETURN 1; END IF;
     IF v_frozen IS NULL AND v_status='unused' THEN
+        IF EXISTS(SELECT 1 FROM radgroupreply r JOIN wisp_packages p ON p.name=r.groupname
+          WHERE p.id=(SELECT package_id FROM wisp_vouchers WHERE id=v_id)
+            AND LOWER(r.attribute)='mikrotik-rate-limit' AND (r.value IS NULL OR TRIM(r.value)='')) THEN
+            RETURN 0;
+        END IF;
         UPDATE wisp_vouchers v JOIN wisp_packages p ON p.id=v.package_id
         SET v.snap_price=COALESCE(p.price,0), v.snap_cost=COALESCE(p.cost,0),
             v.snap_volume_quota_mb=COALESCE(p.volume_quota_mb,0),
@@ -1254,3 +1291,59 @@ CREATE TABLE IF NOT EXISTS wisp_userman_import_journal (
  after_json LONGTEXT NOT NULL, state VARCHAR(24) NOT NULL DEFAULT 'applied',
  PRIMARY KEY(job_id,kind,identity_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Report-only consumption retention; no cascading account references.
+CREATE TABLE IF NOT EXISTS wisp_traffic_history (
+ history_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+ session_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+ radacctid BIGINT NOT NULL, origin_table VARCHAR(48) NOT NULL,
+ source_fallback VARCHAR(96) NOT NULL DEFAULT '',
+ acctuniqueid VARCHAR(32) NOT NULL DEFAULT '', acctsessionid VARCHAR(64) NOT NULL DEFAULT '',
+ username VARCHAR(64) NOT NULL DEFAULT '', account_username VARCHAR(64) NULL,
+ account_subscriber_id BIGINT NULL, account_voucher_id BIGINT NULL, reseller_id BIGINT NULL,
+ account_kind VARCHAR(20) NOT NULL DEFAULT 'unknown', display_name VARCHAR(120) NULL,
+ nasipaddress VARCHAR(45) NOT NULL DEFAULT '', calledstationid VARCHAR(128) NOT NULL DEFAULT '',
+ nasportid VARCHAR(128) NULL, framedprotocol VARCHAR(32) NULL, servicetype VARCHAR(32) NULL,
+ acctstarttime DATETIME NULL, acctstoptime DATETIME NULL, acctupdatetime DATETIME NULL,
+ acctinputoctets BIGINT NULL, acctoutputoctets BIGINT NULL,
+ acctterminatecause VARCHAR(64) NULL,
+ realm VARCHAR(64) NULL, groupname VARCHAR(64) NULL, nasporttype VARCHAR(32) NULL,
+ acctinterval INT NULL, acctsessiontime BIGINT UNSIGNED NULL, acctauthentic VARCHAR(32) NULL,
+ connectinfo_start VARCHAR(128) NULL, connectinfo_stop VARCHAR(128) NULL,
+ acctinputgigawords BIGINT NULL, acctoutputgigawords BIGINT NULL, class VARCHAR(64) NULL,
+ framedipaddress VARCHAR(45) NULL, callingstationid VARCHAR(128) NULL,
+ framedipv6address VARCHAR(45) NULL, framedipv6prefix VARCHAR(45) NULL,
+ framedinterfaceid VARCHAR(44) NULL, delegatedipv6prefix VARCHAR(45) NULL,
+ origin_archived_at DATETIME NULL,
+ payload_version TINYINT NOT NULL DEFAULT 0,
+ captured_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ KEY idx_traffic_owner (reseller_id,acctstarttime), KEY idx_traffic_start (acctstarttime),
+ KEY idx_traffic_subscriber (account_subscriber_id), KEY idx_traffic_voucher (account_voucher_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+
+-- Independent report checkpoints and quarter-hour summaries; no accounting triggers.
+CREATE TABLE IF NOT EXISTS wisp_traffic_checkpoints (
+ session_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL PRIMARY KEY,
+ radacctid BIGINT NOT NULL, observed_at DATETIME NOT NULL, closed_at DATETIME NULL,
+ download BIGINT NULL, upload BIGINT NULL, owner_scope BIGINT NOT NULL DEFAULT 0,
+ point_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ KEY idx_checkpoint_expiry (closed_at,observed_at), KEY idx_checkpoint_radacct (radacctid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+CREATE TABLE IF NOT EXISTS wisp_traffic_rollups (
+ bucket_at DATETIME NOT NULL, owner_scope BIGINT NOT NULL DEFAULT 0,
+ point_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ nas_address VARCHAR(45) NOT NULL DEFAULT '', service_type VARCHAR(20) NOT NULL DEFAULT '',
+ server_name VARCHAR(128) NOT NULL DEFAULT '', server_interface VARCHAR(128) NOT NULL DEFAULT '',
+ point_known TINYINT NOT NULL DEFAULT 0,
+ download_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0, upload_bytes BIGINT UNSIGNED NOT NULL DEFAULT 0,
+ download_known BIGINT UNSIGNED NOT NULL DEFAULT 0, upload_known BIGINT UNSIGNED NOT NULL DEFAULT 0,
+ gaps BIGINT UNSIGNED NOT NULL DEFAULT 0, observations BIGINT UNSIGNED NOT NULL DEFAULT 0,
+ PRIMARY KEY (bucket_at,owner_scope,point_key), KEY idx_rollup_owner (owner_scope,bucket_at),
+ KEY idx_rollup_point (point_key,bucket_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+CREATE TABLE IF NOT EXISTS wisp_traffic_rollup_state (
+ id INT NOT NULL PRIMARY KEY, epoch CHAR(32) NOT NULL, cursor_id BIGINT NOT NULL DEFAULT 0,
+ cycle_rows BIGINT NOT NULL DEFAULT 0, last_cycle_rows BIGINT NOT NULL DEFAULT 0,
+ last_completed_at DATETIME NULL, started_at DATETIME NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;

@@ -134,6 +134,10 @@ def can_access_owned_endpoint(endpoint):
     if owner_id() is None:
         return True
     endpoint = (endpoint or '').rsplit('.', 1)[-1]
+    # The receipt route checks the stored target through scoped_query_one and
+    # the corresponding current permission before exposing any job state.
+    if endpoint == 'api_session_operation':
+        return True
     from web.endpoint_permissions import ENDPOINT_PERMISSIONS
     permissions = ENDPOINT_PERMISSIONS.get(endpoint, [])
     if endpoint in ('profile_update', 'login', 'logout', 'dashboard', 'api_dashboard_live_metrics', 'impersonate_exit'):

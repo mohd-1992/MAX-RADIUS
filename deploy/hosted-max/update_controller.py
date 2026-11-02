@@ -19,7 +19,7 @@ from services.system_update_channel import configuration, fetch, public_result, 
 from services.system_update_executor import execute, owned_snapshot, prepare, run_job
 from services.system_update_runtime import Docker, UpdateError, write_json
 
-PUBLIC_FIELDS = ('status','percent','stage','message','error','target_version','started_at','completed_at','job')
+PUBLIC_FIELDS = ('status','percent','stage','message','error','target_version','started_at','completed_at','job','engine_protocol')
 
 
 class Controller:
@@ -41,7 +41,8 @@ class Controller:
 
     def check(self):
         config = self.config(); current,_ = self.current(config)
-        return public_result(fetch(config,current),config,current)
+        from services.system_update_sequence import gate
+        return gate(public_result(fetch(config,current),config,current), self.progress())
 
     def progress(self):
         try:
@@ -51,6 +52,23 @@ class Controller:
             return {k:v for k,v in state.items() if k in PUBLIC_FIELDS}
         except FileNotFoundError:
             return {'status':'idle','percent':0,'stage':'بانتظار طلب مدير النظام'}
+
+    def engine(self):
+        from services.system_update_requirements import ENGINE_PROTOCOL, CAPABILITIES
+        return {'success':True,'engine_protocol':ENGINE_PROTOCOL,'project':self.config()['project'],
+                'capabilities':list(CAPABILITIES)}
+
+    def components(self):
+        # Enrollment is operator-owned. A tenant socket cannot become a host
+        # authority by submitting a manifest or a registry over HTTP.
+        from services.system_component_control import ComponentController
+        controller = ComponentController(self.root, self.api)
+        registry = controller.config()
+        config = self.config()
+        if registry['authority'] != 'installation' or any(
+                item['project'] != config['project'] for item in registry['components'].values()):
+            raise ValueError('A host registry needs a separate host-only socket')
+        return controller
 
     def retry_review(self, receipt, config, current, old, response):
         """Recognize a finished pre-switch failure, including 2.6.4 journals.
@@ -129,6 +147,21 @@ class Controller:
             # Explicit retries are allowed only after a confirmed pre-switch failure.
             receipt = self.root/('release-'+hashlib.sha256(manifest['release'].encode()).hexdigest()+'.private.json')
             review = None
+            if state['status']=='error':
+                # A new release must not bypass an unresolved prior worker either.
+                try:
+                    prior_job=state['job']
+                    if not re.fullmatch('[0-9a-f]{32}',prior_job):raise ValueError('Invalid prior job')
+                    prior_folder=self.root/'jobs'/prior_job
+                    if prior_folder.is_symlink():raise ValueError('Invalid prior journal')
+                    if (prior_folder/'request.private.json').is_symlink():raise ValueError('Invalid prior request')
+                    prior_request=json.loads((prior_folder/'request.private.json').read_text())
+                    prior_response=prior_request['response']
+                    prior_receipt=self.root/('release-'+hashlib.sha256(prior_response['manifest']['release'].encode()).hexdigest()+'.private.json')
+                    review=self.retry_review(prior_receipt,config,current,old,prior_response)
+                except (OSError,ValueError,KeyError,TypeError):review=None
+                if review is None:
+                    return {'success':False,'message':'لم يثبت انتهاء المحاولة السابقة قبل التبديل؛ راجع الإيصال قبل تحديث آخر.'}
             if receipt.exists():
                 review = self.retry_review(receipt, config, current, old, response)
                 if review is None:
@@ -151,7 +184,14 @@ class Controller:
 
     def launch(self, config, old, folder, job):
         # Current trusted image, fixed entrypoint, no environment from HTTP or tenant.
-        helper = {'Image':old['web']['Image'],'Entrypoint':['python','-c'],
+        helper_image = old['web']['Image']
+        if config.get('executor_image'):
+            reference = config['executor_image']
+            if not re.fullmatch(r'mohd777/max-radius-web@sha256:[a-f0-9]{64}',reference):raise ValueError('Invalid prepared executor image')
+            executor = self.api('GET','/images/'+urllib.parse.quote(reference,safe='')+'/json')
+            if reference not in executor.get('RepoDigests',[]):raise ValueError('Prepared executor digest is missing')
+            helper_image = executor['Id']
+        helper = {'Image':helper_image,'Entrypoint':['python','-c'],
                   'Cmd':['from services.system_update_host import worker;worker("/max-update-private",'+repr(job)+')'],
                   'Env':['PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin','PYTHONDONTWRITEBYTECODE=1'],
                   'Labels':{'max.update.controller':config['project'],'max.update.job':job},
@@ -169,9 +209,15 @@ def worker(root, job):
     folder=root/'jobs'/job; state=json.loads((folder/'state.json').read_text())
     if state['status'] in ('completed','rolled_back','error','recovery_required'): return
     api=Docker(); controller=Controller(root,api); config=controller.config()
+    def finish(result):
+        if result.get('status')=='handoff_pending':
+            from services.system_update_handoff import run
+            return run(folder,api)
+        return result
+    if state['status']=='handoff_pending':return finish(state)
     # After a helper interruption, never prepare/pull/backup again over an existing plan.
     if (folder/'plan.private.json').exists():
-        return run_job(folder,api)
+        return finish(run_job(folder,api))
     try:
         marker=folder/'PREPARATION_ATTEMPTED'
         if marker.exists():
@@ -189,7 +235,7 @@ def worker(root, job):
             raise ValueError('Release was withdrawn or changed before switch')
         state.update(status='running',percent=45,stage='اكتمل النسخ والتحقق من الصور')
         write_json(folder/'state.json',state)
-        return run_job(folder,api)
+        return finish(run_job(folder,api))
     except Exception as exc:
         # run_job journals its own recovery. Preparation has no service mutations.
         current=json.loads((folder/'state.json').read_text(encoding='utf-8'))
@@ -212,6 +258,13 @@ def serve(controller, path):
     # A private, exclusively locked socket directory supports safe crash recovery.
     server_lock=(root/'server.lock').open('a')
     fcntl.flock(server_lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
+    # Explicitly enrolled protocol4 controllers reconcile an interrupted worker
+    # once under their own journal locks. Legacy installations are not enrolled
+    # or upgraded by starting this server.
+    if hasattr(controller, 'resume_interrupted'):
+        controller.resume_interrupted()
+    elif (root/'component-controller.private.json').exists():
+        controller.components().resume_interrupted()
     if path.is_symlink(): raise SystemExit('Refusing a socket symlink')
     if path.exists():
         import stat
@@ -221,7 +274,21 @@ def serve(controller, path):
         def log_message(self,*args): pass
         def handle_request(self):
             try:
-                if self.command=='GET' and self.path=='/_max_updates/v1/check': data=controller.check()
+                if self.path.startswith('/_max_updates/v4/components/'):
+                    from services.system_component_control import ComponentController
+                    component = controller if isinstance(controller,ComponentController) else controller.components()
+                    route = self.path.removeprefix('/_max_updates/v4/components/')
+                    if self.command=='GET' and route=='engine': data=component.engine()
+                    elif self.command=='GET' and route=='progress': data=component.progress()
+                    elif self.command=='POST' and route in ('apply','recover'):
+                        size=int(self.headers.get('Content-Length','0'))
+                        if not 0<size<=262144: raise ValueError('Invalid component body size')
+                        body=json.loads(self.rfile.read(size))
+                        data=component.submit(body) if route=='apply' else component.recover(body)
+                    else:
+                        self.send_error(403);return
+                elif self.command=='GET' and self.path=='/_max_updates/v1/check': data=controller.check()
+                elif self.command=='GET' and self.path=='/_max_updates/v1/engine': data=controller.engine()
                 elif self.command=='GET' and self.path=='/_max_updates/v1/progress': data=controller.progress()
                 elif self.command=='POST' and self.path=='/_max_updates/v1/apply':
                     size=int(self.headers.get('Content-Length','0'))

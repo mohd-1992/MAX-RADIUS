@@ -1,0 +1,9 @@
+{% macro heading(key, label) -%}
+{% set args = request.args.to_dict() %}
+{% set active = list_sort.key == key %}
+{% set next_dir = 'desc' if active and list_sort.direction == 'asc' else 'asc' %}
+{% set _ = args.update({'list_sort':key,'list_dir':next_dir,'page':1}) %}
+<a href="{{ url_for(request.endpoint, **args) }}" data-list-sort="{{ key }}" class="inline-flex items-center gap-1.5 hover:text-blue-400 transition" title="ترتيب {{ 'حسب عدد الكروت النشطة' if key=='states' else label }} {{ 'تنازليًا' if next_dir=='desc' else 'تصاعديًا' }}">
+    <span>{{ label }}</span><span aria-hidden="true" class="text-[10px] {{ 'text-blue-400' if active else 'opacity-40' }}">{{ ('↑' if list_sort.direction=='asc' else '↓') if active else '↕' }}</span>
+</a>
+{%- endmacro %}

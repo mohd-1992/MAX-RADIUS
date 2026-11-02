@@ -168,5 +168,22 @@ fi
 
 chown -R freerad:freerad ${CONF_DIR} 2>/dev/null || true
 
+# Prepare the fixed diagnostic-log parent once, before request workers start.
+# Existing log directories and old client subdirectories are never removed or
+# chmodded. A real filesystem fault stays visible but must not bypass SQL.
+if [ ! -d /var/log/freeradius/radacct ]; then
+    if ! install -d -m 0750 -o freerad -g freerad /var/log/freeradius/radacct; then
+        echo "[FreeRADIUS] ERROR: accounting detail directory unavailable; SQL accounting remains required." >&2
+    fi
+fi
+
+# A diagnostic detail-file failure must not short-circuit the mandatory SQL
+# module. Override only detail's fail action, never SQL's failure semantics.
+if ! grep -q 'MAX_DETAIL_SQL_INDEPENDENT' "${CONF_DIR}/sites-available/default"; then
+    sed -i '/^accounting {/,/^}/ {
+        s/^[[:space:]]*detail[[:space:]]*$/\t# MAX_DETAIL_SQL_INDEPENDENT\n\tdetail {\n\t\tfail = 1\n\t}/
+    }' "${CONF_DIR}/sites-available/default"
+fi
+
 echo "[FreeRADIUS] Configuration verified. Launching FreeRADIUS 3.x daemon..."
 exec freeradius -f -l stdout

@@ -3,7 +3,7 @@ INSERT OR IGNORE INTO wisp_admins (id, username, password_hash, full_name, email
 VALUES (1, 'admin', 'pbkdf2:sha256:600000', 'مدير النظام الرئيسي', 'admin@wisp.net', 'superadmin');
 
 INSERT OR IGNORE INTO wisp_system_settings (key, value, description) VALUES
-('isp_name', 'شبكة الأفق الذكية WISP', 'اسم مزود خدمة الإنترنت'),
+('isp_name', 'ماكس راديوس | MAX RADIUS', 'اسم مزود خدمة الإنترنت'),
 ('currency', 'SAR', 'العملة المحلية'),
 ('currency_symbol', 'ر.س', 'رمز العملة'),
 ('default_coa_port', '3799', 'منفذ بروتوكول CoA الافتراضي'),

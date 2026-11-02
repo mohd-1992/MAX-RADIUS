@@ -1,0 +1,187 @@
+{
+  "scope": "local copied existing M backups only; no network or production changes",
+  "reference": "analysis-20261031-m-backup-file-growth.json",
+  "policy": "authdate older than 30 days, known acctstoptime older than 90 days, relative to each snapshot noon",
+  "warning": "Age-only upper-bound saving. Not production eligibility, no SQL restore acceptance. No replacement historical aggregates created or proven complete. Protected current cycles, baselines and uncertain closure require additional eligibility.",
+  "verification": {
+    "original_sha256_unchanged": true,
+    "all_generated_gzip_crc_valid": true,
+    "non_sql_members_hash_unchanged": true,
+    "auth30_sql_exact_original": true,
+    "all_target_row_counts_match_prior_analysis": true
+  },
+  "compression_control": "Full tar.gz gzip9 repack locally. Baseline differs from actual archive; compare simulated baseline and variant, never subtract directly from production size. Metadata deliberately unchanged; generated files private simulation only, not distributable backups.",
+  "snapshots": [
+    {
+      "date": "2026-10-28 12:00:00",
+      "cutoff_auth": "2026-09-28 12:00:00",
+      "cutoff_sessions": "2026-07-30 12:00:00",
+      "original_bytes": 27464650,
+      "simulated_bytes": {
+        "baseline": 28369755,
+        "auth30": 28369755,
+        "sessions90": 16990330,
+        "combined": 16990330
+      },
+      "tables": {
+        "radacct": {
+          "total": 53140,
+          "kept": 25601,
+          "age_candidates": 27539,
+          "unknown_or_open": 212
+        },
+        "radpostauth": {
+          "total": 35079,
+          "kept": 35079
+        },
+        "wisp_imported_session_history": {
+          "total": 285864,
+          "age_candidates": 144326,
+          "kept": 141538,
+          "unknown_or_open": 300
+        }
+      },
+      "output_sha256": {
+        "baseline": "e6d6233f51a3c94b5d702250496b7f4f140e1827a9f7be915475be4d2897ada5",
+        "auth30": "e6d6233f51a3c94b5d702250496b7f4f140e1827a9f7be915475be4d2897ada5",
+        "sessions90": "c62f1ac068f6206b2c4f180429620dea53390e639c168d3c4832e6af8ec5bf8e",
+        "combined": "c62f1ac068f6206b2c4f180429620dea53390e639c168d3c4832e6af8ec5bf8e"
+      },
+      "note": "Age-only upper bound; no business eligibility or restore approval. All other SQL preserved byte-for-byte; target INSERT rows reserialized consistently.",
+      "saving_bytes_same_compressor": 11379425,
+      "saving_percent_same_compressor": 40.111114812235776
+    },
+    {
+      "date": "2026-10-29 12:00:00",
+      "cutoff_auth": "2026-09-29 12:00:00",
+      "cutoff_sessions": "2026-07-31 12:00:00",
+      "original_bytes": 28147122,
+      "simulated_bytes": {
+        "baseline": 29077119,
+        "auth30": 29077119,
+        "sessions90": 17611631,
+        "combined": 17611631
+      },
+      "tables": {
+        "radacct": {
+          "total": 56748,
+          "kept": 29159,
+          "age_candidates": 27589,
+          "unknown_or_open": 224
+        },
+        "radpostauth": {
+          "total": 43465,
+          "kept": 43465
+        },
+        "wisp_imported_session_history": {
+          "total": 284021,
+          "age_candidates": 143958,
+          "kept": 140063,
+          "unknown_or_open": 300
+        },
+        "wisp_traffic_history": {
+          "total": 1848,
+          "kept": 668,
+          "age_candidates": 1180
+        }
+      },
+      "output_sha256": {
+        "baseline": "e2adc2f80a17ff0e233824990b7247929cd85593ba77136ad7b5b2ac10a4aae3",
+        "auth30": "e2adc2f80a17ff0e233824990b7247929cd85593ba77136ad7b5b2ac10a4aae3",
+        "sessions90": "135bf5ff996443cf5e7dd35bd4dd35949a90d9d2e27e3c5111af67e9e5927aac",
+        "combined": "135bf5ff996443cf5e7dd35bd4dd35949a90d9d2e27e3c5111af67e9e5927aac"
+      },
+      "note": "Age-only upper bound; no business eligibility or restore approval. All other SQL preserved byte-for-byte; target INSERT rows reserialized consistently.",
+      "saving_bytes_same_compressor": 11465488,
+      "saving_percent_same_compressor": 39.431306794871944
+    },
+    {
+      "date": "2026-10-30 12:00:00",
+      "cutoff_auth": "2026-09-30 12:00:00",
+      "cutoff_sessions": "2026-08-01 12:00:00",
+      "original_bytes": 30058712,
+      "simulated_bytes": {
+        "baseline": 31076298,
+        "auth30": 31076298,
+        "sessions90": 18272600,
+        "combined": 18272600
+      },
+      "tables": {
+        "radacct": {
+          "total": 32894,
+          "kept": 32854,
+          "age_candidates": 40,
+          "unknown_or_open": 195
+        },
+        "radpostauth": {
+          "total": 53367,
+          "kept": 53367
+        },
+        "wisp_imported_session_history": {
+          "total": 284021,
+          "age_candidates": 144597,
+          "kept": 139424,
+          "unknown_or_open": 300
+        },
+        "wisp_traffic_history": {
+          "total": 29469,
+          "kept": 623,
+          "age_candidates": 28846
+        }
+      },
+      "output_sha256": {
+        "baseline": "70cf34f9af4fc76fefe4b8bd00cffa61b768ff6709f0da66f3b27962af09639b",
+        "auth30": "70cf34f9af4fc76fefe4b8bd00cffa61b768ff6709f0da66f3b27962af09639b",
+        "sessions90": "b63ef31a4407ab1bb4f4ca2f407d1e9bdc1437fbd242b544d164932d65b32f91",
+        "combined": "b63ef31a4407ab1bb4f4ca2f407d1e9bdc1437fbd242b544d164932d65b32f91"
+      },
+      "note": "Age-only upper bound; no business eligibility or restore approval. All other SQL preserved byte-for-byte; target INSERT rows reserialized consistently.",
+      "saving_bytes_same_compressor": 12803698,
+      "saving_percent_same_compressor": 41.20084702495773
+    },
+    {
+      "date": "2026-10-31 12:00:00",
+      "cutoff_auth": "2026-10-01 12:00:00",
+      "cutoff_sessions": "2026-08-02 12:00:00",
+      "original_bytes": 30877048,
+      "simulated_bytes": {
+        "baseline": 31926020,
+        "auth30": 31926020,
+        "sessions90": 19039669,
+        "combined": 19039669
+      },
+      "tables": {
+        "radacct": {
+          "total": 37019,
+          "kept": 36896,
+          "age_candidates": 123,
+          "unknown_or_open": 240
+        },
+        "radpostauth": {
+          "total": 61959,
+          "kept": 61959
+        },
+        "wisp_imported_session_history": {
+          "total": 283255,
+          "age_candidates": 144655,
+          "kept": 138600,
+          "unknown_or_open": 300
+        },
+        "wisp_traffic_history": {
+          "total": 30236,
+          "kept": 576,
+          "age_candidates": 29660
+        }
+      },
+      "output_sha256": {
+        "baseline": "40bfb57ef6af331d2f6e078a1acafc6c71e7e7ba5a7d4053272da11eac259905",
+        "auth30": "40bfb57ef6af331d2f6e078a1acafc6c71e7e7ba5a7d4053272da11eac259905",
+        "sessions90": "69e8218d079650db8d66863c02e8e6f3a40aade66b72c237b730770de44181e0",
+        "combined": "69e8218d079650db8d66863c02e8e6f3a40aade66b72c237b730770de44181e0"
+      },
+      "note": "Age-only upper bound; no business eligibility or restore approval. All other SQL preserved byte-for-byte; target INSERT rows reserialized consistently.",
+      "saving_bytes_same_compressor": 12886351,
+      "saving_percent_same_compressor": 40.36316145889779
+    }
+  ]
+}

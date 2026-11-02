@@ -1,0 +1,258 @@
+{
+  "date": "2026-10-30",
+  "scope": "Read actual pinned 269 artifacts, current code and original local test receipts; no new heavy export or benchmark",
+  "published_image": "sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+  "candidate_image": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+  "comparison": {
+    "module_comparison": {
+      "services/traffic_sample_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "services/traffic_history_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "services/sales_reporting_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "services/network_traffic_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "services/session_history_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "services/backup_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "services/accounting_archiver_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "services/db_maintenance_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "core/backup_archive_policy": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      },
+      "services/batch_export_service": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": false
+      },
+      "services/pdf_export_service": {
+        "published_present": false,
+        "candidate_present": false,
+        "identical": true
+      },
+      "services/heavy_operation_service": {
+        "published_present": false,
+        "candidate_present": false,
+        "identical": true
+      },
+      "web/session_export": {
+        "published_present": true,
+        "candidate_present": true,
+        "identical": true
+      }
+    },
+    "published_workbook_probe": {
+      "workbook_args": [],
+      "workbook_kwargs": {},
+      "constructor_observed": true
+    },
+    "candidate_workbook_probe": {
+      "workbook_args": [],
+      "workbook_kwargs": {},
+      "constructor_observed": true
+    }
+  },
+  "actual_modules": {
+    "published": {
+      "services/traffic_sample_service": [
+        {
+          "file": "traffic_sample_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "d8b8df8c244a43699da0808b61bf2be5f98da5536d597e825955071885624b0f"
+        }
+      ],
+      "services/traffic_history_service": [
+        {
+          "file": "traffic_history_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "cef13073fe7e5695f9940a0e01fcf6d0bbc6e10dc8be4641413a45dd99197264"
+        }
+      ],
+      "services/sales_reporting_service": [
+        {
+          "file": "sales_reporting_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "23a91480ebe9f5e3e3a6e335fa2c110e6bf1a56ab60ede68349df6586dc62e19"
+        }
+      ],
+      "services/network_traffic_service": [
+        {
+          "file": "network_traffic_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "ec8bf5c33ac5a08e39780f89255011e33df39404004853574f41875549de44a4"
+        }
+      ],
+      "services/session_history_service": [
+        {
+          "file": "session_history_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "e872f044327c73825fe88f9dc450701767bbc14b5df12f3e2b30273d30b945bd"
+        }
+      ],
+      "services/backup_service": [
+        {
+          "file": "backup_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "a7651b110a6a2faef9c90189ca43a5201aa037c1429d1c1dee00201f0135d95c"
+        }
+      ],
+      "services/accounting_archiver_service": [
+        {
+          "file": "accounting_archiver_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "ac219653452d906bc9f1ebe953dbbb8cca5181507a79aa5031cd708f35991d10"
+        }
+      ],
+      "services/db_maintenance_service": [
+        {
+          "file": "db_maintenance_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "42c00f41be2bb7708785485b55e9c626268ababe35504a148bb493ff879556f1"
+        }
+      ],
+      "core/backup_archive_policy": [
+        {
+          "file": "backup_archive_policy.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "068e159b2c08c948ea22a07173cbfa3fddeb358fbd9231ea6847121d928d2b35"
+        }
+      ],
+      "services/batch_export_service": [
+        {
+          "file": "batch_export_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "53e47fc4349cc2be8fdb8eb50130ef9838ff519f31065211c1442748e6184b5f"
+        }
+      ],
+      "services/pdf_export_service": [],
+      "services/heavy_operation_service": [],
+      "web/session_export": [
+        {
+          "file": "session_export.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "4f100be4485f51b83321d2a377539842a7b0c06a67a301034f1c15d352d79a80"
+        }
+      ]
+    },
+    "candidate": {
+      "services/traffic_sample_service": [
+        {
+          "file": "traffic_sample_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "d8b8df8c244a43699da0808b61bf2be5f98da5536d597e825955071885624b0f"
+        }
+      ],
+      "services/traffic_history_service": [
+        {
+          "file": "traffic_history_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "cef13073fe7e5695f9940a0e01fcf6d0bbc6e10dc8be4641413a45dd99197264"
+        }
+      ],
+      "services/sales_reporting_service": [
+        {
+          "file": "sales_reporting_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "23a91480ebe9f5e3e3a6e335fa2c110e6bf1a56ab60ede68349df6586dc62e19"
+        }
+      ],
+      "services/network_traffic_service": [
+        {
+          "file": "network_traffic_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "ec8bf5c33ac5a08e39780f89255011e33df39404004853574f41875549de44a4"
+        }
+      ],
+      "services/session_history_service": [
+        {
+          "file": "session_history_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "e872f044327c73825fe88f9dc450701767bbc14b5df12f3e2b30273d30b945bd"
+        }
+      ],
+      "services/backup_service": [
+        {
+          "file": "backup_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "a7651b110a6a2faef9c90189ca43a5201aa037c1429d1c1dee00201f0135d95c"
+        }
+      ],
+      "services/accounting_archiver_service": [
+        {
+          "file": "accounting_archiver_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "ac219653452d906bc9f1ebe953dbbb8cca5181507a79aa5031cd708f35991d10"
+        }
+      ],
+      "services/db_maintenance_service": [
+        {
+          "file": "db_maintenance_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "42c00f41be2bb7708785485b55e9c626268ababe35504a148bb493ff879556f1"
+        }
+      ],
+      "core/backup_archive_policy": [
+        {
+          "file": "backup_archive_policy.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "068e159b2c08c948ea22a07173cbfa3fddeb358fbd9231ea6847121d928d2b35"
+        }
+      ],
+      "services/batch_export_service": [
+        {
+          "file": "batch_export_service.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "839d6d5f4d04071ad84c49bb38414abd30e757767e73400e01fe2dfd99611e85"
+        }
+      ],
+      "services/pdf_export_service": [],
+      "services/heavy_operation_service": [],
+      "web/session_export": [
+        {
+          "file": "session_export.cpython-311-x86_64-linux-gnu.so",
+          "sha256": "4f100be4485f51b83321d2a377539842a7b0c06a67a301034f1c15d352d79a80"
+        }
+      ]
+    }
+  },
+  "prior_source_benchmarks": {
+    "cards_excel.resource.json": {
+      "case": "cards_excel",
+      "exit": 0,
+      "peak_anon_MiB": 60.37,
+      "seconds": 17.97
+    },
+    "cards_pdf.resource.json": {
+      "case": "cards_pdf",
+      "exit": 0,
+      "peak_anon_MiB": 413.77,
+      "seconds": 236.42
+    },
+    "sales-excel-final.json": {
+      "format": "excel",
+      "rows": 50000,
+      "seconds": 27.642,
+      "verified": true,
+      "peak_anon_MiB": 72.6
+    }
+  },
+  "conclusions": {
+    "269_report_counter_correctness_fixes_published_and_preserved": true,
+    "269_backup_compression_dedup_fixes_published_and_preserved": true,
+    "269_new_export_memory_fixes_included": false,
+    "270_development_export_memory_fixes_implemented_locally": true,
+    "270_final_image_acceptance_claimed": false
+  },
+  "product_changed": false,
+  "production_access": false,
+  "registry_push": false
+}

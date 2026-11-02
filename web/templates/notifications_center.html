@@ -385,8 +385,9 @@
     }
 
     function verifyBotConnection() {
+        const operationSwal = window.createOperationNotification();
         const token = document.getElementById('botToken').value.trim();
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ التحقق من البوت...',
             text: 'يتم الاتصال بسيرفرات Telegram Bot API...',
             allowOutsideClick: false,
@@ -405,7 +406,7 @@
                     name.innerText = `@${res.bot.username || res.bot.first_name}`;
                     badge.classList.remove('hidden');
 
-                    Swal.fire({
+                    operationSwal.fire({
                         icon: 'success',
                         title: 'الاتصال بالبوت ناجح!',
                         html: `
@@ -418,15 +419,16 @@
                         confirmButtonText: 'ممتاز'
                     });
                 } else {
-                    Swal.fire('فشل التحقق', res.message || 'تعذر الاتصال بالبوت. تأكد من صحة الرمز.', 'error');
+                    operationSwal.fire('فشل التحقق', res.message || 'تعذر الاتصال بالبوت. تأكد من صحة الرمز.', 'error');
                 }
             })
             .catch(err => {
-                Swal.fire('خطأ في الشبكة', err.message, 'error');
+                operationSwal.uncertain('خطأ في الشبكة', err.message, 'error');
             });
     }
 
     function saveNotificationSettings(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         const fd = new FormData();
         fd.append('bot_token', document.getElementById('botToken').value.trim());
@@ -439,7 +441,7 @@
         fd.append('nas_down', document.getElementById('chkNasDown').checked ? '1' : '0');
         fd.append('daily_summary', document.getElementById('chkDaily').checked ? '1' : '0');
 
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ حفظ الإعدادات...',
             didOpen: () => Swal.showLoading()
         });
@@ -448,16 +450,17 @@
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    Swal.fire('تم الحفظ', res.message, 'success');
+                    operationSwal.fire('تم الحفظ', res.message, 'success');
                 } else {
-                    Swal.fire('خطأ', res.message, 'error');
+                    operationSwal.fire('خطأ', res.message, 'error');
                 }
             })
-            .catch(err => Swal.fire('خطأ غير متوقع', err.message, 'error'));
+            .catch(err => operationSwal.uncertain('خطأ غير متوقع', err.message, 'error'));
     }
 
     function sendTestAlert() {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'إرسال تنبيه تجريبي إلى تيليجرام',
             input: 'textarea',
             inputValue: '🚀 *تجربة إشعار فوري من منظومة MAX RADIUS*\nالنظام يعمل بكفاءة تامة وتم تفعيل قنوات الربط السحابي بنجاح.',
@@ -466,19 +469,19 @@
             cancelButtonText: 'إلغاء'
         }).then(result => {
             if (result.isConfirmed && result.value) {
-                Swal.fire({ title: 'جارٍ الإرسال...', didOpen: () => Swal.showLoading() });
+                operationSwal.fire({ title: 'جارٍ الإرسال...', didOpen: () => Swal.showLoading() });
                 const fd = new FormData();
                 fd.append('message', result.value);
                 fetch('/api/notifications/test-send', { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(res => {
                         if (res.success) {
-                            Swal.fire('نجاح الإرسال', res.message, 'success').then(() => location.reload());
+                            operationSwal.fire('نجاح الإرسال', res.message, 'success').then(() => location.reload());
                         } else {
-                            Swal.fire('تعذر الإرسال', res.message, 'warning');
+                            operationSwal.fire('تعذر الإرسال', res.message, 'warning');
                         }
                     })
-                    .catch(err => Swal.fire('خطأ في الإرسال', err.message, 'error'));
+                    .catch(err => operationSwal.uncertain('خطأ في الإرسال', err.message, 'error'));
             }
         });
     }

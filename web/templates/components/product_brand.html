@@ -1,0 +1,10 @@
+{# Release-owned assets: never derive publisher identity from tenant settings. #}
+{% macro logo(kind='horizontal', size='regular') -%}
+<span class="max-brand max-brand--{{ kind }} max-brand--{{ size }}" dir="ltr">
+    <img class="max-brand__light" src="{{ url_for('static', filename='brand/max-radius-' ~ kind ~ '-light-transparent.svg') }}?v=20261026-aligned-r3" alt="MAX RADIUS — ماكس راديوس" width="{{ 1093 if kind == 'horizontal' else 64 }}" height="{{ 245 if kind == 'horizontal' else 64 }}">
+    <img class="max-brand__dark" src="{{ url_for('static', filename='brand/max-radius-' ~ kind ~ '-dark-transparent.svg') }}?v=20261026-aligned-r3" alt="MAX RADIUS — ماكس راديوس" width="{{ 1093 if kind == 'horizontal' else 64 }}" height="{{ 245 if kind == 'horizontal' else 64 }}">
+</span>
+{%- endmacro %}
+{% macro credit(website='') -%}
+<span class="max-brand-credit">{{ logo('icon', 'small') }}<span>{% if website %}<a href="{{ website }}" target="_blank" rel="noopener noreferrer" class="hover:underline underline-offset-2">طُوّر بواسطة ماكس راديوس</a>{% else %}طُوّر بواسطة <b dir="ltr">MAX RADIUS</b>{% endif %} · جميع حقوق التطوير محفوظة</span></span>
+{%- endmacro %}

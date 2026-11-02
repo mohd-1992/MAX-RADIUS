@@ -110,3 +110,4 @@ deploy/*
 deploy/hosted-max/*
 !deploy/hosted-max/update_controller.py
 !deploy/hosted-max/provision_update_controller.py
+!deploy/hosted-max/component_controller.py

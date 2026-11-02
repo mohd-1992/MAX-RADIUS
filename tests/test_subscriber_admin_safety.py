@@ -25,6 +25,7 @@ def fixture():
     db.execute('CREATE TABLE user_audit_logs(user_type TEXT,user_id INTEGER,username TEXT,admin_name TEXT,action TEXT,change_details TEXT)')
     db.execute('CREATE TABLE wisp_invoices(id INTEGER PRIMARY KEY,invoice_number TEXT UNIQUE,subscriber_id INTEGER,subscriber_name TEXT,amount REAL,status TEXT,package_name TEXT,notes TEXT,paid_at TEXT)')
     db.execute('CREATE TABLE radacct(radacctid INTEGER,username TEXT,acctsessionid TEXT,nasipaddress TEXT,framedipaddress TEXT,acctstarttime TEXT,acctupdatetime TEXT,acctstoptime TEXT,callingstationid TEXT,acctinputoctets INTEGER,acctoutputoctets INTEGER,acctsessiontime INTEGER)')
+    db.execute('CREATE VIEW radacct_owned AS SELECT *,username AS original_username FROM radacct')
     db.execute('CREATE TABLE nas(id INTEGER,shortname TEXT,nasname TEXT,type TEXT)')
     ns.update(datetime=datetime, json=json, Decimal=Decimal,InvalidOperation=InvalidOperation,ROUND_HALF_UP=ROUND_HALF_UP,
         is_mysql_conn=lambda conn:False,get_db_storage_now=lambda:datetime.datetime(2026,10,11,18),
@@ -66,6 +67,10 @@ def fixture():
 class SubscriberSafetyTests(unittest.TestCase):
     def setUp(self):
         self.app,self.db,self.ns=fixture();self.client=self.app.test_client()
+        # The SQLite profile/finance fixture delegates the separately tested
+        # MariaDB MAC-policy initializer explicitly.
+        self.mac_initializer=patch('services.account_mac_service.initialize_mac_policy')
+        self.mac_initializer.start();self.addCleanup(self.mac_initializer.stop)
         self.login(['subscribers.view','subscribers.create','subscribers.edit','subscribers.renew','subscribers.delete','subscribers.disconnect','wallets.manage'])
         self.license=types.ModuleType('services.license_guard_service')
         self.license.get_active_license_status=lambda:dict(valid=True,status='active')
@@ -176,14 +181,15 @@ class SubscriberSafetyTests(unittest.TestCase):
         response=self.client.get('/subscribers/create')
         self.assertEqual(response.status_code,200)
         self.assertIn('name="csrf_token"',response.get_data(as_text=True))
-    def test_profile_template_has_no_contract_inputs_and_hides_readonly_controls(self):
+    def test_profile_template_exposes_explicit_edits_and_hides_unauthorized_controls(self):
         context=dict(subscriber=dict(id=1,username='fixture-user',password='fixture-password',full_name='اختبار',package_name='باقة',status='active',is_online=True,rate_download='4M',rate_upload='2M',service_type='hotspot'),
-            sessions=[],invoices=[],audit_logs=[],analytics=dict(has_data=False),analytics_json='{"has_data":false}',usage_percent=0)
+            sessions=[],session_history=dict(total=0,page=1,pages=1,rows=[]),mac_policy=dict(enabled=False,addresses=[]),invoices=[],audit_logs=[],analytics=dict(has_data=False),analytics_json='{"has_data":false}',usage_percent=0)
         from flask import render_template
         with self.app.test_request_context('/subscribers/1'):
             session['permissions']=['subscribers.edit','subscribers.disconnect']
             html=render_template('subscriber_details.html',**context)
-            for field in ['package_id','status','expires_at','service_type']:self.assertNotIn('name="'+field+'"',html)
+            for field in ['package_id','status','expires_at']:self.assertNotIn('name="'+field+'"',html)
+            for field in ['username','service_type','expected_revision','operation_id']:self.assertIn('name="'+field+'"',html)
             self.assertIn('form="editSubForm"',html)
             session['permissions']=['subscribers.view']
             html=render_template('subscriber_details.html',**context)

@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 CHANNEL = 'https://control.max-net.net'
 MAX_BYTES = 262144
-CAPABILITIES = ['web', 'core', 'signed_audience']
+from services.system_update_requirements import CAPABILITIES
 
 
 class ChannelError(RuntimeError):
@@ -100,8 +100,16 @@ def verify_response(response, config, current, now=None, capabilities=None):
             raise ChannelError('Unpinned or unapproved repository')
     # A free-text migration/rollback description is not executable authorization.
     # First consumer supports backward-compatible releases without explicit DDL.
-    if manifest.get('migration') != 'none':
+    explicit = manifest.get('migration') == 'explicit'
+    if manifest.get('migration') not in ('none','explicit') or (explicit and (
+            'migration' not in (capabilities or CAPABILITIES) or not manifest.get('requirements',{}).get('migration_plan'))):
         raise ChannelError('This release requires a separately supported migration')
+    if 'requirements' in manifest:
+        if explicit != bool(manifest['requirements'].get('migration_plan')):
+            raise ChannelError('Migration flag and immutable plan do not match')
+        from services.system_update_requirements import validate
+        try:validate(manifest['requirements'],config,images)
+        except ValueError as error:raise ChannelError(str(error)) from error
     expected_scope = 'web_only' if set(images) == {'web'} else 'web_core'
     if (manifest.get('update_scope') != expected_scope or manifest.get('automatic_install') is not False
             or manifest.get('database_image_change') is not False or manifest.get('shared_services_change') is not False):
@@ -112,7 +120,8 @@ def verify_response(response, config, current, now=None, capabilities=None):
 def fetch(config, current, capabilities=None):
     caps = capabilities or CAPABILITIES
     path = '/api/releases/v1/latest' if config['kind'] == 'public' else '/api/releases/v1/check'
-    url = config['channel'] + path + '?' + urllib.parse.urlencode({'current_version': current, 'capabilities': ','.join(caps)})
+    from services.system_update_requirements import facts
+    url = config['channel'] + path + '?' + urllib.parse.urlencode(dict(current_version=current,capabilities=','.join(caps),**facts(config)))
     headers = {'User-Agent': 'MAX-RADIUS/'+current, 'Accept': 'application/json'}
     if config['kind'] != 'public':
         headers['Authorization'] = 'Bearer '+config['token']

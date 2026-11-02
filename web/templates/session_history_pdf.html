@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ar" dir="rtl" class="theme-light">
+<head>
+<meta charset="utf-8">
+{% include 'components/product_brand_head.html' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/fonts/tajawal.css') }}">
+<title>سجل الجلسات</title>
+<style>
+@page{size:A4 landscape;margin:14mm 10mm 18mm}
+body{font-family:Tajawal,sans-serif;color:#0f172a;font-size:10px}
+h1{font-size:19px;margin:0 0 8px}p{margin:5px 0 12px}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:9px}
+thead{display:table-header-group}tr{break-inside:avoid}
+th,td{padding:6px 4px;border:1px solid #cbd5e1;vertical-align:top;overflow-wrap:anywhere;text-align:right}
+th{background:#e2e8f0}td[dir=ltr]{text-align:left}
+tfoot{display:table-footer-group}tfoot td{border:0;padding-top:10px;text-align:center}
+</style>
+</head>
+<body>
+{% from 'components/product_brand.html' import credit %}
+<h1>سجل جلسات {{ 'المشترك' if account_kind == 'subscriber' else 'الكرت' }}</h1>
+<p>اسم الدخول: <b dir="auto">{{ account.username }}</b> · كامل سجل الجلسات · إجمالي الجلسات: {{ session_total|default(sessions|length) }} · هذا الجزء: {{ session_offset|default(0) + 1 if sessions else 0 }}–{{ session_offset|default(0) + sessions|length }}</p>
+<table>
+<thead><tr>{% for title in ['وقت البدء','وقت النهاية / الحالة','آخر تحديث للمحاسبة','مدة الاتصال','التحميل','الرفع','إجمالي البيانات','عنوان IP والماك','سيرفر NAS','نقطة الاتصال','سبب الإغلاق'] %}<th>{{ title }}</th>{% endfor %}</tr></thead>
+<tbody>
+{% for s in sessions %}
+<tr>
+<td dir="auto">{{ s.acctstarttime or 'غير محدد' }}</td>
+<td dir="auto">{{ 'متصل الآن' if s.is_active else s.acctstoptime or 'غير متصل' }}</td>
+<td dir="auto">{{ s.acctupdatetime or 'غير محدد' }}</td>
+<td>{{ s.duration_str }}</td><td>{{ s.download_str }}</td><td>{{ s.upload_str }}</td><td>{{ s.total_str }}</td>
+<td dir="ltr">{{ s.framedipaddress or '—' }}<br>{{ s.callingstationid or '—' }}</td>
+<td>{{ s.nas_display_name }}</td><td dir="auto">{{ s.connection_point }}</td>
+<td>{{ s.acctterminatecause or ('متصل' if s.is_active else 'غير محدد') }}</td>
+</tr>
+{% else %}<tr><td colspan="11">لا توجد جلسات مسجلة.</td></tr>{% endfor %}
+</tbody>
+<tfoot><tr><td colspan="11">{{ credit() }}</td></tr></tfoot>
+</table>
+</body></html>

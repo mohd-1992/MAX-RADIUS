@@ -1,0 +1,838 @@
+{
+  "date": "2026-10-31",
+  "version": "2.6.9",
+  "scope": "local-only Core diagnostic logging and mandatory SQL accounting",
+  "Core": {
+    "base": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+    "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+    "tag": "max-radius-core:2.6.9-detail-local-20261031-r6",
+    "changed_runtime": [
+      "/entrypoint.sh",
+      "/etc/freeradius/3.0/mods-available/detail",
+      "/usr/lib/freeradius/rlm_detail.so"
+    ],
+    "source_sha": {
+      "entrypoint.sh": "08b6232bd6217c0c6e308a39b8fc904a8b2aea1b22fb2d73d9441cf7805eadcc",
+      "detail": "a26644c8cdd2f155cea2768c277bd5c3e3690e8150e7444ed686705f572c7a0d",
+      "rlm_detail.c": "56b1838cca4abfa4969f4c512445671395b5dfaf5f2ec9717f6f6638e20d6017"
+    },
+    "pushed": false
+  },
+  "Web": "sha256:ddce804366a6d14de6519a47bc456597fe145404a451fdfe10a3ca286ae7a06c",
+  "baseline_cold_phases": [
+    {
+      "label": "baseline-0",
+      "image": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+      "mode": "normal",
+      "n": 32,
+      "initial_missing_replies": 6,
+      "initial_SQL_rows": 26,
+      "directory_race_errors": 6,
+      "detail_errors": 6,
+      "enospc_visible": false,
+      "permission_visible": false,
+      "readonly_visible": false,
+      "sql_1213": 0,
+      "final_rows": 32
+    },
+    {
+      "label": "baseline-1",
+      "image": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+      "mode": "normal",
+      "n": 32,
+      "initial_missing_replies": 4,
+      "initial_SQL_rows": 28,
+      "directory_race_errors": 4,
+      "detail_errors": 4,
+      "enospc_visible": false,
+      "permission_visible": false,
+      "readonly_visible": false,
+      "sql_1213": 0,
+      "final_rows": 32
+    },
+    {
+      "label": "baseline-2",
+      "image": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+      "mode": "normal",
+      "n": 32,
+      "initial_missing_replies": 3,
+      "initial_SQL_rows": 29,
+      "directory_race_errors": 3,
+      "detail_errors": 3,
+      "enospc_visible": false,
+      "permission_visible": false,
+      "readonly_visible": false,
+      "sql_1213": 0,
+      "final_rows": 32
+    }
+  ],
+  "final_cold_and_storage": {
+    "checks": [
+      {
+        "name": "native-full-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-full-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-full-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-full-real-storage-error-visible",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-deny-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-deny-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-deny-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-deny-real-storage-error-visible",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-readonly-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-readonly-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-readonly-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-readonly-real-storage-error-visible",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-0-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-0-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-0-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-1-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-1-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-1-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-2-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-2-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-2-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-3-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-3-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-3-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-4-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-4-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-4-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-5-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-5-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-5-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-6-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-6-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-6-no-directory-race",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-7-one-final-row-and-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-7-all-initial-Starts-saved-and-answered",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "native-cold-7-no-directory-race",
+        "passed": true,
+        "details": null
+      }
+    ],
+    "phases": [
+      {
+        "label": "native-full",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "full",
+        "n": 8,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 8,
+        "directory_race_errors": 0,
+        "detail_errors": 24,
+        "enospc_visible": true,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 8
+      },
+      {
+        "label": "native-deny",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "deny",
+        "n": 8,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 8,
+        "directory_race_errors": 0,
+        "detail_errors": 24,
+        "enospc_visible": false,
+        "permission_visible": true,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 8
+      },
+      {
+        "label": "native-readonly",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "readonly",
+        "n": 8,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 8,
+        "directory_race_errors": 0,
+        "detail_errors": 24,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": true,
+        "sql_1213": 0,
+        "final_rows": 8
+      },
+      {
+        "label": "native-cold-0",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "normal",
+        "n": 32,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 32,
+        "directory_race_errors": 0,
+        "detail_errors": 0,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 32
+      },
+      {
+        "label": "native-cold-1",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "normal",
+        "n": 32,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 32,
+        "directory_race_errors": 0,
+        "detail_errors": 0,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 32
+      },
+      {
+        "label": "native-cold-2",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "normal",
+        "n": 32,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 32,
+        "directory_race_errors": 0,
+        "detail_errors": 0,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 32
+      },
+      {
+        "label": "native-cold-3",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "normal",
+        "n": 32,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 32,
+        "directory_race_errors": 0,
+        "detail_errors": 0,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 32
+      },
+      {
+        "label": "native-cold-4",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "normal",
+        "n": 32,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 32,
+        "directory_race_errors": 0,
+        "detail_errors": 0,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 32
+      },
+      {
+        "label": "native-cold-5",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "normal",
+        "n": 32,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 32,
+        "directory_race_errors": 0,
+        "detail_errors": 0,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 32
+      },
+      {
+        "label": "native-cold-6",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "normal",
+        "n": 32,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 32,
+        "directory_race_errors": 0,
+        "detail_errors": 0,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 32
+      },
+      {
+        "label": "native-cold-7",
+        "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+        "mode": "normal",
+        "n": 32,
+        "initial_missing_replies": 0,
+        "initial_SQL_rows": 32,
+        "directory_race_errors": 0,
+        "detail_errors": 0,
+        "enospc_visible": false,
+        "permission_visible": false,
+        "readonly_visible": false,
+        "sql_1213": 0,
+        "final_rows": 32
+      }
+    ],
+    "counts": {
+      "RADIUS_packets": 1120,
+      "RADIUS_auth": 280,
+      "RADIUS_1": 280,
+      "RADIUS_3": 280,
+      "RADIUS_2": 280
+    },
+    "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067"
+  },
+  "recovery_and_rollback": {
+    "checks": [
+      {
+        "name": "SQL-outage-seed-open",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "no-false-ACK-when-SQL-and-detail-fail",
+        "passed": true,
+        "details": {
+          "Start_and_Stop_without_ACK": [
+            true,
+            true
+          ]
+        }
+      },
+      {
+        "name": "same-DB-container-image-volume-restarted",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "signed-lease-native-republish-after-DB-outage",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "recovery-Stop-identity-not-split",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "recovery-Start-at-most-one-row-before-replay",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "same-wire-recovery-Start-one-row",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "same-wire-recovery-Stop-final-64bit",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "duplicate-Stop-idempotent",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "On-Off-preserves-open-peer-sessions",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "rollback-same-two-identities-progress",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "reapply-same-two-identities-progress",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "post-reapply-real-Stops-final",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "nonempty-existing-diagnostic-file",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "existing-file-ENOSPC-visible-and-SQL-saved",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "entrypoint-restart-idempotent-site-config",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "no-sales-or-invoices-created-by-protocol",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "all-wallets-exactly-unchanged",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "no-open-sessions",
+        "passed": true,
+        "details": null
+      },
+      {
+        "name": "no-duplicate-session-identities",
+        "passed": true,
+        "details": null
+      }
+    ],
+    "counts": {
+      "RADIUS_packets": 42,
+      "RADIUS_auth": 6,
+      "RADIUS_1": 5,
+      "RADIUS_3": 24,
+      "identical_wire_replays": 5,
+      "RADIUS_2": 5,
+      "RADIUS_7": 1,
+      "RADIUS_8": 1
+    },
+    "final_rows": 975,
+    "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+    "DB_no_restore": true,
+    "physical_NAS": false,
+    "no_financial_replay": true
+  },
+  "operation_checks": {
+    "checks": [
+      {
+        "name": "admin-missing-CSRF-rejected-without-write",
+        "passed": true
+      },
+      {
+        "name": "portal-cannot-call-admin-wallet",
+        "passed": true
+      },
+      {
+        "name": "bulk-wallet-each-target-exactly-once",
+        "passed": true
+      },
+      {
+        "name": "offline-disconnect-does-not-change-contract",
+        "passed": true
+      },
+      {
+        "name": "terminate-blocks-account",
+        "passed": true
+      },
+      {
+        "name": "renew-reactivates-with-one-paid-invoice",
+        "passed": true
+      },
+      {
+        "name": "delete-keeps-financial-invoice",
+        "passed": true
+      },
+      {
+        "name": "portal-wrong-old-password-no-change",
+        "passed": true
+      },
+      {
+        "name": "portal-password-and-RADIUS-sync",
+        "passed": true
+      },
+      {
+        "name": "portal-login-new-password",
+        "passed": true
+      }
+    ],
+    "counts": {
+      "HTTP": 7,
+      "HTTP_mutation": 7
+    }
+  },
+  "legacy_log": {
+    "legacy_log_preserved_on_restart": true
+  },
+  "artifact_audit": {
+    "parent_layers_identical": true,
+    "runtime_config_unchanged": true,
+    "file_hashes": {
+      "base": [
+        "589eff8721d72b2485c1c6f771c82d2f5ae95aef155c0e80931a0bba947ca087  /etc/freeradius/3.0/mods-config/sql/main/mysql/queries.conf",
+        "945e723662f4f77cddee18ed0a7b47fe06b4743ea0117b6462bdc0126f1e8b51  /usr/lib/freeradius/rlm_detail.so",
+        "1e10ed6406bc560a90d9e7a2e18995cf9b0c17737af9f2e786c46996dd38e6d0  /usr/sbin/freeradius"
+      ],
+      "final": [
+        "589eff8721d72b2485c1c6f771c82d2f5ae95aef155c0e80931a0bba947ca087  /etc/freeradius/3.0/mods-config/sql/main/mysql/queries.conf",
+        "7e8343b63cbef81b20cb0284e994d91fadaa0b578f32c376998c29a2eeefa855  /usr/lib/freeradius/rlm_detail.so",
+        "1e10ed6406bc560a90d9e7a2e18995cf9b0c17737af9f2e786c46996dd38e6d0  /usr/sbin/freeradius"
+      ]
+    },
+    "queries_and_daemon_identical": true,
+    "detail_module_changed": true,
+    "source_recipe_normalized_C_matches": true,
+    "source_line_ending_note": "Frozen Windows build context CRLF; source recipe LF, exact normalized bytes compared"
+  },
+  "core_resources": [
+    {
+      "label": "native-full-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "87838720\n",
+      "memory.peak": "92270592\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 663313\nuser_usec 212915\nsystem_usec 450397\nnr_periods 30\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-full-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "88952832\n",
+      "memory.peak": "93945856\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 782062\nuser_usec 286619\nsystem_usec 495442\nnr_periods 41\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-deny-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "87834624\n",
+      "memory.peak": "92082176\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 468301\nuser_usec 157412\nsystem_usec 310889\nnr_periods 27\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-deny-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "89214976\n",
+      "memory.peak": "93458432\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 579375\nuser_usec 212831\nsystem_usec 366543\nnr_periods 34\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-readonly-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "88064000\n",
+      "memory.peak": "91881472\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 437963\nuser_usec 110477\nsystem_usec 327485\nnr_periods 26\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-readonly-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "89337856\n",
+      "memory.peak": "92901376\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 544233\nuser_usec 163679\nsystem_usec 380554\nnr_periods 33\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-0-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "86863872\n",
+      "memory.peak": "92495872\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 514798\nuser_usec 159342\nsystem_usec 355456\nnr_periods 27\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-0-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "92581888\n",
+      "memory.peak": "96751616\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 802149\nuser_usec 249648\nsystem_usec 552500\nnr_periods 42\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-1-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "87281664\n",
+      "memory.peak": "91693056\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 577734\nuser_usec 149346\nsystem_usec 428388\nnr_periods 30\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-1-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "91602944\n",
+      "memory.peak": "96034816\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 822245\nuser_usec 276836\nsystem_usec 545408\nnr_periods 45\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-2-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "87863296\n",
+      "memory.peak": "91840512\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 435026\nuser_usec 123723\nsystem_usec 311303\nnr_periods 27\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-2-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "92831744\n",
+      "memory.peak": "97136640\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 649381\nuser_usec 217884\nsystem_usec 431496\nnr_periods 41\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-3-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "87273472\n",
+      "memory.peak": "91471872\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 556915\nuser_usec 194272\nsystem_usec 362642\nnr_periods 31\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-3-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "94253056\n",
+      "memory.peak": "98160640\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 733486\nuser_usec 310160\nsystem_usec 423326\nnr_periods 48\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-4-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "87351296\n",
+      "memory.peak": "91643904\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 418026\nuser_usec 111218\nsystem_usec 306808\nnr_periods 28\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-4-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "93802496\n",
+      "memory.peak": "98242560\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 664812\nuser_usec 232684\nsystem_usec 432127\nnr_periods 44\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-5-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "88023040\n",
+      "memory.peak": "91967488\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 415153\nuser_usec 130244\nsystem_usec 284909\nnr_periods 30\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-5-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "94511104\n",
+      "memory.peak": "97837056\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 590417\nuser_usec 243112\nsystem_usec 347304\nnr_periods 41\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-6-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "88223744\n",
+      "memory.peak": "91910144\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 478036\nuser_usec 155259\nsystem_usec 322776\nnr_periods 31\nnr_throttled 1\nthrottled_usec 1430\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-6-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "94466048\n",
+      "memory.peak": "98078720\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 668081\nuser_usec 265622\nsystem_usec 402458\nnr_periods 43\nnr_throttled 1\nthrottled_usec 1430\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-7-before",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "87048192\n",
+      "memory.peak": "91545600\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 458301\nuser_usec 110756\nsystem_usec 347545\nnr_periods 28\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    },
+    {
+      "label": "native-cold-7-after",
+      "image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "memory.current": "92844032\n",
+      "memory.peak": "97116160\n",
+      "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+      "cpu.stat": "usage_usec 613150\nuser_usec 193626\nsystem_usec 419523\nnr_periods 40\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n"
+    }
+  ],
+  "final_memory_events": {
+    "/detail269-90957a86-core": false,
+    "/detail269-90957a86-web": false,
+    "/detail269-90957a86-proxy": false,
+    "/detail269-90957a86-issuer": false,
+    "/detail269-90957a86-db": false
+  },
+  "cleanup": {
+    "removed_main_containers": 5,
+    "removed_owned_volumes": 10,
+    "removed_network": true,
+    "preexisting_count": 1174,
+    "preexisting_unchanged": 1174,
+    "preexisting_differences": [],
+    "new_external_ids": [],
+    "leftover_owned": [],
+    "images_retained": true,
+    "pushed": false,
+    "deployed": false,
+    "latest_changed": false
+  },
+  "targeted_fix_accepted": true,
+  "whole_release_acceptance_claimed": false,
+  "physical_NAS_tested": false,
+  "full_financial_20min_repeated": false,
+  "source_recipe_build_verified": true,
+  "source_recipe_notes": "SHA-pinned Debian source, normalized C matches frozen image source. Compiler does not enter runtime.",
+  "fixture_limits": [
+    "A timeout was not treated as proof of no SQL commit after recovery.",
+    "One preliminary post-outage Access-Reject reason was not isolated; final signed-lease recovery succeeded.",
+    "Initial existing-full-file test could still write inside its allocated page; final case forces actual ENOSPC.",
+    "Preliminary probe-writer candidates excluded; final image only checks native fclose."
+  ],
+  "pushed": false,
+  "deployed": false,
+  "latest_changed": false,
+  "evidence": "PRIVATE/core-detail269-fix-20261031-r1"
+}

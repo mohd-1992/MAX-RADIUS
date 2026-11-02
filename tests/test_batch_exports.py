@@ -2,6 +2,7 @@
 import ast
 import datetime
 import io
+import json
 import re
 import types
 import unittest
@@ -21,6 +22,8 @@ class BatchExportTests(unittest.TestCase):
         self.app, self.db, self.ns, self.stubs, self.seed = voucher_fixture()
         self.modules = patch.dict('sys.modules', self.stubs)
         self.modules.start()
+        self.db.execute("CREATE TABLE wisp_account_mac_policies(account_type TEXT,account_id INTEGER,enabled INTEGER,PRIMARY KEY(account_type,account_id))")
+        self.db.execute("CREATE TABLE wisp_account_mac_addresses(account_type TEXT,account_id INTEGER,mac TEXT,note TEXT,PRIMARY KEY(account_type,account_id,mac))")
         self.client = self.app.test_client()
         with self.client.session_transaction() as s:
             s['manager'] = {'id': 1, 'role_id': 1}
@@ -71,6 +74,7 @@ class BatchExportTests(unittest.TestCase):
         self.assertTrue(all(c.data_type == 's' for c in wb.active[2] if c.value is not None))
         self.assertEqual(wb['Information']['B2'].data_type, 's')
         ns = dict(io=io, re=re, openpyxl=openpyxl, xlrd=None)
+        ns['_license_guarded'] = lambda feature: (lambda fn: fn)  # Parser-only fixture; no import action.
         load('services/import_service.py', {'COLUMN_ALIASES','normalize_header','_excel_header_map','parse_excel_file'}, ns)
         book.seek(0)
         raw = ns['parse_excel_file'](FileStorage(book, filename='batch.xlsx'))[0]
@@ -81,6 +85,13 @@ class BatchExportTests(unittest.TestCase):
     def test_unknown_accounting_blocks_file(self):
         with self.assertRaises(ValueError):
             make_workbook({'name':'fixture'}, [dict(username='x')], {'x':None})
+    def test_excel_blank_optional_text_retains_nonnull_sql_defaults(self):
+        row = self.exported_row(pause_reason=None, mac_binding=None)
+        cleaned = validate_export_row(row)
+        self.assertEqual(cleaned['pause_reason'], '')
+        self.assertEqual(cleaned['mac_binding'], '')
+        result = self.restore(self.clean(row))
+        self.assertTrue(result[0], result[1])
     def test_strict_format_missing_and_negative(self):
         for changes in ({'export_format':'v2'}, {'upload_bytes':'-1'}, {'uptime_seconds':'1.5'},
                         {'snap_price':'NaN'}, {'last_renewed_at':''}, {'status':'unused'}):
@@ -96,6 +107,25 @@ class BatchExportTests(unittest.TestCase):
         self.assertEqual(acct['acctstarttime'], row['last_renewed_at'])
         self.assertEqual(acct['acctsessiontime'], 61); self.assertEqual(acct['acctoutputoctets'],123456789)
         self.assertEqual(acct['acctterminatecause'], 'Consolidated-Historical-Import')
+
+    def test_mac_list_notes_survive_workbook_validation_and_restore(self):
+        from services.batch_export_service import FORMAT_MAC
+        policy = {'enabled': True, 'addresses': [{'mac': '02:00:00:00:00:01', 'note': 'هاتف'}, {'mac': '02:00:00:00:00:02', 'note': '<b>جهاز</b>'}]}
+        row = self.exported_row(export_format=FORMAT_MAC, account_mac_policy=json.dumps(policy, ensure_ascii=False))
+        clean = self.clean(row)
+        # restore validates again; parsed metadata must remain idempotent.
+        result = self.restore(clean)
+        self.assertTrue(result[0], result[1])
+        card = self.db.execute("SELECT id FROM wisp_vouchers WHERE username='0000123'").fetchone()
+        state = self.db.execute("SELECT enabled FROM wisp_account_mac_policies WHERE account_type='voucher' AND account_id=?", (card[0],)).fetchone()
+        self.assertEqual(state[0], 1)
+        addresses = [dict(r) for r in self.db.execute('SELECT mac,note FROM wisp_account_mac_addresses WHERE account_id=? ORDER BY mac', (card[0],))]
+        self.assertEqual(addresses, policy['addresses'])
+        self.assertFalse(self.db.execute("SELECT id FROM radcheck WHERE username='0000123' AND attribute='Calling-Station-Id'").fetchone())
+
+    def test_mac_list_cannot_silently_use_legacy_export_format(self):
+        with self.assertRaises(ValueError):
+            validate_export_row(self.exported_row(account_mac_policy='{"enabled":true,"addresses":[]}'))
     def test_repeat_import_refuses_all(self):
         clean = self.clean(self.exported_row())
         self.assertTrue(self.restore(clean)[0]); self.assertFalse(self.restore(clean)[0])
@@ -127,18 +157,19 @@ class BatchExportTests(unittest.TestCase):
         self.assertEqual(self.client.get('/vouchers/batch/1/excel').status_code,403)
     def test_pdf_attachment_uses_same_design_html(self):
         self.db.execute("UPDATE wisp_voucher_batches SET name=? WHERE id=1", ('حزمة تجربة 001',));self.db.commit()
-        with patch('services.batch_export_service.render_pdf', return_value=b'%PDF-fixture') as render:
+        with patch('services.pdf_export_service.render_parts', side_effect=lambda parts,*args,**kw: (captured.extend(parts),io.BytesIO(b'%PDF-fixture'))[1]) as render:
+            captured=[]
             result = self.client.get('/vouchers/print/1?design_id=1&export=pdf')
             self.assertEqual(result.status_code,200)
             self.assertIn('attachment', result.headers['Content-Disposition'])
             from urllib.parse import unquote
             self.assertIn('حزمة تجربة 001.pdf',unquote(result.headers['Content-Disposition']))
             self.assertIn('no-store', result.headers['Cache-Control'])
-            self.assertIn('customCardsPrintContainer', render.call_args.args[0])
+            self.assertIn('customCardsPrintContainer', captured[0])
     def test_invalid_design_does_not_silently_export_default(self):
         self.assertEqual(self.client.get('/vouchers/print/1?design_id=999&export=pdf').status_code,400)
     def test_pdf_failure_returns_no_fake_file(self):
-        with patch('services.batch_export_service.render_pdf', side_effect=RuntimeError('fixture')):
+        with patch('services.pdf_export_service.render_parts', side_effect=RuntimeError('fixture')):
             self.assertEqual(self.client.get('/vouchers/print/1?export=pdf').status_code,503)
     def test_preview_remains_html(self):
         result=self.client.get('/vouchers/print/1?design_id=1')

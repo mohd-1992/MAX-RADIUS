@@ -1,0 +1,1 @@
+{"id":"features268-r1","initializer":"features268_additive_v1","version":"2.6.8","from_schema":"features267","to_schema":"features268","components":["core","web"],"rollback_version":"2.6.7","database_restore":false}

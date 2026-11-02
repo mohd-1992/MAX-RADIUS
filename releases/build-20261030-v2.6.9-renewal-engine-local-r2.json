@@ -1,0 +1,142 @@
+{
+  "application_version": "2.6.9",
+  "build_id": "renewal-engine-recovery-local-20261030-r2",
+  "tag": "max-radius-web:2.6.9-renewal-engine-local-20261030-r2",
+  "image_id": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+  "platform": "linux/amd64",
+  "base_image_id": "sha256:87620a4bc1504cbec669f7183e57d5c9a00542eb895bf6c1714900e854261191",
+  "source_inputs": "Pinned renewal-engine 2.6.9 image plus four explicitly hashed engine/controller modules; current 2.7.0 feature tree excluded",
+  "source_files_sha256": {
+    "services/system_update_components.py": "e0f340a76b6a690ee0c53a8b73435e09bb00c89e5e04b056c9258e9362203a38",
+    "services/system_component_control.py": "a307378c4542122be20d078845ff9fed3d4c542c67661869ac04e8f61db3a502",
+    "services/system_update_host.py": "ae09065c8e864e2721507b74fa77b74bf3aadfe36dd4a19226d7b4a7be5066c6",
+    "services/system_component_host.py": "ed4ec081baf089742186ba673571a3f9713dd9d0fccd71d67183136a96d7208d"
+  },
+  "image_audit": {
+    "image_id": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+    "base_image_id": "sha256:87620a4bc1504cbec669f7183e57d5c9a00542eb895bf6c1714900e854261191",
+    "version": "2.6.9",
+    "signed_integrity_verified": true,
+    "original_publisher_preserved": true,
+    "changed_files": [
+      "services/system_update_components.cpython-311-x86_64-linux-gnu.so",
+      "services/system_update_host.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "added_files": [
+      "services/system_component_control.cpython-311-x86_64-linux-gnu.so",
+      "services/system_component_host.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "unchanged_files": 212,
+    "all_renewal_and_legacy_files_byte_identical": true,
+    "no_plain_source_compiler_or_build_secret": true,
+    "published": false,
+    "deployed": false
+  },
+  "tests": {
+    "compiled_component_contracts": 54,
+    "compiled_legacy_channel_handoff_retry_contracts": 62,
+    "real_docker_retry_helper_executed": true,
+    "compiled_mariadb": {
+      "setup": 2,
+      "restore-actual-old": 6,
+      "native-policy": 11,
+      "native-workbooks": 11
+    },
+    "real_web_image_switch": [
+      {
+        "case": "success",
+        "status": "completed",
+        "database_unchanged": true,
+        "synthetic_64bit_counters_preserved": true,
+        "repeat_noop": true,
+        "runtime_license_probe": "injected-not-production",
+        "actual_pinned_269_web_image_switch": true
+      },
+      {
+        "case": "rollback",
+        "status": "rolled_back",
+        "database_unchanged": true,
+        "synthetic_64bit_counters_preserved": true,
+        "repeat_noop": true,
+        "runtime_license_probe": "injected-not-production",
+        "actual_pinned_269_web_image_switch": true
+      },
+      {
+        "case": "lost_create",
+        "status": "rolled_back",
+        "database_unchanged": true,
+        "synthetic_64bit_counters_preserved": true,
+        "repeat_noop": true,
+        "runtime_license_probe": "injected-not-production",
+        "actual_pinned_269_web_image_switch": true
+      }
+    ],
+    "real_controller_image_handoff": [
+      {
+        "case": "success",
+        "status": "completed",
+        "actual_compiled_controller_socket_and_publisher_verified": true,
+        "candidate_web_retained": true,
+        "terminal_replay_noop": true,
+        "no_db_or_nas_present": true
+      },
+      {
+        "case": "candidate_readiness_failure",
+        "status": "recovery_required",
+        "actual_compiled_controller_socket_and_publisher_verified": true,
+        "candidate_web_retained": true,
+        "terminal_replay_noop": true,
+        "no_db_or_nas_present": true
+      }
+    ],
+    "component_matrix": {
+      "cases": 6,
+      "environments": [
+        "local",
+        "domain",
+        "shared"
+      ],
+      "profiles": [
+        "success",
+        "crash_after_db_start"
+      ],
+      "actual_enrollment": true,
+      "actual_controller_startup_recovery": true,
+      "radius_packets": 40,
+      "native_radius_sql": true,
+      "synthetic_license": true,
+      "real_NAS": false
+    },
+    "frozen_source_voucher_ui": {
+      "run": 32,
+      "passed": 32,
+      "fixture_and_obsolete_expectations_corrected": true,
+      "original_suite_unchanged_pass_claimed": false,
+      "compiled_browser_acceptance": false,
+      "history_page_stub_disclosed": true
+    }
+  },
+  "candidate_protocol": 4,
+  "advertised_protocol": 3,
+  "component_protocol_requires_explicit_host_enrollment": true,
+  "controller_enrollment_and_automatic_worker_recovery_accepted_locally": true,
+  "positive_real_license_or_NAS_PPP_acceptance": false,
+  "production_distribution_ready": false,
+  "remaining_distribution_gates": [
+    "Positive trusted-license and real NAS/PPP acceptance on this immutable image",
+    "Publisher/panel signed-component bundle integration and explicit 2.7.0 schema/migration acceptance",
+    "Extended stability acceptance and separate explicit publication approval"
+  ],
+  "ready_for_local_review": true,
+  "published": false,
+  "deployed": false,
+  "latest_changed": false,
+  "remote_git_pushed": false,
+  "cleanup": {
+    "orchestrator_containers_removed": 7,
+    "orchestrator_volumes_removed": 11,
+    "remaining_containers": [],
+    "remaining_volumes": []
+  },
+  "report": "docs/RELEASE_269_COMPLETION_LOCAL_20261030.md"
+}

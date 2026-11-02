@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+    {% from "components/product_brand.html" import logo as product_logo, credit as product_credit %}
+    {% include "components/product_brand_head.html" %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>{{ product_identity.name }}{% if system_title %} — {{ system_title|replace(product_identity.name, "")|trim(" -—") }}{% endif %} — {% block title %}لوحة التحكم{% endblock %}</title>
@@ -1186,12 +1188,14 @@
         html:not(.theme-light) .wisp-toast .wisp-msg {
             color: #cbd5e1 !important;
         }
-        html:not(.theme-light) .wisp-toast .wisp-close {
+        html:not(.theme-light) .wisp-toast .wisp-close,
+        html:not(.theme-light) .wisp-toast .wisp-toast-action {
             color: #94a3b8 !important;
             background: rgba(255, 255, 255, 0.04) !important;
             border: 1px solid rgba(255, 255, 255, 0.06) !important;
         }
-        html:not(.theme-light) .wisp-toast .wisp-close:hover {
+        html:not(.theme-light) .wisp-toast .wisp-close:hover,
+        html:not(.theme-light) .wisp-toast .wisp-toast-action:hover {
             color: #ffffff !important;
             background: rgba(255, 255, 255, 0.12) !important;
             border-color: rgba(255, 255, 255, 0.15) !important;
@@ -1210,16 +1214,29 @@
         html.theme-light .wisp-toast .wisp-msg {
             color: #475569 !important;
         }
-        html.theme-light .wisp-toast .wisp-close {
+        html.theme-light .wisp-toast .wisp-close,
+        html.theme-light .wisp-toast .wisp-toast-action {
             color: #64748b !important;
             background: rgba(0, 0, 0, 0.03) !important;
             border: 1px solid rgba(0, 0, 0, 0.06) !important;
         }
-        html.theme-light .wisp-toast .wisp-close:hover {
+        html.theme-light .wisp-toast .wisp-close:hover,
+        html.theme-light .wisp-toast .wisp-toast-action:hover {
             color: #0f172a !important;
             background: rgba(0, 0, 0, 0.08) !important;
             border-color: rgba(0, 0, 0, 0.1) !important;
         }
+
+        .wisp-toast-action {
+            margin-top: .75rem;
+            padding: .45rem .8rem;
+            border-radius: .65rem;
+            font: inherit;
+            font-size: .75rem;
+            cursor: pointer;
+        }
+        .wisp-toast-action:disabled { opacity: .6; cursor: wait; }
+        .wisp-toast-action:focus-visible { outline: 2px solid #38bdf8; outline-offset: 3px; }
 
         /* Category Glow & Accent Styles */
         .wisp-toast.wisp-success {
@@ -1456,9 +1473,7 @@
                 {% if logo_url %}
                 <img src="{{ logo_url }}" alt="Logo" class="w-10 h-10 rounded-xl object-contain shadow-md shadow-blue-500/20 p-1 bg-[#070b14] border border-blue-500/30 flex-shrink-0">
                 {% else %}
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0 text-white text-lg font-black">
-                    <i class="fa-solid fa-tower-broadcast"></i>
-                </div>
+                {{ product_logo('icon') }}
                 {% endif %}
                 <div class="overflow-hidden min-w-0">
                     <h1 class="font-extrabold text-sm text-white truncate leading-tight tracking-tight">
@@ -1499,7 +1514,7 @@
             </div>
 
             <!-- القسم: المشتركون والمبيعات -->
-            {% if can_access_endpoint('subscribers') or can_access_endpoint('invoices') or can_access_endpoint('loyalty_rewards_page') or can_access_endpoint('vouchers') or can_access_endpoint('active_card_users') or can_access_endpoint('card_inspect') or can_access_endpoint('card_designer') or can_access_endpoint('quick_cards_page') or can_access_endpoint('quick_cards_history') or can_access_endpoint('packages') or can_access_endpoint('sales_reports') %}<div class="space-y-1">
+            {% if can_access_endpoint('subscribers') or can_access_endpoint('invoices') or can_access_endpoint('loyalty_rewards_page') or can_access_endpoint('vouchers') or can_access_endpoint('active_card_users') or can_access_endpoint('card_inspect') or can_access_endpoint('card_designer') or can_access_endpoint('quick_cards_page') or can_access_endpoint('quick_cards_history') or can_access_endpoint('packages') or (has_feature('traffic_analytics') and can_access_endpoint('traffic_analytics_page')) %}<div class="space-y-1">
                 <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     المشتركون والمبيعات
                 </div>
@@ -1618,17 +1633,25 @@
                     </div>
                 </a>{% endif %}
 
-                <!-- 5. المبيعات والتقارير المالية (Sales & Financial Reports) -->
+                <!-- 5. المبيعات والاستهلاك (Sales & Consumption) -->
                 {% if can_access_endpoint('sales_reports') %}<a href="{{ url_for('sales_reports') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'sales_reports' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
                     <div class="flex items-center gap-2.5">
                         <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'sales_reports' %}bg-emerald-500 text-white shadow-sm shadow-emerald-500/20{% else %}bg-emerald-500/10 text-emerald-400{% endif %}">
                             <i class="fa-solid fa-chart-line"></i>
                         </div>
-                        <span>المبيعات والتقارير المالية</span>
+                        <span>المبيعات والاستهلاك</span>
                     </div>
                     {% if request.endpoint == 'sales_reports' %}
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                     {% endif %}
+                </a>{% endif %}
+                {% if has_feature('traffic_analytics') and can_access_endpoint('traffic_analytics_page') %}
+                <a href="{{ url_for('traffic_analytics_page') }}" class="flex items-center justify-between px-3 py-2 rounded-xl font-bold transition-all duration-200 {% if request.endpoint == 'traffic_analytics_page' %}nav-item-active text-white shadow-xs{% else %}text-slate-300 hover:bg-[#131d31] hover:text-white{% endif %}">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-7 h-7 shrink-0 rounded-lg flex items-center justify-center text-xs {% if request.endpoint == 'traffic_analytics_page' %}bg-cyan-500 text-white{% else %}bg-cyan-500/10 text-cyan-400{% endif %}"><i class="fa-solid fa-wave-square"></i></div>
+                        <span class="whitespace-nowrap">مراقب الشبكة</span>
+                    </div>
+                    {% if request.endpoint == 'traffic_analytics_page' %}<span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>{% endif %}
                 </a>{% endif %}
             </div>{% endif %}
 
@@ -1740,7 +1763,7 @@
             </div>{% endif %}
 
             <!-- القسم: العمليات والخدمات -->
-            {% if can_access_endpoint('notifications_center_page') or can_access_endpoint('whatsapp_dashboard') or can_access_endpoint('automation_rules_page') or can_access_endpoint('hotspot_generator_page') or can_access_endpoint('autoheal_page') or can_access_endpoint('radius_simulator_page') or can_access_endpoint('traffic_analytics_page') or can_access_endpoint('database_maintenance_page') or can_access_endpoint('import_data_page') or can_access_endpoint('system_services_page') or can_access_endpoint('backups_page') or can_access_endpoint('system_update_page') or can_access_endpoint('settings') or can_access_endpoint('license_status_page') %}<div class="space-y-1">
+            {% if can_access_endpoint('notifications_center_page') or can_access_endpoint('whatsapp_dashboard') or can_access_endpoint('automation_rules_page') or can_access_endpoint('hotspot_generator_page') or can_access_endpoint('autoheal_page') or can_access_endpoint('radius_simulator_page') or can_access_endpoint('database_maintenance_page') or can_access_endpoint('import_data_page') or can_access_endpoint('system_services_page') or can_access_endpoint('backups_page') or can_access_endpoint('system_update_page') or can_access_endpoint('settings') or can_access_endpoint('license_status_page') %}<div class="space-y-1">
                 <div class="px-3 pb-1 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
                     العمليات والخدمات
                 </div>
@@ -1782,8 +1805,8 @@
                 {% endif %}
 
                 <!-- 9. الأدوات (Tools) -> [قائمة منسدلة] -->
-                {% set tools_active = request.endpoint in ['backups_page', 'system_services_page', 'import_data_page', 'database_maintenance_page', 'autoheal_page', 'radius_simulator_page', 'traffic_analytics_page', 'accounting_archiver_page', 'database_migration_studio', 'mikrotik_userman_import_page', 'system_update_page', 'hotspot_generator_page'] %}
-                {% if can_access_endpoint('hotspot_generator_page') or can_access_endpoint('autoheal_page') or can_access_endpoint('radius_simulator_page') or can_access_endpoint('traffic_analytics_page') or can_access_endpoint('database_maintenance_page') or can_access_endpoint('import_data_page') or can_access_endpoint('system_services_page') or can_access_endpoint('backups_page') or can_access_endpoint('system_update_page') %}<div class="space-y-1">
+                {% set tools_active = request.endpoint in ['backups_page', 'system_services_page', 'import_data_page', 'database_maintenance_page', 'autoheal_page', 'radius_simulator_page', 'accounting_archiver_page', 'database_migration_studio', 'mikrotik_userman_import_page', 'system_update_page', 'hotspot_generator_page'] %}
+                {% if can_access_endpoint('hotspot_generator_page') or can_access_endpoint('autoheal_page') or can_access_endpoint('radius_simulator_page') or can_access_endpoint('database_maintenance_page') or can_access_endpoint('import_data_page') or can_access_endpoint('system_services_page') or can_access_endpoint('backups_page') or can_access_endpoint('system_update_page') %}<div class="space-y-1">
                     <button onclick="toggleMenu('toolsMenu', 'toolsArrow')" class="w-full flex items-center justify-between px-3 py-2 rounded-xl font-bold text-slate-300 hover:bg-[#131d31] hover:text-white transition-all duration-200 {% if tools_active %}text-cyan-400 bg-[#101728]{% endif %}">
                         <div class="flex items-center gap-2.5">
                             <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs {% if tools_active %}bg-cyan-500 text-white{% else %}bg-cyan-500/10 text-cyan-400{% endif %}">
@@ -1820,16 +1843,6 @@
                                 <span>مختبر ومحاكي الراديوس</span>
                             </div>
                             <i class="fa-solid fa-flask-vial text-[10px] text-purple-400"></i>
-                        </a>{% endif %}
-                        {% endif %}
-                        <!-- 4. محلل حركة البيانات وساعات الذروة -->
-                        {% if has_feature('traffic_analytics') %}
-                        {% if can_access_endpoint('traffic_analytics_page') %}<a href="{{ url_for('traffic_analytics_page') }}" class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#11192b] transition {% if request.endpoint == 'traffic_analytics_page' %}subnav-active{% endif %}">
-                            <div class="flex items-center gap-2">
-                                <span class="w-1.5 h-1.5 rounded-full {% if request.endpoint == 'traffic_analytics_page' %}bg-emerald-400{% else %}bg-slate-600{% endif %}"></span>
-                                <span>محلل الباندوث وساعات الذروة</span>
-                            </div>
-                            <i class="fa-solid fa-chart-simple text-[10px] text-emerald-400"></i>
                         </a>{% endif %}
                         {% endif %}
 <!-- 6. صيانة قاعدة البيانات -->
@@ -2097,7 +2110,7 @@
         <!-- Footer -->
         <footer class="border-t border-[#1c2840] bg-[#070a13] py-4 text-center text-xs text-slate-500">
             <div class="{% block footer_container_class %}max-w-7xl{% endblock %} mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-                <span class="font-semibold">&copy; {{ current_year|default('2026') }} {{ product_identity.owner }}. جميع الحقوق محفوظة.</span>
+                {{ product_credit(website=product_identity.website) }}
                 <div class="flex items-center gap-4">
                     <span>FreeRADIUS: <strong class="text-slate-400">3.2.x</strong></span>
                     <span>MikroTik CoA: <strong class="text-emerald-400">UDP :3799</strong></span>
@@ -2454,6 +2467,7 @@
             }
         })();
     </script>
+    <script src="{{ url_for('static', filename='operation-notifications.js', v='270-operations-r2') }}"></script>
     {% block scripts %}{% endblock %}
 
 
@@ -2517,6 +2531,8 @@
             const toastEl = document.createElement('div');
             toastEl.id = id;
             toastEl.className = 'wisp-toast ' + typeClass;
+            toastEl.setAttribute('role', 'status');
+            toastEl.setAttribute('aria-live', 'polite');
             toastEl.innerHTML = `
                 <div class="flex items-start gap-3 relative">
                     <div class="wisp-icon-box ${iconClass} flex-shrink-0">
@@ -2526,12 +2542,21 @@
                         ${title ? `<div class="wisp-title font-bold text-xs sm:text-sm leading-snug">${title}</div>` : ''}
                         ${message ? `<div class="wisp-msg text-xs mt-1 leading-relaxed">${message}</div>` : ''}
                     </div>
-                    <button type="button" class="wisp-close flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg transition cursor-pointer" title="إغلاق">
+                    ${opts.dismissible === false ? '' : `<button type="button" class="wisp-close flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg transition cursor-pointer" title="إغلاق">
                         <i class="fa-solid fa-xmark text-[11px] pointer-events-none"></i>
-                    </button>
+                    </button>`}
                     ${duration > 0 ? `<div class="wisp-progress ${progressClass}" style="animation-duration: ${duration}ms;"></div>` : ''}
                 </div>
             `;
+
+            if (opts.action && typeof opts.action.onClick === 'function') {
+                const action = document.createElement('button');
+                action.type = 'button';
+                action.className = 'wisp-toast-action';
+                action.textContent = opts.action.label || '';
+                action.addEventListener('click', () => opts.action.onClick(action));
+                toastEl.querySelector('.wisp-content').appendChild(action);
+            }
 
             let isClosed = false;
             let timerId = null;
@@ -2648,7 +2673,6 @@
 
         // Bridge SweetAlert2 seamlessly
         if (window.Swal) {
-            let activeLoadingToast = null;
             const origSwalFire = window.Swal.fire.bind(window.Swal);
             const origSwalClose = (typeof window.Swal.close === 'function') ? window.Swal.close.bind(window.Swal) : function() {};
 
@@ -2661,10 +2685,6 @@
             }
 
             window.Swal.close = function() {
-                if (activeLoadingToast) {
-                    activeLoadingToast.close();
-                    activeLoadingToast = null;
-                }
                 forceCleanupSwalContainers();
                 return origSwalClose();
             };
@@ -2684,10 +2704,6 @@
 
                 // Interactive Confirmation Modal Dialog (Centered & Styled)
                 if (isConfirm || isExplicitModal) {
-                    if (activeLoadingToast) {
-                        activeLoadingToast.close();
-                        activeLoadingToast = null;
-                    }
                     const isDanger = (opts.confirmButtonColor === '#e11d48') || (opts.title && opts.title.includes('حذف')) || (opts.text && opts.text.includes('حذف'));
                     const isSuccess = (opts.confirmButtonColor === '#10b981') || (opts.confirmButtonColor === '#059669') || (opts.title && (opts.title.includes('تجديد') || opts.title.includes('إيداع')));
                     const isIndigo = (opts.confirmButtonColor === '#4f46e5') || (opts.confirmButtonColor === '#6366f1');
@@ -2712,11 +2728,6 @@
                 // Close any open modal dialog before rendering toast notification
                 forceCleanupSwalContainers();
 
-                if (activeLoadingToast) {
-                    activeLoadingToast.close();
-                    activeLoadingToast = null;
-                }
-
                 const isLoading = Boolean(opts.didOpen && opts.didOpen.toString().includes('showLoading'));
 
                 // Only store pending toast in sessionStorage if explicitly requested via persist: true
@@ -2731,18 +2742,15 @@
                     } catch(e) {}
                 }
 
-                const duration = opts.timer || (opts.icon === 'error' ? 5000 : 3800);
+                const duration = isLoading ? 0 : (opts.timer ?? (opts.icon === 'error' ? 5000 : 3800));
                 const toastInstance = window.showToastNotification({
                     title: opts.title || '',
                     html: opts.html || opts.text || '',
                     icon: opts.icon || 'info',
                     isLoading: isLoading,
+                    dismissible: !isLoading,
                     duration: duration
                 });
-
-                if (isLoading) {
-                    activeLoadingToast = toastInstance;
-                }
 
                 // Allow users to see the toast notification for 1.2s before any chained promise (like reload) fires
                 const resolveDelay = isLoading ? 50 : Math.min(1300, duration);
@@ -2942,5 +2950,8 @@
         })();
     })();
     </script>
+<script src="{{ url_for('static', filename='session-operations.js', v='270-session-control-r2') }}"></script>
+<script src="{{ url_for('static', filename='account-mac.js', v='270-mac-session-r1') }}"></script>
+<script src="{{ url_for('static',filename='heavy-export.js', v='270-export-toast-r2') }}"></script>
 </body>
 </html>

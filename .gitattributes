@@ -1,2 +1,5 @@
 
 *.sh text eol=lf
+
+# Unified patch context preserves upstream indentation verbatim.
+docker/freeradius/patches/*.patch -whitespace

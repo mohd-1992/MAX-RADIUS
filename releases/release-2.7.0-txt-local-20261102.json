@@ -1,0 +1,80 @@
+{
+  "version": "2.7.0",
+  "candidate": "r6",
+  "web": {
+    "tag": "max-radius-web:2.7.0-rc-local-20261102-r6",
+    "id": "sha256:1c797dc9baf7b1ed25fd45a4cb59fcc3ba984dd26a1c5d127fa72de429848d44"
+  },
+  "core_unchanged": "sha256:10cc88946c5ed6310a36c4c11b7e991277137da87eb019958f2eb45c8d2eabf5",
+  "parent_web": "sha256:8bb3520a2501a53c3e71099cd8895a265ef7b0672560d833706a780006aa902a",
+  "image_audit": {
+    "integrity_verified": true,
+    "same_publisher": true,
+    "changed": [
+      "services/batch_export_service.cpython-311-x86_64-linux-gnu.so",
+      "web/_embedded_templates.cpython-311-x86_64-linux-gnu.so",
+      "web/endpoint_permissions.cpython-311-x86_64-linux-gnu.so",
+      "web/routes/vouchers.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "other_runtime_files_exact": 225,
+    "only_vouchers_template_changed": true,
+    "financial_modules_of_r5_exact": true
+  },
+  "source_unit_cases": 33,
+  "native_checks": {
+    "success": true,
+    "cases": [
+      {
+        "case": "small",
+        "rows": 20,
+        "exact_usernames_only": true,
+        "seconds": 0.033,
+        "bytes": 260
+      },
+      {
+        "case": "large",
+        "rows": 2501,
+        "exact_usernames_only": true,
+        "seconds": 0.059,
+        "bytes": 32513
+      }
+    ],
+    "authorized_owner_download": true,
+    "foreign_owner_denied": true,
+    "no_print_permission_denied": true
+  },
+  "browser_checks": {
+    "success": true,
+    "themes": [
+      {
+        "theme": "dark",
+        "same_menu_row_classes_and_text_color": true,
+        "file_lines_icon": true
+      },
+      {
+        "theme": "light",
+        "same_menu_row_classes_and_text_color": true,
+        "file_lines_icon": true
+      }
+    ],
+    "actual_browser_download": true,
+    "rows": 20,
+    "leading_zeros_preserved": true,
+    "arabic_filename": true
+  },
+  "existing_excel_still_downloads": true,
+  "preview": "http://127.0.0.1:5270/vouchers",
+  "preview_fixture_isolated": true,
+  "schema_changed": false,
+  "hour_test_repeated": false,
+  "unchanged_r5_coverage_reference": "docs/RELEASE_270_R5_EXTENDED_ACCEPTANCE_20261102.md",
+  "published": false,
+  "domain_updates": false,
+  "latest_changed": false,
+  "source_sha256": {
+    "services/batch_export_service.py": "c4f9cf036d1c0b8f9df79769e4af4badf470bb4689fb319d84dc693eebdad0b6",
+    "web/routes/vouchers.py": "e128b8a5d34036d991ddc0dc61045b6e103808988b935650329981c1b55f64a3",
+    "web/endpoint_permissions.py": "2de7c22e0859125aecb3d3afb321d71467ba99d512e7f958a5332fae9dde7ec7",
+    "web/templates/vouchers.html": "0ed159d063a0596a6f6675928d361abcf4439d9933db5df0a39cdf357b0db55d"
+  }
+}

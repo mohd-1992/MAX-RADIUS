@@ -1,0 +1,19 @@
+{
+  "archive": "C:\\Users\\lenovo\\Documents\\Codex\\private\\max-radius\\backup-retention269-release-20261031-r1\\distribution\\MAX-RADIUS-2.6.9-local-web-core-20261031-r4.tar.gz",
+  "bytes": 723394777,
+  "sha256": "dc259978dd90e0459c4ec5a1237ea613c11b9e5a1771d15fe047e22c9fd4b6d1",
+  "web_tag": "max-radius-web:2.6.9-backup-retention-local-20261031-r4",
+  "web_image": "sha256:eab5cd4ff44303a44110b94c843a64045add3db6cccbfab843084d61109f94cc",
+  "core_tag": "max-radius-core:2.6.9-detail-local-20261031-r6",
+  "core_image": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+  "load_roundtrip_verified": true,
+  "seconds": 67.0596535000077,
+  "pushed": false,
+  "status": "accepted_local_manual_distribution_ready",
+  "production_deployed": false,
+  "tests": {
+    "compaction": 15,
+    "transport": 25
+  },
+  "acceptance_report": "docs/BACKUP_RETENTION_269_ACCEPTANCE_LOCAL_20261031.md"
+}

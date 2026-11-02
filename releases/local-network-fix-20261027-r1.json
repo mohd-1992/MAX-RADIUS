@@ -1,0 +1,85 @@
+{
+  "state": "LOCAL_ONLY_NOT_PUBLISHED",
+  "scope": "shared update-engine source; live recovery limited to 4k",
+  "images": {
+    "2.6.6": {
+      "base_image": "sha256:b25d26a770f8ea20ead01c7bc7a01de30a4911dc3869ddb54a78b9021978183f",
+      "tag": "max-radius-web:2.6.6-network-fix-local-20261027-r1",
+      "image": "sha256:37f702f85451ceb1eda51216b67eb38b45db9d2ee357edd3a6f0f37669f642b7",
+      "changed_files": [
+        "services/system_update_migrations.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_runtime.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_handoff.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_executor.cpython-311-x86_64-linux-gnu.so"
+      ],
+      "all_other_runtime_files_identical": true,
+      "seal_verified": true,
+      "published": false
+    },
+    "2.6.7": {
+      "base_image": "sha256:34b9ed1bf51e88129fc93f11ca25a98507cba18ee942910944eff41a81dbd898",
+      "tag": "max-radius-web:2.6.7-network-fix-local-20261027-r1",
+      "image": "sha256:46ed43c6e34d6527e6b71f1f14d358cc4c2612a8308b124c5a71afc1899ba08c",
+      "changed_files": [
+        "services/system_update_migrations.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_runtime.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_handoff.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_executor.cpython-311-x86_64-linux-gnu.so"
+      ],
+      "all_other_runtime_files_identical": true,
+      "seal_verified": true,
+      "published": false
+    },
+    "2.6.8": {
+      "base_image": "sha256:506267e0299e13620cf0bad118fbcbb6f68bdd6bb976d4846114372503b54cac",
+      "tag": "max-radius-web:2.6.8-network-fix-local-20261027-r2",
+      "image": "sha256:0e21a8aecd746764a0e36e71cc56db11d4a01e2a2d60c020135cfba213008438",
+      "changed_files": [
+        "services/system_update_handoff.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_migrations.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_sequence.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_executor.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_runtime.cpython-311-x86_64-linux-gnu.so"
+      ],
+      "all_other_runtime_files_identical": true,
+      "seal_verified": true,
+      "published": false
+    },
+    "rollback267": {
+      "base_image": "sha256:8648572e9bda01dcd7bf04a7deb623e80fba54fa5aa32ae2df836415555b5021",
+      "tag": "max-radius-web:rollback267-network-fix-local-20261027-r2",
+      "image": "sha256:31e6d9e41971e5d3329e3a2e14d108819a131b1f662300fc8b35354f03f27874",
+      "changed_files": [
+        "services/system_update_handoff.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_migrations.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_sequence.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_executor.cpython-311-x86_64-linux-gnu.so",
+        "services/system_update_runtime.cpython-311-x86_64-linux-gnu.so"
+      ],
+      "all_other_runtime_files_identical": true,
+      "seal_verified": true,
+      "published": false
+    }
+  },
+  "core_image_unchanged": true,
+  "fresh_end_to_end_chain_status": "passed_three_cases",
+  "original_4k_offers_withdrawn": true,
+  "same_version_republication_not_allowed": true,
+  "next_release_versions_not_assigned": true,
+  "fresh_end_to_end_chain_cases": [
+    "domain_success",
+    "local_success",
+    "domain_migration_failure_compatible_rollback"
+  ],
+  "license_and_registry_transport_synthetic": true,
+  "subsequent_publication": {
+    "state": "REISSUED_TO_4K_ONLY",
+    "versions": [
+      "2.6.6",
+      "2.6.7",
+      "2.6.8"
+    ],
+    "evidence": "PRIVATE/4k-reissue-20261027-r1/FINAL.private.json",
+    "no_installation_started": true
+  }
+}

@@ -2,6 +2,9 @@
 
 {% block title %}الملف الشخصي لكرت المشترك: {{ card.username }}{% endblock %}
 
+{% block container_class %}max-w-full px-3 sm:px-6 2xl:px-8{% endblock %}
+{% block footer_container_class %}max-w-full px-3 sm:px-6 2xl:px-8{% endblock %}
+
 {% block content %}
 <div class="space-y-6">
     <!-- Breadcrumb -->
@@ -112,7 +115,7 @@
             <button onclick="switchTab('sessions')" id="tab-btn-sessions" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-clock-rotate-left text-sm"></i>
                 <span>سجل الجلسات</span>
-                <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ sessions|length }}</span>
+                <span class="px-1.5 py-0.5 rounded-md bg-slate-800 text-[10px] font-mono border border-slate-700">{{ session_history.total }}</span>
             </button>
             {% if has_permission('invoices.view') %}<button onclick="switchTab('invoices')" id="tab-btn-invoices" class="profile-tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap text-slate-400 hover:text-white hover:bg-slate-800/60">
                 <i class="fa-solid fa-file-invoice-dollar text-sm"></i>
@@ -273,7 +276,7 @@
                     </div>
                     <div class="flex items-center justify-between">
                         <span class="text-slate-400">الماك المقيد (Bound MAC):</span>
-                        <strong class="text-slate-300 font-mono">{{ card.bound_mac or 'غير مقيد' }}</strong>
+                        <strong class="text-slate-300 font-mono">{{ ('مقيد بـ ' ~ (mac_policy.addresses|length) ~ ' ماك') if mac_policy.enabled else 'غير مقيد' }}</strong>
                     </div>
                 </div>
             </div>
@@ -347,8 +350,8 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-slate-300 font-semibold mb-1" for="editCardMac">ربط MAC</label>
-                        <input id="editCardMac" type="text" dir="ltr" name="bound_mac" value="{{ card.bound_mac or '' }}" placeholder="AA:BB:CC:DD:EE:FF" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-mono focus:border-blue-500">
+                        <span class="block text-slate-300 font-semibold mb-1">تقييد عناوين MAC</span>
+                        <button type="button" onclick="openAccountMacPolicy('voucher', {{ card.id }})" class="w-full text-right rounded-xl border border-slate-700 bg-[#070b14] px-3 py-2.5 text-sm text-blue-400 hover:text-blue-300"><i class="fa-solid fa-list-check ml-2"></i>إدارة الماكات المسموحة</button>
                     </div>
                     <div>
                         <label class="block text-slate-300 font-semibold mb-1" for="editCardExpiry">تاريخ الانتهاء</label>
@@ -368,7 +371,7 @@
                 </div>
             </form>
         </div>
-        {% if has_permission('vouchers.card_edit') and can_access_account_action('change-package','voucher') %}
+        {% if has_permission('detail.vouchers.card_edit') and can_access_account_action('change-package','voucher') %}
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-6 shadow-xl space-y-4">
             <h3 class="font-bold text-white text-base flex items-center gap-2"><i class="fa-solid fa-box-open text-blue-400"></i>تغيير الباقة</h3>
             <form method="POST" action="{{ url_for('edit_active_card_package',card_id=card.id) }}" data-voucher-edit="package" class="space-y-4 text-xs">
@@ -395,26 +398,28 @@
     <!-- TAB 3: SESSIONS LOG (سجل الجلسات) -->
     <div id="tab-pane-sessions" class="tab-pane hidden space-y-6">
         <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-xl space-y-4">
-            <div class="flex items-center justify-between border-b border-[#1c2840] pb-3">
+            <div class="flex flex-wrap gap-3 items-center justify-between border-b border-[#1c2840] pb-3">
                 <h3 class="font-bold text-white text-sm flex items-center gap-2">
                     <i class="fa-solid fa-clock-rotate-left text-blue-400"></i>سجل جلسات الاتصال التاريخية للكرت (FreeRADIUS Accounting)
                 </h3>
-                <span class="text-xs text-slate-400">إجمالي الجلسات: <strong class="text-white font-mono">{{ sessions|length }}</strong></span>
+                <a href="{{ url_for('voucher_sessions_pdf', card_id=card.id) }}" class="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i> تصدير كل الجلسات PDF</a>
             </div>
 
             {% if sessions %}
             <div class="table-responsive rounded-xl border border-[#1c2840]">
-                <table class="w-full text-right text-xs text-slate-300">
+                <table class="w-full min-w-[1250px] text-right text-xs text-slate-300">
                     <thead class="bg-[#070b14] text-slate-400 font-bold border-b border-[#1c2840]">
                         <tr>
                             <th class="p-3">وقت البدء</th>
                             <th class="p-3">وقت النهاية</th>
+                            <th class="p-3">آخر تحديث للمحاسبة</th>
                             <th class="p-3">مدة الاتصال</th>
                             <th class="p-3">التحميل (Down)</th>
                             <th class="p-3">الرفع (Up)</th>
                             <th class="p-3">إجمالي البيانات</th>
                             <th class="p-3">عنوان IP والماك</th>
                             <th class="p-3">سيرفر الـ NAS</th>
+                            <th class="p-3">نقطة الاتصال</th>
                             <th class="p-3">سبب الإغلاق</th>
                         </tr>
                     </thead>
@@ -432,6 +437,7 @@
                                 <span class="block text-slate-500 text-[10px]">{{ s.acctstoptime or '-' }}</span>
                                 {% endif %}
                             </td>
+                            <td class="p-3 font-mono text-slate-400" dir="auto">{{ s.acctupdatetime or 'غير محدد' }}</td>
                             <td class="p-3 font-mono text-amber-300 font-semibold">{{ s.duration_str }}</td>
                             <td class="p-3 font-mono text-cyan-400 font-bold">{{ s.download_str }}</td>
                             <td class="p-3 font-mono text-indigo-400 font-bold">{{ s.upload_str }}</td>
@@ -440,7 +446,8 @@
                                 <div class="font-mono text-blue-300">{{ s.framedipaddress or '-' }}</div>
                                 <div class="text-[10px] font-mono text-slate-500">{{ s.callingstationid or '-' }}</div>
                             </td>
-                            <td class="p-3 font-mono text-slate-400">{{ s.nasipaddress or '-' }}</td>
+                            <td class="p-3 text-slate-300">{{ s.nas_display_name }}</td>
+                            <td class="p-3 text-slate-300" dir="auto">{{ s.connection_point }}</td>
                             <td class="p-3">
                                 <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
                                     {{ s.acctterminatecause or 'Active' }}
@@ -457,6 +464,7 @@
                 <p class="text-sm">لا توجد جلسات اتصال مسجلة لهذا الكرت حتى الآن.</p>
             </div>
             {% endif %}
+            {% include 'components/session_pagination.html' %}
         </div>
     </div>
 
@@ -724,7 +732,8 @@
 
     // CoA Disconnect voucher
     function disconnectVoucher(username) {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'تأكيد فصل الجلسة (CoA)',
             text: `هل تريد إرسال طلب قطع الاتصال الفوري للكرت ${username}؟`,
             icon: 'warning',
@@ -737,7 +746,7 @@
             color: '#fff'
         }).then((result) => {
             if (result.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ إرسال أمر الفصل...',
                     text: 'يتم إرسال حزمة CoA Disconnect للراوتر عبر منفذ 3799 / API...',
                     allowOutsideClick: false,
@@ -749,21 +758,23 @@
                 const fd = new FormData();
                 fd.append('target_type', 'voucher');
                 fd.append('target_id', '{{ card.id }}');
+                fd.set('operation_id', window.newSessionOperationId());
                 fetch('/api/actions/disconnect', {
                     method: 'POST',
                     body: fd
                 })
                 .then(res => res.json())
                 .then(data => {
+                    if (data.pending) return operationSwal.follow(() => window.watchSessionOperations(data));
                     if (data.success) {
-                        Swal.fire({title: 'تم الفصل', text: data.message || 'تم قطع اتصال الكرت بنجاح.', icon: 'success', background: '#0b0f19', color: '#fff'})
+                        operationSwal.fire({title: 'تم الفصل', text: data.message || 'تم قطع اتصال الكرت بنجاح.', icon: 'success', background: '#0b0f19', color: '#fff'})
                         .then(() => location.reload());
                     } else {
-                        Swal.fire({title: 'إشعار الفصل', text: data.message || 'فشل إرسال أمر الفصل.', icon: 'warning', background: '#0b0f19', color: '#fff'});
+                        operationSwal.fire({title: 'إشعار الفصل', text: data.message || 'فشل إرسال أمر الفصل.', icon: 'warning', background: '#0b0f19', color: '#fff'});
                     }
                 })
                 .catch(err => {
-                    Swal.fire({title: 'خطأ في الاتصال', text: err.toString(), icon: 'error', background: '#0b0f19', color: '#fff'});
+                    operationSwal.uncertain({title: 'خطأ في الاتصال', text: err.toString(), icon: 'error', background: '#0b0f19', color: '#fff'});
                 });
             }
         });

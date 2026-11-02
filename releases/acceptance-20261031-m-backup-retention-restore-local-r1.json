@@ -1,0 +1,366 @@
+{
+  "scope": "Local-only restore of existing M snapshot from 2026-10-31 noon and privately derived retention artifacts; no product changes, no deployment or production network access.",
+  "private_round": "PRIVATE/backup-retention-restore-20261031-r1",
+  "status": "completed_with_explicit_policy_limitation",
+  "images": {
+    "web": "sha256:ddce804366a6d14de6519a47bc456597fe145404a451fdfe10a3ca286ae7a06c",
+    "db": "sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e"
+  },
+  "method": {
+    "full_application_restore_called": true,
+    "entrypoint": "services.backup_service.restore_backup",
+    "fixture_overrides": "ensure_backup_dir only points to readonly local input; sys.path includes /app. No healer, accounting, license or financial functions mocked. No Flask app or background workers started.",
+    "isolation": "one owned DB container, dedicated internal network for own clients, no published ports, no Docker socket; compression-only clients network none.",
+    "limits": "DB1536MiB/1CPU/buffer128MiB; each restore Web1024MiB/1CPU; no swap allowance above RAM.",
+    "sampling": "cgroup memory.current, cpu.stat and memory.events about once per second, sequential schemas with warm shared DB. One timed restore each artifact; not a statistical benchmark or production capacity forecast."
+  },
+  "artifacts": {
+    "original_actual_bytes": 30877048,
+    "linux_compression": {
+      "zlib_runtime": "1.3.1",
+      "snapshots": {
+        "original": {
+          "bytes": 30877006,
+          "sha256": "d0ca4ae50fb21f6cb2aef49135712220ebc79ef4b04d8cc9eeae1ea06478f542",
+          "crc_valid": true
+        },
+        "age90": {
+          "bytes": 18460317,
+          "sha256": "6c4ac1dc0f09f02261011d2d94882adc1c948dbb2462fe7447f2a2313e2337c0",
+          "crc_valid": true
+        },
+        "guarded90": {
+          "bytes": 18904528,
+          "sha256": "5514da2257a47473a6610c706944d34521faa76a17746517d74798a005d13c0e",
+          "crc_valid": true
+        }
+      }
+    },
+    "guarded_candidate": {
+      "eligible_removed_by_table": {
+        "radacct": 123,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 136828,
+        "wisp_traffic_history": 29660
+      },
+      "total_removed": 166611,
+      "protected_from_age_only": 7827,
+      "archive_bytes": 19501074,
+      "sql_bytes": 113090005,
+      "sha256": "18552eeb1f7729a6313c39754c39ac511eceedaf5cafd7fcc06c7be3fdc87909",
+      "eligibility": "Existing HISTORY_ELIGIBLE frozen at snapshot time plus all baseline references and dual owner conflicts protected; experimental artifact only, no product change"
+    },
+    "final_artifact_sha256": "5514da2257a47473a6610c706944d34521faa76a17746517d74798a005d13c0e",
+    "saved_bytes": 11972520,
+    "saved_percent": 38.77482070177175
+  },
+  "full_restore": {
+    "original": {
+      "success": true,
+      "seconds": 52.377377295008046,
+      "triggers": 17,
+      "open_rows": 0,
+      "closed_as_restore": 240
+    },
+    "age90": {
+      "success": true,
+      "seconds": 37.82053682699916,
+      "triggers": 17,
+      "open_rows": 0,
+      "closed_as_restore": 240
+    },
+    "guarded90": {
+      "success": true,
+      "seconds": 36.23649702599505,
+      "triggers": 17,
+      "open_rows": 0,
+      "closed_as_restore": 240
+    },
+    "guarded90linux": {
+      "success": true,
+      "seconds": 34.564074959009304,
+      "triggers": 17,
+      "open_rows": 0,
+      "closed_as_restore": 240
+    }
+  },
+  "observed_final_restore_faster_percent": 34.00953475709155,
+  "resources": {
+    "original": {
+      "db": {
+        "peak_bytes": 340996096,
+        "samples": 52,
+        "sampled_cpu_seconds": 37.4573,
+        "oom_kill_increase": 0
+      },
+      "web": {
+        "peak_bytes": 393199616,
+        "samples": 51,
+        "sampled_cpu_seconds": 10.526214,
+        "oom_kill_increase": 0
+      }
+    },
+    "age90": {
+      "db": {
+        "peak_bytes": 346976256,
+        "samples": 38,
+        "sampled_cpu_seconds": 26.236545,
+        "oom_kill_increase": 0
+      },
+      "web": {
+        "peak_bytes": 256155648,
+        "samples": 36,
+        "sampled_cpu_seconds": 6.52896,
+        "oom_kill_increase": 0
+      }
+    },
+    "guarded90": {
+      "db": {
+        "peak_bytes": 363454464,
+        "samples": 37,
+        "sampled_cpu_seconds": 24.555913,
+        "oom_kill_increase": 0
+      },
+      "web": {
+        "peak_bytes": 261578752,
+        "samples": 35,
+        "sampled_cpu_seconds": 6.466848,
+        "oom_kill_increase": 0
+      }
+    },
+    "guarded90linux": {
+      "db": {
+        "peak_bytes": 502272000,
+        "samples": 35,
+        "sampled_cpu_seconds": 23.476724,
+        "oom_kill_increase": 0
+      },
+      "web": {
+        "peak_bytes": 261607424,
+        "samples": 34,
+        "sampled_cpu_seconds": 6.78371,
+        "oom_kill_increase": 0
+      }
+    }
+  },
+  "schema_disk_bytes": {
+    "r_app_original": 547343801,
+    "r_app_guarded90linux": 402066993
+  },
+  "accounting": {
+    "current_cycle_bulk_oracle": {
+      "compared": 31127,
+      "changed": 0
+    },
+    "null_renewal_lifetime_oracle": {
+      "compared": 5983,
+      "changed": 0
+    },
+    "actual_compiled_quota_read_sample": {
+      "sample_summary": {
+        "original": {
+          "accounts": 100,
+          "nonzero_usage": 98,
+          "unknown": 0
+        },
+        "guarded90": {
+          "accounts": 100,
+          "nonzero_usage": 98,
+          "unknown": 0
+        }
+      },
+      "exact_equal": true
+    },
+    "financial_table_hash_equality": {
+      "wisp_invoices": true,
+      "wisp_loyalty_rewards": true,
+      "wisp_loyalty_transactions": true,
+      "wisp_loyalty_wallets": true,
+      "wisp_manager_invoices": true,
+      "wisp_reseller_transactions": true,
+      "wisp_sale_sources": true,
+      "wisp_sale_source_audit": true,
+      "wisp_session_baselines": true,
+      "wisp_subscribers": true,
+      "wisp_vouchers": true,
+      "wisp_voucher_sales": true
+    },
+    "accounting_trigger_definitions_equal": true,
+    "sequence_identity_differences": 0,
+    "baseline_orphans_each": 0,
+    "source_predicate_matches_frozen_269": true
+  },
+  "reports": {
+    "recent_report_actual_function_sha256_equal": true,
+    "recent_report_labels": 5,
+    "recent_rollup_rows": 11385,
+    "retained_rollup_start": "2026-10-27 21:15:00",
+    "retained_rollup_end": "2026-10-31 11:45:00",
+    "original_retained_session_rows": 350510,
+    "final_retained_session_rows": 183899,
+    "original_report_session_count": 348869,
+    "final_report_session_count": 182258,
+    "old_detail_and_lifetime_history_not_preserved": true,
+    "replacement_old_daily_aggregates_built": false,
+    "warning": "Recent report equality does not preserve old imported history. The current rollups do not cover the excluded historical period."
+  },
+  "eligibility_boundary_checks": {
+    "fixture_checks": [
+      {
+        "case": "old_orphan",
+        "expected_eligible": true,
+        "actual_eligible": true,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "recent_closed",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": false,
+        "pass": true
+      },
+      {
+        "case": "open",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": false,
+        "pass": true
+      },
+      {
+        "case": "stale_closed",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "watchdog_closed",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "restored_closed",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "voucher_current_no_renew",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "subscriber_current_no_renew",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "prior_cycle",
+        "expected_eligible": true,
+        "actual_eligible": true,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "baseline_current",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "renamed_id_current_cycle",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "boundary_exact",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": false,
+        "pass": true
+      },
+      {
+        "case": "missing_stable_identity",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "unknown_start_owner",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "name_fallback_current",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": true,
+        "pass": true
+      },
+      {
+        "case": "future_stop",
+        "expected_eligible": false,
+        "actual_eligible": false,
+        "age_only_excludes": false,
+        "pass": true
+      }
+    ],
+    "passed": 16,
+    "total": 16,
+    "unsafe_age_only_fixture_cases": 10,
+    "source_predicate": "HISTORY_ELIGIBLE as recorded current source, NOW frozen at snapshot noon, native MariaDB"
+  },
+  "failures_and_limits": [
+    "Initial empty fixture lacked radius@% view definer (1449); standard isolated principal bootstrapped, failed import excluded from final timings.",
+    "An initial unbounded verification client buffered a large HEX sort and was OOM-killed under DB cgroup. Final digest streams row SHA256 with --quick and primary-key ordering. DB remained same container/restart count0; no additional oom_kill during measured final restores.",
+    "Initial service harness missed /app on sys.path; corrected before product import. Docker default network pool exhausted; selected verified nonoverlapping private internal subnet; disconnected own DB none endpoint before attaching own internal network.",
+    "No real NAS authentication/accounting test, HTTP UI permissions test or license issuer action in this backup-retention round. Existing restore hook closes240 imported open SQL rows as Backup-Restored-Closed, not evidence of NAS Stop.",
+    "No production deletion job or new policy implemented. No feature assigned to269/270. Acceptance is bounded to the tested artifact; preserving all old usage reports requires another design or preserving full history."
+  ],
+  "payload_verification": {
+    "linux_and_windows_guarded_payloads_exact_equal": true,
+    "original_m_copy_sha256_unchanged": true
+  },
+  "cleanup": {
+    "owned_containers_removed": 7,
+    "owned_volumes_removed": 5,
+    "owned_internal_network_removed": true,
+    "preexisting_container_count": 1174,
+    "preexisting_missing_after": 0,
+    "unexpected_new_container_count": 0,
+    "owned_remaining": 0,
+    "no_preexisting_container_targeted": true,
+    "archive_validation": [
+      {
+        "case": "original",
+        "valid": true
+      },
+      {
+        "case": "age90",
+        "valid": true
+      },
+      {
+        "case": "guarded90linux",
+        "valid": true
+      },
+      {
+        "case": "truncated_archive",
+        "rejected": true
+      }
+    ]
+  }
+}

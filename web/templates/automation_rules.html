@@ -207,8 +207,9 @@
 <script>
     const runningRules = new Set();
     function runRuleNow(ruleId) {
+        const operationSwal = window.createOperationNotification();
         if (runningRules.has(ruleId)) return;
-        Swal.fire({
+        operationSwal.fire({
             title: 'تشغيل مهمة الأتمتة الآن',
             text: 'هل تريد تنفيذ القاعدة الآن؟ ستعرض النتيجة الفعلية بعد اكتمالها.',
             icon: 'question',
@@ -218,7 +219,7 @@
         }).then(res => {
             if (res.isConfirmed) {
                 runningRules.add(ruleId);
-                Swal.fire({ title: 'جارٍ التنفيذ...', didOpen: () => Swal.showLoading() });
+                operationSwal.fire({ title: 'جارٍ التنفيذ...', didOpen: () => Swal.showLoading() });
                 const fd = new FormData();
                 fd.append('rule_id', ruleId);
                 fetch('/api/automation-rules/run', { method: 'POST', body: fd })
@@ -226,11 +227,11 @@
                     .then(data => {
                         runningRules.delete(ruleId);
                         if (data.success) {
-                            Swal.fire('اكتمل التنفيذ', data.message, 'success').then(() => location.reload());
+                            operationSwal.fire('اكتمل التنفيذ', data.message, 'success').then(() => location.reload());
                         } else {
-                            Swal.fire('خطأ', data.message, 'error');
+                            operationSwal.fire('خطأ', data.message, 'error');
                         }
-                    }).catch(error => { runningRules.delete(ruleId); Swal.fire('خطأ', String(error), 'error'); });
+                    }).catch(error => { runningRules.delete(ruleId); operationSwal.uncertain('خطأ', String(error), 'error'); });
             }
         });
     }

@@ -1,0 +1,30 @@
+{
+  "status": "old_4k269_withdrawn_new_patched_269_announced_no_install",
+  "version": "2.6.9",
+  "target": "4k.max-net.net",
+  "old_release": "b34d4b5912e49d9be2199e8de2162de8",
+  "old_state": "withdrawn",
+  "new_release": "fe726d008e4ff89ca6e5689dfc45b730",
+  "image": {
+    "version": "2.6.9",
+    "image_id": "sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+    "tag": "mohd777/max-radius-web:2.6.9-reports-backup-r1",
+    "digest": "sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+    "reference": "mohd777/max-radius-web@sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+    "config_and_rootfs_match": true
+  },
+  "automatic_install": false,
+  "current_version": "2.6.8",
+  "new_announcement_visible_in_4k": true,
+  "signature_and_audience_verified": true,
+  "unrelated_announcements_and_targets_unchanged": true,
+  "other_audiences_excluded": true,
+  "existing_containers_unchanged": true,
+  "update_channel_and_identity_unchanged": true,
+  "no_apply_or_new_install_job": true,
+  "latest_unchanged": true,
+  "encrypted_control_backup_verified_offhost": true,
+  "engine_local_checks": 608,
+  "immediate_install_rollback_image": "sha256:0e21a8aecd746764a0e36e71cc56db11d4a01e2a2d60c020135cfba213008438",
+  "checked_at": "2026-10-27T17:54:32.161478+00:00"
+}

@@ -428,7 +428,8 @@
     }
 
     function disconnectUser(username) {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'تأكيد فصل الجلسة (CoA)',
             text: `هل تريد إرسال حزمة قطع الاتصال (Disconnect-Request) للمشترك [${username}] فورياً؟`,
             icon: 'warning',
@@ -439,24 +440,26 @@
             cancelButtonText: 'إلغاء'
         }).then((result) => {
             if (result.isConfirmed) {
-                Swal.fire({ title: 'جارٍ إرسال حزمة الفصل...', didOpen: () => Swal.showLoading() });
+                operationSwal.fire({ title: 'جارٍ إرسال حزمة الفصل...', didOpen: () => Swal.showLoading() });
                 fetch('/api/vouchers/disconnect', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username: username})
+                    body: JSON.stringify({username: username, operation_id: window.newSessionOperationId()})
                 })
                 .then(r => r.json())
                 .then(data => {
-                    Swal.fire(data.success ? 'تم بنجاح' : 'إشعار', data.message, data.success ? 'success' : 'info')
+                    if (data.pending) return operationSwal.follow(() => window.watchSessionOperations(data));
+                    operationSwal.fire(data.success ? 'تم بنجاح' : 'إشعار', data.message, data.success ? 'success' : 'info')
                     .then(() => location.reload());
                 })
-                .catch(err => Swal.fire('خطأ', err.message, 'error'));
+                .catch(err => operationSwal.uncertain('خطأ', err.message, 'error'));
             }
         });
     }
 
     function confirmResetMac(username) {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'فك قيد الماك (Reset MAC)',
             text: `هل تريد إلغاء تقييد الماك للكرت [${username}]؟ سيتمكن المشترك بعدها من تسجيل الدخول من أي هاتف أو جهاز جديد.`,
             icon: 'question',
@@ -467,19 +470,19 @@
             cancelButtonText: 'إلغاء'
         }).then((result) => {
             if (result.isConfirmed) {
-                Swal.fire({ title: 'جارٍ فك الماك...', didOpen: () => Swal.showLoading() });
+                operationSwal.fire({ title: 'جارٍ فك الماك...', didOpen: () => Swal.showLoading() });
                 const fd = new FormData();
                 fd.append('username', username);
                 fetch('/api/vouchers/reset-mac', { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(res => {
                     if (res.success) {
-                        Swal.fire('تم بنجاح', res.message, 'success').then(() => location.reload());
+                        operationSwal.fire('تم بنجاح', res.message, 'success').then(() => location.reload());
                     } else {
-                        Swal.fire('خطأ', res.message, 'error');
+                        operationSwal.fire('خطأ', res.message, 'error');
                     }
                 })
-                .catch(err => Swal.fire('خطأ غير متوقع', err.message, 'error'));
+                .catch(err => operationSwal.uncertain('خطأ غير متوقع', err.message, 'error'));
             }
         });
     }
@@ -497,17 +500,18 @@
     }
 
     function submitExtendVoucher(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         const username = document.getElementById('extUsername').value;
         const days = parseInt(document.getElementById('extDays').value) || 0;
         const mb = parseInt(document.getElementById('extMb').value) || 0;
 
         if (days === 0 && mb === 0) {
-            Swal.fire('تنبيه', 'يرجى إدخال عدد الأيام أو السعة الإضافية لزيادتها.', 'warning');
+            operationSwal.fire('تنبيه', 'يرجى إدخال عدد الأيام أو السعة الإضافية لزيادتها.', 'warning');
             return;
         }
 
-        Swal.fire({ title: 'جارٍ التمديد...', didOpen: () => Swal.showLoading() });
+        operationSwal.fire({ title: 'جارٍ التمديد...', didOpen: () => Swal.showLoading() });
         const fd = new FormData();
         fd.append('username', username);
         fd.append('add_days', days);
@@ -517,12 +521,12 @@
             .then(r => r.json())
             .then(res => {
                 if (res.success) {
-                    Swal.fire('تم بنجاح', res.message, 'success').then(() => location.reload());
+                    operationSwal.fire('تم بنجاح', res.message, 'success').then(() => location.reload());
                 } else {
-                    Swal.fire('خطأ', res.message, 'error');
+                    operationSwal.fire('خطأ', res.message, 'error');
                 }
             })
-            .catch(err => Swal.fire('خطأ', err.message, 'error'));
+            .catch(err => operationSwal.uncertain('خطأ', err.message, 'error'));
     }
 </script>
 {% endblock %}

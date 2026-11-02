@@ -42,9 +42,10 @@ _LIVE_METRICS_CACHE = {
         'total': 0
     },
     'total_nas': 0,
-    'traffic_in_str': '0 B',
-    'traffic_out_str': '0 B',
-    'traffic_total_str': '0 B',
+    'traffic_in_str': 'غير متاح',
+    'traffic_out_str': 'غير متاح',
+    'traffic_total_str': 'غير متاح',
+    'traffic_status_text': 'تعذر تحديث الاستهلاك',
     'resources': {
         'cpu_percent': 0.5,
         'ram_percent': 1.0,
@@ -317,15 +318,8 @@ def _collect_db_metrics_internal():
     nas_devices = query_one('SELECT COUNT(*) as total FROM wisp_nas_devices')
     total_nas = nas_devices['total'] if nas_devices else 0
     
-    traffic = query_one('''
-        SELECT COALESCE(SUM(a.acctinputoctets), 0) as total_in,
-               COALESCE(SUM(a.acctoutputoctets), 0) as total_out
-        FROM radacct_owned a
-        WHERE a.username IN (SELECT username FROM wisp_subscribers)
-           OR a.username IN (SELECT username FROM wisp_vouchers)
-    ''')
-    raw_in = traffic['total_in'] or 0 if traffic else 0
-    raw_out = traffic['total_out'] or 0 if traffic else 0
+    from services.dashboard_reporting_service import daily_traffic_metrics
+    traffic_metrics = daily_traffic_metrics()
 
     return {
         'total_subscribers': total_subs,
@@ -336,9 +330,7 @@ def _collect_db_metrics_internal():
         'vouchers': v_stats,
         'voucher_summary': voucher_summary,
         'total_nas': total_nas,
-        'traffic_in_str': format_bytes(raw_in),
-        'traffic_out_str': format_bytes(raw_out),
-        'traffic_total_str': format_bytes(raw_in + raw_out)
+        **traffic_metrics
     }
 
 
@@ -400,6 +392,10 @@ def get_dashboard_metrics():
             res.update(db_stats)
         except Exception:
             pass
+    from services.dashboard_reporting_service import local_today
+    from core.time_service import get_configured_timezone_name
+    if res.get('traffic_day') != local_today(None, get_configured_timezone_name()).isoformat():
+        res.update(traffic_in_str='غير متاح',traffic_out_str='غير متاح',traffic_total_str='غير متاح',traffic_status_text='تعذر تحديث الاستهلاك')
     return res
 
 
@@ -454,120 +450,26 @@ def get_recent_live_sessions(limit=10):
     return result
 
 
-def get_traffic_chart_data():
-    """
-    Returns real traffic (Download & Upload) for the last 7 days using optimized single-pass query.
-    """
-    arabic_days = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد']
-    today = datetime.date.today()
-    start_date = today - datetime.timedelta(days=6)
-    start_str = start_date.strftime('%Y-%m-%d 00:00:00')
-    
-    rows = query_all("""
-        SELECT DATE(acctstarttime) as day_date,
-               COALESCE(SUM(acctinputoctets), 0) as total_in,
-               COALESCE(SUM(acctoutputoctets), 0) as total_out
-        FROM radacct_owned
-        WHERE acctstarttime >= ?
-        GROUP BY DATE(acctstarttime)
-    """, (start_str,))
-    
-    day_map = {r['day_date'].strftime('%Y-%m-%d') if hasattr(r['day_date'], 'strftime') else str(r['day_date']): r for r in (rows or [])}
-    
-    labels = []
-    download_gb = []
-    upload_gb = []
-    
-    for i in range(6, -1, -1):
-        day_date = today - datetime.timedelta(days=i)
-        day_str = day_date.strftime('%Y-%m-%d')
-        weekday_name = arabic_days[day_date.weekday()]
-        label = f"{weekday_name} ({day_date.strftime('%m/%d')})"
-        labels.append(label)
-        
-        row = day_map.get(day_str, {})
-        up_bytes = row.get('total_in', 0)
-        down_bytes = row.get('total_out', 0)
-        
-        upload_gb.append(round(up_bytes / (1024 ** 3), 3))
-        download_gb.append(round(down_bytes / (1024 ** 3), 3))
-        
-    return {
-        'labels': labels,
-        'download': download_gb,
-        'upload': upload_gb
-    }
+def get_traffic_chart_data(now=None):
+    from services.dashboard_reporting_service import read_series, traffic_series
+    from core.time_service import get_configured_timezone_name
+    from core.ownership import owner_id
+    weekdays = ['الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت','الأحد']
+    rows = read_series(traffic_series, days=7, owner=owner_id(), now=now, timezone=get_configured_timezone_name())
+    return dict(labels=[weekdays[datetime.date.fromisoformat(r['date']).weekday()]+' ('+r['date'][5:].replace('-','/')+')' for r in rows],
+                download=[None if r['download'] is None else float(r['download'])/(1024**3) for r in rows],
+                upload=[None if r['upload'] is None else float(r['upload'])/(1024**3) for r in rows],
+                unknown_counters=sum(int(r['unknown_download'] or 0)+int(r['unknown_upload'] or 0) for r in rows))
 
 from core.license_feature_policy import guarded as _license_guarded
 
 
 @_license_guarded('sales_reports')
-def get_sales_chart_data():
-    """
-    Returns real monthly sales for the last 6 months from wisp_voucher_sales and wisp_invoices.
-    Optimized with grouped single queries for zero CPU overhead.
-    """
-    arabic_months = {
-        1: 'يناير', 2: 'فبراير', 3: 'مارس', 4: 'أبريل',
-        5: 'مايو', 6: 'يونيو', 7: 'يوليو', 8: 'أغسطس',
-        9: 'سبتمبر', 10: 'أكتوبر', 11: 'نوفمبر', 12: 'ديسمبر'
-    }
-    
-    today = datetime.date.today()
-    labels = []
-    sales_arr = []
-    voucher_sales_arr = []
-    package_sales_arr = []
-    
-    year = today.year
-    month = today.month
-    
-    months_list = []
-    for i in range(5, -1, -1):
-        m = month - i
-        y = year
-        while m <= 0:
-            m += 12
-            y -= 1
-        months_list.append((y, m))
-        
-    earliest_month_str = f"{months_list[0][0]:04d}-{months_list[0][1]:02d}-01 00:00:00"
-    
-    v_rows = query_all('''
-        SELECT SUBSTRING(activated_at, 1, 7) as ym, COALESCE(SUM(price), 0) as total
-        FROM wisp_voucher_sales
-        WHERE activated_at >= ?
-        GROUP BY SUBSTRING(activated_at, 1, 7)
-    ''', (earliest_month_str,))
-    v_map = {r['ym']: float(r['total']) for r in (v_rows or []) if r.get('ym')}
-    
-    i_rows = query_all('''
-        SELECT SUBSTRING(paid_at, 1, 7) as ym, COALESCE(SUM(amount), 0) as total
-        FROM wisp_invoices
-        WHERE status = 'paid' AND paid_at >= ?
-        GROUP BY SUBSTRING(paid_at, 1, 7)
-    ''', (earliest_month_str,))
-    i_map = {r['ym']: float(r['total']) for r in (i_rows or []) if r.get('ym')}
-    
-    for y, m in months_list:
-        month_str = f"{y:04d}-{m:02d}"
-        month_label = f"{arabic_months.get(m, str(m))} {y}" if y != today.year else arabic_months.get(m, str(m))
-        labels.append(month_label)
-        
-        v_tot = round(v_map.get(month_str, 0.0), 2)
-        i_tot = round(i_map.get(month_str, 0.0), 2)
-        tot = round(v_tot + i_tot, 2)
-        
-        voucher_sales_arr.append(v_tot)
-        package_sales_arr.append(i_tot)
-        sales_arr.append(tot)
-
-    return {
-        'labels': labels,
-        'sales': sales_arr,
-        'voucher_sales': voucher_sales_arr,
-        'package_sales': package_sales_arr
-    }
+def get_sales_chart_data(now=None):
+    from services.dashboard_reporting_service import read_series, sales_series
+    from core.time_service import get_configured_timezone_name
+    from core.ownership import owner_id
+    return read_series(sales_series, owner=owner_id(), now=now, timezone=get_configured_timezone_name())
 
 
 def get_internet_ping(host="8.8.8.8", port=53, timeout=1.5):

@@ -1,0 +1,149 @@
+{
+  "application_version": "2.6.9",
+  "acceptance_id": "manual-local-20261030-r2",
+  "image_id": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+  "report": "docs/RELEASE_269_MANUAL_ACCEPTANCE_LOCAL_20261030.md",
+  "delivery_scope": "manual installation; update panel/channel and future 2.7.0 schema are separate",
+  "image_rebuilt_this_round": false,
+  "manual_install_and_rollback": {
+    "passed": true,
+    "image": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+    "same_database_container_and_started_at": true,
+    "same_storage_mounts": true,
+    "license_and_instance_machine_key_secret_preserved": true,
+    "financial_and_session_counts_preserved": true,
+    "rollback_and_reapply_verified": true,
+    "no_db_restore": true,
+    "backup_created": true
+  },
+  "license": {
+    "simulation_user_authorized": true,
+    "signed_TLS_checks_passed": 9,
+    "production_issuer_used": false,
+    "original_image_publisher_unchanged": true
+  },
+  "real_NAS": {
+    "hotspot_auth_accounting": true,
+    "connected_renewal_one_sale_rate_preserved": true,
+    "connected_package_change_one_sale_rate_preserved": true,
+    "CSRF_absent_rejected": true,
+    "completed_receipt_replay_no_duplicate_sale": true,
+    "PPPoE_auth_start_traffic_stop": true,
+    "PPPoE_other_protocol_SQL_session_preserved": false
+  },
+  "unresolved_accounting": {
+    "confirmed": true,
+    "trigger": "Accounting-On status 7",
+    "scope": "existing Core bulk SQL closes another active session on same NAS while router retains it",
+    "candidate_changed_Core": false,
+    "Core_image": "sha256:bc4d4644108018c7f67188e639bfeea9a4d12deedc01602bc15e219406ac4932",
+    "product_fix_applied": false
+  },
+  "compiled_browser": {
+    "scoped_navigation_desktop_mobile": true,
+    "actual_CSV_XLSX_download_and_parse": true,
+    "console_errors": 0,
+    "console_warnings": 11,
+    "full_UI_acceptance_claimed": false
+  },
+  "resource_metrics": {
+    "soak_seconds": 906.4,
+    "recorded_http_reads": 1806,
+    "http_failures": 0,
+    "foreground_readers": 2,
+    "web_memory_current_range_MiB": [
+      96.09,
+      167.74
+    ],
+    "web_memory_peak_MiB": 168.18,
+    "web_memory_final_MiB": 137.25,
+    "web_anon_first_last_MiB": [
+      99.48,
+      123.05
+    ],
+    "web_average_CPU_cores": 0.2039,
+    "web_CPU_limit_cores": 2,
+    "web_RAM_limit_MiB": 1024,
+    "web_memory_events": {
+      "low": 0,
+      "high": 0,
+      "max": 0,
+      "oom": 0,
+      "oom_kill": 0,
+      "oom_group_kill": 0
+    },
+    "storage_bytes_first_last": [
+      336100,
+      336868
+    ],
+    "cpu_usage_usec_delta": 183635558,
+    "io_stat_first": "",
+    "io_stat_last": "7:1 rbytes=20480 wbytes=0 rios=5 wios=0 dbytes=0 dios=0\n8:48 rbytes=9707520 wbytes=126976 rios=748 wios=6 dbytes=0 dios=0\n",
+    "latency_by_stage": {
+      "before": {
+        "requests": 28,
+        "median_seconds": 0.396,
+        "p95_seconds": 0.564,
+        "max_seconds": 0.576
+      },
+      "after-install": {
+        "requests": 28,
+        "median_seconds": 0.371,
+        "p95_seconds": 0.713,
+        "max_seconds": 0.715
+      },
+      "rollback": {
+        "requests": 14,
+        "median_seconds": 0.371,
+        "p95_seconds": 0.534,
+        "max_seconds": 0.534
+      },
+      "candidate-soak": {
+        "requests": 1736,
+        "median_seconds": 0.372,
+        "p95_seconds": 0.587,
+        "max_seconds": 2.754
+      }
+    }
+  },
+  "resource_limitations": [
+    "15 minute bounded run",
+    "203 cards, 2 subscribers, 5000 historical sessions",
+    "not large restore/export or multi-day acceptance",
+    "not all general startup workers enabled",
+    "DB buffer pool 128MiB; not a production capacity estimate"
+  ],
+  "cleanup": {
+    "owned_remaining": {
+      "containers": [],
+      "networks": [],
+      "volumes": []
+    },
+    "preexisting_containers_checked": 1158,
+    "preexisting_container_identity_image_started_config_unchanged": false,
+    "changed_count": 1,
+    "nas_cleanup": {
+      "router_items_removed": 10,
+      "original_configuration_paths_identical": 10,
+      "test_radacct_rows": 4,
+      "open_test_sessions": 0,
+      "final_causes": [
+        "Admin-Reset",
+        "Admin-Reset",
+        "Admin-Reset",
+        "NAS-Request"
+      ],
+      "premature_Accounting_On_evidence_retained": true
+    },
+    "scope": "local only; no deployment"
+  },
+  "controller_protocol": 3,
+  "protocol4_implicitly_enrolled": false,
+  "unconditional_manual_publish_ready": false,
+  "production_approved": false,
+  "published": false,
+  "deployed": false,
+  "latest_changed": false,
+  "remote_git_push": false,
+  "private_evidence_ref": "PRIVATE/manual269-acceptance-20261030-r2"
+}

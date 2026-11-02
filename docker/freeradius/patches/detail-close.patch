@@ -1,0 +1,15 @@
+--- rlm_detail.c
++++ rlm_detail.c
+@@ -432,7 +432,11 @@
+ 	/*
+ 	 *	Flush everything
+ 	 */
+-	fclose(outfp);
++	if (fclose(outfp) != 0) {
++		RERROR("Failed flushing or closing detail file: %s", fr_syserror(errno));
++		exfile_close(inst->ef, outfd);
++		return RLM_MODULE_FAIL;
++	}
+ 	exfile_close(inst->ef, outfd);
+ 
+ 	/*

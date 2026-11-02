@@ -1,0 +1,25 @@
+{
+  "status": "published_verified",
+  "tag": "2.6.9-maintenance-20261101-r1",
+  "verified_at": "2026-11-01T05:48:33.961845+00:00",
+  "deployed": false,
+  "latest_changed": false,
+  "images": {
+    "web": {
+      "reference": "mohd777/max-radius-web:2.6.9-maintenance-20261101-r1",
+      "digest": "sha256:eab5cd4ff44303a44110b94c843a64045add3db6cccbfab843084d61109f94cc",
+      "pinned_reference": "mohd777/max-radius-web@sha256:eab5cd4ff44303a44110b94c843a64045add3db6cccbfab843084d61109f94cc",
+      "platform_manifest": "sha256:109f3380ee51bcc31450a2eb263d85ece53831fe0bd9aa8dd78b074323c0ae6f",
+      "rootfs_matches_tested": true,
+      "latest_unchanged": true
+    },
+    "core": {
+      "reference": "mohd777/max-radius-core:2.6.9-maintenance-20261101-r1",
+      "digest": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "pinned_reference": "mohd777/max-radius-core@sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067",
+      "platform_manifest": "sha256:939dc9016dc4d4e6fe27fddad86daabb72107d9cd6916560996fa0201c6f8116",
+      "rootfs_matches_tested": true,
+      "latest_unchanged": true
+    }
+  }
+}

@@ -1001,9 +1001,10 @@
     // AJAX Bulk Actions Execution
     // ----------------------------------------------------
     async function postBulkAction(payload) {
+        const operationSwal = window.createOperationNotification();
         closeBulkDropdown();
         try {
-            Swal.fire({
+            operationSwal.fire({
                 title: 'جاري تطبيق التعديلات...',
                 text: 'يرجى الانتظار بينما يتم حفظ إعدادات الباقات',
                 allowOutsideClick: false,
@@ -1021,7 +1022,7 @@
 
             const data = await res.json();
             if (res.ok && data.success) {
-                Swal.fire({
+                operationSwal.fire({
                     icon: 'success',
                     title: 'تم بنجاح!',
                     text: data.message || 'تم حفظ إعدادات الباقات بنجاح',
@@ -1031,14 +1032,14 @@
                     window.location.reload();
                 });
             } else {
-                Swal.fire({
+                operationSwal.fire({
                     icon: 'error',
                     title: 'خطأ',
                     text: data.message || 'حدث خطأ أثناء معالجة الطلب'
                 });
             }
         } catch (err) {
-            Swal.fire({
+            operationSwal.uncertain({
                 icon: 'error',
                 title: 'فشل الاتصال',
                 text: 'تعذر التواصل مع الخادم. تحقق من الاتصال ثم حدّث الصفحة.'
@@ -1154,7 +1155,8 @@
     }
 
     async function clonePackage(pkgId, name) {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'نسخ الباقة',
             text: `هل تريد إنشاء نسخة مطابقة من باقة [${name}]؟`,
             icon: 'question',
@@ -1165,7 +1167,7 @@
             cancelButtonText: 'إلغاء'
         }).then(async (r) => {
             if (r.isConfirmed) {
-                Swal.fire({ title: 'جاري نسخ الباقة...', didOpen: () => Swal.showLoading() });
+                operationSwal.fire({ title: 'جاري نسخ الباقة...', didOpen: () => Swal.showLoading() });
                 try {
                     const res = await fetch(`/packages/clone/${pkgId}`, {
                         method: 'POST',
@@ -1174,7 +1176,7 @@
                     });
                     const data = await res.json();
                     if (res.ok && data.success) {
-                        Swal.fire({
+                        operationSwal.fire({
                             icon: 'success',
                             title: 'تم النسخ بنجاح!',
                             text: data.message,
@@ -1182,10 +1184,10 @@
                             showConfirmButton: false
                         }).then(() => window.location.reload());
                     } else {
-                        Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل نسخ الباقة' });
+                        operationSwal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل نسخ الباقة' });
                     }
                 } catch (err) {
-                    Swal.fire({ icon: 'error', title: 'فشل الاتصال', text: err.message });
+                    operationSwal.uncertain({ icon: 'error', title: 'فشل الاتصال', text: err.message });
                 }
             }
         });

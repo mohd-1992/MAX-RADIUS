@@ -1,4 +1,5 @@
 """Atomic import of MAX batch workbooks; refuses retained accounting conflicts."""
+from services.heavy_operation_service import heavy_operation
 import datetime
 import secrets
 from decimal import Decimal
@@ -27,6 +28,7 @@ def validate_workbook(rows, import_type, default_reseller_id=None):
         return False, [str(exc)], []
 
 
+@heavy_operation
 def restore_workbook(rows, batch_name=None, admin_username='admin'):
     from database.db import get_connection, is_mysql_conn, adapt_query
     from services.import_state_service import import_now, imported_radius_checks, historical_accounting_values
@@ -82,6 +84,12 @@ def restore_workbook(rows, batch_name=None, admin_username='admin'):
                       row['first_used_at'], row['last_renewed_at'], row['expires_at'], row['extra_quota_mb'], row['policy_frozen_at'],
                       *(row[k] for k in SNAPSHOTS))
             run('INSERT INTO wisp_vouchers (' + ','.join(fields) + ') VALUES (' + ','.join('?' for _ in fields) + ')', values)
+            voucher_id = cur.lastrowid
+            mac_policy = row.get('account_mac_policy')
+            if mac_policy is not None:
+                run("INSERT INTO wisp_account_mac_policies(account_type,account_id,enabled) VALUES('voucher',?,?)", (voucher_id, int(mac_policy['enabled'])))
+                for item in mac_policy['addresses']:
+                    run("INSERT INTO wisp_account_mac_addresses(account_type,account_id,mac,note) VALUES('voucher',?,?,?)", (voucher_id, item['mac'], item['note']))
             state = dict(status=status, first_used_at=row['first_used_at'], last_renewed_at=row['last_renewed_at'],
                          expires_at=row['expires_at'], upload_bytes=int(row['upload_bytes']),
                          download_bytes=int(row['download_bytes']), uptime_seconds=int(row['uptime_seconds']))
@@ -96,7 +104,7 @@ def restore_workbook(rows, batch_name=None, admin_username='admin'):
             checks = imported_radius_checks(row['username'], row['password'], state)
             if status == 'recharged':
                 checks = [(row['username'], 'Auth-Type', ':=', 'Reject')]
-            if row['mac_binding'] and status not in ('recharged', 'expired', 'disabled', 'suspended'):
+            if mac_policy is None and row['mac_binding'] and status not in ('recharged', 'expired', 'disabled', 'suspended'):
                 checks.append((row['username'], 'Calling-Station-Id', '==', row['mac_binding'].upper()))
             for check in checks:
                 run('INSERT INTO radcheck (username,attribute,op,value) VALUES (?,?,?,?)', check)

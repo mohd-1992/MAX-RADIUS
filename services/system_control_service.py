@@ -50,6 +50,12 @@ def format_seconds(seconds_val):
 
 def query_docker_socket(endpoint, method='GET'):
     """Query Docker Daemon via Unix socket using curl."""
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        try:
+            return hosted.request(method, endpoint)
+        except Exception:
+            return None
     sock_path = '/var/run/docker.sock'
     if not os.path.exists(sock_path):
         return None
@@ -75,6 +81,12 @@ def query_docker_socket(endpoint, method='GET'):
 
 def get_container_info(container_names):
     """Retrieve container status and uptime from Docker socket or CLI."""
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        try:
+            return hosted.container_info(container_names)
+        except Exception:
+            return {'exists': False, 'name': 'hosted-service', 'status': 'unknown', 'is_running': False, 'uptime': 'غير متحقق', 'read_only': True}
     if isinstance(container_names, str):
         candidates = [container_names]
     else:
@@ -188,6 +200,13 @@ def get_database_metrics():
 
 def check_freeradius_probe():
     """Performs a live probe against FreeRADIUS server."""
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        try:
+            hosted.state()
+            return hosted.core_health() is True
+        except Exception:
+            return False
     host = os.environ.get('RADIUS_HOST', 'freeradius')
     port = int(os.environ.get('RADIUS_AUTH_PORT', 1812))
     
@@ -294,6 +313,19 @@ def get_all_services_status():
         'details': 'إعادة تشغيل فورية لأي محرك يتحول إلى غير صحي (Unhealthy)'
     }
 
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        from core import watchdog
+        alive = bool(watchdog._watchdog_thread and watchdog._watchdog_thread.is_alive())
+        autoheal_status.update(name='المراقب الداخلي', is_running=alive, status='running' if alive else 'stopped', status_text='يعمل داخل النظام' if alive else 'المراقب غير نشط', can_control=False, details='خدمة داخل عملية الويب؛ لا تحتاج حاوية مستقلة')
+        db_status.update(can_control=False, type='محرك مشترك — قراءة فقط')
+        fr_status.update(can_stop=True)
+        try:
+            hosted.state()
+        except Exception:
+            for item in (web_status, fr_status, db_status):
+                item.update(status='unknown', status_text='تعذر التحقق من وصلة المضيف', can_control=False)
+
     # 5. Backup Scheduler & Automation Engine Info
     try:
         from services.backup_scheduler_service import get_scheduler_status
@@ -349,6 +381,23 @@ def execute_service_action(service_id, action, admin_username='admin'):
                 return restart_backup_scheduler()
         except Exception as e:
             return False, f"فشل تنفيذ {action} على مجدول النسخ الاحتياطي: {e}"
+
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        role = {'freeradius':'core', 'web':'web'}.get(service_id)
+        if role is None or (role == 'web' and action == 'stop'):
+            return False, 'الخدمات المشتركة والداخلية تدار من المضيف.'
+        try:
+            if role == 'web' and action == 'restart':
+                def scoped_restart():
+                    time.sleep(1)
+                    hosted.service_action(role, action)
+                threading.Thread(target=scoped_restart, daemon=True).start()
+                return True, 'أرسل طلب إعادة تشغيل الويب الخاص بهذه المنظومة.'
+            hosted.service_action(role, action)
+            return True, 'تم تنفيذ العملية على الخدمة الخاصة بهذه المنظومة.'
+        except Exception:
+            return False, 'تعذر تنفيذ العملية عبر وصلة المضيف؛ لم يستخدم Docker بديلًا.'
 
     container_candidates = {
         'freeradius': ['max_radius_core', 'wisp_freeradius_v2', 'max-radius-freeradius'],

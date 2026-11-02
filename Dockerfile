@@ -14,15 +14,18 @@ COPY run.py entrypoint.sh ./
 COPY core/ ./core/
 COPY services/ ./services/
 COPY deploy/hosted-max/update_controller.py ./services/system_update_host.py
+COPY deploy/hosted-max/component_controller.py ./services/system_component_host.py
 COPY deploy/hosted-max/provision_update_controller.py ./services/system_update_provision.py
 COPY web/ ./web/
 COPY database/db.py database/schema_healer.py database/schema_objects.py database/mysql_bootstrap.py database/schema_mysql.sql ./database/
 COPY database/freeradius_standard.sql database/wisp_extensions.sql database/seed_data.sql ./database/
 COPY database/license_capacity.py database/maintenance_jobs.py ./database/
 COPY database/permission_catalog.py database/quick_card_schema.py database/first_use_policy.py ./database/
-COPY database/userman_import_schema.py database/subscriber_edit_schema.py ./database/
+COPY database/userman_import_schema.py database/subscriber_edit_schema.py database/account_mac_schema.py database/sales_source_schema.py ./database/
+COPY database/traffic_history_schema.py database/traffic_samples_schema.py ./database/
 COPY database/loyalty_schema.py database/cycle_safety.py database/nas_session_safety.py database/voucher_sales_schema.py ./database/
 COPY database/migrations/ ./database/migrations/
+COPY database/update_plans/ ./database/update_plans/
 COPY storage/keys/master_public_key.pem ./storage/keys/master_public_key.pem
 COPY packaging/ /opt/max-build/
 RUN python -c "from setuptools import setup, Extension; from Cython.Build import cythonize; names=['services.license_guard_service','core.licensing','core.hardware_fingerprint','core.license_protocol','core.license_security','database.license_capacity']; setup(name='SecurityCore', ext_modules=cythonize([Extension(n, [n.replace('.','/')+'.py']) for n in names], compiler_directives={'language_level':'3'}), script_args=['build_ext','--inplace'])" && \
@@ -41,11 +44,12 @@ FROM python:3.11-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DEBIAN_FRONTEND=noninteractive PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends curl iputils-ping iproute2 default-mysql-client docker.io chromium fonts-noto-core && rm -rf /var/lib/apt/lists/*
+RUN if ! command -v docker >/dev/null 2>&1; then apt-get update && apt-get install -y --no-install-recommends docker-cli && rm -rf /var/lib/apt/lists/*; fi
 COPY --from=build /opt/venv /opt/venv
 COPY --from=build /app /app
 COPY --from=build /opt/max-protection /opt/max-protection
 RUN mkdir -p /app/storage/backups /app/storage/uploads /app/storage/logs && chmod +x /app/entrypoint.sh
-LABEL org.opencontainers.image.version="2.6.5" max.release.channel="control-v1"
+LABEL org.opencontainers.image.version="2.7.0" max.release.channel="control-v1"
 EXPOSE 80/tcp 5090/tcp 18120/udp 18130/udp 37990/udp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD curl -f http://localhost:5090/ || exit 1
 ENTRYPOINT ["/app/entrypoint.sh"]

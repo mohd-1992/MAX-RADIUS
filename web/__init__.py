@@ -459,4 +459,22 @@ def create_app(config=None):
                 if attempt<3:time.sleep(20)
         except Exception:logger.exception('Unable to recover interrupted factory reset')
     threading.Thread(target=recover_reset_service,name='FactoryResetRecovery',daemon=True).start()
+    if DB_TYPE=='mysql' and app.config.get('SALES_SOURCE_ENRICHMENT',True):
+        from services.sales_source_service import start_sales_source_enrichment_worker
+        start_sales_source_enrichment_worker()
+    if DB_TYPE=='mysql' and app.config.get('TRAFFIC_SAMPLING',True):
+        from services.traffic_sample_service import start_worker
+        start_worker()
+    if DB_TYPE=='mysql' and app.config.get('SESSION_CONTROL',True):
+        from services.session_control_service import start_worker as start_session_control
+        start_session_control()
+    from services.heavy_operation_service import OperationBusy
+    @app.errorhandler(OperationBusy)
+    def operation_busy(error):
+        from flask import jsonify
+        response=jsonify(success=False,message=str(error))
+        response.status_code=503
+        response.headers['Retry-After']='5'
+        return response
+
     return app

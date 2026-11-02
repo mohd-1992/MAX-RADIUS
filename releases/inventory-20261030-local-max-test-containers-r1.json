@@ -1,0 +1,350 @@
+{
+  "checked_at_Asia_Aden": "2026-10-30T21:22:15.573759+03:00",
+  "scope": "Local Docker read-only inventory; no stop/remove/prune/image/volume deletion",
+  "concurrent_deletion_reported_by_human": true,
+  "eligibility_is_time_bound": true,
+  "candidate_count": 24,
+  "candidates": [
+    {
+      "name": "engine266_63e8039752b0_controller",
+      "id": "c291e43e8d5dad156f7570eff89b4f2bf86847475d74a1b8bf6a0a1f2beb0499",
+      "image_id": "sha256:eceab63004be586cb8aa75bc9dfbbaf00b7d120c1eaf4f6459076009466b739f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-history-266-20261025-r1/lab/engine266_63e8039752b0/controller-handoff-result.private.json",
+          "document": "docs/ENGINE_PREPARATION_FIX_20261026.md",
+          "field": "named completed engine fixture"
+        }
+      ]
+    },
+    {
+      "name": "engine266_63e8039752b0_web",
+      "id": "3e84145fc06305db2ebae1d265ff150fd7750a503096e1cc1c517d9321ca1fa8",
+      "image_id": "sha256:eceab63004be586cb8aa75bc9dfbbaf00b7d120c1eaf4f6459076009466b739f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-history-266-20261025-r1/lab/engine266_63e8039752b0/controller-handoff-result.private.json",
+          "document": "docs/ENGINE_PREPARATION_FIX_20261026.md",
+          "field": "named completed engine fixture"
+        }
+      ]
+    },
+    {
+      "name": "engine266_63e8039752b0_init",
+      "id": "a37abf803cb6f349f0a10fbe68ebc7c16386b9e9e8255ebe6ad492ce65f7b5e2",
+      "image_id": "sha256:eceab63004be586cb8aa75bc9dfbbaf00b7d120c1eaf4f6459076009466b739f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-history-266-20261025-r1/lab/engine266_63e8039752b0/controller-handoff-result.private.json",
+          "document": "docs/ENGINE_PREPARATION_FIX_20261026.md",
+          "field": "named completed engine fixture"
+        }
+      ]
+    },
+    {
+      "name": "engine266_63e8039752b0_controller_previous_engine_13d8150473f540489f89a57cb695addd",
+      "id": "3c6b0ecbb590a57ae03c5f12357512f00e4f5299685339a2532d5df5f79a604c",
+      "image_id": "sha256:eceab63004be586cb8aa75bc9dfbbaf00b7d120c1eaf4f6459076009466b739f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-history-266-20261025-r1/lab/engine266_63e8039752b0/controller-handoff-result.private.json",
+          "document": "docs/ENGINE_PREPARATION_FIX_20261026.md",
+          "field": "named completed engine fixture"
+        }
+      ]
+    },
+    {
+      "name": "engine266_63e8039752b0_runner",
+      "id": "ada264e77eb1ca09eae06e137fc6f72bdc5564c18ed32bfbb48bb9e457bee0fd",
+      "image_id": "sha256:eceab63004be586cb8aa75bc9dfbbaf00b7d120c1eaf4f6459076009466b739f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-history-266-20261025-r1/lab/engine266_63e8039752b0/controller-handoff-result.private.json",
+          "document": "docs/ENGINE_PREPARATION_FIX_20261026.md",
+          "field": "named completed engine fixture"
+        }
+      ]
+    },
+    {
+      "name": "max_salesui266_1792958789_rehearsal",
+      "id": "91669cf9e5381597787bda5559f119001c810f743184a1a0873b980822da260b",
+      "image_id": "sha256:eceab63004be586cb8aa75bc9dfbbaf00b7d120c1eaf4f6459076009466b739f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-ui-review-20261025-r1\\lab\\lab.private.json",
+          "field": "rehearsal",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_salesui266_1792958789_preview_compiled",
+      "id": "785453aadd0be0b19aa422953632816835e122badeb144add80c949871646fd9",
+      "image_id": "sha256:eceab63004be586cb8aa75bc9dfbbaf00b7d120c1eaf4f6459076009466b739f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-ui-review-20261025-r1\\lab\\lab.private.json",
+          "field": "preview_compiled",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_salesui266_1792958789_compiled_r2",
+      "id": "e801e94a3e8ca4e37cf9f7b2032715be0c71ad74b040f6f6ac4348cab2ef505c",
+      "image_id": "sha256:eceab63004be586cb8aa75bc9dfbbaf00b7d120c1eaf4f6459076009466b739f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-ui-review-20261025-r1\\lab\\lab.private.json",
+          "field": "compiled_r2",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_salesui266_1792958789_preview",
+      "id": "c7355f371cef1e0b27edf7df71bb72719a2aa86661476252d9fe5627a16003cd",
+      "image_id": "sha256:28f2e33703cc66881a5ff08c3c16d7b7635b0378de75eabb5c3989137b581b40",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-ui-review-20261025-r1\\lab\\lab.private.json",
+          "field": "preview",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_salesui266_1792958789_source",
+      "id": "50fd949cae8db09cc6ca67ae48a05c489ec728f232b92b04148e7954517d9fb0",
+      "image_id": "sha256:28f2e33703cc66881a5ff08c3c16d7b7635b0378de75eabb5c3989137b581b40",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-ui-review-20261025-r1\\lab\\lab.private.json",
+          "field": "web",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_salesui266_1792958789_db",
+      "id": "a027f15da27ec84797a8a497551c002baee173c824c1bdff79ed87c4b9b87c9d",
+      "image_id": "sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-ui-review-20261025-r1\\lab\\lab.private.json",
+          "field": "db",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_sales266_1792953618_preview_compiled",
+      "id": "200390579c4a4a01011d4da3777c714acf1325a83bd192b703e957bd7177d0b9",
+      "image_id": "sha256:28f2e33703cc66881a5ff08c3c16d7b7635b0378de75eabb5c3989137b581b40",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-266-20261025-r1\\lab\\lab.private.json",
+          "field": "preview_compiled",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_sales266_1792953618_compiled_r2",
+      "id": "82835a0c71c20707df5c08959051bb8eee6f63b677c2677839120d11b027f893",
+      "image_id": "sha256:28f2e33703cc66881a5ff08c3c16d7b7635b0378de75eabb5c3989137b581b40",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-266-20261025-r1\\lab\\lab.private.json",
+          "field": "compiled_r2",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_sales266_1792953618_compiled",
+      "id": "29f7a3157db7c123f19401e0b4d7716ac7c5f876f0d1519e0cffb2df8fd2a864",
+      "image_id": "sha256:6a9b3da2c81b4856b1409dd2bb4869a0c5d96e5354f8c67c0b0b7e46cb328e22",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-266-20261025-r1\\lab\\lab.private.json",
+          "field": "compiled",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_sales266_1792953618_rehearsal",
+      "id": "d7a14c99d43fdf890710ccff70bf17f7f34cb5226c4bab9031ae721b8cd71ea0",
+      "image_id": "sha256:6a9b3da2c81b4856b1409dd2bb4869a0c5d96e5354f8c67c0b0b7e46cb328e22",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-266-20261025-r1\\lab\\lab.private.json",
+          "field": "rehearsal",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_sales266_1792953618_preview",
+      "id": "a741b0c5fb2603bd8931d043fe54eceb8ac06bc2047bd6659c6b35cf6a2279c3",
+      "image_id": "sha256:2f928064e9a1143ff00d15a5441817d79e58a62899ca17ba762d38370d6dd504",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-266-20261025-r1\\lab\\lab.private.json",
+          "field": "preview",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_sales266_1792953618_core",
+      "id": "82fef1173bc2bdca82442152abcb766592f274054fb58ec18af0459bbf31b847",
+      "image_id": "sha256:a691a09bc91aed452174ca310069fe1e4e020d28cde69ecca86f1dd18dea267f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-266-20261025-r1\\lab\\lab.private.json",
+          "field": "core",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_sales266_1792953618_source",
+      "id": "64bc96af891fa20deefffcf18e5b65066c4b14e0934623d05a1eb95efcdda107",
+      "image_id": "sha256:2f928064e9a1143ff00d15a5441817d79e58a62899ca17ba762d38370d6dd504",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-266-20261025-r1\\lab\\lab.private.json",
+          "field": "web",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_sales266_1792953618_db",
+      "id": "c921c95e641036ab936dab488ba0b0c3f4523f707b0faaaa9e7885f20735c9ed",
+      "image_id": "sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "sales-266-20261025-r1\\lab\\lab.private.json",
+          "field": "db",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_mac266_1792943152_preview_compiled_r4",
+      "id": "237011d0d7beacad4ca2c8f196931c4023027a6248ab1903ac246e01491b9268",
+      "image_id": "sha256:2f928064e9a1143ff00d15a5441817d79e58a62899ca17ba762d38370d6dd504",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "multi-mac-266-20261025-r1\\lab-r2\\lab.private.json",
+          "field": "preview_compiled",
+          "full_id_match": true
+        }
+      ]
+    },
+    {
+      "name": "max_mac266_1792943152_compiled_r4",
+      "id": "0bad1366c1ee66c65e2b6d94c45753d22b2997d792fd5bab80edfc69169458d2",
+      "image_id": "sha256:2f928064e9a1143ff00d15a5441817d79e58a62899ca17ba762d38370d6dd504",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "multi-mac-266-20261025-r1\\lab-r2\\lab.private.json",
+          "field": "compiled_r4",
+          "full_id_match": true
+        }
+      ]
+    },
+    {
+      "name": "max_mac266_1792943152_core_r4",
+      "id": "9a402ea6bb8e31c3db22d0578e17b2656df288c4d9e459a326e7baf409c99ab3",
+      "image_id": "sha256:a691a09bc91aed452174ca310069fe1e4e020d28cde69ecca86f1dd18dea267f",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "multi-mac-266-20261025-r1\\lab-r2\\lab.private.json",
+          "field": "core",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_mac266_1792943152_source",
+      "id": "496177b23c6983fc526ff44810e261ad883c59a395a6f8f401aefdcc763a6389",
+      "image_id": "sha256:5eda6a3450ddef586478153082395fbeb73f661be0fcf73b47bffd1e02559d38",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "multi-mac-266-20261025-r1\\lab-r2\\lab.private.json",
+          "field": "web",
+          "full_id_match": false
+        }
+      ]
+    },
+    {
+      "name": "max_mac266_1792943152_db",
+      "id": "84ce9318e029bc04b74bdc4c2f004f28207d3e1adba1db04595a689b3db99b28",
+      "image_id": "sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
+      "state": "exited",
+      "proof": [
+        {
+          "record": "multi-mac-266-20261025-r1\\lab-r2\\lab.private.json",
+          "field": "db",
+          "full_id_match": false
+        }
+      ]
+    }
+  ],
+  "explicitly_held_groups": {
+    "gate269-e2d27051": {
+      "count": 5,
+      "reason": "unfinished financial/accounting evidence audit"
+    },
+    "dev270": {
+      "count": 3,
+      "reason": "current local development preview and DB"
+    },
+    "max_saleshistory266_1792961642": {
+      "count": 5,
+      "reason": "documented development/reference environment retained for review"
+    }
+  },
+  "selection_rules": [
+    "Creation/lab manifests or explicit documented completed handoff fixture; name alone is insufficient",
+    "Closed MAX rounds with completion/stopped receipt",
+    "Current exact ID, image and name match; stopped/not-started only",
+    "No data mount shared with active/protected fixture at inspected snapshot",
+    "Remove only containers if later authorized; preserve images/volumes/host folders",
+    "Other projects, unrelated tests, active containers and normal rollback containers excluded"
+  ],
+  "not_claimed": [
+    "Complete attribution of every test-looking local container to this conversation",
+    "Any recovered disk-space amount",
+    "RAM recovery from deleting already stopped containers",
+    "Current remaining global counts during concurrent deletion",
+    "Permission to delete now"
+  ]
+}

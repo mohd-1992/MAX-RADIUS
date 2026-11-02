@@ -103,12 +103,31 @@ def candidate_spec(old, image, endpoints):
     if any(m['Type'] not in ('bind','volume','tmpfs') for m in old.get('Mounts', [])):
         raise UpdateError('Unsupported mount type')
     config['HostConfig']['RestartPolicy'] = {'Name': 'no', 'MaximumRetryCount': 0}
-    config['NetworkingConfig'] = {'EndpointsConfig': endpoints}
+    # Built-in host/none namespaces have no detachable endpoint configuration.
+    if old['HostConfig'].get('NetworkMode') not in ('host', 'none'):
+        config['NetworkingConfig'] = {'EndpointsConfig': endpoints}
     return config
 
 def endpoints_for(old):
+    mode = old['HostConfig'].get('NetworkMode', '')
+    networks = old['NetworkSettings']['Networks']
+    if mode in ('host', 'none'):
+        if set(networks) - {mode}:
+            raise UpdateError('Unexpected endpoints in a built-in network namespace')
+        return {}
+    if mode.startswith('container:'):
+        raise UpdateError('Shared container network namespace requires explicit preparation')
+    if mode and mode not in ('bridge', 'default') and mode not in networks:
+        raise UpdateError('Unsupported network namespace')
     result = {}
-    for name, v in old['NetworkSettings']['Networks'].items():
+    for name, v in networks.items():
+        if name in ('host', 'none'):
+            raise UpdateError('Network namespace does not match the deployment mode')
+        if name == 'bridge':
+            # Docker's default bridge assigns addresses dynamically and rejects
+            # user-specified IPAM/aliases on both create and recovery reconnect.
+            result[name] = {}
+            continue
         if not v.get('IPAddress'):
             raise UpdateError('Explicit bridge network identity required')
         aliases = [a for a in v.get('Aliases') or [] if a not in (old['Id'], old['Id'][:12], old['Config'].get('Hostname'))]
@@ -130,9 +149,10 @@ def restore(api, plan, state):
             api('POST', '/containers/' + new_id + '/stop?t=20')
         api('POST', '/containers/' + new_id + '/update', {'RestartPolicy': {'Name': 'no'}})
         for net in new['NetworkSettings']['Networks']:
+            if new.get('HostConfig',{}).get('NetworkMode') in ('none','host'):continue
             api('POST', '/networks/' + urllib.parse.quote(net, safe='') + '/disconnect', {'Container': new_id, 'Force': True})
         role = plan.get('role', 'web')
-        if role not in ('web', 'core'):
+        if role not in ('web', 'core', 'update_controller'):
             raise UpdateError('Unsupported rollback role')
         api('POST', '/containers/' + new_id + '/rename?name=max_' + role + '_failed_update_' + plan['job'])
     # Never take a name from a container outside this round.

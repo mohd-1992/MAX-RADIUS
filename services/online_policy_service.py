@@ -39,12 +39,24 @@ def rows_for(username, conn=None, locked=False):
     sql = 'SELECT * FROM radacct_owned WHERE username=%s AND acctstoptime IS NULL'
     if conn:
         with conn.cursor() as cur:
-            cur.execute(sql + (' FOR UPDATE' if locked else ''), (username,))
+            if locked:
+                # The stop-time index/rowid filter can lock other accounts' open
+                # entries before their primary rows, reversing Accounting-Stop's
+                # lock order. Drive the locking read through the existing logical
+                # owner index; the primary-key join preserves the owned view's
+                # exact projection (including historical usernames).
+                sql = '''SELECT owned.* FROM radacct AS target
+                    FORCE INDEX (idx_subscriber_account_read)
+                    STRAIGHT_JOIN radacct_owned AS owned
+                        ON owned.radacctid=target.radacctid
+                    WHERE target.account_read_username=%s
+                      AND target.acctstoptime IS NULL FOR UPDATE'''
+            cur.execute(sql, (username,))
             return cur.fetchall()
     return query_all(sql, (username,))
 
 
-def checkpoint(username):
+def checkpoint(username, *, all_nas=False):
     """Require a complete, uniquely matched NAS view; stale records are not Stops."""
     from core.mikrotik_api import RouterOSApiProtocol
     from services.nas_session_settlement import recover_journals
@@ -57,15 +69,26 @@ def checkpoint(username):
     nas_ips = {r['nasipaddress'] for r in rows}
     nas_ips.update(r['nasipaddress'] for r in query_all(
         "SELECT DISTINCT nasipaddress FROM radpostauth WHERE username=%s AND reply='Access-Accept' AND authdate>=NOW()-INTERVAL 5 MINUTE", (username,)) if r['nasipaddress'])
+    if all_nas:
+        # Identity changes must also detect sessions whose Start is missing or
+        # whose SQL row was already closed by the watchdog. Unknown is not idle.
+        nas_ips.update(r['ip_address'] for r in query_all(
+            'SELECT DISTINCT ip_address FROM wisp_nas_devices') if r['ip_address'])
     result = {}
+    inventory_deadline = time.monotonic() + 12 if all_nas else None
     now = query_one('SELECT NOW() AS now')['now']
     for ip in nas_ips:
+        if inventory_deadline is not None and time.monotonic() >= inventory_deadline:
+            fail()
         n = query_one('SELECT * FROM wisp_nas_devices WHERE ip_address=%s', (ip,))
         if not n or not n.get('api_username') or not n.get('secret'):
             fail()
         api = RouterOSApiProtocol(ip, port=n['api_port'], timeout=5)
         try:
-            api.connect(); api.login(n['api_username'], n['api_password'])
+            api.connect()
+            logged_in = api.login(n['api_username'], n['api_password'])
+            if all_nas and not logged_in:
+                fail()
             hot = api.execute_command('/ip/hotspot/active/print', ['?user='+username])
             ppp = api.execute_command('/ppp/active/print', ['?name='+username])
             if ppp:
@@ -321,7 +344,11 @@ def refresh(username):
     if not entity:
         entity=query_one('SELECT * FROM wisp_vouchers WHERE username=%s',(username,));kind='voucher'
     pkg=query_one('SELECT * FROM wisp_packages WHERE id=%s',(entity['package_id'],))
-    rate=(entity.get('snap_rate_limit_str') if kind=='voucher' else None) or pkg.get('rate_limit_str')
+    rate=entity.get('snap_rate_limit_str') if kind=='voucher' else None
+    if rate is not None:
+        from services.rate_policy_service import snapshot_rate_limit
+        rate=snapshot_rate_limit(rate,entity.get('snap_rate_download'),entity.get('snap_rate_upload'))
+    rate=rate or pkg.get('rate_limit_str')
     if not rate:
         from core.rate_limit import build_mikrotik_rate_limit
         rate=build_mikrotik_rate_limit(download=pkg.get('rate_download') or '0',upload=pkg.get('rate_upload') or '0',
@@ -401,7 +428,8 @@ def _retry_once():
     pending=query_all("SELECT username FROM wisp_online_policy_outbox WHERE status='pending' AND next_attempt<=NOW() LIMIT 10")
     for row in pending+[{'username':u,'recovery_only':True} for u in recovery]:
         username=row['username'];db=get_connection()
-        lock='max-cycle:'+hashlib.sha256(username.casefold().encode()).hexdigest()[:48]
+        from services.account_lock_service import account_lock_name
+        lock=account_lock_name(db,username)
         try:
             with db.cursor() as cur:
                 cur.execute('SELECT GET_LOCK(%s,0) AS acquired',(lock,))

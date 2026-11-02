@@ -1,0 +1,95 @@
+{
+  "version": "2.6.9",
+  "status": "verified_local_not_published",
+  "local_tag": "max-radius-web:2.6.9-reports-local-20261027-r1",
+  "local_image_id": "sha256:4bddb43f8cfbc972556f1e02dfc011f0f07be4c81dc16ebc6c52a3875040343e",
+  "registry_manifest_digest": null,
+  "published": false,
+  "platform": "linux/amd64",
+  "base_web_image_id": "sha256:0e21a8aecd746764a0e36e71cc56db11d4a01e2a2d60c020135cfba213008438",
+  "core_image_id": "sha256:bc4d4644108018c7f67188e639bfeea9a4d12deedc01602bc15e219406ac4932",
+  "source_files_lf_sha256": {
+    "core/config.py": "f4d0769c6d8547c3d1107ed846670c6a3605f8b60bb86df1beb162c140fe484b",
+    "services/backup_service.py": "8dfbafeef246a37a9bfaa70a855b4b55b88cc273b30e2fec6640d1c1e80af74d",
+    "services/dashboard_reporting_service.py": "e9c38490891dfcbde76381902a07f70958eaea27b168341726f26aaafbc7089f",
+    "services/db_maintenance_service.py": "662b4a8c69349718cbd734d31c39ac6d9b243b622d24cbe6c73f3ca000311272",
+    "services/network_traffic_service.py": "929eca40e1dfd6397bd79e4a1be00e6a02a58aba27f7df0f7d5ee50a6c0f80f5",
+    "services/report_time_axis.py": "1967b34db342943a61b9cc4cad9de6b2ab7fe3070110e20bd92e919052d71155",
+    "services/sales_reporting_service.py": "ae68b3a89b2b1b67b4e6c5433c581e71d4debaa403027902a594c17a5e2d0757",
+    "services/session_display_service.py": "796ee937fd2c687253a912237a905939639aaffb02441f8f531f129cd03389ba",
+    "services/traffic_sample_service.py": "0f7becfd7b5ccf0c2bbf0d82704cdaf410bde6367195390d56071a4fc00230b2",
+    "web/__init__.py": "7d3012f1c9c9da3e983ea055530b78b2b9b4d2e8ffa84eacd4e6e49142402275",
+    "database/schema_healer.py": "142c88e12aed434eb108cd334dc9f7f8bc72ff4d285547aac3efe6495c842a10",
+    "database/traffic_samples_schema.py": "783511eac2605d57e3b25b96b83cbcf98897dbc55e4ac8b230530c24fc6bac22",
+    "database/schema_mysql.sql": "0c5865e9fd54c2bcf870bf50b0b7a9cfae934fd5b43479f0965ae3b675f03003",
+    "web/static/report-charts.js": "00ab6bfa5fc074d9388c440ff4ce906537659b17645718b09261f09b49240a6f",
+    "web/templates/network_traffic.html": "bcd3bfad299702ca1ec80ee5f89b90ce7b8709ebd02ffc921de265fdb12db385",
+    "web/templates/sales_reports.html": "ca15d4b7fa6dafc5b8317bb79efe7fc0f6c3deddcd366043c9c8a219f54874b2"
+  },
+  "runtime_file_count": 212,
+  "changed_runtime_files": [
+    "core/config.cpython-311-x86_64-linux-gnu.so",
+    "database/schema_healer.cpython-311-x86_64-linux-gnu.so",
+    "database/schema_mysql.sql",
+    "database/traffic_samples_schema.cpython-311-x86_64-linux-gnu.so",
+    "services/backup_service.cpython-311-x86_64-linux-gnu.so",
+    "services/dashboard_reporting_service.cpython-311-x86_64-linux-gnu.so",
+    "services/db_maintenance_service.cpython-311-x86_64-linux-gnu.so",
+    "services/network_traffic_service.cpython-311-x86_64-linux-gnu.so",
+    "services/report_time_axis.cpython-311-x86_64-linux-gnu.so",
+    "services/sales_reporting_service.cpython-311-x86_64-linux-gnu.so",
+    "services/session_display_service.cpython-311-x86_64-linux-gnu.so",
+    "services/traffic_sample_service.cpython-311-x86_64-linux-gnu.so",
+    "web/__init__.cpython-311-x86_64-linux-gnu.so",
+    "web/_embedded_templates.cpython-311-x86_64-linux-gnu.so",
+    "web/static/report-charts.js"
+  ],
+  "other_runtime_files_identical": true,
+  "missing_runtime_files": [],
+  "publisher_preserved": true,
+  "python_sources_in_runtime": false,
+  "private_keys_in_runtime": false,
+  "unchanged_templates": 78,
+  "toolchain_image_id": "sha256:6afe32f482d83b0b665688bdfef3e2d47c0825a054992bd9b9c011316833ce39",
+  "build_recipe_sha256": "0fc87176141835b7edaad8c350c8a8905753a25255011a9e61c94d9214b6a20e",
+  "built_at": "2026-10-27T10:26:10.934843+00:00",
+  "tested_at": "2026-10-27T10:30:00.525450+00:00",
+  "minimum_source_version": "2.6.8",
+  "required_engine_protocol": 3,
+  "required_business_schema": "features268",
+  "components": [
+    "web"
+  ],
+  "controller_handoff": true,
+  "core_and_db_unchanged": true,
+  "database_restore_used_for_update_or_rollback": false,
+  "compiled_unit_tests_passed": 74,
+  "native_dashboard_SQL_contracts": 7,
+  "engine_scenarios": [
+    {
+      "kind": "local",
+      "scenario": "upgrade_and_post_success_rollback",
+      "passed": true
+    },
+    {
+      "kind": "domain",
+      "scenario": "upgrade_and_post_success_rollback",
+      "passed": true
+    },
+    {
+      "kind": "domain",
+      "scenario": "forced_Web_readiness_failure_and_automatic_rollback",
+      "passed": true
+    }
+  ],
+  "engine_native_checks": 209,
+  "engine_radius_packet_checks": 193,
+  "preexisting_containers_unchanged": true,
+  "lab_cleanup_verified": true,
+  "limits": [
+    "Local signed-feed and Registry transport simulated; nothing published.",
+    "Publisher-license readiness decision and SQL lease synthetic; no customer/NAS accessed.",
+    "Tested Linux amd64 from prepared 2.6.8 only."
+  ],
+  "additive_report_schema_at_Web_startup": true
+}

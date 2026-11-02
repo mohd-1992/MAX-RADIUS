@@ -1,0 +1,4 @@
+<nav aria-label="تقارير الشبكة والمبيعات" class="flex flex-wrap gap-2">
+    <a href="{{ url_for('sales_reports') }}" aria-current="{{ 'page' if active_report=='sales' else 'false' }}" class="px-4 py-2 rounded-xl text-sm font-bold border {{ 'bg-emerald-500 text-white border-emerald-500' if active_report=='sales' else 'sales-pill-inactive bg-[#11192b] text-slate-300 border-[#1c2840]' }}"><i class="fa-solid fa-chart-line ml-1.5"></i>المبيعات</a>
+    <a href="{{ url_for('sales_reports', report_view='traffic') }}" aria-current="{{ 'page' if active_report=='traffic' else 'false' }}" class="px-4 py-2 rounded-xl text-sm font-bold border {{ 'bg-emerald-500 text-white border-emerald-500' if active_report=='traffic' else 'sales-pill-inactive bg-[#11192b] text-slate-300 border-[#1c2840]' }}"><i class="fa-solid fa-network-wired ml-1.5"></i>استهلاك الشبكة</a>
+</nav>

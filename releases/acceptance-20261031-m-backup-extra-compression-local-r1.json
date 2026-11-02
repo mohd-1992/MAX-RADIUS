@@ -1,0 +1,129 @@
+{
+  "scope": "Local experiment only, no additional retention loss, no product modification/deployment. User accepts90-day session detail with accounting protection and complete card states/financial records; old reports are not required.",
+  "private_round": "PRIVATE/backup-retention-compression-20261031-r1",
+  "cases": {
+    "control": {
+      "bytes": 18904528,
+      "sha256": "5514da2257a47473a6610c706944d34521faa76a17746517d74798a005d13c0e",
+      "seconds": 9.969419468994602,
+      "crc_valid": true
+    },
+    "username_start": {
+      "bytes": 17542549,
+      "sha256": "fda92370a90697ec7abc6e4280ed1bb3ad4388184a4bd0a05e346277a6182e90",
+      "seconds": 11.471008510998217,
+      "crc_valid": true
+    },
+    "start_username": {
+      "bytes": 19178378,
+      "sha256": "255df123a153daf65f3546647d342840b20949046e78e9af7081a339cf377597",
+      "seconds": 12.472669780996512,
+      "crc_valid": true
+    },
+    "control_filtered": {
+      "bytes": 18164678,
+      "sha256": "0b06e1dd90dcba01395104fa2b0d2021592eb2ca0dc4a61ae6af6aa5860ea359",
+      "seconds": 9.19411003201094,
+      "crc_valid": true
+    },
+    "username_filtered": {
+      "bytes": 16814570,
+      "sha256": "f2f6405e28be3b145202f704a7aac9607d29a77650eb38a02521312b99e754f2",
+      "seconds": 10.78932754699781,
+      "crc_valid": true
+    }
+  },
+  "images": {
+    "web": "sha256:ddce804366a6d14de6519a47bc456597fe145404a451fdfe10a3ca286ae7a06c",
+    "db": "sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e"
+  },
+  "selected": "username_filtered",
+  "additional_saved_bytes": 2089958,
+  "additional_saved_percent": 11.055330236227004,
+  "saved_percent_vs_original_M": 45.543466460912974,
+  "method": "Preserve exact SQL row tuples, reorder imported/session-report history only by username then start time, chunks256; standard gzip9 with zlib.Z_FILTERED. No codec/container change; restore reader unchanged.",
+  "data_verification": {
+    "input": {
+      "other_sql_sha256": "45f65645550bdf6a973eee3f988d5354263e187504a2be73d66cc721ffdf0e66",
+      "tables": {
+        "wisp_imported_session_history": {
+          "rows": 146427,
+          "multiset_sha256": "858ed86842ad999d4adec73de4d52e4a7ad678192f2981bb96e5ec22e3496342"
+        },
+        "wisp_traffic_history": {
+          "rows": 576,
+          "multiset_sha256": "5ffc915c2e55c1d389bf0718b55531a32e142e1f8d4155aa6256c1a422eeb5e3"
+        }
+      }
+    },
+    "variants_exact_multisets_and_other_sql": true,
+    "all_target_rows_preserved": true,
+    "no_retention_change": true
+  },
+  "full_restore": {
+    "success": true,
+    "seconds": 43.961265468999045,
+    "triggers": 17,
+    "open_rows": 0,
+    "closed_as_restore": 240
+  },
+  "post_restore_unchanged_base_tables": 71,
+  "post_restore_changed_base_tables": [
+    "wisp_audit_logs",
+    "wisp_global_sequence",
+    "wisp_system_settings"
+  ],
+  "quota_current_cycle": {
+    "compared": 31127,
+    "changed": 0
+  },
+  "lifetime_null_renewal": {
+    "compared": 5983,
+    "changed": 0
+  },
+  "retained_sessions": 183899,
+  "retained_rollup_rows": 11385,
+  "final_checks": {
+    "statuses": [
+      {
+        "status": "active",
+        "cards": 385
+      },
+      {
+        "status": "expired",
+        "cards": 24709
+      },
+      {
+        "status": "unused",
+        "cards": 5983
+      }
+    ],
+    "trigger_definitions_equal_previous": true,
+    "resources": {
+      "db": {
+        "peak_bytes": 323264512,
+        "oom_kill_increase": 0
+      },
+      "web": {
+        "peak_bytes": 261332992,
+        "oom_kill_increase": 0
+      }
+    }
+  },
+  "cleanup": {
+    "containers_removed": 3,
+    "volumes_removed": 2,
+    "network_removed": true,
+    "preexisting_count": 1174,
+    "preexisting_missing": 0,
+    "unexpected_new": 0,
+    "owned_remaining": 0
+  },
+  "limitations": [
+    "Single restore attempt on fresh dedicated DB;43.96seconds cannot be compared causally to prior34.56seconds on warm shared DB. No faster-restore claim.",
+    "Compressor streams under256MiB cgroup, noOOM; prototype host SQL reorder loads113MB dump and row lists in memory. Not a production-safe bounded sorting implementation yet. Permanent implementation needs disk-backed/bounded sorting or measured native export strategy to avoid reintroducing RAM spikes.",
+    "Simple streaming FILTERED without reorder gives18.165MB and is a separate lower-complexity option.",
+    "This work does not implement a retention scheduler or prune a domain. No UI/API/NAS business transactions, publisher or license issuer actions.",
+    "No extra loss beyond previously accepted90-day eligible-retention artifact. Older logs outside retention remain only in original full backup, not in optimized candidate."
+  ]
+}

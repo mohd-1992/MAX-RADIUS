@@ -1,0 +1,21 @@
+{% macro page_link(number, title, icon, after=false) -%}
+<a href="?session_page={{ number }}#sessions" class="p-2 px-2 sm:px-3 bg-[#0b0f19] hover:bg-slate-800 text-slate-300 rounded-xl text-xs border border-[#1c2840] transition flex items-center gap-1" aria-label="{{ title }}" title="{{ title }}">
+    {% if not after %}<i class="fa-solid {{ icon }} text-[10px]" aria-hidden="true"></i>{% endif %}
+    {% if title in ('السابق','التالي') %}<span>{{ title }}</span>{% endif %}
+    {% if after %}<i class="fa-solid {{ icon }} text-[10px]" aria-hidden="true"></i>{% endif %}
+</a>
+{%- endmacro %}
+<div class="p-4 border-t border-[#1c2840] flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#070b14]/50">
+    <div class="text-xs text-slate-400">عرض <span class="font-bold text-white">{{ sessions|length }}</span> من إجمالي <span class="font-bold text-emerald-400">{{ session_history.total }}</span> جلسة</div>
+    <nav class="flex flex-wrap justify-center items-center gap-1.5" aria-label="صفحات سجل الجلسات">
+        {% if session_history.page > 1 %}
+        {{ page_link(1, 'الصفحة الأولى', 'fa-angles-right') }}
+        {{ page_link(session_history.page-1, 'السابق', 'fa-chevron-right') }}
+        {% endif %}
+        <span class="px-2 sm:px-3.5 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-mono font-bold" aria-current="page" dir="ltr">{{ session_history.page }} / {{ session_history.pages }}</span>
+        {% if session_history.page < session_history.pages %}
+        {{ page_link(session_history.page+1, 'التالي', 'fa-chevron-left', true) }}
+        {{ page_link(session_history.pages, 'الصفحة الأخيرة', 'fa-angles-left', true) }}
+        {% endif %}
+    </nav>
+</div>

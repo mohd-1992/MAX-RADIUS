@@ -1,0 +1,71 @@
+{
+  "version": "2.7.0",
+  "tag": "2.7.0-20261102-r1",
+  "refs": {
+    "web": "mohd777/max-radius-web:2.7.0-20261102-r1",
+    "core": "mohd777/max-radius-core:2.7.0-20261102-r1"
+  },
+  "digests": {
+    "web": "sha256:5455db7ca85a1d5f6c5c205fca0e171cefb28dc9f008dc56d25d4ecd090fa2ca",
+    "core": "sha256:10cc88946c5ed6310a36c4c11b7e991277137da87eb019958f2eb45c8d2eabf5"
+  },
+  "registry_verified": true,
+  "protected_before": {
+    "web_latest": "sha256:5eda6a3450ddef586478153082395fbeb73f661be0fcf73b47bffd1e02559d38",
+    "core_latest": "sha256:7bf2baa71525ea79e866daeb063c35346f39054fbf81ae209107f632681c1a5e",
+    "web269": "sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+    "core269": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067"
+  },
+  "protected_after": {
+    "web_latest": "sha256:5eda6a3450ddef586478153082395fbeb73f661be0fcf73b47bffd1e02559d38",
+    "core_latest": "sha256:7bf2baa71525ea79e866daeb063c35346f39054fbf81ae209107f632681c1a5e",
+    "web269": "sha256:690cfa939cdc4dff5d09c2a2ef0543cd0abd506cad680baff814f7a5b6dca832",
+    "core269": "sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067"
+  },
+  "latest_unchanged": true,
+  "base269_unchanged": true,
+  "db_configuration_inside_web": "/opt/max-deploy/2.7.0/db-memory",
+  "db_automatically_applied": false,
+  "domains_updated": false,
+  "server_deployed": false,
+  "source_tests": 37,
+  "compiled_identity_tests": 15,
+  "native_checks": 13,
+  "at": "2026-11-02T14:13:16.906214+00:00",
+  "status": "published-special-tags-only",
+  "ready_for_Hetzner_cutover": false,
+  "image_audit": {
+    "web": "sha256:5455db7ca85a1d5f6c5c205fca0e171cefb28dc9f008dc56d25d4ecd090fa2ca",
+    "integrity_verified": true,
+    "same_publisher": true,
+    "changed_runtime": [
+      "services/online_policy_service.cpython-311-x86_64-linux-gnu.so",
+      "services/renewal_settlement_service.cpython-311-x86_64-linux-gnu.so",
+      "services/subscriber_edit_service.cpython-311-x86_64-linux-gnu.so",
+      "services/voucher_edit_service.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "unchanged_runtime_files": 225,
+    "source_absent": true,
+    "build_secret_absent": true,
+    "latest269_web_layers_retained": true,
+    "core270_runtime_exact_to_latest269": true
+  },
+  "source_test_cases": 37,
+  "compiled_identity_cases": 15,
+  "native_DB_HTTP_cases": 13,
+  "previous_acceptance_reference": "releases/release-2.7.0-r5-extended-local-20261102.json",
+  "same_runtime_modules_inherit_previous_acceptance": true,
+  "extended_load_repeated_after_identity_patch": false,
+  "physical_NAS_after_identity_patch": false,
+  "configuration_archive": "releases/2.7.0-20261102-r1/db-memory-configuration.zip",
+  "configuration_archive_sha256": "116b6829f7adef0e348bf7484c1be30d4ccdb67b9493ec14b9dc2b8269901e4d",
+  "pending": [
+    "prepare-new-Hetzner-host-and-native-panel-bindings",
+    "qualify-and-apply-host-DB-profile",
+    "create-m-and-restore-source-backup-in-isolation",
+    "validate-license-data-tunnels-and-real-NAS-before-cutover"
+  ],
+  "git_pushed": false,
+  "server_OS_verified": "Ubuntu 24.04.4 LTS",
+  "private_evidence": "PRIVATE/release270-publish-20261102-r1"
+}

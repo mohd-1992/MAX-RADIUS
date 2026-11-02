@@ -1,6 +1,7 @@
 """Real handlers/services on an isolated DB; no app startup, NAS or customer data."""
 import ast
 import datetime
+from services import dashboard_reporting_service as _reporting_runtime
 import json
 import re
 import types
@@ -12,8 +13,14 @@ from core.permission_catalog import required_detail, ACTION_ENDPOINTS, permissio
 
 
 class ResellerOwnershipTests(unittest.TestCase):
+    def test_job_receipt_delegates_ownership_to_its_scoped_target_route(self):
+        self.own['owner_id']=lambda:987654
+        self.assertTrue(self.own['can_access_owned_endpoint']('system_bp.api_session_operation'))
+        self.assertFalse(self.own['can_access_owned_endpoint']('unregistered_endpoint'))
+
     def setUp(self):
         self.app, self.db, self.ns, self.stubs = fixture()[:4]
+        self.db.execute('CREATE VIEW IF NOT EXISTS radacct_owned AS SELECT * FROM radacct')
         self.db.execute('CREATE TABLE wisp_invoices(id INTEGER PRIMARY KEY, amount REAL, status TEXT, paid_at TEXT, package_name TEXT)')
         raw_one, raw_all = self.ns['query_one'], self.ns['query_all']
         # Verified identity lookup deliberately uses raw identity metadata, not
@@ -44,7 +51,7 @@ class ResellerOwnershipTests(unittest.TestCase):
         self.modules = patch.dict('sys.modules',self.stubs);self.modules.start()
         self.policy=dict(own,has_permission=self.ns['has_permission'],request=request,
                     jsonify=jsonify,redirect=redirect,url_for=url_for,render_template=render_template,
-                    ENDPOINT_PERMISSIONS=endpoint_mod.ENDPOINT_PERMISSIONS)
+                    ENDPOINT_PERMISSIONS=endpoint_mod.ENDPOINT_PERMISSIONS, endpoint_permissions=endpoint_mod.endpoint_permissions)
         parents = {row['code']: row['parent'] for row in permission_rows()}
         legacy_check = self.ns['has_permission']
         self.policy.update(required_detail=required_detail, ACTION_ENDPOINTS=ACTION_ENDPOINTS,
@@ -233,10 +240,26 @@ class ResellerOwnershipTests(unittest.TestCase):
         finally:ctx.pop()
 
     def load_dashboard(self):
+        self.stubs['core.time_service'].get_configured_timezone_name=lambda:'Asia/Aden'
+        # This suite isolates the owner passed across the reporting boundary.
+        # Native reporting SQL/rollups are covered by the reporting lab; SQLite
+        # here contains legacy raw-session fixtures rather than those rollups.
+        self.reporting_owners=[]
+        def read_fixture_series(reader, **kwargs):
+            owner=kwargs.get('owner');self.reporting_owners.append(owner)
+            if reader.__name__=='traffic_series':
+                return [dict(date=datetime.date.today().isoformat(),download=None,upload=None,
+                             unknown_download=0,unknown_upload=0)]
+            sql='SELECT COALESCE(SUM(price),0) FROM wisp_voucher_sales'
+            value=self.db.execute(sql+(' WHERE reseller_id=?' if owner is not None else ''),
+                                  (owner,) if owner is not None else ()).fetchone()[0]
+            return dict(labels=['fixture'],sales=[value],voucher_sales=[value],package_sales=[0])
+        reporting=patch('services.dashboard_reporting_service.read_series',side_effect=read_fixture_series)
+        reporting.start();self.addCleanup(reporting.stop)
         policy=dict(self.own,has_permission=self.ns['has_permission'],request=request,
                     required_detail=required_detail, ACTION_ENDPOINTS=ACTION_ENDPOINTS,
                     jsonify=jsonify,redirect=redirect,url_for=url_for,render_template=render_template,
-                    ENDPOINT_PERMISSIONS=self.stubs['web.endpoint_permissions'].ENDPOINT_PERMISSIONS)
+                    ENDPOINT_PERMISSIONS=self.stubs['web.endpoint_permissions'].ENDPOINT_PERMISSIONS, endpoint_permissions=self.stubs['web.endpoint_permissions'].endpoint_permissions)
         load('web/access_policy.py',policy)
         self.ns.update(filter_dashboard_metrics=policy['filter_dashboard_metrics'],
                        can_view_network_totals=policy['can_view_network_totals'],owner_id=self.own['owner_id'],
@@ -279,7 +302,9 @@ class ResellerOwnershipTests(unittest.TestCase):
         self.db.execute('INSERT INTO wisp_voucher_sales(reseller_id,price,activated_at) VALUES(2,11,?)',(stamp,))
         self.db.execute('INSERT INTO wisp_voucher_sales(reseller_id,price,activated_at) VALUES(3,9999,?)',(stamp,))
         self.db.commit();ctx=self.context()
-        try:self.assertEqual(sum(self.ns['get_sales_chart_data']()['sales']),11)
+        try:
+            self.assertEqual(sum(self.ns['get_sales_chart_data']()['sales']),11)
+            self.assertEqual(self.reporting_owners[-1],2)
         finally:ctx.pop()
 
     def test_request_target_guard_blocks_whole_mixed_action_before_handler(self):

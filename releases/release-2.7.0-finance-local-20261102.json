@@ -1,0 +1,353 @@
+{
+  "version": "2.7.0",
+  "status": "local_r5_finance_pressure_and_real_NAS_passed_no_publication",
+  "ready_for_general_publication": false,
+  "web": {
+    "tag": "max-radius-web:2.7.0-rc-local-20261102-r5",
+    "id": "sha256:8bb3520a2501a53c3e71099cd8895a265ef7b0672560d833706a780006aa902a",
+    "source": {
+      "services\\loyalty_rewards_service.py": "22a1228a68423336ca386942cf10f8e5f3fc7a3f6f3368f1114f590288571b27",
+      "services\\reseller_service.py": "d16c12895e0fd3d0c448bff550bbc23cc594ba79dbd67594e353983b670aae21",
+      "web\\routes\\subscribers.py": "fcfe228b49e07b992749a8ad1e13803cd7ede9e279322e2412ba30511737408a"
+    }
+  },
+  "base_web": "sha256:9fcbfca04af5999956e1a8e82adcffa3aa13cde150f94eb4df2b3a879211bdda",
+  "core": "sha256:10cc88946c5ed6310a36c4c11b7e991277137da87eb019958f2eb45c8d2eabf5",
+  "changed_runtime_files": [
+    "services/loyalty_rewards_service.cpython-311-x86_64-linux-gnu.so",
+    "services/reseller_service.cpython-311-x86_64-linux-gnu.so",
+    "web/routes/subscribers.cpython-311-x86_64-linux-gnu.so"
+  ],
+  "publisher_unchanged": true,
+  "schema_changed": false,
+  "native_financial_scenarios": 38,
+  "source_cases": 100,
+  "concurrent_deposits": 160,
+  "general_pressure_20_minutes_on_this_image": true,
+  "prior_pressure_image": "9fcbfca04af5",
+  "private_case": "PRIVATE/release270-finance-20261102-r1",
+  "no_push": true,
+  "no_domain_updates": true,
+  "latest_unchanged": true,
+  "pending": [
+    "Target host DB profile qualification and production license preflight before deployment"
+  ],
+  "groups": [
+    {
+      "group": "financial-matrix-r5",
+      "passed": 26,
+      "failed": 0,
+      "cases": [
+        {
+          "case": "manager_opening_balance_has_one_ledger_entry",
+          "success": true,
+          "seconds": 0.716
+        },
+        {
+          "case": "deposit_idempotency_and_conflicting_reference",
+          "success": true,
+          "seconds": 1.262
+        },
+        {
+          "case": "manager_invalid_amount_0",
+          "success": true,
+          "seconds": 0.818
+        },
+        {
+          "case": "manager_invalid_amount_-1",
+          "success": true,
+          "seconds": 1.036
+        },
+        {
+          "case": "manager_invalid_amount_NaN",
+          "success": true,
+          "seconds": 0.768
+        },
+        {
+          "case": "manager_invalid_amount_Infinity",
+          "success": true,
+          "seconds": 0.832
+        },
+        {
+          "case": "manager_invalid_amount_1e99",
+          "success": true,
+          "seconds": 0.894
+        },
+        {
+          "case": "manager_invalid_amount_bad",
+          "success": true,
+          "seconds": 0.756
+        },
+        {
+          "case": "credit_limit_debt_payment_and_void",
+          "success": true,
+          "seconds": 1.734
+        },
+        {
+          "case": "concurrent_withdrawal_cannot_overspend",
+          "success": true,
+          "seconds": 1.574
+        },
+        {
+          "case": "transfer_pair_reference_conservation_and_void_guard",
+          "success": true,
+          "seconds": 3.18
+        },
+        {
+          "case": "deduction_void_once",
+          "success": true,
+          "seconds": 1.623
+        },
+        {
+          "case": "frozen_manager_financial_operations_refused",
+          "success": true,
+          "seconds": 0.982
+        },
+        {
+          "case": "manager_ledger_failure_rolls_back_wallet",
+          "success": true,
+          "seconds": 1.298
+        },
+        {
+          "case": "unused_batch_refund_uses_original_debit_once",
+          "success": true,
+          "seconds": 1.32
+        },
+        {
+          "case": "quick_issue_concurrent_same_reference_single_debit",
+          "success": true,
+          "seconds": 1.166
+        },
+        {
+          "case": "quick_receipt_failure_rolls_back_cards_wallet_ledger",
+          "success": true,
+          "seconds": 1.324
+        },
+        {
+          "case": "legacy_topup_negative_is_refused",
+          "success": true,
+          "seconds": 1.012
+        },
+        {
+          "case": "legacy_concurrent_topups_preserve_both_deposits",
+          "success": true,
+          "seconds": 0.755
+        },
+        {
+          "case": "loyalty_concurrent_first_grants_and_safe_deduction",
+          "success": true,
+          "seconds": 1.148
+        },
+        {
+          "case": "loyalty_redeem_balance_credit",
+          "success": true,
+          "seconds": 2.223
+        },
+        {
+          "case": "loyalty_redeem_data_bonus_mb",
+          "success": true,
+          "seconds": 5.361
+        },
+        {
+          "case": "loyalty_redeem_validity_days",
+          "success": true,
+          "seconds": 4.904
+        },
+        {
+          "case": "loyalty_days_preserve_manual_suspension",
+          "success": true,
+          "seconds": 4.483
+        },
+        {
+          "case": "loyalty_reward_must_not_activate_unused_card",
+          "success": true,
+          "seconds": 5.105
+        },
+        {
+          "case": "negative_financial_reward_is_refused",
+          "success": true,
+          "seconds": 0.433
+        }
+      ]
+    },
+    {
+      "group": "financial-extended-r5",
+      "passed": 7,
+      "failed": 0,
+      "cases": [
+        {
+          "case": "invoice_validation",
+          "success": true,
+          "seconds": 0.205
+        },
+        {
+          "case": "invoice_parallel_and_pay",
+          "success": true,
+          "seconds": 0.122
+        },
+        {
+          "case": "legacy_opening_invalid",
+          "success": true,
+          "seconds": 0.461
+        },
+        {
+          "case": "legacy_opening_rollback",
+          "success": true,
+          "seconds": 0.713
+        },
+        {
+          "case": "legacy_deposit_rollback",
+          "success": true,
+          "seconds": 1.224
+        },
+        {
+          "case": "catalog_guards",
+          "success": true,
+          "seconds": 2.401
+        },
+        {
+          "case": "loyalty_rollback",
+          "success": true,
+          "seconds": 1.101
+        }
+      ]
+    },
+    {
+      "group": "financial-http-r5",
+      "passed": 5,
+      "failed": 0,
+      "cases": [
+        {
+          "case": "http_manager_wallets_permissions_csrf",
+          "success": true,
+          "seconds": 3.506
+        },
+        {
+          "case": "http_subscriber_voucher_wallets",
+          "success": true,
+          "seconds": 0.513
+        },
+        {
+          "case": "http_portal_charge_renew_reward",
+          "success": true,
+          "seconds": 6.179
+        },
+        {
+          "case": "http_invoice_source_late_failure",
+          "success": true,
+          "seconds": 0.399
+        },
+        {
+          "case": "concurrent_160_deposits_match_ledgers",
+          "success": true,
+          "seconds": 30.74
+        }
+      ]
+    }
+  ],
+  "cleanup": {
+    "new_containers_stopped": 8,
+    "preexisting_preserved": 920,
+    "images_and_volumes_preserved": true
+  },
+  "pressure_r5": {
+    "duration": 1210.6,
+    "counts": {
+      "RADIUS_latency_lt_1s": 40670,
+      "RADIUS_packets": 40676,
+      "RADIUS_auth": 7976,
+      "RADIUS_1": 7975,
+      "RADIUS_3": 15950,
+      "RADIUS_7": 400,
+      "RADIUS_2": 7975,
+      "completed_RADIUS_sessions": 7975,
+      "accounting_SQL_oracles": 7975,
+      "HTTP": 4492,
+      "HTTP_mutation": 1572,
+      "financial_SQL_oracles": 1073,
+      "admin-voucher_add-wallet": 101,
+      "admin-subscriber_add-wallet": 100,
+      "admin-voucher_deduct-wallet": 101,
+      "expected_insufficient_funds_rejections": 41,
+      "admin-subscriber_deduct-wallet": 100,
+      "HTTP_read": 2920,
+      "admin-voucher_extend": 101,
+      "RADIUS_8": 400,
+      "admin-subscriber_extend": 100,
+      "portal-subscriber_paid_renew_change": 166,
+      "portal-voucher_paid_renew_change": 166,
+      "concurrent_recharge_one_winner": 84,
+      "recharge_gross": 840,
+      "admin-voucher_quota": 101,
+      "admin-subscriber_quota": 100,
+      "admin-subscriber_disable_activate": 13,
+      "admin-voucher_renew": 51,
+      "admin-subscriber_renew": 50,
+      "admin-voucher_change-package": 50,
+      "admin-subscriber_change-package": 50,
+      "RADIUS_latency_ge_1s": 6,
+      "RADIUS_transport_timeouts": 4,
+      "RADIUS_identical_retransmissions": 4
+    },
+    "errors": 0,
+    "cgroup_peak_bytes": {
+      "web": 238510080,
+      "core": 139124736,
+      "db": 319033344
+    },
+    "financial_and_accounting_final_audit": {
+      "financial": [
+        {
+          "role": "admin-subscriber",
+          "balance_exact": true,
+          "ledger_exact": true,
+          "entries": 300
+        },
+        {
+          "role": "admin-voucher",
+          "balance_exact": true,
+          "ledger_exact": true,
+          "entries": 101
+        },
+        {
+          "role": "portal-subscriber",
+          "balance_exact": true,
+          "ledger_exact": true,
+          "entries": 166
+        },
+        {
+          "role": "portal-voucher",
+          "balance_exact": true,
+          "ledger_exact": true,
+          "entries": 166
+        }
+      ],
+      "accounting": {
+        "rows": 7975,
+        "all_closed": true,
+        "counter_totals_exact": true,
+        "no_duplicate_session_ids": true
+      }
+    },
+    "db_profile": {
+      "memory_mib": 1280,
+      "cpus": 1,
+      "buffer_pool_mib": 128,
+      "allocator_arenas": 2
+    }
+  },
+  "real_NAS": {
+    "hotspot_cases": 6,
+    "pppoe_cases": 4,
+    "actual_Stops": true,
+    "MAC_explicit_rejects": true,
+    "direct_CoA_ACK_absence_Stop": true,
+    "compiled_Web_UDP_CoA_not_qualified": true,
+    "single_CHR": true,
+    "signed_simulation_license": true,
+    "all_sessions_closed": true,
+    "private_case": "PRIVATE/release270-nas-native-20261102-r1"
+  },
+  "local_acceptance_passed": true,
+  "report": "docs/RELEASE_270_R5_STABILITY_NAS_20261102.md"
+}

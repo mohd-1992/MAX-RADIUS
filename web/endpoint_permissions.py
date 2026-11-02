@@ -1,5 +1,11 @@
 """Administrative endpoint requirements. Keep read-route coverage tests in sync."""
 ENDPOINT_PERMISSIONS = {
+ 'api_session_operation': [],  # Auth, action permission and current account ownership in route.
+ 'cancel_export': [],  # Authenticated owner + unguessable active export token checked by the route.
+ 'subscriber_sessions_pdf': ['subscribers.view'],
+ 'voucher_sessions_pdf': ['vouchers.view'],
+ 'api_subscriber_mac_policy': ['subscribers.edit'],
+ 'api_voucher_mac_policy': ['vouchers.actions', 'detail.vouchers.card_edit'],
  'batches_bulk_action': ['vouchers.view'],
  'quick_cards_page': ['vouchers.generate'],
  'quick_cards_issue': ['vouchers.generate'],
@@ -205,6 +211,7 @@ ENDPOINT_PERMISSIONS = {
  'pay_invoice_action': ['invoices.manage'],
  'print_cards': ['vouchers.print'],
  'export_batch_excel': ['vouchers.print'],
+ 'export_batch_text': ['vouchers.print'],
  'process_import_action': ['system.settings'],
  'radius_simulator_page': ['system.view_services'],
  'reseller_wallets_page': ['managers.billing'],

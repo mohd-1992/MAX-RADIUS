@@ -11,13 +11,15 @@ class FixTests(unittest.TestCase):
  def test_import_rate_direction_open_burst_and_minimum(self):
   rate={};t=ast.parse((ROOT/'core/rate_limit.py').read_text(encoding='utf8'))
   exec(compile(ast.Module(body=[x for x in t.body if isinstance(x,ast.FunctionDef)],type_ignores=[]),'rate','exec'),rate)
-  module=types.ModuleType('core.rate_limit');module.build_mikrotik_rate_limit=rate['build_mikrotik_rate_limit']
+  module=types.ModuleType('core.rate_limit');module.build_mikrotik_rate_limit=rate['build_mikrotik_rate_limit'];module.is_zero_or_empty_rate=rate['is_zero_or_empty_rate']
   ns={};load('services/import_state_service.py',{'imported_policy_rate'},ns)
   cases=[({'rate_download':'2M','rate_upload':'1M'},'1M/2M'),({},'0/0'),({'rate_download':'2M','rate_upload':'1M','burst_download':'4M','burst_upload':'3M','burst_threshold_down':'1M','burst_threshold_up':'512k','burst_time':10,'priority':3,'min_download':'512k','min_upload':'256k'},'1M/2M 3M/4M 512k/1M 10/10 3 256k/512k')]
   with patch.dict(sys.modules,{'core.rate_limit':module}):
    for plan,expected in cases:
     with self.subTest(plan=plan):self.assertEqual(ns['imported_policy_rate'](plan),expected)
  def fixture(self,fail_ledger=False,deadlock_once=False):
+  entitlement=patch('core.license_feature_policy.verified_state',return_value={'valid':True,'features':{}})
+  entitlement.start();self.addCleanup(entitlement.stop)
   conn=sqlite3.connect(':memory:');conn.row_factory=sqlite3.Row
   conn.executescript('CREATE TABLE wisp_loyalty_wallets(username TEXT UNIQUE COLLATE NOCASE,points_balance INT,total_points_earned INT,tier_level TEXT);CREATE TABLE wisp_loyalty_transactions(username TEXT,transaction_type TEXT,points INT,balance_after INT,notes TEXT);')
   deadlocked=[]

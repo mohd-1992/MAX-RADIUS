@@ -69,6 +69,8 @@ class PortalTests(unittest.TestCase):
             INSERT INTO nas VALUES(1,'10.0.0.1','testsecret');
         """)
         self.db.commit()
+        self.db.execute('CREATE VIEW radacct_owned AS SELECT * FROM radacct')
+        self.db.execute('CREATE TABLE wisp_invoices(invoice_number,subscriber_id,subscriber_name,amount,status,package_name,notes,paid_at)')
         self.db.execute("ALTER TABLE wisp_packages ADD COLUMN service_type TEXT DEFAULT 'pppoe'")
         self.db.execute("ALTER TABLE wisp_subscribers ADD COLUMN service_type TEXT DEFAULT 'pppoe'")
         self.ns = dict(datetime=datetime, db_session=self.transaction,
@@ -79,16 +81,24 @@ class PortalTests(unittest.TestCase):
                            'rem_data_mb': 11, 'rem_time_delta': datetime.timedelta(days=1),
                            'rem_days': 1, 'rem_hours': 0}))
         functions('services/user_portal_service.py',
-                  {'_lock_portal_account', '_sync_recharge_radius', 'renew_or_change_package',
+                  {'_lock_named_portal_account', '_lock_portal_account', '_sync_recharge_radius', 'renew_or_change_package',
                    'change_portal_password', 'apply_portal_speed'}, self.ns)
         self.coa = Mock()
         fake = types.ModuleType('core.coa')
         fake.RadiusCoaClient = self.coa
         rate = types.ModuleType('core.rate_limit')
-        rate.build_mikrotik_rate_limit = lambda down, up: f'{up}/{down}'
+        rate_ns = {}
+        functions('core/rate_limit.py', {'is_zero_or_empty_rate', 'parse_rate_to_bps', 'build_mikrotik_rate_limit'}, rate_ns)
+        rate.build_mikrotik_rate_limit = rate_ns['build_mikrotik_rate_limit']
+        rate.is_zero_or_empty_rate = rate_ns['is_zero_or_empty_rate']
         audit = types.ModuleType('database.db')
         audit.log_user_audit = self.ns['log_user_audit']
-        self.modules = patch.dict(sys.modules, {'core.coa': fake, 'core.rate_limit': rate, 'database.db': audit})
+        audit.adapt_query = lambda sql, conn: sql
+        sales = types.ModuleType('services.sales_source_service')
+        sales.record_sale_source = Mock()
+        quick = types.ModuleType('services.quick_action_service')
+        quick.generate_invoice_number = lambda *args: 'fixture-invoice'
+        self.modules = patch.dict(sys.modules, {'core.coa': fake, 'core.rate_limit': rate, 'database.db': audit, 'services.sales_source_service': sales, 'services.quick_action_service': quick})
         self.modules.start()
         self.addCleanup(self.modules.stop)
         self.addCleanup(self.db.close)
@@ -116,6 +126,39 @@ class PortalTests(unittest.TestCase):
             VALUES(1,'card',?,'1234',?,1,?,1,55,12)""", (password,status,balance))
         self.db.commit()
         return table
+
+    def test_portal_lock_preserves_case_insensitive_subscriber_precedence(self):
+        self.account('subscriber')
+        self.account('voucher')
+        row, kind, table = self.ns['_lock_portal_account'](self.db.cursor(), self.db, 'CARD')
+        self.assertEqual((row['id'], kind, table), (1, 'subscriber', 'wisp_subscribers'))
+
+    def test_portal_lock_missing_identity_returns_no_account(self):
+        self.account('subscriber')
+        self.assertIsNone(self.ns['_lock_named_portal_account'](
+            self.db.cursor(), self.db, 'wisp_subscribers', 'missing'))
+
+    def test_portal_lock_rechecks_name_after_identity_resolution(self):
+        self.account('subscriber')
+        db = self.db
+        class RenameBetweenReads:
+            def __init__(self):
+                self.cursor = db.cursor()
+                self.reads = 0
+            def execute(self, statement, args):
+                return self.cursor.execute(statement, args)
+            def fetchone(self):
+                row = self.cursor.fetchone()
+                self.reads += 1
+                if self.reads == 1:
+                    db.execute("UPDATE wisp_subscribers SET username='renamed' WHERE id=1")
+                return row
+        self.assertIsNone(self.ns['_lock_named_portal_account'](
+            RenameBetweenReads(), self.db, 'wisp_subscribers', 'card'))
+
+    def test_portal_lock_rejects_non_account_table(self):
+        with self.assertRaises(ValueError):
+            self.ns['_lock_named_portal_account'](self.db.cursor(), self.db, 'radcheck', 'card')
 
     def test_renew_active_unused_expired_and_subscriber(self):
         for kind, status in [('voucher','active'),('voucher','unused'),('voucher','expired'),('subscriber','active')]:

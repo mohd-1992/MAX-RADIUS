@@ -290,6 +290,9 @@ def init_database():
                 ensure_archive_tables()
                 with get_connection() as c:
                     install_subscriber_edit_schema(c)
+                from services.sales_source_service import backfill_sale_sources
+                with get_connection() as c:
+                    backfill_sale_sources(c)
                 print("[DB] MySQL base schema and required migrations verified successfully.")
                 return
         except DatabaseUnavailableError:

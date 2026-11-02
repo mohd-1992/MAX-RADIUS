@@ -107,6 +107,8 @@ def sync_subscriber_to_radius(subscriber_id, conn=None):
         return False
         
     username = sub['username']
+    from services.account_mac_service import initialize_mac_policy
+    initialize_mac_policy(conn, 'subscriber', subscriber_id, username)
     
     # Clean previous records
     execute_write('DELETE FROM radcheck WHERE username = ?', (username,))
@@ -123,7 +125,8 @@ def sync_subscriber_to_radius(subscriber_id, conn=None):
     )
     
     # 2. MAC Binding if present
-    if sub.get('mac_binding') and len(sub['mac_binding'].strip()) > 5:
+    if sub.get('mac_binding') and len(sub['mac_binding'].strip()) > 5 and not query_one(
+        "SELECT 1 FROM wisp_account_mac_policies WHERE account_type='subscriber' AND account_id=?", (subscriber_id,)):
         clean_mac = sub['mac_binding'].strip().replace('-', ':').upper()
         execute_write(
             'INSERT INTO radcheck (username, attribute, op, value) VALUES (?, ?, ?, ?)',
@@ -196,6 +199,8 @@ def sync_voucher_to_radius(voucher_id, conn=None):
         return False
         
     username = v['username']
+    from services.account_mac_service import initialize_mac_policy
+    initialize_mac_policy(conn, 'voucher', voucher_id, username)
     
     execute_write('DELETE FROM radcheck WHERE username = ?', (username,))
     execute_write('DELETE FROM radreply WHERE username = ?', (username,))
@@ -213,6 +218,9 @@ def sync_voucher_to_radius(voucher_id, conn=None):
     # 2. If active, write frozen rate-limit directly in radreply
     if v['status'] == 'active':
         rate_str = v.get('snap_rate_limit_str')
+        if rate_str is not None:
+            from services.rate_policy_service import snapshot_rate_limit
+            rate_str = snapshot_rate_limit(rate_str, v.get('snap_rate_download'), v.get('snap_rate_upload'))
         if not rate_str and (v.get('snap_rate_download') or v.get('snap_rate_upload')):
             rate_str = build_mikrotik_rate_limit(download=v.get('snap_rate_download', 0), upload=v.get('snap_rate_upload', 0))
         if rate_str:
@@ -249,7 +257,8 @@ def sync_voucher_to_radius(voucher_id, conn=None):
             raise
 
     # 5. MAC Binding if already locked
-    if v.get('bound_mac') and len(v['bound_mac'].strip()) > 5:
+    if v.get('bound_mac') and len(v['bound_mac'].strip()) > 5 and not query_one(
+        "SELECT 1 FROM wisp_account_mac_policies WHERE account_type='voucher' AND account_id=?", (voucher_id,)):
         execute_write(
             'INSERT INTO radcheck (username, attribute, op, value) VALUES (?, ?, ?, ?)',
             (username, 'Calling-Station-Id', '==', v['bound_mac'].strip().upper())

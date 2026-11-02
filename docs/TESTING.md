@@ -1,6 +1,188 @@
-## 26 أكتوبر 2026 — مثبت 2.6.5 المطابق للدومينات
+## 2 نوفمبر 2026 — مزامنة GitHub لمصدر 2.7.0
 
-[تقرير المطابقة والتحقق](REPOSITORY_DOMAIN_MATCH_265_20261026.md): صور Web5eda6a3450dd وCore7bf2baa71525 المنشورة نفسها مطابقة للدومينات الأربعة. مصدر255 ملفًا مطابق للبناء؛ تهيئة معزولة ناجحة64 جدولًا و162 صلاحية و16 تريغرًا و308 مسارات. الاختبارات المستهدفة98 ناجحة وحالة اختيارية واحدة متجاوزة. لا إصدار جديد أو إصلاح محرك جديد أو رفع صور أو تحديث عميل/دومين؛ لم يُشغل المثبت الكامل على مضيف ولم يُختبر NAS حي. الأدلة PRIVATE/repository-domain-match-265-20261026-r1. أمر التثبيت المعتاد يقرأ بيان الصور المثبتة الجديد.
+[نطاق المزامنة والفحوص](REPOSITORY_SYNC_270_20261102.md): مصدر270وإصلاحات269المحفوظة واختباراتها وتوثيقها مضمّنة؛ قناة المثبت release.json تبقى265المعتمدة، دون صورأوlatestأوتحديثدومين. بيان المصدر270لقطةGitلاادعاءإعادةبناء. قيدFastTrackفيتعديلالحسابالمتصلمازالموثقًاومفتوحًا. هذه المزامنة لا تشمل مستودع اللوحة المنفصل.
+
+## 1 نوفمبر 2026 — Web 2.6.9 المصححة منشورة وافتراضية للإنشاء الجديد
+
+[تقرير الإصلاح والنشر والتحقق](RESTORE_FIX_269_PUBLISHED_20261101.md): Web `886f3786bb9a` منشورة بوسم `2.6.9-restore-fix-20261101-r1`، وCore `9786df38bb3c` ثابتة. عولج DEFINER في الاستعادة مع حفظ ترخيص الوجهة عند الفشل. نجح67اختبارًا داخل الصورة و8معاملات مصدر وست تجارب DB، ومنها124.68MB مع181077كرتًا. كتالوج `control.max-r.cc` يختار البصمة الجديدة عند إنشاء2.6.9؛ سُحبت الصورة وتحققت طبقاتها وقراءة الواجهة ومسار الاختيار. لم تُحدّث المنظومات القائمة أو latest أو اللوحة القديمة، ولم تُنشأ منظومة حية للاختبار.9حاويات سابقة و8ملفات ربط/أنفاق ثابتة؛ أعيد تحميل المنفذ فقط بطابور مقفول وخالٍ من العمل. سياق269المجمد في PRIVATE/restore269-release-20261101-r1/context؛ الإصلاح محفوظ أيضًا في مصدر270 دون بناء270. حزمة صور31أكتوبر القديمة لا تحتوي هذا الإصلاح. الجولة مغلقة و18حاوية اختبار أزيلت مع حفظ998سابقة؛ لا replay.
+
+## 1 نوفمبر 2026 — سبب فشل الاستعادة بين الحسابات مثبت محليًا
+
+[التقرير والحدود](RESTORE_DEFINER_ROOT_CAUSE_LOCAL_20261101.md): ملف m الأصلي أعاد1227بحساب قاعدة محدود و1449معrootومالك مصدر غائب. تطبيع6تعريفاتDEFINERفقط نجح بنفسالصورة والصلاحياتالمحدودة، وحفظالأرصدةوالمرفقات وهويةالهدفالاصطناعية وأعاد17trigger. خمسحالاتومقارنة18جدولًا؛ترقيم1128NULLاستكملدونتغييررقمموجود. مسارالاستعادةمطابقلمصدر269السابق؛القبولالسابقاستخدمrootولميغطهذهالصلاحيات. الإصلاحالوقائيمازالنموذجًامحليًاولميدمجأوينشر؛الصورالمنشورةتحتاجمعالجةهذاالمسارقبلادعاءتوافقاستعادةعابرللحسابات. لا تغييرات حية بهذهالجولة. نُظفت6حاويات/volume/شبكة، وبقيت998سابقة. الأدلة PRIVATE/restore-rootcause-local-20261101-r1 مغلقة؛لاreplay.
+
+## 31 أكتوبر 2026 — قبول إصلاح حجم النسخة ضمن 2.6.9 محليًا
+
+[تقرير الاعتماد](BACKUP_RETENTION_269_ACCEPTANCE_LOCAL_20261031.md) و[التسليم اليدوي](BACKUP_RETENTION_269_MANUAL_DELIVERY_20261031.md): Web eab5cd4ff443، وCore 9786df38bb3c ثابتة. ترشيح ملف النسخة فقط دون حذف بيانات التشغيل. 40 اختبارًا داخل الصورة، واستعادة 124.68MB مع 181,077 كرتًا ناجحة. الحزمة محفوظة واختُبر تحميلها؛ لا رفع أو latest أو تحديث دومينات. الأدلة PRIVATE/backup-retention269-release-20261031-r1 مغلقة؛ لا replay. هذا يستكمل التنفيذ الدائم المطلوب في التجارب السابقة.
+
+## 31 أكتوبر2026 — إصلاح Core للسجل التشخيصي قُبل محليًا
+
+[التقرير والإيصال](CORE_DETAIL_ACCOUNTING_FIX_269_LOCAL_20261031.md): Core النهائية9786df38bb3c من7ffa، معWebddceالثابتة. أصلح إنشاء مسارdetailوفشلfcloseالمؤجل، معfailsoftللسجل وحده وإبقاءSQLإلزامية.36حالةبداية/تخزين،20تعافٍ/تكرار/رجوع و10عمليات واجهة ناجحة؛256Startباردةبلا فقد، وأخطاءpermissions/readonly/ENOSPCظاهرةدونضياعSQL. لاACKأثناءSQLdown، والمهلةليستدليلعدمcommit. SQLوالdaemonثابتان؛الوحدةوملفاتتهيئتهافقطمعمصدرGPL. ملاحظةالسجلالسابقةأُغلقتضمنهذهالتغطية؛لاNASماديأوضغطمالي20دقيقةجديدأواعتمادنشرشامل. نُظفت5حاوياتو10volumesوشبكة،وثبتت1174سابقة. الأدلةPRIVATE/core-detail269-fix-20261031-r1مغلقة؛لاreplay/latest/رفع/دومينات. المصدر270يحفظالإصلاح،ولاصورة270نهائيةبهذهالجولة.
+
+## 31 أكتوبر2026 — إصلاح قراءة أقفال269 مقبول محليًا؛ ملاحظة Core مستقلة متبقية
+
+[التقرير والإيصال والحدود](ACCOUNTING_ROW_LOCK_FIX_269_LOCAL_20261031.md): Web ddce804366a6 مبنية من3f2b بتغيير rows_for وحدها؛215ملفًا مطابقًا، وCore7ffa ثابتة، لاDDL أوretryمالي أو270منقولة. استعلام الهوية والمفتاح الأساسي أبقى حماية الحساب ومنع قفل الحسابات الأخرى؛ القديم أعاد11077تعارضًا، والنهائيةصفر. ضغط20دقيقة وتدقيق مالي وبروتوكول وصلاحية سياسة السرعة؛ لا اعتماد نشر شامل بسبب سباق مجلدdetail عند أولStart الذي أعيد فيCoreمستقلة، ومكوناته مطابقةللأصل. الأدلةPRIVATE/locks269-fix-20261031-r1 مغلقة؛ لاreplay. نُظفت موارد الجولة فقط، لارفع/latest/دومينات. إصلاحrows_for موجود أيضًا في مصدر270ليحفظ عند البناء، دون منح قبول صورتها النهائية.
+
+## 31 أكتوبر2026 — إعادة قبول269: المراقب والتعافي ناجحان، الأقفال تمنع الاعتماد
+
+[التقرير والأدلة والحدود](RELEASE_269_RETEST_LOCAL_20261031.md): نفسWeb3f2b/Core7ffa دون تعديل أو رفع؛ نافذة1204ثانية،11007HTTP،3953مطابقة مالية،8فحوص سرعة و10عمليات،20تعافي و20تدقيق نهائي ناجحة. المراقب أغلق4متقادمة بعد مهلة15دقيقة وأبقى الحديثة؛ صفر سجلات مفتوحة في النهاية. أعيد1213بالدالة المجمعة من المنشورةc5ab والمحلية، وتأثرStopوتجديد واحد؛ ليس انحدار محرك مثبتًا. خطأWindows10048لأداة الفحص منفصل. لا اعتماد نشر. نُظفت موارد الجولة الجديدة وثبتت1174حاوية سابقة، ودققت مالية الجولة المعلقة دون إعادة طلباتها. PRIVATE/acceptance269-final-20261031-r1؛لاreplay/latest/دومينات.
+
+## 30 أكتوبر2026 — فحوص269 غير مكتملة؛ Docker المحلي فقد الوصول
+
+[التقرير وحدود النتائج والتنظيف](RELEASE_269_FOLLOWUP_TESTS_LOCAL_20261030.md): جولة جديدة على3f2b/7ffa بلا تعديل صور أو إدخال270؛335HTTP و1782استجابةRADIUS و346دورة و99تحققًا ماليًا كحدود دنيا قصيرة. Docker/WSL/SQL فقدت الوصول؛ لا قبول20دقيقة أو مهلةwatchdog أو تعافٍ مضبوط أو تدقيق مالي نهائي. لا OOM أوdeadlock في آخر القراءات فقط. أوقف الحمل المضيف ولم تعد طلبات مالية؛ مواردr2 غير مؤكدة التنظيف وأحجامDB محفوظة للتدقيق عند عودةDocker. لا تعِد برامجها أو توقف حاويات أخرى. PRIVATE/acceptance269-followup-20261030-r1/r2. لا نشر/latest/دومينات.
+
+## مرجع نطاق النسخ — 30 أكتوبر 2026
+
+[نطاق 2.6.9 المنشورة، 2.6.9 المحلية، وتطوير 2.7.0](RELEASE_SCOPE_269_270_20261030.md) هو مرجع الفصل عند الاستئناف: يثبت الصور والإضافات والمستبعدات وحدود الاختبارات. إصلاح ذاكرة PDF/Excel وتحسين أداء الجامع الأحدث لا يدخلان صورتي 2.6.9. الحزمة المحلية الكاملة تضم Web وCore، ولا يوجد قبول نشر شامل. لا نقل ميزات أو بناء أو رفع أو تحديث أو تغيير latest ضمن طلب التوثيق. تُقرأ الفقرات الأقدم أدناه باعتبارها سجلًا مؤرخًا ضمن صورتها وجولتها.
+
+## 30 أكتوبر2026 — فصل إصلاحات269 عن حماية ذاكرةالتصدير
+
+[تدقيق الصور والكود والإيصالات](RELEASE_269_EXPORT_SCOPE_AUDIT_20261030.md): وحدات صحةالجامع والتقارير والنسخ متطابقةبايتًا فيc5ab المنشورة و3f2b المحلية. إصلاحاتذاكرةPDF/Excel غيرمضمّنةفيهما: pdf_export_service/heavy_operation_service غائبتان، وWorkbook الفعلية عاديةفيالصورتين. التنفيذوإيصالاتالقياس تخصمصدر270المحلي، لا269. لا نقلأوبناءأورفعأوتصديرحي. لا تعميمأن«إصلاحالتصدير»دخل269 بسببإصلاحخلاياExcelالفارغة. الأدلةPRIVATE/release269-export-scope-audit-20261030-r1.
+
+## 30 أكتوبر2026 — مقارنة أقفال 2.6.9 المنشورة محليًا
+
+[المقارنة وحدودها](PUBLISHED_269_LOCK_COMPARISON_LOCAL_20261030.md): Registryثبت c5ab للمنشورة، واستعلام القفل الفعلي نفسه موجود فيها؛ وحدات التسوية/DB وحماية الدورة متطابقة مع3f2b، وكتلةStop فيCore القديمة/المصححة مطابقة. أربع حالاتSQL مركزة لم تعِد إنتاجdeadlock في أي منهما؛ الخطط تختلف عن جولة الفشل، فلا إثباتانحدارجديد ولا تبرئةللمنشورة. لا إصلاحأو نشر أو تكرار مالي؛ حالةالسجلاتالأربعة لا تثبتعطلwatchdog دوناختبارمهلته. الدليلPRIVATE/published269-lock-comparison-20261030-r1/r2/r3. لاخلطمع270.
+
+## 30 أكتوبر2026 — ضغط269 المكثف لم يجتز الاعتماد: deadlock وOOM في DB
+
+[التقرير والنتيجة السلبية](INTENSIVE_269_20MIN_LOCAL_20261030.md): نافذة20دقيقة على Web3f2b/Core7ffa دون تغييرصور. توقف الضغط المستقر في الثانية928.74 بسببOOM لـMariaDB10.11 المقيدة768MiB/buffer128MiB؛ خمسSQL1213 بين Accounting-Stop وSELECTجلساتFOR UPDATE في التسوية. أكثر من4900HTTP و18ألفاستجابةRADIUS محفوظة كحدوددنيا؛ عشرةفحوصإضافية للعمليات ناجحة. بعد تشغيلDBالمختبرية نفسها دونرفعحد/restore أوإعادةطلبمالي، طابقتأرصدةالحساباتالأربعة سجلهاالملتزم؛431بيعًا و601فاتورة، ولاانقسامجلسات أوNAS-Reboot خاطئ، مع4سجلاتمحاسبةاصطناعيةمعلقة. تعافٍخفيف بثلاثجلساتجديدةناجح، وليس20دقيقةمستقرة. الترخيصمحاكاةموقعة؛عملاءUDPاصطناعيون ولاCHR/rebootفعلي. يلزمعلاجالأقفال وعزلنموذاكرةDB وإعادةالقبول؛ لاتدعيأنرفعRAMيكفيأوأنالمحركالمشترك/270قُبل. أزيلت5حاوياتومواردالجولةوثبتت1185حاويةسابقة. الأدلةPRIVATE/intensive269-20m-20261030-r1؛لاreplay أو نشر/latest/دومينات/مراقبة.
+
+## 30 أكتوبر2026 — قبول واجهة/CHR/متحكم المكونات
+
+[النتائج والاختبارات والموانع](ACCEPTANCE_270_POINTS_123_20261030.md):24معاينة، ومصادقة ومحاسبةCHRفعلية في Hotspot/PPPoE مع MAC وفصل جلسات متعددة واختباراتHTTP/CSRF/ملكيةSQL. أضيفت عقود حارس متابعة المهام والصلاحية المعلنة للكرت؛ نجحت جولات تسجيل/بدء متحكم UNIX واسترداد عاملSIGKILL معDBمشتركة/مستقلة. قبول موجب لترخيص إنتاجي والصورة النهائية غير منفذ. فحص ملف ملكيةSQLite الكامل ما زال به4حالات غير ناجحة؛ لا يساوى قبول الجزء باجتياز الملف. لا تعاد برامج PRIVATEالمغلقة؛ كل NAS/دورةمالية يحتاج fixtureوجولة جديدة ضمن تفويض جاري.
+
+## 30 أكتوبر 2026 — عدد الجلسات في القائمتين
+
+[التنفيذ والمعاينة والفحوص](LIST_SESSION_COUNTS_270_20261030.md): رقم بجانب الحالة الخضراء فقط في المشتركين والكروت، من نفس بيانات الجلسات الحديثة دون استعلام لكل صف. معاينة5270تضم1/2/3جلسات لكل نوع، ونجحت5اختبارات وفحصSQLومتصفح على بيانات اصطناعية. أعيد تشغيل حاوية المعاينة القائمة فقط؛ لاNASأو نشر. heartbeatالعينةمؤقت حتى19:02عدن30أكتوبر.
+
+## 30 أكتوبر 2026 — ربط انتظار العمليات بنتائجها محليًا
+
+[التنفيذ والفحوص والحدود](OPERATION_NOTIFICATIONS_270_20261030.md):52موضع انتظار بمقابض مستقلة، بلا مؤقت، ونتائج تخص كل عملية؛ أزيل الإغلاق العام المتداخل وأضيفت حالة تعذر تأكيد الرد دون إعادة التنفيذ. نجحت سيناريوهات الانتظار والتزامن وcallbacks فعلية مع نقل مصطنع، واختبارات متابعة الجلسات وPDF السابقة. لا عمليات عملاء أو نشر؛ المعاينة المتكاملة لم تحدث. هذه الحالة أحدث من «بلا إصلاح» في الجرد السابق.
+
+## 30 أكتوبر 2026 — إشعار PDF بهوية النظام
+
+وحّد تصدير جلسات PDF على مكوّن الإشعارات المشترك أعلى اليسار، مع الثيمين وزر إلغاء ومؤشر انتظار مستمر حتى النتيجة، دون نسبة إنجاز مصطنعة. [التنفيذ والقبول المصطنع والحدود](EXPORT_TOAST_UI_270_20261030.md). لا تغيير آلية التصدير أو نشر؛ صفحة الطباعة المستقلة بلا محرك إشعارات تظل بتنزيل أصلي.
+
+## 29 أكتوبر 2026 — تنفيذ الإصلاحات 1–5 محليًا
+
+[التقرير والاختبارات والقياسات والحدود](DEVELOPMENT_270_FOLLOWUP_20261029.md): فصل يدوي بمهمة دائمة ونتيجة مؤكدة/جزئية، حفظ سياسة MAC أثناء الاتصال وفصل المخالف فقط، تجاوز checkpoints الثابتة، تحسين تجميع التقارير وفلتر NAS، وضبط DB اختياري balanced/conservative قابل للرجوع. نجحت 66 مطابقة تقارير وسبع مراحل جامع والتزامن والتراجع، و20 تحقق MariaDB للتحكم و6 لاستعادة نسخة قديمة. نقل NAS محاكى؛ قبول RouterOS/RADIUS الفعلي والصورة النهائية والواجهات المتكاملة/الهاتف متبقٍ. لا نشر أو تغيير على الدومينات. هذه الحالة أحدث من فقرات «مخطط فقط» المؤرخة أدناه؛ لم يغلق قبول الإصدار النهائي. إعداد DB ليس تحديث Web، ويجب تبديل كل عمال Web معًا عند تغيير قفل دورة الحساب.
+
+## 29 أكتوبر 2026 — قبول إضافي للمحرك وبناء269 محمي محليًا؛ غير جاهز للتركيب
+
+[النتائج والموانع](COMPONENT_ENGINE_EXTENDED_LOCAL_20261029.md): أصلح فحص الأصل قبل التوقف ومهلة نقل Docker. نجحت41حالة على وحدة Cython محمية، و99فحص مصدر مع حالة متجاوزة و32فحص مستهلك؛ تسع حالات تبديل/رجوع فعلية وحالتا SIGKILL وحالتان بصور Core/L2TP/Autoheal الأصلية. 284استجابة RADIUS بدورات مكتملة و24نسخة متحققة، وتبديل بناء269 بنفس الرقم والرجوع مع أحدث البيانات. لا قبول موجب لترخيص إنتاجي أو PPP/NAS، ولا استرداد تلقائي متحقق بعد موت العامل. الصورة المحليةffdcaf5f0b76موقعة بنفس الناشر وتضيف وحدة واحدة؛ ليست حزمة متحكم/تسجيل/قناة مكتملة. المتبقي يمنع اعتماد التركيب. المسار المعتمد:269معدلة يدويًا بعد القبول ثم اللوحة ثم270؛ التفويض الحالي محلي فقط. لا رفع/إعلان/تحديث دومين أو عميل، ولا استئناف المراقبات أو ميزات270/اللوحة المتوقفة. أزيلت حاويات وحجوم وشبكات الجولات وثبتت الحاويات السابقة، والصور والأدلة محفوظة محليًا؛ الأدلةPRIVATE/component-engine4-native-aux-20261029-r1/ROOT-SUMMARY.private.json.
+
+## 29 أكتوبر 2026 — مرشح مكونات opt-in قيد القبول المحلي
+
+[العقد والتنفيذ والفحوص والقيود](COMPONENT_ENGINE_LOCAL_20261029.md)، المصدر `services/system_update_components.py`، والفحص المحدد `tests/test_update_components.py` داخل Docker Linux. المشغل `tests/run_update_components_lab.py --run` يحتاج /lab جديدة وشبكة وحجومًا مملوكة ولا يعاد على جولة مغلقة؛ Docker socket للمنفذ المضيف المعزول فقط. لا اختبار افتراضي حي ولا تغيير ترخيص/راوتر إنتاجي. البروتوكول المعلن القديم لا يتغير بهذه الإضافة؛ ربط وتوزيع المرشح غير معتمدين بعد.
+
+## 28 أكتوبر 2026 — قياس أداء المبيعات والاستهلاك
+
+[النتائج والحدود](REPORTS_PERFORMANCE_LOCAL_20261028.md): 29 قراءة مقبولة على MariaDB جديدة معزولة، بعينتي100ألف/300ألف جلسة و30ألف/90ألف بيع. قياس SQL وPython ومحتوى HTML، وخطط EXPLAIN، وتحقق مستقل من الأعداد والعدادات والمبيعات، وثلاث تجارب لفلاتر محضرة مع تطابق النتيجة كاملة. ليست اختبارات HTTP/متصفح إنتاجي أو دور موزع أو قبول فواتير معبأة. لا تعديل أو نشر؛ لا تعاد الجولات المكتملة من PRIVATE/reports-perf-20261028-r1 تلقائيًا.
+
+## 28 أكتوبر 2026 — قياس ذاكرة التصدير والاستيراد قبل2.7.0
+
+[تقرير القياس وحدوده](MEMORY_OPERATIONS_LOCAL_20261028.md): حاويات جديدة معزولة وحد2GiB؛OOMمثبت فيPDF2000كرت، ومهلة مختبرية فيExcel20000كرت، وقياسExcel/CSVوالتزامن وقراءةExcelالعريض وعباراتSQLالكبيرة وترحيلMariaDBوالاستعادة الكاملة. نجحت28حالة محددة منtest_batch_exports وtest_import_quota_regression وفحوص بنية الملفات والعدادات. لا ضغط أوNASأوإعادة تصدير جلسات إنتاجية، ولا قبول شامل لكل ملف/حمل. البرامج والأدلةPRIVATE/memory270-local-20261028-r1؛لا تعاد الجولات المكتملة تلقائيًا. [خطة المعالجة](RELEASE_2_7_0_PLAN.md) لم تنفذ بعد.
+
+## 27 أكتوبر 2026 — تصحيح2.6.9 مبني ومختبر محليًا
+
+[هوية الصور والقبول والحدود](BACKUP_269_BUILD_LOCAL_20261027.md): المرشحc5ab9fe42359 والرجوع المتوافقf8cde0e7bfaa، بنفس2.6.9 ومن مرجع4bddb43f8cfb؛202ملفًا محفوظًا. نجحت الاستعادة الفعلية القديمة وترقية أرشيفها، و28حالة تاريخ و74اختبارًا مترجمًا، والتبديل والرجوع مع65مصادقة وStart/Interim/Stop دونDBrestoreأوإعادةCore. صورةr3وحدها معتمدة محليًا. لا رفع أوتحديثmax1؛ بانتظار اعتماد الإنسان. الأدلة PRIVATE/backup269-build-20261027-r1؛ الجولات منظفة ولاreplay.
+
+## 27 أكتوبر 2026 — قبول إصلاح النسخ والتاريخ محليًا
+
+[التنفيذ والاختبارات والحدود](BACKUP_RETENTION_FIX_LOCAL_20261027.md): اختبارات النطاق: tests/run_traffic_retention_lab.py وtests/run_backup_retention_fix_lab.py على قاعدة MariaDB اختبارية معزولة فقط. أُكملت أيضًا جولات الضغط والاستعادة الكاملة/القديمة والصيانة الأسبوعية وRADIUS الفعلية المختبرية؛ تفاصيل القياسات والإيصالات في التقرير. لا تشغيل تلقائي على عميل أو إعادة جولة مكتملة.
+
+## صورة 2.6.9 — قبول محلي فقط، 27 أكتوبر 2026
+
+[المصدر والبناء وفحوص التحديث والرجوع](REPORTS_269_BUILD_LOCAL_20261027.md): Web4bddb43f8cfb، من مرجع268المنشور مع إصلاحات مجمدة؛197ملفًا مطابقًا و15متغيرًا. نجحت74حالة على الصورة المترجمة وثلاثة سيناريوهات محرك معCore/DBثابتتين، ومحاسبة فعلية/نسخ/رجوع. لا نشر أوإتاحة أوإشعار أوتحديث عميل؛ الجولات منظفة والصورة محفوظة محليًا.
+
+## قبول التقارير الخفيفة — 27 أكتوبر 2026
+
+[العقد والفحوص والقياسات والحدود](REPORTS_COMPACT_VERIFICATION_20261027.md): آخر قراءة لكل جلسة وملخصات ربع ساعة بدل أرشفة كل تحديث؛ استكمال5500جلسة، تطابق لوحة التحكم، نسخة كاملة/قديمة وجيل الاستعادة، وRADIUSمختبري دون تغييرCore. نجحت74حالة معزولة و7عقود SQL وفحوص MariaDBالأصلية؛ لا بناء أو نشر269ولا تحديث عميل.
+
+## 26 أكتوبر 2026 — نجاح 2.6.8 على سيرفر التجربة
+
+[القبول والميزات والحدود](FEATURES_268_POSTUPDATE_20261026.md): Web/controller506267e0299e وCorebc4d46441080؛ المهمة0c4ec0dbb8f04bb9808686b1d3cb9fd8 completed100% دون فشل/رجوع، وختم وترخيص ومخطط features268 سليمة. تسعة GET200 تثبت صفحات الميزات الجديدة والترتيب للحزم، والبقية مثبتة بعقود القوالب. DB/L2TP/Autoheal ثابتة والنسخة الاحتياطية متحققة. لا حسابات أو radacct في قراءتين؛ لا قبول NAS حي أو PDF ببيانات فعلية. الدليل PRIVATE/features-268-postupdate-20261026-r1؛ لا replay/monitoring أو عميل آخر.
+
+## 26 أكتوبر 2026 — مرشح الميزات 2.6.8 محلي، الإتاحة محجوبة
+
+[التحضير والفحوص والمانعان](FEATURES_268_PREPARATION_20261026.md): أكد الإنسان تضمينMAC. بُنيتWeb8e85540a9532/Corebc4d46441080 محليًا، وتسع مجموعات ومعاينة compiledوترحيل متكرر وRADIUS/64بت اصطناعي ناجحة. الرجوع الفعلي للزوج السابق قبِلMACغيرمسموح؛ كما أنprotocol2لاينفذSQLصريحًا. لاRegistry/offer/serverتغيير، ولايجوزوصفهكتحديثمرسل. الأدلة PRIVATE/features-268-release-20261026-r1، والfixturesأزيلت؛ لاreplay/monitoring.
+
+## 26 أكتوبر 2026 — استكمال المحرك 2.6.7 متاح لسيرفر التجربة فقط
+
+[الإتاحة والقبول وحدود التنفيذ](ENGINE_HANDOFF_LAB_OFFER_20261026.md): الصورة330f4a57f524 تحت2.6.7-engine-handoff-r1، بلا تغييرlatest/المثبت. المتحكم الحالي أعاد current2.6.6/latest2.6.7/has_update=true، دون مهمة جديدة أو تثبيت. جميع الخدمات العاملة ثابتة. التثبيت للإنسان ويشمل Web ثم المتحكم والتحقق منprotocol2؛ لاSQL/Core/DB أو عملاء آخرون. الأدلة PRIVATE/engine-handoff-publish-20261026-r1؛ لاreplay/monitoring.
+
+## 26 أكتوبر 2026 — جسر المحرك 2.6.6 متاح لسيرفر التجربة فقط
+
+[الإتاحة والتحقق والحدود](ENGINE_BOOTSTRAP_LAB_OFFER_20261026.md): رُفعت صورة b394b21bc371 تحت الوسم المستقل2.6.6-engine-bootstrap-r1، دون تغييرlatest/المثبت. هُيئت قناة سيرفر التجربة بتفويض صريح مع Web2.6.5 نفسها وحفظ السابقة وثبات الخدمات الأربع الأخرى. العرض موجّه له وحده، has_update=true، current2.6.5/latest2.6.6 وidle؛ التثبيت للإنسان ولم يبدأ. المرحلة الأولى لا تستكمل ترقية المتحكم وحدها. الدليل PRIVATE/engine-bootstrap-publish-20261026-r1؛ لا replay أو monitoring.
+
+## Session history point6 —26October2026
+
+`tests/run_session_history_lab.py --run` is a read-only native virtual-relation suite restricted to existing `history266_preview`: ten groups including53-row full export/pagination, four-store dedup, missing counters, names, PPPoE, ownership and HTTP guards plus real offline multipage PDF.16 product/network checks pass on Linux. Legacy visibility fixture remains32/33 due missing owned view, not acceptance. [Evidence and limits](SESSION_HISTORY_DEV_20261026.md).
+
+## Product brand point5 —26October2026
+
+Ten isolated `tests.test_product_protection` checks pass after adding the shared macro dependency to the license fixture. Eight read-only HTTP/render checks on development clone and one synthetic offline PDF verify defaults, tenant override with retained publisher credit, and print appearance. Both themes and mobile390 visually checked; no financial/router/installer replay. [Evidence and limits](PRODUCT_BRAND_DEV_20261026.md).
+
+## Consumption retention point4 —26October2026
+
+run_traffic_retention_lab.py --run strictly requires the separate traffic266_history_fixture cloned DB. Sixteen native cases cover account/batch/subscriber deletion, invoices/sales, reseller/global reports and chart/top10 stability, pruning/archive/replay, anonymous sessions, NULL counters, injected native failure/rollback, conflicting metadata, concurrency, rename, reassigned usernames, repeated schema, legacy-restore clear and replacement-capture rollback. Existing42 pure,9 virtual network HTTP and5 package cases pass. No old financial driver replay or live router calls. [Results/limits](TRAFFIC_HISTORY_RETENTION_DEV_20261026.md).
+
+## Network top10 consumers —26October2026
+
+run_network_traffic_lab.py --run now has9 passing native cases. New virtual rows test top10 truncation after full aggregation and selected filters, numeric byte order, multi-point users, archive deduplication, missing counters and reseller visibility. Six pure network checks pass; actual isolated clone top10 usernames/byte sums/session counts match independent SQL. No new fixture seeds. [Contract](NETWORK_TRAFFIC_DEV_20261026.md).
+
+## Network consumption point3 —26October2026
+
+[Contract and limits](NETWORK_TRAFFIC_DEV_20261026.md). test_network_traffic.py has6 pure cases; run_network_traffic_lab.py --run has7 native MariaDB/HTTP cases, restricted to existing sales266_fixture and using virtual SQL accounting relations rather than seeds. It disables worker startup and auto-heal; deliberately tests503 on unavailable accounting. All27 network/sales/list pure checks and four existing native list cases pass. Actual isolated clone102495 sessions reconciles independent count/byte totals; browser both themes/mobile checked. No live router or financial packet driver replay.
+
+## Administrative list sorting —26 October2026
+
+test_list_sort.py: six pure checks cover allowlists/injection fallback, numeric values, missing counters, stable ties/pagination and online/date ordering. run_list_sort_lab.py --run is restricted to existing sales266_fixture, disables workers, activation sync and DB auto-heal in its process; four native cases cover every heading/direction, SQL order before LIMIT, complete-result derived sorting and virtual subscriber rows without seeds. Current legacy SQLite subscriber safety suites hit MAC-policy fixture gaps and missing Node; their aggregate run is not acceptance. The sort-specific native/pure checks and15 sales contracts pass.
+
+## Sales names and today default —26 October2026
+
+Fifteen pure reporting cases and five read-only package-grouping lab cases pass. Added default-local-day/explicit-all checks, current NAS name/blank shortname/IP fallback through virtual SQL catalogs, and all-time filter catalog preservation. No NAS or ledger writes; isolated sales266_fixture only.
+
+## Combined package rows —26 October2026
+
+run_sales_package_grouping_lab.py --run performs4 read-only cases on sales266_fixture, including mixed-protocol virtual ledger/ranges/rendering, grouping reconciliation,16 sort combinations and owner scope. No writes/seeds. [Results](SALES_SOURCE_HISTORY_DEV_20261026.md).
+
+## Sales column sorting —26 October2026
+
+[Contract and evidence](SALES_SOURCE_HISTORY_DEV_20261026.md): test_sales_reporting.py now has14 pure cases, including allowlisted ordering and stable ties. Read-only native checks covered48 sort combinations and actual-clone full-result pagination; CSV/XLSX, browser persistence, reset and themes verified. No financial seed replay.
+
+## Historical sale source enrichment —26 October2026
+
+[Results and limits](SALES_SOURCE_HISTORY_DEV_20261026.md): test_sales_source_history.py has15 pure cases; run_sales_history_lab.py and run_sales_history_http_lab.py require the isolated sales266_fixture DB and explicit --run. Fourteen native cases completed with one timing boundary fixed/rechecked, six HTTP/export checks and four further capture/concurrency checks pass. Never replay marked financial seeds. No new RADIUS round.
+
+## المبيعات — مراجعة الفلاتر والتصميم،25 أكتوبر2026
+
+`test_sales_reporting.py` يتضمن11عقدًا معزولًا، منها الشهر العربي والنهاية الحصرية وفصل المجهول. `run_sales_ui_lab.py --run` يحتاجMariaDBاصطناعية باسمsales266_fixture ومجلد/evidenceمنفصل؛10حالات للكتالوج دون بيع والمحاسبة المؤرشفة والفترات والملكية ومبالغ متوقعة، ولا تشغيله على5090أوقاعدةعميل. لا يعيدشراءأوتفعيلًا. [عقد الرسم وحدوده ونتائجالجولة](SALES_REPORT_LOCAL_20261025.md). فحوصالتصدير4قراءةمنالتطبيقالكاملباستخدامترخيصمختبري؛فحوصالواجهةالثيمينوسطحالمكتبوالجوال.
+
+## 25 أكتوبر 2026 — قبول CLIENT_AS بعد التبديل المفوض
+
+[القياسات وحدودها](CLIENT_AS_UPDATE_20261025.md): على الزوج الجديد الفعلي ثبت50Access-Acceptطبيعيًا و50جلسة جديدة و118صفًا محدثًا بعدوقتبدءCore، معترخيصمتجددوآخر77NAS/SQLمطابقة و73صفًا متقدمًا دونتناقص/تغيرUID/إعادةفتح بالعينة. حُفظت هويات239175صفًا أصليًا/7جداول، وخمس حصصNULLمتغيرة فسرت بتفعيل طبيعي منمقارنةالنسخةالمأخوذةقبلالتبديل. ليست مصادقةاختبارية أوحزمًامصطنعة. المراقبة24ساعةجارية؛ لا تنسب انتهاءها للقبولالأولي. لا تعادمشغلاتالنسخوالترحيلوالتبديلأوالجولاتالسابقة.
+
+## 24 أكتوبر 2026 — تصحيح فاتورة البوابة وسجل التعديل
+
+[القبول والحدود](PORTAL_INVOICE_AUDIT_FIX_20261024.md):30اختبارًا معزولًا و29حالةMariaDB. test_subscriber_audit يفحص العرض والترجمة وإخفاء الأسرار وescaping؛ run_portal_invoice_audit_lab.py مشغلصريح لقاعدةمصطنعةفقط، يشمل ذريةالفاتورةوالخصموالعقدوRADIUSوالتزامنوسجلًاواحدًاوالتراجع. لاNASأوصورةجديدةأونشر،ولاتعادجولةماليةمكتملة.
+
+## 26 أكتوبر 2026 — قبول صور تهيئة المحرك محليًا
+
+[البناء والفحوص وحدودها](ENGINE_PREPARATION_BUILD_LOCAL_20261026.md):61حالة على كل صورة مجمعة و16حالة إعادة على المرجع2.6.5، مع helper Docker فعلي. انتقال مرحلي وUnix protocol2 وإعادة تشغيل ورجوع حقيقي و22فحص حزمة RADIUS وSQL64بت في تركيبي local/domain اصطناعيين. فشلا المتحكم وضياع create مثبتان بإيصالات مستقلة. لا ترخيص ناشر حقيقي أو NAS خارجي أو سحب Registry. فُصلت تهيئة إشعارات النسخ السابقة للتبديل عن checkpoint، واستبعدت علامات autoheal الموروثة من fixtures. لا تعاد جولة مالية مكتملة؛ الأدلة والمشغلات وبصمات المصدر خاصة.
+
+## 24 أكتوبر 2026 — اختبارات البوابة والهوية والدورة المتبقية
+
+[النتائج والحدود](SUBSCRIBER_EDIT_REMAINING_TESTS_20261024.md): صورتا Web/Core المحليتان دون إعادة بناء، وقواعد MariaDB جديدة وشبكات داخلية وRADIUS فعلي. مقارنة المدير والبوابة، ثماني انتقالات بوابة مع الترحيل وبدونه، كلمات المرور والاسم، وbaseline أثناء استمرار المحاسبة. لا RouterOS فعلي؛ NAS/CoA في نجاح التغيير أثناء الجلسة محاكيان. نقص فاتورة شراء البوابة مثبت ولم يُصلح. الأدلة والمشغلات ذات markers خاصة خارج Git؛ لا replay لجولة مالية مكتملة.
+
+## 24 أكتوبر 2026 — تثبيت حاويات التسوية
+
+`test_settlement_container_binding.py` اختبار معزول دون استيراد التطبيق أوSQL: مصفوفةالمحلي والدومين وأسماءالمشاريعالمخصصة وأدوارWeb/Core، الهويةالموروثة والمخصصة، الحاوياتالقديمة، المستأجرالأجنبي، تعددالعاملين، توقفCore، فشلSocket، تبدلالملكيةأثناءInspect، وmetadataوكيلالدومين. يستدعيGETفقطويتحققمنرفضالحالةالملتبسةدونتعطيلحارسالتسوية. يشغلمع `test_autoheal_container_binding` و`test_subscriber_admin_safety` للفحوصذاتالصلة. اختبارالصورةمعDockerحقيقيوقاعدةMariaDBمصطنعةيوثقفيتقريرالتطبيقالخاص؛لايشغلعلىقاعدةعميلولايفهمنجاحالاختبارتفويضنشر.
+
+[القبول والحدود](SETTLEMENT_CONTAINER_BINDING_20261024.md):61اختبارمصدر و18حالةMariaDB واختبارالنماذجالفعليةبهويةDockerحقيقية؛لااختبارNASحي أوعملياتعلىمشترك5090الحقيقي.
+
+## 24 أكتوبر 2026 — تعديل المشترك محليًا
+
+`test_subscriber_edit.py` أربع حالات HTTP معزولة، و`run_subscriber_edit_lab.py --run` يتطلب اسم قاعدة يبدأ بـ`subscriber_edit_fixture_` وMariaDB اصطناعية مفوضة. لا تشغله على قاعدة عميل.18حالة فعلية تشمل مصفوفة الباقات8، الهوية والتاريخ والإيصالات والتزامن والأرشفة والعدادات المتأخرة. يوضح التقرير [النتائج والحدود](SUBSCRIBER_EDIT_LOCAL_RESULTS_20261024.md)، ويفصل رسائل FreeRADIUS الفعلية عن محاكاة NAS. المعاينة تحتوي بيانات صناعية وعمال الخلفية معطلون، ولا تعني صورة مرفوعة أو قبول راوتر حي. فحوص subscriber_admin_safety/list وimport_quota وbatch_actions_repair معزولة ومحددة الصلة.
 
 ## 24 أكتوبر 2026 — مزامنة مستودع 2.6.5
 
@@ -215,7 +397,7 @@ R9 يختلف عن R8 في وحدة autoheal_service الثنائية فقط و�
 قراءة المدير داخل الطلب: `python -m unittest discover -s tests -p test_manager_request_cache.py` يشمل10حالات معزولة بلا استيراد التطبيق/DB:100فحص بقراءة واحدة، إعادة قراءة الإيقاف والدور والمنح في الطلب التالي، تغيير الهوية والخروج، حماية نسخة الكاش من تعديل المستهلك، رفض فقد الحساب/DB، منع إعادة الاستخدام في سياق تطبيق ممتد، ودومينين بحساب IDمتطابق. الفحوص ذات الصلة permission_catalog9،permission_visibility24،reseller_ownership34. أدلة قياس الأداء قبل/بعد في work/manager-cache-20261013/reports، بالمسارات عينها وتسلسل3قراءات؛ لا ضغط أو عمليات عميل.
 
 
-تنبيه تفعيل النسخ في لوحة التحكم: `python -m unittest discover -s tests -p test_dashboard_backup_notice.py`؛8حالات معزولة للعلم المحفوظ بصيغ1/true/yes/on، التعطيل والإعداد الافتراضي، اختفاء التنبيه بعد التفعيل، منع الموزع أو من لا يملك عرض النسخ وإعداداتها، وعدم إصدار حكم عند تعذر قراءة الإعدادات. التنبيه رابط فقط ولا ينفذ تفعيلًا أو نسخًا أو طلبات دورية. تستخدم القراءة الموجودة في inject_global_settings؛ لا استعلام إضافي.
+تنبيه تفعيل النسخ في لوحة التحكم: `python -m unittest discover -s tests -p test_dashboard_backup_notice.py`؛10حالات معزولة للعلم المحفوظ بصيغ1/true/yes/on، التعطيل والإعداد الافتراضي، اختفاء التنبيه بعد التفعيل، منع الموزع أو من لا يملك عرض النسخ وإعداداتها، وعدم إصدار حكم عند تعذر قراءة الإعدادات. التنبيه رابط فقط ولا ينفذ تفعيلًا أو نسخًا أو طلبات دورية. تستخدم القراءة الموجودة في inject_global_settings؛ لا استعلام إضافي.
 
 
 سياسة أول استخدام المرحلة الأولى: راجع [FIRST_USE_POLICY](FIRST_USE_POLICY.md). اختبار التكامل tests/first_use_policy_integration.py يتطلب قاعدة firstpolicy_test مستنسخة محليًا وFreeRADIUS معزولًا، ويمنع استخدام اسم قاعدة العملاء. لا يبدأ التطبيق. الأدلة في work/first-use-policy-20261013/reports في مساحة الجولات؛ 17 مجموعة تكامل وCHR7.20.8 وفحص محلي و113 اختبارًا معزولًا، مع الحدود المذكورة في التقرير.
@@ -266,3 +448,34 @@ R9 يختلف عن R8 في وحدة autoheal_service الثنائية فقط و�
 ## فحص إصلاح الحزم — 24 أكتوبر 2026
 
 `python -B -m unittest discover -s tests -p test_batch_actions_repair.py -v` يشغل 22 حالة مصطنعة دون app factory أو NAS. يشمل صلاحية كل إجراء وحارس الملكية وHTTP والمحفظة والصفر والاسترداد النسبي والخصم الأصلي والتكرار وrollback وحفظ التاريخ وحالات pending والنتيجة الجزئية. انظر [تفاصيل القبول وحدود اختبارات MariaDB والمتصفح](VOUCHERS.md).
+## قبول تعديل الكرت وبناء5090 — 24 أكتوبر 2026
+
+نجح58اختبارًا معزولًا من test_voucher_edit وtest_subscriber_audit وtest_subscriber_edit وtest_subscriber_admin_safety وtest_batch_actions_repair. `tests/run_voucher_edit_lab.py` يتطلب MariaDB اصطناعية مستقلة بعلامة fixture؛ لا يدخل الاختبارات الافتراضية ولا يجوز توجيهه إلى بيانات العميل. قبول الصور المجمعة49حالةMariaDB:18مشترك+20كرت+11فاتورة/سجل، مع Flask كامل وFreeRADIUS فعلي معزول. NAS/CoA أثناء الجلسة محاكيان صراحة.
+
+اختبر الأسماء السابقة، حفظ UID والعدادات والتاريخ والمبيعات، كلمات المرور وPIN، الانتهاء وMAC، الباقات المحدودة/المفتوحة والترحيل، الإعادة والتزامن والفشل والملكية وCSRF، والأرشفة والاستعادة. [التقرير وهوية الصور والتطبيق المحلي وحدود الدليل](VOUCHER_EDIT_LOCAL_RESULTS_20261024.md). لا تعاد الجولات المكتملة؛ لا Registry/Git push أو تحديث دومين.
+## قبول NAS فعلي — 24 أكتوبر 2026
+
+[التقرير](REAL_NAS_ACCEPTANCE_20261024.md): CHR7.20.8 مع Hotspot وPPPoE،15جلسة/15UID وStart/Interim/Stop فعلية، وتغييرات الهوية والباقات والترحيل والخصم والفواتير والرفض الآمن والسرعة. لا mocks أو حزم محاسبة مصطنعة في الجولة. الأدوات خاصة خارج المستودع وسياق البناء، والحسابات التجريبية موقوفة مع حفظ تاريخها. لا تعاد الجولات المكتملة ولا تفهم نتيجتها تفويض نشر؛ الحمل الطويل ونفاد الحصة الكبير والتحويل فوق4GiB خارج تغطيتها الفعلية.
+## 25 أكتوبر 2026 — النقطة الأولى من2.6.6
+
+[العقد والنتائج والحدود](MULTI_MAC_LOCAL_20261025.md):82فحص مصدر محدد الصلة، و12MariaDBو8HTTPعلى الصورة المجمعة النهائية، وقبولRADIUSمتزامن ومحاسبةStart/Interim/StopوCHAPفي مختبر مصطنع معزول. `test_account_mac_policy.py` معزول؛ `run_account_mac_lab.py --run` و`run_account_mac_http_lab.py --run` يرفضان أيDB_NAMEغيرmac266_fixture. NAS/التسوية محاكيان في فحوص الخدمة؛ لا تستنتج قبولRouterOSحيًا. المعاينة البصرية تشمل الثيمين والجوال.
+## المبيعات 2.6.6 النقطة2 — محلية فقط
+
+[الدليل وحدود التحقق](SALES_REPORT_LOCAL_20261025.md): test_sales_reporting.pyعقود معزولة9؛ run_sales_reporting_lab.py --runيقبلsales266_fixtureفقط ويختبر11حالةMariaDB؛ run_sales_http_lab.py --runيقبلالقاعدةنفسهاويختبر5حالاتالتطبيقوالملكيةوالتصديروالفواتير. نجحتعلىالمصدروعلىالصورةالمجمعةالنهائية. إيجارSQLوترخيصHTTPومحللCoreمحقونةفيالاختباراتالمالية؛nativeFreeRADIUSوالعدادات/Stopمثبتةبجولةمعزولةمنفصلة4حالات/24حزمةبلاRouterOSفعلي. لااستيرادweb.appللفهرسةولااختباراتعلىالعميل. جولاتSQLوالحزم والنسخ والتبديل محفوظةبـmarkersخاصةولا تعاد عميانيًا.
+
+## تطابق لوحة التحكم والتقرير — 26 أكتوبر 2026
+
+`tests/run_dashboard_reporting_lab.py --run` يتطلب قاعدة MariaDB الاصطناعية `sales266_fixture` ويجري سبع حالات قراءة فقط. نجحت أيضًا 31 حالة معزولة وتسع حالات الشبكة وخمس تجميع الباقات ومقارنة نسخة التطوير. [الحدود والتفاصيل](DASHBOARD_REPORT_PARITY_DEV_20261026.md).
+
+
+## 27 أكتوبر 2026 — المعاينة الواقعية الأحدث
+
+استُبدل تحويل استهلاك اليوم إلى أعمدة بنقاط متصلة، وأعيدت الأرقام للإنجليزية. توزيع ساعي/يومي/شهري من فروقات عينات مستقلة، مع حفظ غياب القياس. معاينة 5124 بثلاثة أجهزة و12 نقطة و24 حسابًا وحركة اصطناعية متجددة؛ تفاصيل العقد واختلافه عن إجمالي الجلسات التاريخي والقبول وحدود النشر في [التقرير](REPORTS_REALISTIC_PREVIEW_20261027.md). هذه الفقرة أحدث من قبول معاينة 5123 أعلاه.
+
+
+## 27 أكتوبر 2026 — تقرير جاهزية إصلاحات التقارير: غير جاهز للنشر
+
+[نتائج الفحوص والموانع](REPORTS_PREFLIGHT_20261027.md):72حالة معزولة ناجحة، واستعادة105000عينة، وFreeRADIUSمع64بت وSQLوWeb/Coreثابتة في مختبر. أخفقت تغطية5500جلسة، والنطاق المفتوح، واستعادة النسخة القديمة بواسطةWebالقديمة؛ نمو العينات والقراءة واختلاف لوحة التحكم ومسار الرقم المتساوي تمنع اعتماد الرفع. لا تعديل منتج/عميل أو نشر أو إشعار في هذه الجولة؛ الجولات الخاصة مكتملة ومنظفة ولا تعاد.
+## 2.7.0 resource acceptance — 2026-10-28
+
+[Local results and limits](DEVELOPMENT_270_LOCAL_20261028.md) distinguish source/unit checks, actual isolated MariaDB imports/restores, PDF renderer checks and browser preview. tests/test_resource_limits_270.py covers inter-process admission, owner cancel, metadata cache isolation/invalidation and quote-safe bounded SQL. tests/test_pdf_limits_270.py requires the Linux renderer runtime and tests complete ordering, cancellation/recovery, timeout/RSS rejection and no partial output on a failed part. Use a writable disposable STORAGE_DIR with a read-only source mount. Native lab fixtures must retain their existing explicit DB guards; do not rerun completed business import/restore rounds indiscriminately. No production NAS/auth acceptance is claimed by these tests.

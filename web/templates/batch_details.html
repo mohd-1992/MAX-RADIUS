@@ -326,6 +326,7 @@
                         <td class="py-3.5 px-5 text-xs text-slate-400 font-mono">{{ c.expires_at or '-' }}</td>
                         <td class="py-3.5 px-5 text-center">
                             <div class="flex items-center justify-center gap-1.5">
+                                {% if has_permission('detail.vouchers.card_edit') %}<button type="button" onclick="openAccountMacPolicy('voucher', {{ c.id }})" class="p-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded-lg text-xs transition border border-blue-500/30" title="الماكات المسموحة"><i class="fa-solid fa-list-check"></i></button>{% endif %}
                                 <button type="button" onclick="openEditCardModal({{ c.id|tojson|forceescape }}, {{ c.username|tojson|forceescape }}, {{ c.password|tojson|forceescape }})" class="p-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 rounded-lg text-xs transition border border-blue-500/30 cursor-pointer" title="تعديل الكرت">
                                     <i class="fa-solid fa-pen-to-square"></i>
                                 </button>

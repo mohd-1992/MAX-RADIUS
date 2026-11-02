@@ -1,0 +1,109 @@
+{
+  "status": "root_cause_confirmed_local_prototype_passed",
+  "production_modified": false,
+  "product_fix_implemented": false,
+  "image_pushed": false,
+  "web_image": "sha256:eab5cd4ff44303a44110b94c843a64045add3db6cccbfab843084d61109f94cc",
+  "archive_sha256": "3e089e3d121fbe8d75e81e90e6f4e994f4c4b52fb6f30925a618ecff48fbd3ed",
+  "database_version": "10.11.19-MariaDB-ubu2204",
+  "cause": "foreign SQL DEFINER in native dump views; import bypasses completion and target-license restoration on failure",
+  "cases": [
+    {
+      "case": "shared-original",
+      "restore_success": false,
+      "seconds": 79.79528098198352,
+      "cards": 31080,
+      "subscribers": 50,
+      "sales": 25145,
+      "triggers": 0,
+      "open_accounting": 164,
+      "mac_view_placeholder": true,
+      "restore_audit": 0,
+      "error_1227": true,
+      "error_1449": false,
+      "target_identity_preserved": null
+    },
+    {
+      "case": "root-control",
+      "restore_success": false,
+      "seconds": 112.652119624021,
+      "cards": 31080,
+      "subscribers": 50,
+      "sales": 25145,
+      "triggers": 0,
+      "open_accounting": 164,
+      "mac_view_placeholder": false,
+      "restore_audit": 0,
+      "error_1227": false,
+      "error_1449": true,
+      "target_identity_preserved": null
+    },
+    {
+      "case": "shared-sanitized",
+      "restore_success": true,
+      "seconds": 134.97061073800432,
+      "cards": 31080,
+      "subscribers": 50,
+      "sales": 25145,
+      "triggers": 17,
+      "open_accounting": 0,
+      "mac_view_placeholder": false,
+      "restore_audit": 1,
+      "error_1227": false,
+      "error_1449": false,
+      "target_identity_preserved": true
+    },
+    {
+      "case": "shared-original-sentinel",
+      "restore_success": false,
+      "seconds": 100.66003127599834,
+      "cards": 31080,
+      "subscribers": 50,
+      "sales": 25145,
+      "triggers": 0,
+      "open_accounting": 164,
+      "mac_view_placeholder": true,
+      "restore_audit": 0,
+      "error_1227": true,
+      "error_1449": false,
+      "target_identity_preserved": false
+    },
+    {
+      "case": "shared-sanitized-full",
+      "restore_success": true,
+      "seconds": 119.93334156300989,
+      "cards": 31080,
+      "subscribers": 50,
+      "sales": 25145,
+      "triggers": 17,
+      "open_accounting": 0,
+      "mac_view_placeholder": false,
+      "restore_audit": 1,
+      "error_1227": false,
+      "error_1449": false,
+      "target_identity_preserved": true
+    }
+  ],
+  "sequence_audit": {
+    "filled_previously_null": 1128,
+    "changed_existing_ids": 0,
+    "balance_mismatches": 0,
+    "username_mismatches": 0,
+    "card_id_mismatches": 0
+  },
+  "payload_audit": {
+    "changed_sql_lines": 6,
+    "all_changes_are_ddl_definer_only": true,
+    "restored_logo_sha256_matches": true,
+    "all_other_archive_members_exact": true
+  },
+  "cleanup": {
+    "removed_containers": 6,
+    "removed_volumes": 1,
+    "removed_networks": 1,
+    "owned_remaining": 0,
+    "baseline_containers": 998,
+    "baseline_ids_still_present": 998
+  },
+  "report": "docs/RESTORE_DEFINER_ROOT_CAUSE_LOCAL_20261101.md"
+}

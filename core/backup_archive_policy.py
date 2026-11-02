@@ -17,9 +17,15 @@ def safe_member(name):
 def validate_archive(path):
     path=Path(path)
     if path.is_symlink() or not path.is_file():raise ValueError('ملف النسخة غير صالح.')
-    if path.name.endswith('.sql'):return {'sql'}
-    seen=set();payload=set()
-    def check(name,regular,directory):
+    if path.name.endswith('.sql'):
+        if path.stat().st_size>8*1024**3:raise ValueError('ملف SQL يتجاوز 8 GiB.')
+        return {'sql'}
+    seen=set();payload=set();expanded=0
+    def check(name,regular,directory,size):
+        nonlocal expanded
+        expanded+=size
+        if expanded>8*1024**3 or len(seen)>=100000:
+            raise ValueError('النسخة تتجاوز 8 GiB مفكوكة أو 100000 عضو؛ يلزم استعادة إدارية مخططة.')
         normalized=safe_member(name).as_posix()
         if name.rstrip('/')!=normalized:raise ValueError('مسار غير قياسي في النسخة.')
         if normalized in seen:raise ValueError('أعضاء مكررة في النسخة.')
@@ -30,12 +36,12 @@ def validate_archive(path):
     if path.name.endswith(('.tar.gz','.tgz')):
         with tarfile.open(path,'r|gz') as archive:
             for member in archive:
-                check(member.name,member.isfile() and not member.issparse(),member.isdir())
+                check(member.name,member.isfile() and not member.issparse(),member.isdir(),member.size)
     elif path.name.endswith('.zip'):
         with zipfile.ZipFile(path) as archive:
             for member in archive.infolist():
                 mode=stat.S_IFMT(member.external_attr>>16)
-                check(member.filename,not member.is_dir() and mode in (0,stat.S_IFREG),member.is_dir() and mode in (0,stat.S_IFDIR))
+                check(member.filename,not member.is_dir() and mode in (0,stat.S_IFREG),member.is_dir() and mode in (0,stat.S_IFDIR),member.file_size)
     else:raise ValueError('صيغة النسخة غير مدعومة.')
     if not payload:raise ValueError('النسخة لا تحتوي قاعدة بيانات قابلة للاستعادة.')
     return payload

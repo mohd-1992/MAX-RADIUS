@@ -63,6 +63,8 @@ def validate(row, data):
     if service not in ('hotspot','pppoe'):
         raise ValueError('اختر Hotspot أو PPPoE.')
     mac=str(data.get('mac_binding',row.get('mac_binding')) or '').strip().upper().replace('-',':')
+    from services.account_mac_service import reject_legacy_mac_change
+    reject_legacy_mac_change('subscriber', row, mac)
     if mac and not re.fullmatch(r'(?:[0-9A-F]{2}:){5}[0-9A-F]{2}',mac):
         raise ValueError('عنوان MAC غير صالح.')
     ip=str(data.get('static_ip',row.get('static_ip')) or '').strip()
@@ -98,7 +100,7 @@ def _available(conn, subscriber_id, old_username, new_username):
             if owner and int(owner['subscriber_id'])!=int(subscriber_id):
                 raise ValueError('الاسم مرتبط بتاريخ مشترك آخر ولا يمكن نقله لهذا الحساب.')
         if new_username.casefold()!=old_username.casefold():
-            for table in ('radacct','radacct_archive','wisp_imported_session_history'):
+            for table in ('radacct','radacct_archive','wisp_imported_session_history','wisp_traffic_history'):
                 cur.execute(adapt_query(f'SELECT username FROM {table} WHERE LOWER(username)=LOWER(?) AND (account_subscriber_id IS NULL OR account_subscriber_id<>?) LIMIT 1',conn),(new_username,subscriber_id))
                 if cur.fetchone():raise ValueError('الاسم الجديد له سجلات اتصال غير مرتبطة بهذا المشترك؛ اختر اسمًا آخر.')
             cur.execute(adapt_query('SELECT id FROM wisp_loyalty_wallets WHERE LOWER(username)=LOWER(?)',conn),(new_username,))
@@ -109,7 +111,7 @@ def _claim_history(conn, subscriber_id, old, new):
     with conn.cursor() as cur:
         for name in (old,new):
             cur.execute(adapt_query('INSERT INTO wisp_subscriber_names(username,subscriber_id) VALUES(?,?) ON DUPLICATE KEY UPDATE subscriber_id=VALUES(subscriber_id)',conn),(name,subscriber_id))
-        for table in ('radacct','radacct_archive','wisp_imported_session_history'):
+        for table in ('radacct','radacct_archive','wisp_imported_session_history','wisp_traffic_history'):
             cur.execute(adapt_query(f'''UPDATE {table} SET account_subscriber_id=?,account_username=?
                 WHERE account_subscriber_id=? OR (LOWER(username)=LOWER(?) AND account_subscriber_id IS NULL)''',conn),
                         (subscriber_id,new,subscriber_id,old))
@@ -142,13 +144,15 @@ def edit_subscriber(subscriber_id, data, actor='admin', can_change_expiry=False)
     with db_session() as conn:_available(conn,subscriber_id,row['username'],desired['username'])
     from services.renewal_settlement_service import settled_account,wait_for_final_accounting
     from services.online_policy_service import local
-    with (settled_account(row['username']) if sensitive else nullcontext()):
+    with (settled_account(row['username'], identity_change=True) if identity_change else
+          settled_account(row['username']) if sensitive else nullcontext()):
         previous=receipt(operation_id,subscriber_id,actor,digest)
         if previous:return previous
         if identity_change:
             from services.nas_session_settlement import freeze_and_disconnect
+            session_ids = tuple(local.snapshot)
             freeze_and_disconnect(local.snapshot,include_ppp=True)
-            wait_for_final_accounting(row['username'])
+            wait_for_final_accounting(row['username'], session_ids=session_ids)
         with db_session() as conn:
             with conn.cursor() as cur:
                 cur.execute(adapt_query('SELECT *,CURRENT_TIMESTAMP AS checked_at FROM wisp_subscribers WHERE id=?'+(' FOR UPDATE' if is_mysql_conn(conn) else ''),conn),(subscriber_id,))

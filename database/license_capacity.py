@@ -40,26 +40,41 @@ BEGIN
  DECLARE mode_name VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
  DECLARE used_slots INT DEFAULT 0;
  DECLARE existing_slot INT DEFAULT 0;
+ DECLARE account_cap INT DEFAULT 0;
+ DECLARE account_slots INT DEFAULT 0;
  DECLARE EXIT HANDLER FOR SQLEXCEPTION RETURN -1;
  IF p_username='healthcheck' AND p_source IN ('127.0.0.1','::1') THEN RETURN 1; END IF;
  IF p_key IS NULL OR LENGTH(p_key)<>32 THEN RETURN -1; END IF;
  -- The UPDATE holds this row lock until the SELECT statement transaction commits.
  UPDATE wisp_license_runtime_state SET id=id WHERE id=1;
  IF fn_check_license_auth(p_username,p_nasip,p_station) IS NOT NULL THEN RETURN -1; END IF;
+ IF fn_account_mac_allowed(p_username,p_station)<>1 THEN RETURN 3; END IF;
  SELECT max_active_sessions,license_mode INTO cap,mode_name FROM wisp_license_runtime_state WHERE id=1;
- IF mode_name='legacy_subscribers' THEN RETURN 1; END IF;
- IF cap IS NULL OR cap<0 THEN RETURN -1; END IF;
- IF cap=0 THEN RETURN 1; END IF;
+ IF mode_name='active_sessions' AND (cap IS NULL OR cap<0) THEN RETURN -1; END IF;
  SELECT COUNT(*) INTO existing_slot FROM wisp_session_reservations r
  LEFT JOIN radacct a ON a.radacctid=r.radacctid
  WHERE r.session_key=p_key AND r.username=p_username AND r.nasipaddress=p_nasip
  AND ((r.radacctid IS NULL AND r.expires_at>NOW()) OR
  (a.acctstoptime IS NULL AND COALESCE(a.acctupdatetime,a.acctstarttime)>=NOW()-INTERVAL 5 MINUTE));
  IF existing_slot>0 THEN RETURN 1; END IF;
+ -- The same singleton lock protects the account's pending seats too. A MAC
+ -- allow-list never increases Simultaneous-Use, including unlimited licenses.
+ SELECT COALESCE(
+   (SELECT MIN(CAST(c.value AS UNSIGNED)) FROM radcheck c
+      WHERE c.username=p_username AND c.attribute='Simultaneous-Use'),
+   (SELECT MIN(CAST(c.value AS UNSIGNED)) FROM radgroupcheck c
+      JOIN radusergroup g ON g.groupname=c.groupname
+      WHERE g.username=p_username AND c.attribute='Simultaneous-Use'),0)
+ INTO account_cap;
+ SELECT (SELECT COUNT(*) FROM radacct WHERE username=p_username
+           AND acctstoptime IS NULL)
+       +(SELECT COUNT(*) FROM wisp_session_reservations WHERE username=p_username
+           AND {PENDING_RESERVATION_PREDICATE}) INTO account_slots;
+ IF account_cap>0 AND account_slots>=account_cap THEN RETURN 2; END IF;
  SELECT (SELECT COUNT(*) FROM radacct WHERE {ACTIVE_SESSION_PREDICATE})
  +(SELECT COUNT(*) FROM wisp_session_reservations WHERE {PENDING_RESERVATION_PREDICATE})
  INTO used_slots;
- IF used_slots>=cap THEN RETURN 0; END IF;
+ IF mode_name='active_sessions' AND cap>0 AND used_slots>=cap THEN RETURN 0; END IF;
  INSERT INTO wisp_session_reservations(session_key,username,nasipaddress,callingstationid,nasportid,reserved_at,expires_at,radacctid)
  VALUES(p_key,p_username,p_nasip,COALESCE(p_station,''),COALESCE(p_port,''),NOW(),NOW()+INTERVAL 5 MINUTE,NULL)
  ON DUPLICATE KEY UPDATE reserved_at=NOW(),expires_at=NOW()+INTERVAL 5 MINUTE,radacctid=NULL;

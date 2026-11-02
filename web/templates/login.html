@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" class="theme-light">
 <head>
+    {% from "components/product_brand.html" import logo as product_logo, credit as product_credit %}
+    {% include "components/product_brand_head.html" %}
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ network_name|default('MAX RADIUS') }} - تسجيل دخول الإدارة</title>
@@ -11,8 +13,10 @@
             const savedTheme = localStorage.getItem('wisp_theme') || 'light';
             if (savedTheme === 'dark') {
                 document.documentElement.classList.remove('theme-light');
+                document.documentElement.classList.add('dark');
             } else {
                 document.documentElement.classList.add('theme-light');
+                document.documentElement.classList.remove('dark');
             }
         })();
     </script>
@@ -149,9 +153,7 @@
                             <img src="{{ logo_url }}" alt="{{ network_name }}" class="h-16 max-h-16 w-auto max-w-[220px] object-contain block mx-auto">
                         </div>
                     {% else %}
-                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-2xl shadow-xl shadow-blue-500/25 border border-blue-400/30 mx-auto">
-                            <i class="fa-solid fa-tower-broadcast text-white"></i>
-                        </div>
+                        {{ product_logo() }}
                     {% endif %}
                 </div>
                 
@@ -247,7 +249,7 @@
                 <span>•</span>
                 <span>MikroTik CoA RFC 5176</span>
             </div>
-            <p>&copy; 2026 {{ network_name|default('MAX RADIUS') }}. جميع الحقوق محفوظة.</p>
+            <div class="mt-3">{{ product_credit(website=product_identity.website) }}</div>
         </div>
 
     </div>
@@ -283,10 +285,12 @@
             const isCurrentlyLight = document.documentElement.classList.contains('theme-light');
             if (isCurrentlyLight) {
                 document.documentElement.classList.remove('theme-light');
+                document.documentElement.classList.add('dark');
                 localStorage.setItem('wisp_theme', 'dark');
                 updateThemeControls(false);
             } else {
                 document.documentElement.classList.add('theme-light');
+                document.documentElement.classList.remove('dark');
                 localStorage.setItem('wisp_theme', 'light');
                 updateThemeControls(true);
             }

@@ -1,0 +1,20 @@
+{
+  "at_utc": "2026-11-01T05:54:53.400639+00:00",
+  "default_release": "2.6.9",
+  "images": {
+    "web": "mohd777/max-radius-web@sha256:eab5cd4ff44303a44110b94c843a64045add3db6cccbfab843084d61109f94cc",
+    "core": "mohd777/max-radius-core@sha256:9786df38bb3ce725c7a1f87a52b2db34ee90a0a221df29dd0331d95684a0a067"
+  },
+  "registry_accessible": true,
+  "settings_rpc_verified": true,
+  "creation_validator_verified": true,
+  "containers_unchanged": 7,
+  "bindings_unchanged": 5,
+  "panel_process_unchanged": true,
+  "active_jobs": 0,
+  "restarted_only": "max-host-r",
+  "created_tenants": 0,
+  "public_login_http": 200,
+  "origin_login_http": 200,
+  "inventory_catalog_verified": true
+}

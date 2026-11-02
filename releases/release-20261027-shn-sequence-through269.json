@@ -1,0 +1,59 @@
+{
+  "passed": true,
+  "identity": "shn.max-net.net",
+  "versions": [
+    "2.6.6",
+    "2.6.7",
+    "2.6.8",
+    "2.6.9"
+  ],
+  "actual_current_version": "2.6.5",
+  "actual_offered_version": "2.6.6",
+  "actual_release_id": "647a8e2efd12dbda1ac71d65db7acb6a",
+  "notes_match_approved": true,
+  "sequence_signed_feed_matrix": [
+    {
+      "current": "2.6.5",
+      "eligible": "2.6.6",
+      "signature_and_audience_verified": true,
+      "reported_engine_protocol": 1,
+      "hypothetical_reader_facts": true
+    },
+    {
+      "current": "2.6.6",
+      "eligible": "2.6.7",
+      "signature_and_audience_verified": true,
+      "reported_engine_protocol": 1,
+      "hypothetical_reader_facts": true
+    },
+    {
+      "current": "2.6.7",
+      "eligible": "2.6.8",
+      "signature_and_audience_verified": true,
+      "reported_engine_protocol": 3,
+      "hypothetical_reader_facts": true
+    },
+    {
+      "current": "2.6.8",
+      "eligible": "2.6.9",
+      "signature_and_audience_verified": true,
+      "reported_engine_protocol": 3,
+      "hypothetical_reader_facts": true
+    }
+  ],
+  "unprepared_268_blocked": true,
+  "other_audiences_unchanged": true,
+  "public_feed_excludes_chain": true,
+  "existing_releases_and_targets_unchanged": true,
+  "existing_containers_unchanged": true,
+  "no_apply_or_new_install_job": true,
+  "automatic_install": false,
+  "checked_at": "2026-10-27T18:19:54.287806+00:00",
+  "release_ids": {
+    "2.6.6": "647a8e2efd12dbda1ac71d65db7acb6a",
+    "2.6.7": "8b266912d2e5f54185a076c54c9c919f",
+    "2.6.8": "b30710eec772edfb8be85d64092729da",
+    "2.6.9": "e228c4a9dbf91e04f43e3145876aff3c"
+  },
+  "private_evidence": "PRIVATE/shn-sequence-269-offer-20261027-r1"
+}

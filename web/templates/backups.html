@@ -487,6 +487,7 @@
 
     // Submit Backup Settings
     function submitBackupSettings(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         const autoEnabled = document.getElementById('setting_auto_enabled').checked;
         const intervalDays = parseInt(document.getElementById('setting_interval_days').value) || 1;
@@ -502,11 +503,11 @@
         });
 
         if (autoEnabled && times.length === 0) {
-            Swal.fire('تنبيه', 'يرجى تحديد وقت واحد على الأقل للنسخ اليومي.', 'warning');
+            operationSwal.fire('تنبيه', 'يرجى تحديد وقت واحد على الأقل للنسخ اليومي.', 'warning');
             return;
         }
 
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ حفظ الإعدادات...',
             text: 'يتم تطبيق الإعدادات وتحديث جدولة APScheduler...',
             allowOutsideClick: false,
@@ -526,20 +527,21 @@
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                Swal.fire('تم الحفظ', data.message || 'تم تحديث إعدادات النسخ الاحتياطي بنجاح.', 'success')
+                operationSwal.fire('تم الحفظ', data.message || 'تم تحديث إعدادات النسخ الاحتياطي بنجاح.', 'success')
                     .then(() => location.reload());
             } else {
-                Swal.fire('خطأ', data.message || 'فشل حفظ الإعدادات', 'error');
+                operationSwal.fire('خطأ', data.message || 'فشل حفظ الإعدادات', 'error');
             }
         })
         .catch(err => {
-            Swal.fire('خطأ غير متوقع', err.message, 'error');
+            operationSwal.uncertain('خطأ غير متوقع', err.message, 'error');
         });
     }
 
     // Trigger Scheduler Action (start, stop, restart, reload)
     function triggerSchedulerAction(action) {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'جارٍ تنفيذ الإجراء...',
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); }
@@ -553,12 +555,12 @@
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                Swal.fire('نجاح', data.message, 'success').then(() => location.reload());
+                operationSwal.fire('نجاح', data.message, 'success').then(() => location.reload());
             } else {
-                Swal.fire('خطأ', data.message, 'error');
+                operationSwal.fire('خطأ', data.message, 'error');
             }
         })
-        .catch(err => Swal.fire('خطأ', err.message, 'error'));
+        .catch(err => operationSwal.uncertain('خطأ', err.message, 'error'));
     }
 
     function handleFileSelected(input) {
@@ -573,7 +575,8 @@
 
     // 1. Create Backup
     function createBackup() {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'إنشاء نسخة احتياطية شاملة',
             text: 'هل تريد تصدير وحفظ نسخة احتياطية شاملة تشمل قواعد البيانات والمرفقات وقوالب الكروت الآن؟',
             icon: 'question',
@@ -583,7 +586,7 @@
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ إنشاء النسخة الشاملة...',
                     text: 'يتم الآن تصدير وتجميع جداول FreeRADIUS والنظام وقوالب الكروت وضغطها في ملف .tar.gz آمن',
                     allowOutsideClick: false,
@@ -594,13 +597,13 @@
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
-                            Swal.fire('تم بنجاح', data.message, 'success').then(() => location.reload());
+                            operationSwal.fire('تم بنجاح', data.message, 'success').then(() => location.reload());
                         } else {
-                            Swal.fire('خطأ', data.message || 'فشل إنشاء النسخة', 'error');
+                            operationSwal.fire('خطأ', data.message || 'فشل إنشاء النسخة', 'error');
                         }
                     })
                     .catch(err => {
-                        Swal.fire('خطأ غير متوقع', err.message, 'error');
+                        operationSwal.uncertain('خطأ غير متوقع', err.message, 'error');
                     });
             }
         });
@@ -608,11 +611,12 @@
 
     // 2. Upload Backup
     function submitUploadBackup(e) {
+        const operationSwal = window.createOperationNotification();
         e.preventDefault();
         const fd = new FormData(document.getElementById('formUploadBackup'));
         
         closeModal('modalUploadBackup');
-        Swal.fire({
+        operationSwal.fire({
             title: 'جارٍ رفع النسخة الاحتياطية...',
             text: 'يرجى الانتظار حتى اكتمال رفع الملف والتحقق من سلامته',
             allowOutsideClick: false,
@@ -623,19 +627,20 @@
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire('تم الرفع بنجاح', data.message, 'success').then(() => location.reload());
+                    operationSwal.fire('تم الرفع بنجاح', data.message, 'success').then(() => location.reload());
                 } else {
-                    Swal.fire('خطأ أثناء الرفع', data.message || 'فشل رفع النسخة', 'error');
+                    operationSwal.fire('خطأ أثناء الرفع', data.message || 'فشل رفع النسخة', 'error');
                 }
             })
             .catch(err => {
-                Swal.fire('خطأ غير متوقع', err.message, 'error');
+                operationSwal.uncertain('خطأ غير متوقع', err.message, 'error');
             });
     }
 
     // 3. Restore Backup
     function confirmRestore(filename) {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: '⚠️ تحذير: استعادة النسخة الاحتياطية',
             html: `
                 <div class="text-right text-xs space-y-2 text-slate-300">
@@ -653,7 +658,7 @@
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ استعادة قاعدة البيانات والملفات...',
                     text: 'يتم الآن فك الضغط، التحقق من الجداول، استرجاع المرفقات، وتنفيذ التحديثات...',
                     allowOutsideClick: false,
@@ -667,13 +672,13 @@
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
-                            Swal.fire('تمت الاستعادة بنجاح', data.message, 'success').then(() => location.reload());
+                            operationSwal.fire('تمت الاستعادة بنجاح', data.message, 'success').then(() => location.reload());
                         } else {
-                            Swal.fire('فشلت الاستعادة', data.message, 'error');
+                            operationSwal.fire('فشلت الاستعادة', data.message, 'error');
                         }
                     })
                     .catch(err => {
-                        Swal.fire('خطأ', err.message, 'error');
+                        operationSwal.uncertain('خطأ', err.message, 'error');
                     });
             }
         });
@@ -710,7 +715,8 @@
 
     // 5. Send Backup to Telegram
     function sendBackupToTelegram(filename) {
-        Swal.fire({
+        const operationSwal = window.createOperationNotification();
+        operationSwal.fire({
             title: 'إرسال النسخة عبر تيليجرام',
             html: `هل تريد رفع وإرسال ملف النسخة الاحتياطية:<br><b class="text-sky-400 font-mono text-xs">${filename}</b><br>مباشرة إلى محادثة أو قناة التيليجرام؟`,
             icon: 'question',
@@ -721,7 +727,7 @@
             cancelButtonText: 'إلغاء'
         }).then(res => {
             if (res.isConfirmed) {
-                Swal.fire({
+                operationSwal.fire({
                     title: 'جارٍ الرفع والإرسال إلى تيليجرام...',
                     text: 'يتم الآن نقل وتوثيق ملف النسخة الاحتياطية عبر البوت...',
                     allowOutsideClick: false,
@@ -735,13 +741,13 @@
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
-                            Swal.fire('تم الإرسال بنجاح', data.message, 'success');
+                            operationSwal.fire('تم الإرسال بنجاح', data.message, 'success');
                         } else {
-                            Swal.fire('تعذر الإرسال', data.message, 'error');
+                            operationSwal.fire('تعذر الإرسال', data.message, 'error');
                         }
                     })
                     .catch(err => {
-                        Swal.fire('خطأ في الاتصال', err.message, 'error');
+                        operationSwal.uncertain('خطأ في الاتصال', err.message, 'error');
                     });
             }
         });

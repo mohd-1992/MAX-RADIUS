@@ -1,0 +1,8 @@
+# Explicit local/host opt-in, not loaded by the default Compose file.
+# docker compose -f docker-compose.yml -f deploy/db-memory/compose.conservative.yml ...
+services:
+  mariadb:
+    environment:
+      MALLOC_ARENA_MAX: "2"
+    volumes:
+      - ./deploy/db-memory/conservative.cnf:/etc/mysql/conf.d/max-memory.cnf:ro

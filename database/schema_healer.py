@@ -401,6 +401,11 @@ BEGIN
 END;
 """
 
+from database.sales_source_schema import ACTIVATION_SOURCE_SQL
+TRIGGER_VOUCHER_SQL = TRIGGER_VOUCHER_SQL.replace(
+    'ON DUPLICATE KEY UPDATE first_activation_voucher_id=first_activation_voucher_id;',
+    'ON DUPLICATE KEY UPDATE first_activation_voucher_id=first_activation_voucher_id;' + ACTIVATION_SOURCE_SQL)
+
 from database.license_capacity import (LINK_SQL as TRIGGER_RESERVATION_RELEASE_INSERT_SQL,
     STOP_SQL as TRIGGER_RESERVATION_RELEASE_UPDATE_SQL, install_capacity_schema)
 
@@ -411,6 +416,12 @@ def install_accounting_triggers(conn):
         return
     from database.voucher_sales_schema import ensure_activation_sale_key
     ensure_activation_sale_key(conn)
+    from database.sales_source_schema import install_sales_source_schema
+    install_sales_source_schema(conn)
+    from database.traffic_history_schema import install_traffic_history_schema
+    install_traffic_history_schema(conn)
+    from database.traffic_samples_schema import install_traffic_samples_schema
+    install_traffic_samples_schema(conn)
     install_capacity_schema(conn)
     from database.first_use_policy import install_first_use_policy
     install_first_use_policy(conn)

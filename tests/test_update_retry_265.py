@@ -211,8 +211,44 @@ class RetryTests(unittest.TestCase):
             self.assertTrue(self.submit()['success'])
             print(json.dumps({'isolated_helper':ident,'verified_finished_before_retry':True}))
         finally:
-            if docker('GET','/containers/'+ident+'/json')['State']['Running']:
+            owned = docker('GET','/containers/'+ident+'/json')
+            labels = owned['Config'].get('Labels') or {}
+            self.assertEqual(labels.get('max.update.controller'), 'owned')
+            self.assertEqual(labels.get('max.update.job'), self.job)
+            if owned['State']['Running']:
                 docker('POST','/containers/'+ident+'/stop?t=2')
+            docker('DELETE','/containers/'+ident+'?v=1')
 
+
+    def new_release(self, running=False):
+        previous=self.receipt.read_bytes()
+        self.response=copy.deepcopy(self.response)
+        self.response['manifest'].update(release='r2',version='2.6.6')
+        self.response['offer']['manifest_sha256']='f'*64
+        self.body.update(release_id='r2',version='2.6.6',manifest_sha256='f'*64)
+        self.helper['State']['Running']=running
+        dispatched=[]
+        def api(method,path,body=None,**kw):
+            if method=='GET':return copy.deepcopy(self.helper)
+            dispatched.append(path)
+            if '/create?' in path:return {'Id':'e'*64}
+        self.controller.api=api
+        with patch.object(self.module,'verify_response',return_value=self.response['manifest']):result=self.submit()
+        self.assertEqual(self.receipt.read_bytes(),previous)
+        return result,dispatched
+
+    def test_new_release_after_confirmed_failure_preserves_old_journal(self):
+        result,dispatched=self.new_release()
+        self.assertTrue(result['success']);self.assertTrue(dispatched)
+        review=json.loads((self.root/'jobs'/result['job']/'retry-review.private.json').read_text())
+        self.assertEqual(review['previous_job'],self.job)
+
+    def test_new_release_cannot_bypass_running_previous_helper(self):
+        result,dispatched=self.new_release(running=True)
+        self.assertFalse(result['success']);self.assertEqual(dispatched,[])
+
+    def test_handoff_pending_blocks_another_apply(self):
+        self.change_state(status='handoff_pending')
+        self.assertFalse(self.submit()['success'])
 
 if __name__=='__main__':unittest.main()

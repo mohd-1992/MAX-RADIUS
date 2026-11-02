@@ -1,0 +1,34 @@
+{
+  "application_version": "2.6.9",
+  "build_id": "component-engine4-local-20261029-r2",
+  "image": "max-radius-web:2.6.9-component-engine-local-20261029-r2",
+  "image_id": "sha256:ffdcaf5f0b76f41fa8fb75cec866d8e9245af044847201f74aeae6755fa4b925",
+  "base_image_id": "sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+  "scope": "local acceptance only",
+  "engine_source_sha256": "46896818dcf78e4d3d0e227ba808e9369ce29563c2e127da1c0c83f3062e5815",
+  "publisher_preserved": true,
+  "existing_runtime_files_changed": 0,
+  "added_modules": [
+    "services.system_update_components"
+  ],
+  "advertised_protocol": 3,
+  "candidate_protocol": 4,
+  "tests": {
+    "native_compiled_unit": 41,
+    "source_update_regressions": 99,
+    "source_skipped": 1,
+    "control_consumer": 32,
+    "operational_bytecode_cases": 9,
+    "sigkill_safety_cases": 2,
+    "protected_native_docker_cases": 2,
+    "radius_completed_flow_responses": 284,
+    "verified_mandatory_backups": 24
+  },
+  "production_distribution_ready": false,
+  "controller_transition_and_enrollment_accepted": false,
+  "automatic_worker_crash_recovery_accepted": false,
+  "positive_real_license_or_NAS_PPP_acceptance": false,
+  "published": false,
+  "deployed": false,
+  "report": "docs/COMPONENT_ENGINE_EXTENDED_LOCAL_20261029.md"
+}

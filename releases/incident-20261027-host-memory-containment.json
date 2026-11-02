@@ -1,0 +1,84 @@
+{
+  "incident_time_utc": "2026-10-27T18:31:24+00:00",
+  "killed_process": "chromium",
+  "killed_anon_rss_kib": 5902632,
+  "source_container": "max_radius_m_web",
+  "containment": {
+    "stage": "verified",
+    "container": "4e5ddea7ab0eccba7261856caae18cffb440463f57ea782e4e9a84286821ff3f",
+    "image": "sha256:c5ab9fe42359c867c6dedabaf607ff492b2652e8160fa5df987e34e645db098b",
+    "started": "2026-10-27T18:16:57.035464822Z",
+    "restart_count": 0,
+    "old_memory": 0,
+    "old_memory_swap": 0,
+    "at": "2026-10-27T18:33:01.086317+00:00",
+    "memory_limit": 2147483648,
+    "memory_swap_limit": 3221225472,
+    "running": true,
+    "health": "healthy",
+    "no_restart": true,
+    "reversible": true,
+    "scope": "m web only",
+    "temporary_runtime_limit": true
+  },
+  "verification": {
+    "at": "2026-10-27T18:33:46.470587+00:00",
+    "pages": [
+      {
+        "host": "m.max-net.net",
+        "error": "HTTPError"
+      },
+      {
+        "host": "shn.max-net.net",
+        "error": "HTTPError"
+      },
+      {
+        "host": "4k.max-net.net",
+        "error": "HTTPError"
+      },
+      {
+        "host": "max1.max-net.net",
+        "error": "HTTPError"
+      }
+    ],
+    "natural_auth_delta": 0,
+    "new_accounting_id_delta": 1,
+    "advanced_rows": 8,
+    "decreased_rows": 0,
+    "lease": {
+      "is_valid": 1,
+      "fresh": 1
+    },
+    "memory": "               total        used        free      shared  buff/cache   available\nMem:            7930        2119        4763           1        1047        5526\nSwap:           8191        3837        4354\n",
+    "memory_pressure": "some avg10=1.50 avg60=10.10 avg300=32.54 total=241678587\nfull avg10=1.08 avg60=7.99 avg300=25.97 total=193587540\n",
+    "mweb_stats": "{\"BlockIO\":\"15.6GB / 5.43GB\",\"CPUPerc\":\"116.51%\",\"Container\":\"max_radius_m_web\",\"ID\":\"4e5ddea7ab0e\",\"MemPerc\":\"10.66%\",\"MemUsage\":\"218.2MiB / 2GiB\",\"Name\":\"max_radius_m_web\",\"NetIO\":\"342MB / 137MB\",\"PIDs\":\"33\"}\n",
+    "recent_export_route_counts": {}
+  },
+  "external_browser_agent_http": [
+    {
+      "host": "m.max-net.net",
+      "status": 200,
+      "seconds": 0.742279,
+      "login_page": true
+    },
+    {
+      "host": "shn.max-net.net",
+      "status": 200,
+      "seconds": 0.841691,
+      "login_page": true
+    },
+    {
+      "host": "4k.max-net.net",
+      "status": 200,
+      "seconds": 0.98402,
+      "login_page": true
+    },
+    {
+      "host": "max1.max-net.net",
+      "status": 200,
+      "seconds": 0.884421,
+      "login_page": true
+    }
+  ],
+  "remaining_work": "Diagnose exact export job and bound/chunk PDF generation; persist reviewed limits in effective deployment. Runtime cap does not fix renderer."
+}

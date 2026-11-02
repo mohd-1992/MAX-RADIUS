@@ -1,0 +1,166 @@
+{
+  "application_version": "2.6.9",
+  "acceptance_id": "accounting-events-local-20261030-r1",
+  "report": "docs/ACCOUNTING_EVENTS_FIX_269_LOCAL_20261030.md",
+  "Web_image_id": "sha256:3f2b7ddb285e333d40460049de59c8bdf7fe019fb43e4a01411a816728cfede8",
+  "Core_image_tag": "max-radius-core:2.6.9-accounting-events-local-20261030-r1",
+  "image_audit": {
+    "image_id": "sha256:7ffa03b73990e25f8e10b72eb8e29dd446e2ffb2942ec8df2599e539f37cb7c5",
+    "base_image": "sha256:bc4d4644108018c7f67188e639bfeea9a4d12deedc01602bc15e219406ac4932",
+    "original_layers_preserved": true,
+    "added_layers": 2,
+    "only_copied_payload": "queries.conf from frozen Core with only simul and On/Off blocks replaced",
+    "runtime_query_sha256": "589eff8721d72b2485c1c6f771c82d2f5ae95aef155c0e80931a0bba947ca087",
+    "schema_changed": false,
+    "Web_image_changed": false,
+    "platform": "linux/amd64"
+  },
+  "changed_container": "Core; Web unchanged",
+  "schema_migration": false,
+  "tests": {
+    "checks": [
+      {
+        "name": "old-image-reproduces-premature-NAS-wide-closure",
+        "passed": true
+      },
+      {
+        "name": "event-hs-actual-authentication",
+        "passed": true
+      },
+      {
+        "name": "event-ppp-actual-authentication",
+        "passed": true
+      },
+      {
+        "name": "event-other-actual-authentication",
+        "passed": true
+      },
+      {
+        "name": "status-7-preserves-all-session-fields-9",
+        "passed": true
+      },
+      {
+        "name": "status-8-preserves-all-session-fields-10",
+        "passed": true
+      },
+      {
+        "name": "status-7-preserves-all-session-fields-11",
+        "passed": true
+      },
+      {
+        "name": "delayed-event-does-not-rewind-marker",
+        "passed": true
+      },
+      {
+        "name": "diagnostic-marker-is-one-row-per-NAS",
+        "passed": true
+      },
+      {
+        "name": "on-off-does-not-release-account-session-limit",
+        "passed": true
+      },
+      {
+        "name": "64-bit-interim-continues-after-event",
+        "passed": true
+      },
+      {
+        "name": "genuine-stop-closes-only-target",
+        "passed": true
+      },
+      {
+        "name": "event-after-stop-preserves-final-row",
+        "passed": true
+      },
+      {
+        "name": "delayed-interim-does-not-reopen-or-decrease-final-counters",
+        "passed": true
+      },
+      {
+        "name": "duplicate-stop-does-not-duplicate-session",
+        "passed": true
+      },
+      {
+        "name": "financial-contracts-unchanged",
+        "passed": true
+      },
+      {
+        "name": "reboot-without-stop-remains-pending-until-existing-timeout",
+        "passed": true
+      },
+      {
+        "name": "existing-stale-lifecycle-closes-missing-stop",
+        "passed": true
+      },
+      {
+        "name": "timeout-does-not-close-fresh-peer",
+        "passed": true
+      },
+      {
+        "name": "genuine-delayed-stop-refines-timeout",
+        "passed": true
+      },
+      {
+        "name": "all-candidate-test-sessions-have-genuine-final-stops",
+        "passed": true
+      }
+    ],
+    "packets": 23,
+    "final_receipt_read_only_followup": true,
+    "fixture_final_query_percent_format_error": true,
+    "packet_count_scope": "successful r4 synthetic suite, including baseline old image; derived from completed sends"
+  },
+  "actual_CHR": {
+    "PPPoE_auth_start_stop_and_hotspot_peer_preserved": true,
+    "packet_summary": {
+      "code_counts": {
+        "1": 2,
+        "4": 24
+      },
+      "accounting_status_counts": {
+        "7": 3,
+        "1": 2,
+        "2": 2,
+        "3": 17
+      }
+    },
+    "final_causes": [
+      "Admin-Reset",
+      "NAS-Request"
+    ],
+    "premature_NAS_Reboot_closures": 0,
+    "full_router_reboot_exercised": false
+  },
+  "manual_Core_rollback_and_reapply": {
+    "passed": true,
+    "manual_core_rollback_and_reapply": true,
+    "same_DB_and_started_at": true,
+    "same_live_NAS_session_and_SQL_row": true,
+    "counter_nondecrease": true,
+    "actual_Interim_after_reapply": true,
+    "financial_contracts_unchanged": true,
+    "no_DB_restore": true,
+    "rollback_limitation": "old image restores old Accounting-On defect; no new service event during rollback expected"
+  },
+  "license_scope": "Synthetic bounded runtime lease in this round; signed simulation accepted separately on unchanged Web",
+  "reboot_without_Stop_policy": "defer closure to real Stop or existing configured stale lifecycle; no guaranteed immediate capacity release or fixed timeout across all feature licenses",
+  "resource_snapshot": {
+    "Core_RAM_MiB": 80.16,
+    "Core_RAM_limit_MiB": 256,
+    "OOM": 0,
+    "long_duration_or_large_load_test": false
+  },
+  "cleanup": {
+    "owned_containers_removed": 16,
+    "all_owned_round_resources_removed": true,
+    "original_NAS_paths_unchanged": 10,
+    "preexisting_container_identity_image_started_config_unchanged": 1175
+  },
+  "test_source_sha256": "66927d9b392b2784c860928ced8279b715978c28fa663187c409448d031b46ac",
+  "local_scoped_fix_accepted": true,
+  "unconditional_production_approval": false,
+  "published": false,
+  "deployed": false,
+  "latest_changed": false,
+  "remote_git_push": false,
+  "private_evidence_ref": "PRIVATE/acct-events-fix-20261030-r4"
+}
