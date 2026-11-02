@@ -1,6 +1,6 @@
 {
   "version": "2.7.0",
-  "scope": "Repository source snapshot; installer release.json remains independently pinned to 2.6.5.",
+  "scope": "Repository source snapshot; default manual installer now pins published 2.7.0 images via release.json. No application source changed by the installer selection.",
   "web_image": "mohd777/max-radius-web@sha256:5455db7ca85a1d5f6c5c205fca0e171cefb28dc9f008dc56d25d4ecd090fa2ca",
   "web_image_role": "Last published reference only; no new image built by this repository sync.",
   "image_equivalence_verified_this_round": false,

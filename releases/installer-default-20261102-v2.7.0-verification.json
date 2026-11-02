@@ -1,0 +1,17 @@
+{
+  "release": "20261102-v2.7.0-r1",
+  "installer_contract_tests_passed": 11,
+  "registry_digests_verified": [
+    "web",
+    "core"
+  ],
+  "compose_services_verified": 5,
+  "deterministic_archive": true,
+  "web_integrity": "passed",
+  "whole_host_installation_run": false,
+  "docker_images_built_or_pushed": false,
+  "domains_updated": false,
+  "default_installer_version": "2.7.0",
+  "DB_memory_tuning_automatically_applied": false,
+  "private_evidence": "PRIVATE/installer-default270-20261102-r1"
+}

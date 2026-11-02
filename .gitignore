@@ -275,3 +275,6 @@ tests/fixtures/*
 !releases/2.7.0-20261102-r1/db-memory-configuration.zip
 
 !/releases/runtime-20261024-v2.6.5-subscriber-voucher-r1.tar.gz
+
+# Reviewed runtime-only default installer bundle for 2.7.0.
+!/releases/runtime-20261102-v2.7.0-r1.tar.gz
