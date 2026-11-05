@@ -154,16 +154,31 @@ def archive_old_sessions(days_threshold=90, chunk_size=5000):
         return False, 'تعذر تنفيذ الأرشفة: '+str(exc)
 
 
-def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000):
+def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000, progress_callback=None,
+                                 cancel_callback=None, return_receipt=False):
     """Transfer eligible sessions once to complete canonical history, atomically."""
     from services.account_lifecycle_service import run_transaction,sql,HISTORY_ELIGIBLE
     from services.traffic_history_service import preserve_sessions,compact_duplicate_history
     ensure_archive_tables()
     days=max(1,int(days_threshold));chunk=max(1,min(int(chunk_size or 500),1000));total=0
+    from database.db import query_one
+    initial=query_one('SELECT COUNT(*) n,MAX(a.radacctid) last_id FROM radacct a WHERE '+HISTORY_ELIGIBLE,(days,))
+    highwater=int(initial['last_id'] or 0)
+    receipt=dict(success=True,total=int(initial['n']),processed=0,archived_sessions=0,
+                 summarized_sessions=0,protected_cards=0,stage='archive')
+    def report():
+        if progress_callback:progress_callback(dict(receipt))
+    def finish():
+        receipt['processed']=total;receipt['archived_sessions']=total
+        receipt['complete']=bool(receipt['success'] and not receipt.get('cancelled'))
+        return receipt if return_receipt else (receipt['success'],receipt['message'])
     try:
+        report()
         while True:
+            if cancel_callback and cancel_callback():
+                receipt.update(cancelled=True,message=f'ألغيت الأرشفة بعد حفظ {total} جلسة.');return finish()
             def transfer(db):
-                rows=sql(db,'SELECT a.radacctid FROM radacct a WHERE '+HISTORY_ELIGIBLE+' ORDER BY a.radacctid LIMIT ? FOR UPDATE',(days,chunk),'all')
+                rows=sql(db,'SELECT a.radacctid FROM radacct a WHERE a.radacctid<=? AND '+HISTORY_ELIGIBLE+' ORDER BY a.radacctid LIMIT ? FOR UPDATE',(highwater,days,chunk),'all')
                 ids=[r['radacctid'] for r in rows]
                 if not ids:return 0
                 marks=','.join(['?']*len(ids))
@@ -176,12 +191,108 @@ def _archive_old_sessions_locked(days_threshold=90, chunk_size=5000):
                 if count!=len(ids):raise RuntimeError('تغيرت أهلية جلسة؛ ألغيت الدفعة.')
                 return count
             count=run_transaction(transfer);total+=count
+            receipt.update(processed=total,archived_sessions=total);report()
             if count<chunk:break
-        compact=compact_duplicate_history()
+        receipt['stage']='duplicates';report()
+        compact=compact_duplicate_history(cancel_callback=cancel_callback) if cancel_callback else compact_duplicate_history()
+        if compact.get('cancelled'):receipt['cancelled']=True
+        receipt['duplicate_copies_removed']=compact['removed']
         suffix='؛ تستكمل معالجة التكرار في دورة لاحقة' if compact['pending'] else ''
-        return True,f"حُفظت {total} جلسة في مخزن التاريخ الموحد، وعولجت {compact['removed']} نسخة مكررة{suffix}. لا يعني النقل تحرير مساحة القرص فعليًا."
+        receipt['message']=f"حُفظت {total} جلسة في مخزن التاريخ الموحد، وعولجت {compact['removed']} نسخة مكررة{suffix}. لا يعني النقل تحرير مساحة القرص فعليًا."
+        if receipt.get('cancelled'):receipt['message']='ألغيت المتابعة بعد إكمال الدفعة الحالية. '+receipt['message']
+        return finish()
     except Exception as exc:
-        return False,f'لم تكتمل الأرشفة؛ نُقلت {total} جلسة في دفعات سابقة والدفعة المتعثرة محفوظة. {exc}'
+        receipt.update(success=False,message=f'لم تكتمل الأرشفة؛ نُقلت {total} جلسة في دفعات سابقة والدفعة المتعثرة محفوظة. {exc}')
+        return finish()
+
+
+def _validate_archive_options(days, mode):
+    days=int(days)
+    if not 1<=days<=3650 or mode not in ('archive','summary'):
+        raise ValueError('مدة أو نوع معالجة غير صالح')
+    return days
+
+
+def _summary_candidates():
+    """Indexed, disjoint owner branches; not an assertion of final eligibility."""
+    from services.expired_voucher_purge import STORES
+    parts=[]
+    for source in STORES:
+        parts.append(f"SELECT v.id FROM wisp_vouchers v JOIN {source} a ON a.account_voucher_id=v.id WHERE v.status='expired' AND a.account_subscriber_id IS NULL AND a.acctstoptime<?")
+        names=('account_read_username',) if source!='wisp_traffic_history' else ('account_username','username')
+        for name in names:
+            extra=' AND a.account_username IS NULL' if source=='wisp_traffic_history' and name=='username' else ''
+            parts.append(f"SELECT v.id FROM wisp_vouchers v JOIN {source} a ON v.username=CONVERT(a.{name} USING utf8mb4) COLLATE utf8mb4_unicode_ci AND BINARY v.username=BINARY a.{name} WHERE v.status='expired' AND a.account_voucher_id IS NULL AND a.account_subscriber_id IS NULL{extra} AND a.acctstoptime<?")
+    return ' UNION '.join(parts),len(parts)
+
+
+@_license_guarded('accounting_archiver')
+def get_archive_plan(days=90, mode='archive'):
+    """Age-specific read-only preview. Summary candidates are rechecked locked."""
+    from services.account_lifecycle_service import HISTORY_ELIGIBLE
+    from database.db import query_one
+    days=_validate_archive_options(days,mode)
+    if mode=='archive':
+        row=query_one('SELECT COUNT(*) n FROM radacct a WHERE '+HISTORY_ELIGIBLE,(days,))
+        return dict(days=days,mode=mode,count=int(row['n']),unit='sessions',exact_at_read=True)
+    import datetime
+    cutoff=query_one('SELECT NOW()-INTERVAL ? DAY cutoff',(max(2,days),))['cutoff']
+    statement,branches=_summary_candidates()
+    row=query_one('SELECT COUNT(*) n FROM ('+statement+') candidates',(cutoff,)*branches)
+    return dict(days=days,mode=mode,count=int(row['n']),unit='cards',exact_at_read=False)
+
+
+def _summarize_old_expired(days, progress_callback=None, cancel_callback=None):
+    """Use the existing purge summary engine, preserving accounts and credentials."""
+    from services.account_lifecycle_service import sql,run_transaction,lock_account
+    from services.expired_voucher_purge import purge_details
+    from database.db import query_all,query_one
+    cutoff=query_one('SELECT NOW()-INTERVAL ? DAY cutoff',(max(2,days),))['cutoff']
+    statement,branches=_summary_candidates()
+    # Bounded control list, never unbounded session payloads. A later manual job
+    # may cover the remaining candidates; no automatic replay after restart.
+    ids=query_all('SELECT id FROM ('+statement+') candidates ORDER BY id LIMIT 50001',(cutoff,)*branches)
+    capped=len(ids)>50000;ids=ids[:50000]
+    r=dict(success=True,total=len(ids),processed=0,summarized_sessions=0,summary_groups=0,
+           archived_sessions=0,protected_cards=0,skipped_cards=0,pending_reasons={},stage='summary',capped=capped)
+    if progress_callback:progress_callback(dict(r))
+    for selected in ids:
+        if cancel_callback and cancel_callback():r['cancelled']=True;break
+        def summarize(conn):
+            _,account=lock_account(conn,'voucher',selected['id'])
+            if not account or account['status']!='expired':return dict(skipped=True)
+            aliases=sql(conn,'SELECT username FROM wisp_voucher_names WHERE voucher_id=?',(account['id'],),'all')
+            names=tuple({account['username'],*(row['username'] for row in aliases)})
+            marks=','.join('?' for _ in names)
+            for table in ('wisp_renewal_guards','wisp_session_reservations'):
+                if sql(conn,'SELECT 1 n FROM '+table+' WHERE username IN ('+marks+') AND expires_at>NOW() LIMIT 1 FOR UPDATE',names,'one'):
+                    return dict(deferred=True,reason='active_account_operation')
+            return purge_details(conn,account,history_only=True,cutoff=cutoff)
+        result=run_transaction(summarize)
+        r['processed']+=1
+        if result.get('deferred'):
+            r['protected_cards']+=1;reason=result['reason'];r['pending_reasons'][reason]=r['pending_reasons'].get(reason,0)+1
+        elif result.get('skipped'):r['skipped_cards']+=1
+        else:
+            r['summarized_sessions']+=result['summarized_sessions'];r['summary_groups']+=result['summary_groups']
+        if progress_callback:progress_callback(dict(r))
+    r['complete']=not r.get('cancelled') and not capped
+    r['message']=f"لُخّصت {r['summarized_sessions']} جلسة؛ {r['protected_cards']} كرتًا مؤجلًا للحماية. الكروت وبيانات الدخول والسجل المالي محفوظة. تفاصيل الجلسات الملخصة لا تعود كصفوف منفردة."
+    if r.get('cancelled'):r['message']='ألغيت المتابعة بعد إكمال الحساب الجاري. '+r['message']
+    if capped:r['message']+=' بلغت الدفعة حد الحسابات؛ راجع النتيجة قبل متابعة المتبقي.'
+    return r
+
+
+@_license_guarded('accounting_archiver')
+def run_archive_maintenance(days=90, mode='archive', chunk_size=500,
+                            progress_callback=None, cancel_callback=None):
+    from services.account_lifecycle_service import job_lock
+    days=_validate_archive_options(days,mode)
+    with job_lock('accounting-archive') as own,job_lock('factory-reset') as factory,job_lock('expired-card-delete') as deletion:
+        if not (own and factory and deletion):
+            raise ValueError('توجد عملية صيانة أخرى؛ أعد المحاولة بعد اكتمالها.')
+        if mode=='summary':return _summarize_old_expired(days,progress_callback,cancel_callback)
+        return _archive_old_sessions_locked(days,chunk_size,progress_callback,cancel_callback,return_receipt=True)
 
 @_license_guarded('accounting_archiver')
 def optimize_accounting_tables():

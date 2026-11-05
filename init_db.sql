@@ -1097,3 +1097,22 @@ CREATE TABLE IF NOT EXISTS wisp_userman_import_journal (
  after_json LONGTEXT NOT NULL, state VARCHAR(24) NOT NULL DEFAULT 'applied',
  PRIMARY KEY(job_id,kind,identity_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Settled expired voucher usage: additive; no financial/RADIUS triggers.
+CREATE TABLE IF NOT EXISTS wisp_account_usage_summary (
+ summary_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ voucher_id BIGINT NOT NULL, username VARCHAR(64) NOT NULL, reseller_id BIGINT NULL,
+ cycle_start DATETIME NULL, first_start DATETIME NOT NULL, last_start DATETIME NOT NULL,
+ nasipaddress VARCHAR(45) NOT NULL DEFAULT '', calledstationid VARCHAR(128) NOT NULL DEFAULT '',
+ nasportid VARCHAR(128) NOT NULL DEFAULT '', framedprotocol VARCHAR(32) NOT NULL DEFAULT '',
+ servicetype VARCHAR(32) NOT NULL DEFAULT '', report_visible TINYINT NOT NULL DEFAULT 1,
+ input_bytes DECIMAL(30,0) NOT NULL, output_bytes DECIMAL(30,0) NOT NULL,
+ uptime_seconds DECIMAL(30,0) NOT NULL, session_count BIGINT NOT NULL,
+ unconfirmed_sessions BIGINT NOT NULL DEFAULT 0,
+ KEY idx_usage_voucher (voucher_id,first_start), KEY idx_usage_owner (reseller_id,first_start)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS wisp_account_usage_seals (
+ acctuniqueid VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ voucher_id BIGINT NOT NULL, input_bytes BIGINT NOT NULL, output_bytes BIGINT NOT NULL,
+ uptime_seconds BIGINT NOT NULL, KEY idx_usage_seal_voucher(voucher_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

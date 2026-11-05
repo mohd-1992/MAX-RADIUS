@@ -12,7 +12,7 @@ DEPENDENCIES={'reseller_wallets':('reseller_management',),'portal_registration':
 GROUPS={
  'gis_map':'coverage_map_page api_coverage_map_data api_coverage_map_update api_towers_create api_towers_delete api_access_points_create api_access_points_update api_access_points_delete api_access_points_list',
  'autoheal':'autoheal_page api_autoheal_status api_autoheal_diagnostic api_autoheal_probe_ports api_autoheal_restart api_autoheal_logs api_autoheal_purge_zombies api_autoheal_save_settings api_autoheal_resolve_alert api_autoheal_clear_resolved_alerts api_watchdog_manual_check',
- 'accounting_archiver':'accounting_archiver_page api_accounting_archiver_status api_accounting_archiver_run api_accounting_archiver_compact api_maintenance_archive_sessions',
+ 'accounting_archiver':'accounting_archiver_page api_accounting_archiver_status api_accounting_archiver_run api_accounting_archiver_compact api_maintenance_archive_sessions api_archive_plan api_archive_job_status api_latest_archive_job api_cancel_archive_job',
  'radius_simulator':'radius_simulator_page api_radius_simulator_test',
  'traffic_analytics':'traffic_analytics_page api_traffic_analytics_status',
  'automation_rules':'automation_rules_page api_automation_toggle api_automation_run',

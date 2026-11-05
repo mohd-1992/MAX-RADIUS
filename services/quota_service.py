@@ -113,6 +113,8 @@ def get_accounting_totals_batch(subscriber_ids, entity_type="subscriber"):
     if entity_type not in ("subscriber", "voucher"):
         raise ValueError("نوع الحساب غير صالح")
     table = "wisp_subscribers" if entity_type == "subscriber" else "wisp_vouchers"
+    from database.db import DB_TYPE
+    accounting_view = 'radacct_quota_owned' if DB_TYPE == 'mysql' else 'radacct_owned'
     result = {}
     ids = list(dict.fromkeys(subscriber_ids))
     cycle = 'COALESCE(s.last_renewed_at, s.first_used_at, s.created_at)'
@@ -135,7 +137,7 @@ def get_accounting_totals_batch(subscriber_ids, entity_type="subscriber"):
                     AND (a.acctstoptime IS NULL OR a.acctstoptime > {cycle})
                     AND b.radacctid IS NULL THEN 1 ELSE 0 END) AS incomplete
                 FROM {table} s
-                LEFT JOIN radacct_owned a ON LOWER(a.username) = LOWER(s.username)
+                LEFT JOIN {accounting_view} a ON LOWER(a.username) = LOWER(s.username)
                 LEFT JOIN wisp_session_baselines b ON b.radacctid = a.radacctid
                     AND b.renewed_at = {cycle}
                 WHERE s.id IN ({placeholders}) GROUP BY s.id, s.username''', tuple(chunk))
@@ -146,6 +148,7 @@ def get_accounting_totals_batch(subscriber_ids, entity_type="subscriber"):
                     up_bytes, down_bytes = int(row['up_bytes'] or 0), int(row['down_bytes'] or 0)
                     result[row['username']] = dict(up_bytes=up_bytes, down_bytes=down_bytes,
                         total_bytes=up_bytes + down_bytes, uptime_secs=int(row['uptime_secs'] or 0))
+
     except Exception as exc:
         raise AccountingReadError('تعذرت قراءة محاسبة قائمة المشتركين.') from exc
     return result
@@ -180,6 +183,16 @@ def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_up
     cur = None
     try:
         cur = conn.cursor()
+        mysql = is_mysql_conn(conn)
+        if mysql and lock_for_update and not close_conn:
+            cur.execute(adapt_query('SELECT radacctid FROM radacct_owned WHERE username=? FOR UPDATE',conn),(username,))
+            cur.fetchall()
+            cur.execute(adapt_query('SELECT h.summary_key FROM wisp_account_usage_summary h JOIN wisp_vouchers v ON v.id=h.voucher_id WHERE v.username=? FOR UPDATE',conn),(username,))
+            cur.fetchall()
+        if mysql and since_timestamp:
+            cur.execute(adapt_query('SELECT 1 FROM wisp_account_usage_summary h JOIN wisp_vouchers v ON v.id=h.voucher_id WHERE v.username=? AND h.first_start<? AND h.last_start>=? LIMIT 1',conn),(username,str(since_timestamp),str(since_timestamp)))
+            if cur.fetchone():
+                raise IncompleteCycleAccountingError('لا يمكن تقسيم ملخص الاستهلاك عند هذا التاريخ.')
         if since_timestamp:
             # A pre-existing late session can cross an old cycle without a baseline.
             # Stop gives its lifetime counters, not the missing counters at that boundary.
@@ -242,6 +255,8 @@ def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_up
             if lock_for_update and not close_conn:
                 if is_mysql_conn(conn):
                     sql += ' FOR UPDATE'
+            if mysql:
+                sql = sql.replace('FROM radacct_owned a','FROM radacct_quota_owned a').replace('COUNT(DISTINCT a.acctsessionid)', 'COUNT(DISTINCT CASE WHEN a.radacctid>=0 AND a.session_weight>0 THEN a.acctsessionid END)+COALESCE(SUM(CASE WHEN a.radacctid<0 THEN a.session_weight ELSE 0 END),0)')
             cur.execute(sql, (str(since_timestamp), str(since_timestamp), str(since_timestamp), str(since_timestamp), str(since_timestamp), username, str(since_timestamp)))
         else:
             sql = adapt_query("""
@@ -259,6 +274,8 @@ def get_accounting_totals(username, since_timestamp=None, conn=None, lock_for_up
             if lock_for_update and not close_conn:
                 if is_mysql_conn(conn):
                     sql += ' FOR UPDATE'
+            if mysql:
+                sql = sql.replace('FROM radacct_owned a','FROM radacct_quota_owned a').replace('COUNT(DISTINCT a.acctsessionid)', 'COUNT(DISTINCT CASE WHEN a.radacctid>=0 AND a.session_weight>0 THEN a.acctsessionid END)+COALESCE(SUM(CASE WHEN a.radacctid<0 THEN a.session_weight ELSE 0 END),0)')
             cur.execute(sql, (username,))
 
         row = cur.fetchone()

@@ -1,0 +1,13 @@
+{
+  "phase": "ACCEPTED",
+  "median_seconds": {
+    "previous": 93.94155,
+    "current": 72.3351,
+    "candidate": 65.57339999999999
+  },
+  "improvement_vs_current_percent": 9.35,
+  "improvement_vs_previous_percent": 30.2,
+  "same_seed": true,
+  "same_22_table_output": true,
+  "financial_tables_exact": true
+}

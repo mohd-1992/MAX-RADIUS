@@ -98,9 +98,11 @@ class RefundTests(unittest.TestCase):
         self.db.executescript('''
 CREATE TABLE wisp_voucher_batches(id INTEGER PRIMARY KEY,batch_number TEXT,reseller_id INT,card_count INT,cost NUMERIC,price NUMERIC);
 CREATE TABLE wisp_vouchers(id INTEGER PRIMARY KEY,batch_id INT,username TEXT,status TEXT);
-CREATE TABLE radacct(username TEXT,acctstoptime TEXT,acctterminatecause TEXT);
+CREATE TABLE radacct(username TEXT,acctstoptime TEXT,acctterminatecause TEXT,radacctid INT,acctsessionid TEXT,nasipaddress TEXT,acctstarttime TEXT,acctupdatetime TEXT);
 CREATE VIEW radacct_owned AS SELECT * FROM radacct;
-CREATE TABLE wisp_session_reservations(username TEXT,expires_at TEXT);
+CREATE TABLE wisp_session_reservations(id INTEGER PRIMARY KEY,username TEXT,expires_at TEXT);
+CREATE TABLE wisp_renewal_guards(username TEXT PRIMARY KEY,token TEXT,expires_at TEXT);
+CREATE TABLE wisp_online_policy_outbox(username TEXT);
 CREATE TABLE wisp_managers(id INT,wallet_balance NUMERIC);
 CREATE TABLE wisp_resellers(id INT,balance NUMERIC);
 CREATE TABLE wisp_manager_invoices(invoice_number TEXT UNIQUE,manager_id INT,transaction_type TEXT,amount NUMERIC,payment_type TEXT,balance_before NUMERIC,balance_after NUMERIC,notes TEXT,is_voided INT,created_by TEXT);
@@ -109,11 +111,11 @@ CREATE TABLE radcheck(username TEXT); CREATE TABLE radreply(username TEXT); CREA
 INSERT INTO wisp_managers VALUES(7,100);
 INSERT INTO wisp_voucher_batches VALUES(1,'FIX-1',7,2,8,10);
 INSERT INTO wisp_vouchers VALUES(1,1,'synthetic-a','unused'),(2,1,'synthetic-b','unused');
-INSERT INTO radacct VALUES('synthetic-a','2026-10-01','User-Request');
+INSERT INTO radacct(username,acctstoptime,acctterminatecause,radacctid,acctsessionid,nasipaddress) VALUES('synthetic-a','2026-10-01','User-Request',1,'session','192.0.2.1');
 INSERT INTO radcheck VALUES('synthetic-a');
 ''')
         self.ns={'Decimal':Decimal,'sql':self.sql,'run_transaction':self.tx,'delete_account':self.defer}
-        load('services/account_lifecycle_service.py', ['BatchDeletionPending','batch_refund_amount','delete_voucher_batch'], self.ns)
+        load('services/account_lifecycle_service.py', ['BatchDeletionPending','batch_refund_amount','retire_account_credentials','deletion_blocking_sessions','delete_voucher_batch'], self.ns)
         module=types.ModuleType('database.db'); module.query_all=lambda q,p=():self.sql(self.db,q,p,'all')
         self.modules=patch.dict(sys.modules,{'database.db':module}); self.modules.start()
         # This SQLite fixture tests refunds and transaction boundaries. History
@@ -123,7 +125,14 @@ INSERT INTO radcheck VALUES('synthetic-a');
         self.history=types.ModuleType('services.traffic_history_service')
         from unittest.mock import Mock
         self.history.preserve_accounts=Mock(return_value=0)
-        self.history_patch=patch.dict(sys.modules,{'services.traffic_history_service':self.history})
+        purge=types.ModuleType('services.expired_voucher_purge')
+        # This suite isolates refund boundaries; native MariaDB tests verify
+        # summary totals, replay seals and physical session cleanup separately.
+        purge.purge_details=Mock(return_value={'deferred':False})
+        coa=types.ModuleType('services.coa_queue_service')
+        coa.enqueue_disconnect=Mock(return_value=(True,'queued only'))
+        self.history_patch=patch.dict(sys.modules,{'services.traffic_history_service':self.history,
+            'services.expired_voucher_purge':purge,'services.coa_queue_service':coa})
         self.history_patch.start()
         self.deferred=[]
 
@@ -135,7 +144,10 @@ INSERT INTO radcheck VALUES('synthetic-a');
 
     def sql(self,conn,q,p=(),fetch=None):
         p=tuple(float(v) if isinstance(v,Decimal) else v for v in p)
-        c=conn.execute(q.replace(' FOR UPDATE',''),p)
+        q=q.replace(' FOR UPDATE','')
+        if q.startswith('INSERT INTO wisp_renewal_guards'):
+            q="INSERT INTO wisp_renewal_guards VALUES(?,?,'2026-10-24 00:05:00') ON CONFLICT(username) DO UPDATE SET token=excluded.token,expires_at=excluded.expires_at"
+        c=conn.execute(q,p)
         if fetch=='one':
             row=c.fetchone();return dict(row) if row else None
         if fetch=='all':return [dict(row) for row in c.fetchall()]
@@ -203,13 +215,14 @@ INSERT INTO radcheck VALUES('synthetic-a');
         self.assertEqual(self.balance(),100);self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_vouchers').fetchone()[0],2)
 
     def test_open_session_defers_without_refund_or_delete(self):
-        self.purchase(16);self.db.execute("INSERT INTO radacct VALUES('synthetic-a',NULL,'')");self.db.commit()
+        self.purchase(16);self.db.execute("INSERT INTO radacct(username,acctstoptime,acctterminatecause,radacctid,acctsessionid,nasipaddress) VALUES('synthetic-a',NULL,'',2,'open','192.0.2.1')");self.db.commit()
         with self.assertRaises(self.ns['BatchDeletionPending']):self.delete()
-        self.assertEqual(self.deferred,[('voucher',1)]);self.assertEqual(self.balance(),100)
+        self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_renewal_guards').fetchone()[0],2)
+        self.assertEqual(self.balance(),100)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_vouchers').fetchone()[0],2)
 
     def test_reservation_defers_without_refund(self):
-        self.purchase(16);self.db.execute("INSERT INTO wisp_session_reservations VALUES('synthetic-a','2030-01-01')");self.db.commit()
+        self.purchase(16);self.db.execute("INSERT INTO wisp_session_reservations(username,expires_at) VALUES('synthetic-a','2030-01-01')");self.db.commit()
         with self.assertRaises(self.ns['BatchDeletionPending']):self.delete()
         self.assertEqual(self.balance(),100)
 

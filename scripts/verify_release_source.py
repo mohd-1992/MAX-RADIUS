@@ -25,7 +25,7 @@ def verify(root, manifest):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument('--manifest', default='releases/source-20261102-v2.7.0-repository-r1.json')
+    parser.add_argument('--manifest', default='releases/source-20261105-v2.7.0-maintenance-r2.json')
     args = parser.parse_args()
     result = verify(args.root, args.root / args.manifest)
     print(json.dumps(result, indent=2))

@@ -45,6 +45,7 @@ def sessions_sql(owner=None, start=None, end=None, metadata_only=False, nas=None
                      'calledstationid','nasportid','framedprotocol','servicetype')
         columns=','.join(f"CONVERT(COALESCE({name},'') USING utf8mb4) COLLATE utf8mb4_bin AS {name}" for name in text_fields)
         clauses=["COALESCE(acctterminatecause,'')<>'Consolidated-Historical-Import'"]
+        clauses.append("NOT EXISTS (SELECT 1 FROM wisp_account_usage_seals sealed WHERE sealed.acctuniqueid=CONVERT("+table+".acctuniqueid USING ascii))")
         if owner is not None:
             from database.traffic_history_schema import owner_scope_sql
             scope,count=owner_scope_sql(table)
@@ -76,10 +77,25 @@ def sessions_sql(owner=None, start=None, end=None, metadata_only=False, nas=None
             THEN COALESCE(MAX(NULLIF(calledstationid,'')),'') ELSE '' END AS server_name,
         CASE WHEN MIN(NULLIF(nasportid,''))=MAX(NULLIF(nasportid,''))
             THEN COALESCE(MAX(NULLIF(nasportid,'')),'') ELSE '' END AS server_interface{',' if not metadata_only else ''}
-        {counter_aggregates}
+        {counter_aggregates}{',' if not metadata_only else ','}1 AS session_weight
         FROM ({normalized}) normalized
         GROUP BY acctuniqueid,username,acctsessionid,nasipaddress,acctstarttime,fallback_id'''
-    return '('+grouped+') sessions', tuple(values)
+    # Settled summaries are explicitly weighted aggregates, never individual sessions.
+    clauses=['h.report_visible=1']; summary_values=[]
+    if owner is not None:
+        clauses.append('h.reseller_id=%s');summary_values.append(int(owner))
+    if nas not in (None,'','all'):
+        clauses.append("h.nasipaddress=%s");summary_values.append('' if nas=='unknown' else nas)
+    if start:
+        clauses.append('h.first_start>=%s');summary_values.append(start)
+    if end:
+        clauses.append('h.first_start<%s');summary_values.append(end)
+    where=' WHERE '+' AND '.join(clauses) if clauses else ''
+    text=lambda expr: 'CONVERT('+expr+' USING utf8mb4) COLLATE utf8mb4_bin'
+    kind_summary="CASE WHEN LOWER(TRIM(h.framedprotocol))='ppp' AND LOWER(TRIM(h.servicetype)) IN ('login-user','login') THEN '' WHEN LOWER(TRIM(h.framedprotocol))='ppp' THEN 'pppoe' WHEN LOWER(TRIM(h.servicetype)) IN ('login-user','login') THEN 'hotspot' ELSE '' END"
+    extra='' if metadata_only else ',h.output_bytes AS download,h.input_bytes AS upload,h.first_start AS stopped_at,h.last_start AS observed_at'
+    summary=f"SELECT {text('LEFT(h.summary_key,32)')} AS acctuniqueid,{text('COALESCE(v.username,h.username)')} AS username,{text('h.summary_key')} AS acctsessionid,{text('h.nasipaddress')} AS nasipaddress,h.first_start AS acctstarttime,{text(kind_summary)} AS service_type,{text('h.calledstationid')} AS server_name,{text('h.nasportid')} AS server_interface{extra},h.session_count AS session_weight FROM wisp_account_usage_summary h LEFT JOIN wisp_vouchers v ON v.id=h.voucher_id{where}"
+    return '('+grouped+' UNION ALL '+summary+') sessions', tuple(values+summary_values)
 
 
 def point_info(row, catalog):
@@ -152,7 +168,7 @@ def report(args, now=None, timezone=None):
             def grouped(source,params):
                 return query(f'''SELECT nasipaddress AS nas_address,service_type,server_name,
                     CASE WHEN service_type='pppoe' THEN server_interface ELSE '' END AS server_interface,
-                    COUNT(*) AS sessions,SUM(download) AS download,SUM(upload) AS upload,
+                    SUM(session_weight) AS sessions,SUM(download) AS download,SUM(upload) AS upload,
                     SUM(download IS NULL) AS unknown_download,SUM(upload IS NULL) AS unknown_upload,
                     SUM(acctstarttime IS NULL) AS unknown_date,SUM(stopped_at IS NULL) AS open_sessions,
                     MAX(observed_at) AS last_observed

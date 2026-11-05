@@ -1,0 +1,47 @@
+{
+  "tenant": "m.max-net.net",
+  "project": "m",
+  "version": "2.7.0",
+  "phase": "ACCEPTED_M_ONLY",
+  "images": {
+    "core": {
+      "tag": "max-radius-core:2.7.0-backup-delete-local-20261103-r1",
+      "id": "sha256:04fd43b4e13f6842d8d26d99250f5825eb3bb0bf67df58f5c35f125909f55f83",
+      "size": 314730243,
+      "seconds": 4.27
+    },
+    "web": {
+      "tag": "max-radius-web:2.7.0-backup-delete-local-20261103-r1",
+      "id": "sha256:a5ea9b6448cb8c9307158a9ae9644d8b5f19fffead89f1ea259edb7661dfdc0b",
+      "size": 2867470942,
+      "seconds": 436.55
+    }
+  },
+  "new_containers": {
+    "web": "93b0ec9271c7c020fed3b366fa411736e320b1f3df1bf4b552e085300eadccdb",
+    "core": "e61f791ab5d93919a378125d066a4da1fb6a45619a0661b9b34b30ed5741b0ec"
+  },
+  "removed_containers": {
+    "core": "09d3f17b53e61bbce637f414eb87d132630b263ad3c08a7c4061e8de2cd26d6c",
+    "web": "654339add9db5b6746aa15c4a145ae8d5f314ccd6cdd2fbede5e31bae24b7b7c"
+  },
+  "public_http": {
+    "status": 200,
+    "url": "https://m.max-net.net/login"
+  },
+  "business_tables_exact_before_user_trial": 24,
+  "license_fields_exact_except": [
+    "last_heartbeat_at",
+    "updated_at"
+  ],
+  "license_valid": true,
+  "database_container_unchanged": true,
+  "untargeted_containers_unchanged": 83,
+  "stopped_target_containers": 0,
+  "backups_created": false,
+  "rollback_containers_created": false,
+  "registry_push": false,
+  "delta_transfer_bytes": 62809841,
+  "physical_nas_auth_tested": false,
+  "user_started_delete_and_backup_trials_after_acceptance": true
+}

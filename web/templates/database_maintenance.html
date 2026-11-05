@@ -245,17 +245,18 @@
                         <h3 class="arch-title text-base font-black">أرشفة سجلات المحاسبة</h3>
                         <span class="arch-badge px-2.5 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1">
                             <i class="fa-solid fa-shield-halved text-[9px]"></i>
-                            حفظ تاريخي آمن (بدون فقدان بيانات)
+                            حماية المحاسبة والسجل المالي
                         </span>
                     </div>
                     <p class="arch-desc text-xs mt-1 leading-relaxed">
-                        حفظ الجلسات المغلقة المؤهلة في مخزن التاريخ الموحد، مع حماية الدورة الحالية والتجديد. لا يعني نقل السجلات تحرير مساحة القرص فعليًا.
+                        اختر حفظ تفاصيل الجلسات في الأرشيف أو تلخيص التاريخ المؤهل للكروت المنتهية مع حفظ الكروت والاستهلاك والمال. لا يعني نقل السجلات تحرير مساحة القرص فعليًا.
                     </p>
                 </div>
             </div>
 
             <!-- Archiver Controls: Duration Dropdown & Action Button -->
-            <div class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap sm:flex-nowrap">
+            <div class="flex items-center gap-2.5 w-full lg:w-auto flex-wrap">
+                <select id="archiveModeSelect" class="arch-select text-xs rounded-xl px-4 py-2.5"><option value="archive">حفظ التفاصيل في الأرشيف</option><option value="summary">تلخيص جلسات الكروت المنتهية</option></select>
                 <select id="archiveDaysSelect" class="arch-select text-xs rounded-xl px-4 py-2.5 focus:border-amber-500 focus:outline-none flex-1 sm:flex-none">
                     <option value="30">أقدم من 30 يوماً</option>
                     <option value="90" selected>أقدم من 90 يوماً (موصى به)</option>
@@ -298,13 +299,13 @@
             <!-- 3. Older than 90d -->
             <div class="arch-mini-card rounded-xl p-3.5 flex flex-col justify-between">
                 <div class="flex items-center justify-between">
-                    <span class="arch-mini-label text-[11px]">مؤهلة للأرشفة (>90d)</span>
+                    <span class="arch-mini-label text-[11px]"><span id="archiveEligibilityTitle">مؤهلة للأرشفة (&gt;90 يومًا)</span></span>
                     <i class="fa-solid fa-broom text-amber-500 text-xs"></i>
                 </div>
                 <h4 id="arch_older_90d" class="text-xl font-black text-amber-600 dark:text-amber-400 font-mono mt-1">
-                    {{ stats.archiver.older_90d_count if stats.archiver else 0 }}
+                    {{ stats.archiver.older_90d_count if stats.archiver else '—' }}
                 </h4>
-                <span class="arch-mini-sub text-[10px] block mt-0.5">مؤهلة حاليًا؛ يعاد التحقق عند النقل</span>
+                <span class="arch-mini-sub text-[10px] block mt-0.5"><span id="archiveEligibilityNote">مؤهلة حاليًا؛ يعاد التحقق عند النقل</span></span>
             </div>
 
             <!-- 4. Oldest session date -->
@@ -320,6 +321,28 @@
             </div>
         </div>
     </div>
+
+    <section id="archiveJobProgress" hidden aria-labelledby="archiveJobTitle">
+        <div class="cleanup-header">
+            <div class="cleanup-heading">
+                <span class="cleanup-icon" aria-hidden="true"><i class="fa-solid fa-broom"></i></span>
+                <div><h3 id="archiveJobTitle" class="cleanup-title">متابعة معالجة التاريخ</h3><p class="cleanup-subtitle">يمكنك متابعة العمل في اللوحة أثناء تنفيذ المهمة</p></div>
+            </div>
+            <div class="cleanup-actions">
+                <span id="archiveJobState" class="cleanup-badge">قيد التجهيز</span>
+                <button id="archiveJobCancel" type="button" onclick="cancelArchiveJob()" class="cleanup-refresh cleanup-cancel" aria-label="إلغاء معالجة التاريخ"><i class="fa-solid fa-ban" aria-hidden="true"></i><span id="archiveCancelText">إلغاء المعالجة</span></button>
+                <button type="button" onclick="resumeArchiveTracking()" class="cleanup-refresh" title="تحديث تقدم المهمة" aria-label="تحديث تقدم المهمة"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i></button>
+            </div>
+        </div>
+        <div class="cleanup-bar-label"><span id="archiveJobCounts">جارٍ فحص التاريخ المؤهل</span><span id="archiveJobPercent" class="cleanup-percentage">0%</span></div>
+        <div id="archiveJobBar" class="cleanup-track" role="progressbar" aria-label="تقدم معالجة التاريخ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="archiveJobFill" class="cleanup-fill"></div></div>
+        <dl class="cleanup-metrics">
+            <div class="cleanup-metric"><i class="fa-solid fa-check" aria-hidden="true"></i><div><dt>جلسات نُقلت</dt><dd id="archiveJobArchived">0</dd></div></div>
+            <div class="cleanup-metric"><i class="fa-solid fa-clock" aria-hidden="true"></i><div><dt>جلسات لُخّصت</dt><dd id="archiveJobSummarized">0</dd></div></div>
+            <div class="cleanup-metric"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><div><dt>كروت مؤجلة للحماية</dt><dd id="archiveJobProtected">0</dd></div></div>
+        </dl>
+        <p id="archiveJobMessage" class="cleanup-note" aria-live="polite">السجلات المالية والمحاسبية محفوظة.</p>
+    </section>
 
     <!-- 3 Optimization Action Cards -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -493,9 +516,9 @@
                     </p>
                 </div>
                 <div class="mt-6 pt-4 border-t border-[#162136]">
-                    <button onclick="confirmCascadeDelete('time', 'كروت انتهاء الصلاحية الزمنية')" class="w-full py-2.5 bg-indigo-600/20 hover:bg-indigo-600 hover:text-white text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
+                    <button onclick="confirmCascadeDelete('time', 'كروت انتهاء الصلاحية أو وقت الاتصال')" class="w-full py-2.5 bg-indigo-600/20 hover:bg-indigo-600 hover:text-white text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2">
                         <i class="fa-solid fa-trash-can"></i>
-                        <span>حذف كروت الوقت المنتهية</span>
+                        <span>حذف كروت الوقت والصلاحية المنتهية</span>
                     </button>
                 </div>
             </div>
@@ -512,7 +535,7 @@
                     </div>
                     <h4 class="text-base font-bold text-white">تطهير شامل لكافة المنتهي (All Expired)</h4>
                     <p class="text-xs text-slate-400 leading-relaxed">
-                        حذف كافة الكروت المنتهية بأي سبب دفعة واحدة وتفريغ المساحة في قاعدة البيانات.
+                        حذف كافة الكروت المنتهية بأي سبب دفعة واحدة وتفريغ المساحة في قاعدة البيانات. الأسباب الأخرى أو غير المحددة: {{ stats.expired_by_other|default(0) }}.
                     </p>
                     <label class="flex items-center gap-2 mt-2 cursor-pointer text-xs text-slate-300">
                         <input type="checkbox" disabled id="chkDeleteAcct" class="w-4 h-4 rounded border-slate-700 bg-[#070b14] text-rose-600 focus:ring-0">
@@ -531,32 +554,39 @@
 
     <!-- ================================================================= -->
     <style>
-        #cleanupJobProgress { --cleanup-surface:#0b0f19; --cleanup-inset:#070b14; --cleanup-border:#1c2840; --cleanup-text:#f1f5f9; --cleanup-muted:#94a3b8; --cleanup-accent:#22d3ee; background:var(--cleanup-surface); border:1px solid var(--cleanup-border); border-radius:1rem; padding:1.5rem; color:var(--cleanup-text); box-shadow:0 1px 3px rgba(0,0,0,.08); }
-        #cleanupJobProgress[hidden] { display:none !important; }
-        html.theme-light #cleanupJobProgress { --cleanup-surface:#fff; --cleanup-inset:#f8fafc; --cleanup-border:#e2e8f0; --cleanup-text:#0f172a; --cleanup-muted:#64748b; --cleanup-accent:#0891b2; }
-        #cleanupJobProgress .cleanup-header, #cleanupJobProgress .cleanup-heading, #cleanupJobProgress .cleanup-bar-label { display:flex; align-items:center; gap:.75rem; }
-        #cleanupJobProgress .cleanup-header { justify-content:space-between; flex-wrap:wrap; gap:1rem; }
-        #cleanupJobProgress .cleanup-icon { display:grid; place-items:center; width:2.75rem; height:2.75rem; flex-shrink:0; border-radius:.75rem; color:var(--cleanup-accent); background:rgba(6,182,212,.1); border:1px solid rgba(6,182,212,.2); font-size:1.1rem; }
-        #cleanupJobProgress .cleanup-title { font-size:1rem; font-weight:800; color:var(--cleanup-text); margin:0; }
-        #cleanupJobProgress .cleanup-subtitle { color:var(--cleanup-muted); font-size:.75rem; margin:.2rem 0 0; }
-        #cleanupJobProgress .cleanup-actions { display:flex; align-items:center; gap:.75rem; }
-        #cleanupJobProgress .cleanup-badge { display:flex; align-items:center; gap:.4rem; font-size:.7rem; font-weight:700; border:1px solid rgba(6,182,212,.2); border-radius:999px; padding:.35rem .7rem; color:var(--cleanup-accent); background:rgba(6,182,212,.08); }
-        #cleanupJobProgress .cleanup-badge::before { content:''; width:.4rem; height:.4rem; border-radius:50%; background:currentColor; }
-        #cleanupJobProgress .cleanup-refresh { display:grid; place-items:center; width:2.25rem; height:2.25rem; border-radius:.65rem; border:1px solid var(--cleanup-border); background:var(--cleanup-inset); color:var(--cleanup-muted); transition:color .15s,border-color .15s; }
-        #cleanupJobProgress .cleanup-refresh:hover { color:var(--cleanup-accent); border-color:var(--cleanup-accent); }
-        #cleanupJobProgress .cleanup-refresh:focus-visible { outline:2px solid var(--cleanup-accent); outline-offset:3px; }
-        #cleanupJobProgress .cleanup-bar-label { justify-content:space-between; margin:1.25rem 0 .55rem; color:var(--cleanup-muted); font-size:.75rem; }
-        #cleanupJobProgress .cleanup-percentage { font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; color:var(--cleanup-accent); }
-        #cleanupJobProgress .cleanup-track { height:.5rem; border-radius:999px; overflow:hidden; background:var(--cleanup-border); }
-        #cleanupJobProgress .cleanup-fill { height:100%; width:0; border-radius:inherit; background:var(--cleanup-accent); transition:width .35s ease; }
-        #cleanupJobProgress .cleanup-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; margin:1.2rem 0 0; }
-        #cleanupJobProgress .cleanup-metric { display:flex; align-items:center; gap:.7rem; padding:.85rem 1rem; border:1px solid var(--cleanup-border); border-radius:.75rem; background:var(--cleanup-inset); }
-        #cleanupJobProgress .cleanup-metric > i { color:var(--cleanup-accent); font-size:.9rem; }
-        #cleanupJobProgress .cleanup-metric dt { color:var(--cleanup-muted); font-size:.7rem; margin:0 0 .15rem; }
-        #cleanupJobProgress .cleanup-metric dd { font-size:1.15rem; font-weight:800; font-variant-numeric:tabular-nums; margin:0; }
-        #cleanupJobProgress .cleanup-note { font-size:.73rem; line-height:1.7; color:var(--cleanup-muted); margin:.9rem 0 0; overflow-wrap:anywhere; }
-        @media(max-width:600px) { #cleanupJobProgress {padding:1rem;} #cleanupJobProgress .cleanup-metrics {grid-template-columns:1fr; gap:.5rem;} #cleanupJobProgress .cleanup-metric {padding:.65rem .8rem;} #cleanupJobProgress .cleanup-metric > div {display:flex; flex:1; align-items:center; justify-content:space-between; gap:.5rem;} #cleanupJobProgress .cleanup-metric dt {margin:0;} }
-        @media(prefers-reduced-motion:reduce) { #cleanupJobProgress .cleanup-fill {transition:none;} }
+        :is(#cleanupJobProgress,#archiveJobProgress) { --cleanup-surface:#0b0f19; --cleanup-inset:#070b14; --cleanup-border:#1c2840; --cleanup-text:#f1f5f9; --cleanup-muted:#94a3b8; --cleanup-accent:#22d3ee; background:var(--cleanup-surface); border:1px solid var(--cleanup-border); border-radius:1rem; padding:1.5rem; color:var(--cleanup-text); box-shadow:0 1px 3px rgba(0,0,0,.08); }
+        :is(#cleanupJobProgress,#archiveJobProgress)[hidden] { display:none !important; }
+        html.theme-light :is(#cleanupJobProgress,#archiveJobProgress) { --cleanup-surface:#fff; --cleanup-inset:#f8fafc; --cleanup-border:#e2e8f0; --cleanup-text:#0f172a; --cleanup-muted:#64748b; --cleanup-accent:#0891b2; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-header, :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-heading, :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-bar-label { display:flex; align-items:center; gap:.75rem; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-header { justify-content:space-between; flex-wrap:wrap; gap:1rem; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-icon { display:grid; place-items:center; width:2.75rem; height:2.75rem; flex-shrink:0; border-radius:.75rem; color:var(--cleanup-accent); background:rgba(6,182,212,.1); border:1px solid rgba(6,182,212,.2); font-size:1.1rem; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-title { font-size:1rem; font-weight:800; color:var(--cleanup-text); margin:0; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-subtitle { color:var(--cleanup-muted); font-size:.75rem; margin:.2rem 0 0; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-actions { display:flex; align-items:center; gap:.75rem; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-badge { display:flex; align-items:center; gap:.4rem; font-size:.7rem; font-weight:700; border:1px solid rgba(6,182,212,.2); border-radius:999px; padding:.35rem .7rem; color:var(--cleanup-accent); background:rgba(6,182,212,.08); }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-badge::before { content:''; width:.4rem; height:.4rem; border-radius:50%; background:currentColor; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-refresh { display:grid; place-items:center; width:2.25rem; height:2.25rem; border-radius:.65rem; border:1px solid var(--cleanup-border); background:var(--cleanup-inset); color:var(--cleanup-muted); transition:color .15s,border-color .15s; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-refresh:hover { color:var(--cleanup-accent); border-color:var(--cleanup-accent); }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-refresh:focus-visible { outline:2px solid var(--cleanup-accent); outline-offset:3px; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-bar-label { justify-content:space-between; margin:1.25rem 0 .55rem; color:var(--cleanup-muted); font-size:.75rem; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-percentage { font-size:1.2rem; font-weight:800; font-variant-numeric:tabular-nums; color:var(--cleanup-accent); }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-track { height:.5rem; border-radius:999px; overflow:hidden; background:var(--cleanup-border); }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-fill { height:100%; width:0; border-radius:inherit; background:var(--cleanup-accent); transition:width .35s ease; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; margin:1.2rem 0 0; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metric { display:flex; align-items:center; gap:.7rem; padding:.85rem 1rem; border:1px solid var(--cleanup-border); border-radius:.75rem; background:var(--cleanup-inset); }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metric > i { color:var(--cleanup-accent); font-size:.9rem; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metric dt { color:var(--cleanup-muted); font-size:.7rem; margin:0 0 .15rem; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metric dd { font-size:1.15rem; font-weight:800; font-variant-numeric:tabular-nums; margin:0; }
+        :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-note { font-size:.73rem; line-height:1.7; color:var(--cleanup-muted); margin:.9rem 0 0; overflow-wrap:anywhere; }
+        @media(max-width:600px) { :is(#cleanupJobProgress,#archiveJobProgress) {padding:1rem;} :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metrics {grid-template-columns:1fr; gap:.5rem;} :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metric {padding:.65rem .8rem;} :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metric > div {display:flex; flex:1; align-items:center; justify-content:space-between; gap:.5rem;} :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-metric dt {margin:0;} }
+        @media(prefers-reduced-motion:reduce) { :is(#cleanupJobProgress,#archiveJobProgress) .cleanup-fill {transition:none;} }
+    </style>
+    <style>
+        #cleanupJobProgress .cleanup-cancel {display:inline-flex;align-items:center;justify-content:center;width:auto;gap:.4rem;padding:.45rem .75rem;color:#fda4af;background:rgba(244,63,94,.1);border-color:rgba(244,63,94,.3);}
+        #cleanupJobProgress .cleanup-cancel[hidden] {display:none !important;}
+        #cleanupJobProgress .cleanup-cancel:disabled {opacity:.6;cursor:wait;}
+        html.theme-light #cleanupJobProgress .cleanup-cancel {color:#be123c;background:#fff1f2;border-color:#fecdd3;}
+        @media(max-width:600px) { #cleanupJobProgress .cleanup-header {flex-wrap:wrap;} #cleanupJobProgress .cleanup-actions {flex-wrap:wrap;gap:.5rem;} }
     </style>
     <section id="cleanupJobProgress" hidden aria-labelledby="cleanupJobTitle">
         <div class="cleanup-header">
@@ -566,6 +596,7 @@
             </div>
             <div class="cleanup-actions">
                 <span id="cleanupJobState" class="cleanup-badge">قيد التجهيز</span>
+                <button id="cleanupJobCancel" type="button" onclick="cancelCleanupJob()" class="cleanup-refresh cleanup-cancel" aria-label="إلغاء عملية الحذف"><i class="fa-solid fa-ban" aria-hidden="true"></i><span id="cleanupCancelText">إلغاء الحذف</span></button>
                 <button type="button" onclick="resumeCleanupTracking()" class="cleanup-refresh" title="تحديث تقدم المهمة" aria-label="تحديث تقدم المهمة"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i></button>
             </div>
         </div>
@@ -573,7 +604,7 @@
         <div id="cleanupJobBar" class="cleanup-track" role="progressbar" aria-label="تقدم معالجة الكروت" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="cleanupJobFill" class="cleanup-fill"></div></div>
         <dl class="cleanup-metrics">
             <div class="cleanup-metric"><i class="fa-solid fa-check" aria-hidden="true"></i><div><dt>كروت حُذفت</dt><dd id="cleanupJobDeleted">0</dd></div></div>
-            <div class="cleanup-metric"><i class="fa-solid fa-clock" aria-hidden="true"></i><div><dt>بانتظار إغلاق الجلسات</dt><dd id="cleanupJobPending">0</dd></div></div>
+            <div class="cleanup-metric"><i class="fa-solid fa-clock" aria-hidden="true"></i><div><dt>كروت مؤجلة للحماية</dt><dd id="cleanupJobPending">0</dd></div></div>
             <div class="cleanup-metric"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><div><dt>كروت تغيرت حالتها</dt><dd id="cleanupJobSkipped">0</dd></div></div>
         </dl>
         <p id="cleanupJobMessage" class="cleanup-note" aria-live="polite">السجلات المالية والمحاسبية محفوظة.</p>
@@ -945,7 +976,7 @@ function refreshStats() {
                 if (s.archiver) {
                     if (document.getElementById('arch_live_count')) document.getElementById('arch_live_count').innerText = (s.archiver.live_sessions_count || 0).toLocaleString();
                     if (document.getElementById('arch_archive_count')) document.getElementById('arch_archive_count').innerText = (s.archiver.archived_sessions_count || 0).toLocaleString();
-                    if (document.getElementById('arch_older_90d')) document.getElementById('arch_older_90d').innerText = (s.archiver.older_90d_count || 0).toLocaleString();
+                    refreshArchiveEligibility();
                     if (document.getElementById('arch_radacct_size')) document.getElementById('arch_radacct_size').innerText = 'الحجم: ' + (s.archiver.radacct_size_mb || 0) + ' MB';
                     if (document.getElementById('arch_archive_size')) document.getElementById('arch_archive_size').innerText = 'الأرشيف: ' + (s.archiver.archive_size_mb || 0) + ' MB';
                     if (document.getElementById('arch_oldest_session')) document.getElementById('arch_oldest_session').innerText = s.archiver.oldest_session || 'لا توجد جلسات';
@@ -1038,43 +1069,103 @@ function loadTableSizes() {
 }
 
 // Archiving Action Handler
-function triggerArchivingFromMaintenance() {
-    const operationSwal = window.createOperationNotification();
-    const days = document.getElementById('archiveDaysSelect').value;
-    operationSwal.fire({
-        title: `أرشفة السجلات الأقدم من ${days} يوماً`,
-        html: `سيتم حفظ الجلسات المؤهلة في مخزن التاريخ الموحد بعد التحقق من الهوية والعدادات، ثم إزالة النسخة الأصلية. لن يتم ضغط جداول قاعدة البيانات تلقائيًا.<br><span class="text-xs text-slate-400">البيانات ستبقى محفوظة في الأرشيف للرجوع إليها تاريخياً.</span>`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#d97706',
-        cancelButtonColor: '#334155',
-        confirmButtonText: 'نعم، ابدأ الأرشفة',
-        cancelButtonText: 'إلغاء'
-    }).then(result => {
-        if (result.isConfirmed) {
-            operationSwal.fire({
-                title: 'جارٍ نقل وأرشفة السجلات...',
-                text: 'يجري نقل دفعات الجلسات المؤهلة والتحقق من حفظ تفاصيلها...',
-                allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
-            const fd = new FormData();
-            fd.append('days', days);
-            fetch('{{ url_for("api_maintenance_archive_sessions") }}', { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(res => {
-                    if (res.success) {
-                        operationSwal.fire('تمت الأرشفة بنجاح', res.message, 'success').then(() => {
-                            refreshStats();
-                        });
-                    } else {
-                        operationSwal.fire('خطأ', res.message || 'فشلت عملية الأرشفة', 'error');
-                    }
-                })
-                .catch(err => operationSwal.uncertain('خطأ غير متوقع', err.message, 'error'));
-        }
+let archivePlanSequence = 0;
+let archiveJobId = null;
+let archiveBusy = false;
+let archivePollTimer = null;
+const archiveNotified = new Set();
+function archiveOptions() {
+    return {days:Number(document.getElementById('archiveDaysSelect').value),mode:document.getElementById('archiveModeSelect').value};
+}
+function refreshArchiveEligibility() {
+    const options=archiveOptions(), sequence=++archivePlanSequence;
+    document.getElementById('arch_older_90d').textContent='…';
+    const title=document.getElementById('archiveEligibilityTitle');
+    title.textContent=options.mode==='summary' ? `كروت مرشحة للتلخيص (> ${options.days} يومًا)` : `جلسات مؤهلة للأرشفة (> ${options.days} يومًا)`;
+    return fetch('{{ url_for("api_archive_plan") }}?'+new URLSearchParams(options)).then(async res => {
+        const data=await res.json();if (!res.ok || !data.success) throw new Error(data.message || 'تعذر حساب المؤهل');
+        if (sequence!==archivePlanSequence) return;
+        document.getElementById('arch_older_90d').textContent=Number(data.plan.count).toLocaleString('ar');
+        document.getElementById('archiveEligibilityNote').textContent=options.mode==='summary' ? 'مرشحة فقط؛ تؤجل الحالات غير المحسومة. تختزل تفاصيل الجلسات مع حفظ الاستهلاك والكروت.' : 'يعاد التحقق من الهوية والدورة والعدادات عند النقل.';
+    }).catch(err => {
+        if (sequence!==archivePlanSequence) return;
+        document.getElementById('arch_older_90d').textContent='—';
+        document.getElementById('archiveEligibilityNote').textContent=err.message;
     });
 }
+function showArchiveProgress(job) {
+    archiveJobId=job.job_id;archiveBusy=['queued','running'].includes(job.state);
+    document.getElementById('archiveJobProgress').hidden=!archiveBusy;
+    document.getElementById('btnStartArchiving').disabled=archiveBusy;
+    document.getElementById('archiveJobCancel').hidden=!archiveBusy;
+    const requested=Boolean((job.parameters||{}).cancel_requested), r=job.result||{};
+    document.getElementById('archiveJobCancel').disabled=requested;
+    document.getElementById('archiveCancelText').textContent=requested ? 'جارٍ الإلغاء' : 'إلغاء المعالجة';
+    if (!archiveBusy) return false;
+    const percent=r.total ? Math.min(100,100*(r.processed||0)/r.total) : 0;
+    document.getElementById('archiveJobState').textContent=requested ? 'جارٍ الإلغاء' : job.state==='queued' ? 'قيد التجهيز' : 'جارٍ التنفيذ';
+    document.getElementById('archiveJobCounts').textContent=`تمت معالجة ${Number(r.processed||0).toLocaleString('ar')} من ${Number(r.total||0).toLocaleString('ar')}`;
+    document.getElementById('archiveJobPercent').textContent=Math.round(percent)+'%';
+    document.getElementById('archiveJobFill').style.width=percent+'%';
+    document.getElementById('archiveJobBar').setAttribute('aria-valuenow',Math.round(percent));
+    for (const [id,key] of [['Archived','archived_sessions'],['Summarized','summarized_sessions'],['Protected','protected_cards']]) document.getElementById('archiveJob'+id).textContent=Number(r[key]||0).toLocaleString('ar');
+    document.getElementById('archiveJobMessage').textContent=requested ? 'يجري إنهاء الدفعة الحالية بأمان ثم إيقاف المتابعة.' : 'النتيجة محفوظة؛ يمكنك تحديث الصفحة أو متابعة العمل.';
+    return true;
+}
+function pollArchiveJob(notify=true) {
+    clearTimeout(archivePollTimer);
+    return fetch('{{ url_for("api_archive_job_status",job_id="JOB_ID") }}'.replace('JOB_ID',archiveJobId)).then(async res => {
+        const data=await res.json();if (!res.ok || !data.success) throw new Error(data.message || 'تعذرت قراءة المهمة');return data.job;
+    }).then(job => {
+        if (showArchiveProgress(job)) archivePollTimer=setTimeout(()=>pollArchiveJob(notify),1500);
+        else {
+            refreshStats();refreshArchiveEligibility();
+            const key='archive-notified-'+job.job_id;
+            let seen=archiveNotified.has(key);try {seen=seen || Boolean(sessionStorage.getItem(key));} catch (_) {}
+            if (notify && !seen) {
+                archiveNotified.add(key);try {sessionStorage.setItem(key,'1');} catch (_) {}
+                Swal.fire({title:job.state==='cancelled' ? 'ألغيت معالجة التاريخ' : job.state==='completed' ? 'اكتملت معالجة التاريخ' : 'لم تكتمل معالجة التاريخ',text:(job.result||{}).message || 'راجع نتيجة المهمة قبل المتابعة.',icon:job.state==='completed' ? 'success' : 'info',confirmButtonText:'حسنًا'});
+            }
+        }
+    }).catch(err => {
+        document.getElementById('archiveJobMessage').textContent='تعذرت المتابعة؛ قد تستمر المعالجة. '+err.message;
+        archivePollTimer=setTimeout(()=>pollArchiveJob(notify),5000);
+    });
+}
+function resumeArchiveTracking() {
+    return fetch('{{ url_for("api_latest_archive_job") }}').then(async res => {
+        const data=await res.json();if (!res.ok || !data.success) throw new Error(data.message || 'تعذرت قراءة المهمة');return data.job;
+    }).then(job => {
+        if (job && showArchiveProgress(job)) return pollArchiveJob(true);
+        if (!job) {archiveBusy=false;document.getElementById('btnStartArchiving').disabled=false;document.getElementById('archiveJobProgress').hidden=true;}
+    }).catch(err => {
+        document.getElementById('archiveJobMessage').textContent=err.message;
+        document.getElementById('archiveJobProgress').hidden=false;
+    });
+}
+function cancelArchiveJob() {
+    if (!archiveBusy || !archiveJobId) return;
+    document.getElementById('archiveJobCancel').disabled=true;
+    return fetch('{{ url_for("api_cancel_archive_job",job_id="JOB_ID") }}'.replace('JOB_ID',archiveJobId),{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(async res => {
+        const data=await res.json();if (!res.ok || !data.success) throw new Error(data.message || 'تعذر تأكيد الإلغاء');showArchiveProgress(data.job);return pollArchiveJob();
+    }).catch(err => {document.getElementById('archiveJobCancel').disabled=false;document.getElementById('archiveJobMessage').textContent=err.message;});
+}
+function triggerArchivingFromMaintenance() {
+    if (archiveBusy) {resumeArchiveTracking();return;}
+    const options=archiveOptions(),summary=options.mode==='summary';
+    const operationSwal=window.createOperationNotification();
+    operationSwal.fire({title:summary ? 'تلخيص التاريخ القديم للكروت المنتهية' : 'أرشفة السجلات القديمة',text:summary ? 'يحفظ الكروت وبيانات الدخول والاستهلاك والمال، ويختزل تفاصيل الجلسات المؤهلة. الحالات المفتوحة أو غير المحسومة تؤجل.' : 'يحفظ تفاصيل الجلسات المؤهلة ثم يزيل الأصل بعد التحقق؛ لا يضغط الجداول تلقائيًا.',icon:'question',showCancelButton:true,confirmButtonText:'بدء المعالجة',cancelButtonText:'إلغاء'}).then(result => {
+        if (!result.isConfirmed) return;
+        archiveBusy=true;document.getElementById('btnStartArchiving').disabled=true;
+        return fetch('{{ url_for("api_maintenance_archive_sessions") }}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(options)}).then(async res => {
+            const data=await res.json();if (!res.ok || !data.success) throw new Error(data.message || 'تعذر تأكيد بدء المهمة');showArchiveProgress(data.job);operationSwal.close();return pollArchiveJob();
+        }).catch(err => {operationSwal.uncertain('تعذر تأكيد بدء المعالجة',err.message,'error');resumeArchiveTracking();});
+    });
+}
+document.addEventListener('DOMContentLoaded',()=>{
+    for (const id of ['archiveDaysSelect','archiveModeSelect']) document.getElementById(id).addEventListener('change',refreshArchiveEligibility);
+    refreshArchiveEligibility();resumeArchiveTracking();
+});
 
 // 3. Confirm & Execute Historical Log Pruning
 function confirmPruneLogs(days) {
@@ -1203,11 +1294,15 @@ function showCleanupProgress(job) {
     const active = ['queued','running'].includes(job.state);
     cascadeDeleteBusy = active;
     cleanupJobId = job.job_id;
+    const requested = Boolean((job.parameters || {}).cancel_requested);
     document.getElementById('cleanupJobProgress').hidden = !active;
+    document.getElementById('cleanupJobCancel').hidden = !active;
+    document.getElementById('cleanupJobCancel').disabled = requested;
+    document.getElementById('cleanupCancelText').textContent = requested ? 'جارٍ الإلغاء' : 'إلغاء الحذف';
     if (!active) return false;
     const format = value => Number(value || 0).toLocaleString('ar');
     const percent = r.total ? Math.min(100,100*(r.processed || 0)/r.total) : 0;
-    document.getElementById('cleanupJobState').textContent = job.state === 'queued' ? 'قيد التجهيز' : 'جارٍ التنفيذ';
+    document.getElementById('cleanupJobState').textContent = requested ? 'جارٍ الإلغاء' : job.state === 'queued' ? 'قيد التجهيز' : 'جارٍ التنفيذ';
     document.getElementById('cleanupJobCounts').textContent = r.total ? `تمت معالجة ${format(r.processed)} من ${format(r.total)} كرت` : 'جارٍ تحديد الكروت المؤهلة';
     document.getElementById('cleanupJobPercent').textContent = `${Math.round(percent)}%`;
     document.getElementById('cleanupJobFill').style.width = `${percent}%`;
@@ -1215,8 +1310,8 @@ function showCleanupProgress(job) {
     document.getElementById('cleanupJobDeleted').textContent = format(r.deleted_vouchers);
     document.getElementById('cleanupJobPending').textContent = format(r.pending);
     document.getElementById('cleanupJobSkipped').textContent = format(r.skipped);
-    document.getElementById('cleanupJobMessage').textContent = 'السجلات المالية والمحاسبية محفوظة. الكروت ذات الجلسات القائمة تنتظر إغلاقها قبل الحذف.';
-    return true;
+    document.getElementById('cleanupJobMessage').textContent = requested ? 'جارٍ الإلغاء بعد إكمال الدفعة الحالية؛ سيظهر عدد الكروت التي حُذفت والمتبقية.' : 'السجلات المالية وملخص الاستهلاك محفوظان. الجلسات الحالية والتعديلات الجارية تؤجل الحذف.';
+    return active;
 }
 let cleanupNotifiedJob = null;
 function notifyCleanupFinished(job) {
@@ -1226,7 +1321,24 @@ function notifyCleanupFinished(job) {
     cleanupNotifiedJob = job.job_id;
     const r = job.result || {};
     const completed = job.state === 'completed';
-    Swal.fire({title:completed ? (r.pending ? 'انتهت المعالجة مع كروت مؤجلة' : 'اكتملت معالجة الحذف') : 'لم تكتمل عملية الحذف',text:r.message || 'توقفت المهمة؛ يمكنك إعادة المحاولة لمعالجة المتبقي.',icon:completed ? (r.pending ? 'info' : 'success') : 'warning',confirmButtonText:'حسنًا'});
+    const cancelled = job.state === 'cancelled';
+    Swal.fire({title:cancelled ? 'أُلغيت عملية الحذف' : completed ? (r.pending ? 'انتهت المعالجة مع كروت مؤجلة' : 'اكتملت معالجة الحذف') : 'لم تكتمل عملية الحذف',text:r.message || 'توقفت المهمة؛ يمكنك إعادة المحاولة لمعالجة المتبقي.',icon:cancelled ? 'info' : completed ? (r.pending ? 'info' : 'success') : 'warning',confirmButtonText:'حسنًا'});
+}
+function cancelCleanupJob() {
+    if (!cleanupJobId || !cascadeDeleteBusy) return;
+    const button = document.getElementById('cleanupJobCancel');
+    button.disabled = true;
+    document.getElementById('cleanupCancelText').textContent = 'جارٍ الإلغاء';
+    const url = '{{ url_for("api_cancel_cleanup_job", job_id="JOB_ID") }}'.replace('JOB_ID',cleanupJobId);
+    fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(async res => {
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.message || 'تعذر تأكيد الإلغاء');
+        showCleanupProgress(data.job);
+        pollCleanupJob();
+    }).catch(err => {
+        document.getElementById('cleanupJobMessage').textContent = 'تعذر تأكيد الإلغاء؛ قد تستمر المهمة. '+err.message;
+        button.disabled = false;
+    });
 }
 function pollCleanupJob(notifyFinished=true) {
     clearTimeout(cleanupPollTimer);

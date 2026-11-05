@@ -1,0 +1,29 @@
+{
+  "version": "2.7.0",
+  "kind": "local_repair_build",
+  "patch": "backup-delete-20261103-r1",
+  "images": {
+    "core": {
+      "tag": "max-radius-core:2.7.0-backup-delete-local-20261103-r1",
+      "id": "sha256:04fd43b4e13f6842d8d26d99250f5825eb3bb0bf67df58f5c35f125909f55f83",
+      "size": 314730243,
+      "seconds": 4.27
+    },
+    "web": {
+      "tag": "max-radius-web:2.7.0-backup-delete-local-20261103-r1",
+      "id": "sha256:a5ea9b6448cb8c9307158a9ae9644d8b5f19fffead89f1ea259edb7661dfdc0b",
+      "size": 2867470942,
+      "seconds": 436.55
+    }
+  },
+  "source_git_head": "9399f7b2c8de4c4f67ff96ce46c3b5e5686676ba",
+  "source_manifest_sha256": "6c6369f87a5feef6c6209d9fc876159a6430ded89e1c955f8528f00b1fdcbdcf",
+  "source_files": 317,
+  "source_python_files": 160,
+  "tests_run": false,
+  "tests_deferred_at_user_request": true,
+  "containers_started": false,
+  "pushed": false,
+  "clients_or_domains_updated": false,
+  "published_tags_changed": false
+}

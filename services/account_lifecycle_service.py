@@ -85,7 +85,7 @@ def expiry_reason(conn, kind, row):
         COALESCE(SUM(CASE WHEN b.radacctid IS NOT NULL THEN
             GREATEST(0,CAST(COALESCE(a.acctsessiontime,0) AS SIGNED)-CAST(b.baseline_seconds AS SIGNED))
             ELSE COALESCE(a.acctsessiontime,0) END),0) seconds
-        FROM radacct_owned a LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at=?
+        FROM radacct_quota_owned a LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at=?
         WHERE a.username=? AND (? IS NULL OR a.acctstarttime>=? OR b.radacctid IS NOT NULL)''',
         (cycle, row['username'], cycle, cycle), 'one')
     if base and int(totals['bytes']) >= (Decimal(str(base)) + Decimal(str(row.get('extra_quota_mb') or 0))) * 1048576:
@@ -153,20 +153,61 @@ def lifecycle_disconnect_still_required(task):
     return bool(row and str(row.get('last_renewed_at') or '') == task.get('lifecycle_cycle','') and row['status'] in ('expired','disabled','suspended','recharged'))
 
 
-def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, min_age_days=0, expected_cycle=None, expected_reason=None, connection=None):
+def retire_account_credentials(conn, kind, row):
+    removed = {}
+    for table in ('radcheck','radreply','radusergroup'):
+        removed['deleted_'+table] = sql(conn,'DELETE FROM '+table+' WHERE username=?',(row['username'],))
+    sql(conn,'DELETE FROM wisp_online_policy_outbox WHERE username=?',(row['username'],))
+    sql(conn,'DELETE FROM wisp_renewal_guards WHERE username=? AND expires_at<=NOW()',(row['username'],))
+    return removed
+
+
+def deletion_pending_message(result):
+    reasons=set(result.get('pending_reasons') or ())
+    if 'account_write_guard' in reasons:
+        return 'الحذف مؤجل: توجد عملية تغيير حساب جارية؛ لم يُحذف الحساب.'
+    if result.get('sessions'):
+        return ('الحذف مؤجل حتى تسوية المحاسبة؛ تعذر قبول بعض طلبات الفصل.' if result.get('queue_failures') else
+                'الحذف مؤجل حتى تسوية المحاسبة؛ أُدرجت طلبات الفصل ولم يتأكد إغلاق الجلسات بعد.')
+    if 'auth_reservation' in reasons:
+        return 'الحذف مؤجل: توجد محاولة دخول قيد التنفيذ؛ أعد التحقق بعد انتهائها.'
+    return 'الحذف مؤجل: يحتاج تاريخ الحساب أو ملكيته إلى مراجعة؛ لم يُحذف الحساب.'
+
+
+def deletion_blocking_sessions(conn, kind, row):
+    from services.deletion_history_policy import historical_observation_allowed
+    rows=sql(conn,"SELECT radacctid,acctsessionid,nasipaddress,acctstarttime,acctupdatetime,acctstoptime FROM radacct_owned WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) ORDER BY radacctid FOR UPDATE",(row['username'],),'all')
+    return [r for r in rows if not (kind=='voucher' and historical_observation_allowed('radacct',r,row))]
+
+
+def enqueue_deletion_disconnects(kind, entity_id, result):
+    from services.coa_queue_service import enqueue_disconnect
+    failures=0
+    for session in result.get('sessions',[]):
+        ok,_=enqueue_disconnect(result['username'],nas_ip=session['nasipaddress'],session_id=session['acctsessionid'],radacctid=session['radacctid'],reason='Account deletion pending',lifecycle_kind=kind,lifecycle_id=entity_id,lifecycle_cycle=result['cycle'])
+        failures+=not ok
+    result['queue_failures']=failures
+
+
+def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, min_age_days=0, expected_cycle=None, expected_reason=None, connection=None, expected_category='all', transaction_owned=False, queue_pending=True):
     """Preserve money/history. Open sessions defer deletion and prevent new auth."""
     def operation(conn):
         table, row = lock_account(conn, kind, entity_id)
         if not row:
             return {'deleted':False,'missing':True}
         if expected_expired:
+            from services.voucher_expiry_policy import expiry_category
+            if expected_category != 'all' and expiry_category(row.get('expire_reason')) != expected_category:
+                return {'deleted':False,'skipped':True}
             if (row['status'] != 'expired' or (expected_cycle is not None and str(row.get('last_renewed_at') or '') != expected_cycle) or row.get('expire_reason') != expected_reason):
                 return {'deleted':False,'skipped':True}
             if min_age_days:
                 old = sql(conn, f'SELECT 1 ok FROM {table} WHERE id=? AND expires_at < NOW()-INTERVAL ? DAY', (entity_id,min_age_days),'one')
                 if not old:
                     return {'deleted':False,'skipped':True}
-        sessions = sql(conn, "SELECT radacctid,acctsessionid,nasipaddress,acctstoptime FROM radacct_owned WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) ORDER BY radacctid FOR UPDATE", (row['username'],),'all')
+        if sql(conn,'SELECT token FROM wisp_renewal_guards WHERE username=? AND expires_at>NOW() FOR UPDATE',(row['username'],),'one'):
+            return dict(deleted=False,pending=True,pending_reasons=['account_write_guard'],username=row['username'],sessions=[],deleted_radcheck=0,cycle=str(row.get('last_renewed_at') or ''))
+        sessions = deletion_blocking_sessions(conn,kind,row)
         reserved = sql(conn, 'SELECT id FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() FOR UPDATE', (row['username'],), 'all')
         if sessions or reserved:
             if not expected_expired:
@@ -179,26 +220,26 @@ def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, m
             if reserved:reasons.append('auth_reservation')
             return {'deleted':False,'pending':True,'pending_reasons':reasons,'username':row['username'],'sessions':sessions,'deleted_radcheck':removed,'cycle':str(row.get('last_renewed_at') or '')}
         removed = {}
-        from services.traffic_history_service import preserve_account
-        preserve_account(conn,kind,row)
-        for radius_table in ('radcheck','radreply','radusergroup'):
-            removed['deleted_' + radius_table] = sql(conn,f'DELETE FROM {radius_table} WHERE username=?',(row['username'],))
+        purge_receipt = None
+        if kind == 'voucher' and row['status'] == 'expired':
+            from services.expired_voucher_purge import purge_details
+            purge_receipt = purge_details(conn,row)
+            if purge_receipt.get('deferred'):
+                return dict(deleted=False,pending=True,pending_reasons=[purge_receipt['reason']],
+                    username=row['username'],sessions=[],deleted_radcheck=0,cycle=str(row.get('last_renewed_at') or ''))
+        else:
+            from services.traffic_history_service import preserve_account
+            preserve_account(conn,kind,row)
+        removed.update(retire_account_credentials(conn,kind,row))
         if kind=='subscriber':
             sql(conn,'UPDATE wisp_invoices SET subscriber_id=NULL WHERE subscriber_id=?',(entity_id,))
         # Historical ledgers retain the original identity and are deliberately not deleted.
         sql(conn,f'DELETE FROM {table} WHERE id=?',(entity_id,))
-        # Retire only this deleted identity's operational work; keep financial history.
-        sql(conn,'DELETE FROM wisp_online_policy_outbox WHERE username=?',(row['username'],))
-        sql(conn,'DELETE FROM wisp_renewal_guards WHERE username=? AND expires_at<=NOW()',(row['username'],))
-        return dict(deleted=True, username=row['username'], **removed)
-    result = run_transaction(operation, connection=connection)
-    if result.get('pending'):
-        from services.coa_queue_service import enqueue_disconnect
-        failures = 0
-        for session in result['sessions']:
-            ok,_ = enqueue_disconnect(result['username'],nas_ip=session['nasipaddress'],session_id=session['acctsessionid'],radacctid=session['radacctid'],reason='Account deletion pending',lifecycle_kind=kind,lifecycle_id=entity_id,lifecycle_cycle=result['cycle'])
-            failures += not ok
-        result['queue_failures'] = failures
+        return dict(deleted=True, username=row['username'], purge=purge_receipt, **removed)
+    if transaction_owned and connection is None:raise ValueError('A caller-owned transaction requires a connection')
+    result = operation(connection) if transaction_owned else run_transaction(operation, connection=connection)
+    if result.get('pending') and queue_pending:
+        enqueue_deletion_disconnects(kind,entity_id,result)
     if delete_acct and result.get('deleted'):
         # Only unreferenced closed history can be pruned by the protected history cleaner.
         result['history_preserved'] = True
@@ -254,19 +295,24 @@ def batch_refund_amount(conn, batch, unused, manager):
 
 
 def delete_voucher_batch(batch_id, admin_username):
-    from database.db import query_all
-    # Do not refund or delete a batch while a card may still be online.
-    online = query_all("SELECT DISTINCT v.id FROM wisp_vouchers v JOIN radacct_owned a ON a.username=v.username WHERE v.batch_id=? AND (a.acctstoptime IS NULL OR a.acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed'))",(batch_id,))
-    if online:
-        for row in online:delete_account('voucher',row['id'])
-        raise BatchDeletionPending('تم طلب فصل الجلسات ومنع دخولها؛ أعد الحذف بعد تأكيد إغلاقها. لم يُسترد أي مبلغ.')
+    import hashlib
+    token=hashlib.sha256(('batch-delete:'+str(batch_id)).encode()).hexdigest()[:32]
     def operation(conn):
         batch=sql(conn,'SELECT * FROM wisp_voucher_batches WHERE id=? FOR UPDATE',(batch_id,),'one')
         if not batch:return False
-        cards=sql(conn,'SELECT * FROM wisp_vouchers WHERE batch_id=? ORDER BY id FOR UPDATE',(batch_id,),'all')
+        cards=sql(conn,'SELECT *,CURRENT_TIMESTAMP AS checked_at FROM wisp_vouchers WHERE batch_id=? ORDER BY id FOR UPDATE',(batch_id,),'all')
+        pending=[]
         for row in cards:
-            if sql(conn,"SELECT 1 ok FROM radacct_owned WHERE username=? AND (acctstoptime IS NULL OR acctterminatecause IN ('Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')) LIMIT 1 FOR UPDATE",(row['username'],),'one') or sql(conn,'SELECT 1 ok FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() LIMIT 1 FOR UPDATE',(row['username'],),'one'):
-                raise BatchDeletionPending('توجد جلسة أو محاولة دخول جارية؛ لم يتم حذف الدفعة أو استرداد قيمتها.')
+            guard=sql(conn,'SELECT token FROM wisp_renewal_guards WHERE username=? AND expires_at>NOW() FOR UPDATE',(row['username'],),'one')
+            if guard and guard['token'] != token:
+                raise BatchDeletionPending('توجد عملية تغيير حساب قيد التنفيذ؛ لم يتم الحذف أو الاسترداد.')
+            sessions=deletion_blocking_sessions(conn,'voucher',row)
+            reserved=sql(conn,'SELECT id FROM wisp_session_reservations WHERE username=? AND expires_at>NOW() FOR UPDATE',(row['username'],),'all')
+            if sessions or reserved:pending.append((row,sessions))
+        if pending:
+            for row in cards:
+                sql(conn,"INSERT INTO wisp_renewal_guards(username,token,expires_at) VALUES(?,?,NOW()+INTERVAL 5 MINUTE) ON DUPLICATE KEY UPDATE token=VALUES(token),expires_at=VALUES(expires_at)",(row['username'],token))
+            return {'pending':pending}
         unused=sum(row['status']=='unused' for row in cards)
         reseller=batch.get('reseller_id')
         manager=sql(conn,'SELECT * FROM wisp_managers WHERE id=? FOR UPDATE',(reseller,),'one') if reseller else None
@@ -283,14 +329,29 @@ def delete_voucher_batch(batch_id, admin_username):
                     sql(conn,'UPDATE wisp_resellers SET balance=? WHERE id=?',(after,reseller))
                     sql(conn,"INSERT INTO wisp_reseller_transactions (reseller_id,type,amount,balance_after,description,reference_id) VALUES (?,'refund',?,?,?,?)",(reseller,amount,after,'استرداد حذف الدفعة',str(batch_id)))
         from services.traffic_history_service import preserve_accounts
-        preserve_accounts(conn,'voucher',cards)
+        preserve_accounts(conn,'voucher',[row for row in cards if row['status']!='expired'])
+        from services.expired_voucher_purge import purge_details
         for row in cards:
-            for table in ('radcheck','radreply','radusergroup'):
-                sql(conn,f'DELETE FROM {table} WHERE username=?',(row['username'],))
+            if row['status']=='expired':
+                receipt=purge_details(conn,row)
+                if receipt.get('deferred'):
+                    raise BatchDeletionPending('تعذر إكمال حذف تفاصيل كرت منتهي: '+receipt['reason']+'؛ لم يتم حذف الحزمة أو الاسترداد.')
+            retire_account_credentials(conn,'voucher',row)
+            sql(conn,'DELETE FROM wisp_renewal_guards WHERE username=? AND token=?',(row['username'],token))
         sql(conn,'DELETE FROM wisp_vouchers WHERE batch_id=?',(batch_id,))
         sql(conn,'DELETE FROM wisp_voucher_batches WHERE id=?',(batch_id,))
         return True
-    return run_transaction(operation)
+    result=run_transaction(operation)
+    if isinstance(result,dict) and result.get('pending'):
+        from services.coa_queue_service import enqueue_disconnect
+        failures=0
+        for row,sessions in result['pending']:
+            for session in sessions:
+                ok,_=enqueue_disconnect(row['username'],nas_ip=session['nasipaddress'],session_id=session['acctsessionid'],radacctid=session['radacctid'],reason='Batch deletion pending',admin_username=admin_username)
+                failures+=not ok
+        raise BatchDeletionPending('الحزمة تنتظر تسوية الجلسات؛ لم يُحذف أي كرت ولم يُسترد مبلغ. '+('تعذر قبول بعض طلبات الفصل.' if failures else 'أُدرجت طلبات الفصل المتاحة؛ أعد المحاولة بعد إغلاق الجلسات.'))
+    return result
+
 
 # Shared by pruning, archival and duplicate compaction. One age parameter.
 HISTORY_ELIGIBLE = "\n        a.acctstoptime IS NOT NULL\n        AND a.acctstoptime<NOW()-INTERVAL 48 HOUR\n        AND (COALESCE(a.acctuniqueid,'')<>'' OR COALESCE(a.acctsessionid,'')<>'' OR a.acctstarttime IS NOT NULL)\n        AND a.acctstoptime < NOW() - INTERVAL %s DAY\n        AND COALESCE(a.acctterminatecause, '') NOT IN\n            ('Stale-Session-Timeout', 'Watchdog-Autoheal-Timeout', 'Backup-Restored-Closed')\n        AND NOT EXISTS (\n            SELECT 1 FROM wisp_subscribers s\n            WHERE a.account_voucher_id IS NULL AND s.id=COALESCE(a.account_subscriber_id,\n                (SELECT MIN(owner.id) FROM wisp_subscribers owner WHERE owner.username=CONVERT(a.account_read_username USING utf8mb4) COLLATE utf8mb4_unicode_ci\n                 AND BINARY owner.username=BINARY a.account_read_username HAVING COUNT(*)=1))\n            AND (s.last_renewed_at IS NULL OR a.acctstarttime IS NULL OR a.acctstarttime>=s.last_renewed_at\n                OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid=a.radacctid AND b.renewed_at=s.last_renewed_at))\n        )\n        AND NOT EXISTS (\n            SELECT 1 FROM wisp_vouchers v\n            WHERE a.account_subscriber_id IS NULL AND v.id=COALESCE(a.account_voucher_id,\n                (SELECT MIN(owner.id) FROM wisp_vouchers owner WHERE owner.username=CONVERT(a.account_read_username USING utf8mb4) COLLATE utf8mb4_unicode_ci\n                 AND BINARY owner.username=BINARY a.account_read_username HAVING COUNT(*)=1))\n            AND (v.last_renewed_at IS NULL OR a.acctstarttime IS NULL OR a.acctstarttime>=v.last_renewed_at\n                OR EXISTS (SELECT 1 FROM wisp_session_baselines b WHERE b.radacctid=a.radacctid AND b.renewed_at=v.last_renewed_at))\n        )\n"

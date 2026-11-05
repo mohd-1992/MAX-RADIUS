@@ -7,6 +7,7 @@ from pathlib import Path
 import base64
 import json
 import zlib
+from jinja2 import Environment
 
 
 def embed(root):
@@ -16,6 +17,11 @@ def embed(root):
                  for p in sorted(folder.rglob('*.html'))}
     if not templates:
         raise ValueError('No templates to embed')
+    # Reject invalid Jinja before a signed image can contain an unusable page.
+    # In particular, CSS "{#id" is a Jinja comment, even inside a style block.
+    parser = Environment()
+    for name, source in templates.items():
+        parser.parse(source, name=name, filename=str(folder / name))
     target = root / 'web' / '_embedded_templates.py'
     payload = base64.b85encode(zlib.compress(json.dumps(templates, ensure_ascii=False).encode('utf-8'), 9))
     target.write_text('"""Generated release templates; not encryption or a confidentiality boundary."""\n'

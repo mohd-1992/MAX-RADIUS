@@ -32,6 +32,7 @@ def get_maintenance_stats():
         'expired_total': 0,
         'expired_by_quota': 0,
         'expired_by_time': 0,
+        'expired_by_other': 0,
         'recharged_vouchers': 0,
         'active_used_vouchers': 0,
         'unused_vouchers': 0,
@@ -67,14 +68,16 @@ def get_maintenance_stats():
 
         # 2. Breakdown of Expired vouchers: Quota vs Time
         if stats['expired_total'] > 0:
-            quota_breakdown = query_one("""
-                SELECT
-                    SUM(CASE WHEN expire_reason LIKE ? OR expire_reason LIKE ? THEN 1 ELSE 0 END) as by_quota
-                FROM wisp_vouchers
-                WHERE status = 'expired'
-            """, ("%البيانات%", "%كوتا%"))
-            stats['expired_by_quota'] = int((quota_breakdown and quota_breakdown['by_quota']) or 0)
-            stats['expired_by_time'] = max(0, stats['expired_total'] - stats['expired_by_quota'])
+            from services.voucher_expiry_policy import category_sql
+            category = category_sql()
+            breakdown = query_one(f"""SELECT
+                SUM(({category})='quota') AS by_quota,
+                SUM(({category})='time') AS by_time,
+                SUM(({category})='other') AS by_other
+                FROM wisp_vouchers WHERE status='expired'""") or {}
+            stats['expired_by_quota'] = int(breakdown.get('by_quota') or 0)
+            stats['expired_by_time'] = int(breakdown.get('by_time') or 0)
+            stats['expired_by_other'] = int(breakdown.get('by_other') or 0)
 
         # 3. Subscribers
         sub_row = query_one("SELECT COUNT(*) as cnt FROM wisp_subscribers")
@@ -435,45 +438,65 @@ def run_auto_maintenance_job(retention_days=90):
     return dict(result, duplicate_compaction=compact)
 
 
-def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000, min_age_days=0, progress_callback=None):
-    from services.account_lifecycle_service import delete_account, job_lock
+def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000, min_age_days=0, progress_callback=None, cancel_callback=None):
+    from services.account_lifecycle_service import delete_account, job_lock, run_transaction, enqueue_deletion_disconnects
     result=dict(success=True,deleted_vouchers=0,deleted_radcheck=0,deleted_radusergroup=0,deleted_radreply=0,deleted_radacct=0,pending=0,skipped=0,processed=0,total=0,queue_failures=0,pending_reasons={})
     started=time.time()
+    last_report=None
     if delete_type not in ('all','time','quota'):
         return dict(result,success=False,message='نوع حذف غير صالح')
-    def report():
+    def report(force=False):
+        nonlocal last_report
         result['duration_seconds']=round(time.time()-started,2)
-        result['message']=f"تمت معالجة {result['processed']} من {result['total']}؛ حذف {result['deleted_vouchers']} كرت، و{result['pending']} ينتظر إغلاق الجلسات، و{result['skipped']} تغيرت حالته. السجل المالي والمحاسبي محفوظ."
-        if progress_callback:progress_callback(dict(result))
+        result['message']=f"تمت معالجة {result['processed']} من {result['total']}؛ حذف {result['deleted_vouchers']} كرت، و{result['pending']} مؤجل للحماية، و{result['skipped']} تغيرت حالته. السجل المالي وملخص الاستهلاك محفوظان."
+        now=time.monotonic()
+        if progress_callback and (force or last_report is None or now-last_report>=.5):
+            progress_callback(dict(result))
+            last_report=now
     try:
         with job_lock('expired-card-delete') as acquired:
             if not acquired:raise ValueError('الحذف أو إعادة المصنع قيد التنفيذ بالفعل.')
             where="status='expired'";params=[]
             if min_age_days:
                 where+=' AND expires_at < NOW()-INTERVAL ? DAY';params.append(max(1,int(min_age_days)))
-            if delete_type=='quota':
-                where+=" AND (COALESCE(expire_reason,'') LIKE ? OR COALESCE(expire_reason,'') LIKE ? OR COALESCE(expire_reason,'') LIKE ?)";params+=['%البيانات%','%كوتا%','%quota%']
-            elif delete_type=='time':
-                where+=" AND COALESCE(expire_reason,'') NOT LIKE ? AND COALESCE(expire_reason,'') NOT LIKE ? AND COALESCE(expire_reason,'') NOT LIKE ?";params+=['%البيانات%','%كوتا%','%quota%']
+            if delete_type != 'all':
+                from services.voucher_expiry_policy import category_sql
+                where+=' AND ('+category_sql()+')=?';params.append(delete_type)
             rows=query_all('SELECT id,last_renewed_at,expires_at,expire_reason FROM wisp_vouchers WHERE '+where+' ORDER BY id LIMIT ?',tuple(params)+(max(1,min(int(batch_limit),50000)),))
-            result['total']=len(rows);report()
-            for offset in range(0,len(rows),50):
+            result['total']=len(rows);report(force=True)
+            for offset in range(0,len(rows),20):
+                if cancel_callback and cancel_callback():
+                    result['cancelled']=True
+                    break
+                chunk=rows[offset:offset+20]
                 conn=get_connection()
                 try:
-                    for row in rows[offset:offset+50]:
-                        result['current_card_id']=row['id']
-                        state=delete_account('voucher',row['id'],expected_expired=True,delete_acct=delete_acct,min_age_days=min_age_days,expected_cycle=str(row.get('last_renewed_at') or ''),expected_reason=row.get('expire_reason'),connection=conn)
-                        result['deleted_vouchers']+=bool(state.get('deleted'))
-                        result['pending']+=bool(state.get('pending'))
-                        for reason in state.get('pending_reasons',[]):
-                            result['pending_reasons'][reason]=result['pending_reasons'].get(reason,0)+1
-                        result['skipped']+=not state.get('deleted') and not state.get('pending')
-                        result['queue_failures']+=state.get('queue_failures',0)
-                        for field in ('deleted_radcheck','deleted_radusergroup','deleted_radreply'):result[field]+=state.get(field,0)
-                        result['processed']+=1
+                    def operation(transaction):
+                        staged=[]
+                        for row in chunk:
+                            state=delete_account('voucher',row['id'],expected_expired=True,delete_acct=delete_acct,min_age_days=min_age_days,expected_cycle=str(row.get('last_renewed_at') or ''),expected_reason=row.get('expire_reason'),expected_category=delete_type,connection=transaction,transaction_owned=True,queue_pending=False)
+                            staged.append((row['id'],state))
+                        return staged
+                    committed=run_transaction(operation,connection=conn)
                 finally:conn.close()
-                report()
-                if offset+50<len(rows):time.sleep(.02)
+                # No counters or external disconnect queue effects precede commit.
+                for entity_id,state in committed:
+                    result['deleted_vouchers']+=bool(state.get('deleted'))
+                    result['pending']+=bool(state.get('pending'))
+                    for reason in state.get('pending_reasons',[]):
+                        result['pending_reasons'][reason]=result['pending_reasons'].get(reason,0)+1
+                    result['skipped']+=not state.get('deleted') and not state.get('pending')
+                    result['queue_failures']+=state.get('queue_failures',0)
+                    for field in ('deleted_radcheck','deleted_radusergroup','deleted_radreply'):result[field]+=state.get(field,0)
+                    result['processed']+=1
+                for entity_id,state in committed:
+                    if state.get('pending'):
+                        try:enqueue_deletion_disconnects('voucher',entity_id,state)
+                        except Exception:state['queue_failures']=max(1,len(state.get('sessions',[])))
+                        result['queue_failures']+=state.get('queue_failures',0)
+                # Persist at most twice/second, independently of the 20-card
+                # commit/cancellation boundary; always publish the last chunk.
+                report(force=offset+20>=len(rows))
             if result['queue_failures']:
                 result['success']=False;result['error']='تعذر إدراج بعض مهام الفصل؛ الحسابات محفوظة وتحتاج إعادة المحاولة.'
     except Exception as exc:
@@ -481,11 +504,14 @@ def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50
         if result.get('current_card_id'):result['failed_card_id']=result['current_card_id']
     result.pop('current_card_id',None)
     result['duration_seconds']=round(time.time()-started,2)
-    result['message']=f"تم حذف {result['deleted_vouchers']} كرت؛ {result['pending']} ينتظر إغلاق الجلسات و{result['skipped']} تغيرت حالته. السجل المالي والمحاسبي محفوظ."
+    result['message']=f"تم حذف {result['deleted_vouchers']} كرت؛ {result['pending']} مؤجل للحماية و{result['skipped']} تغيرت حالته. السجل المالي وملخص الاستهلاك محفوظان."
     if result['pending']:
-        labels={'open_session':'جلسات مفتوحة','uncertain_close':'إغلاقات تحتاج تسوية','auth_reservation':'حجوزات دخول جارية'}
-        result['message']+=' أسباب التأجيل: '+ '، '.join(f"{labels[k]}: {v}" for k,v in result['pending_reasons'].items())+'.'
-    result['deletion_complete']=bool(result['success'] and not result['pending'] and not result['skipped'])
+        labels={'open_session':'جلسات مفتوحة','uncertain_close':'إغلاقات تحتاج تسوية','auth_reservation':'حجوزات دخول جارية','account_write_guard':'عملية تغيير حساب جارية','ambiguous_owner':'ملكية غير محسومة','unsettled_or_incomplete_history':'تاريخ محاسبة غير مكتمل','late_summary_delta':'محاسبة متأخرة تحتاج تسوية','large_history_requires_batch_purge':'تاريخ كبير يحتاج معالجة مجزأة'}
+        result['message']+=' أسباب التأجيل: '+ '، '.join(f"{labels.get(k,k)}: {v}" for k,v in result['pending_reasons'].items())+'.'
+    result['deletion_complete']=bool(result['success'] and not result.get('cancelled') and not result['pending'] and not result['skipped'])
+    if result.get('cancelled'):
+        result['remaining']=max(0,result['total']-result['processed'])
+        result['message']=f"أُلغيت العملية؛ حُذف {result['deleted_vouchers']} كرت، وبقي {result['remaining']} دون معالجة. السجل المالي وملخص الاستهلاك محفوظان."
     if not result['success']:result['message']+=' لم تكتمل العملية: '+result['error']
     return result
 
@@ -808,7 +834,7 @@ def fix_all_audit_issues():
                     message=f'لم تكتمل المعالجة: {exc}',duration_seconds=round(time.time()-started,2))
 
 
-FACTORY_RESET_TABLES = ('wisp_traffic_checkpoints','wisp_traffic_rollups','wisp_traffic_rollup_state','wisp_traffic_samples','wisp_traffic_history','wisp_sale_source_audit','wisp_sale_sources','wisp_account_mac_addresses','wisp_account_mac_policies','wisp_account_mac_receipts','wisp_voucher_names','wisp_voucher_edit_receipts','wisp_subscriber_names','wisp_subscriber_edit_receipts','wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
+FACTORY_RESET_TABLES = ('wisp_account_usage_seals','wisp_account_usage_summary','wisp_traffic_checkpoints','wisp_traffic_rollups','wisp_traffic_rollup_state','wisp_traffic_samples','wisp_traffic_history','wisp_sale_source_audit','wisp_sale_sources','wisp_account_mac_addresses','wisp_account_mac_policies','wisp_account_mac_receipts','wisp_voucher_names','wisp_voucher_edit_receipts','wisp_subscriber_names','wisp_subscriber_edit_receipts','wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
 
 
 def _wipe_factory_database(keep_packages=True, keep_resellers=False, job_id=None):

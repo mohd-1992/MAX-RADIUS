@@ -137,8 +137,8 @@ def execute_rule_now(rule_id, scheduled=False, expected_last=None):
                 ok,msg=archive_old_sessions(days_threshold=max(1,int(params.get('days',90))))
             elif action=='CLEAN_EXPIRED_CARDS':
                 from services.db_maintenance_service import delete_expired_vouchers
-                res=delete_expired_vouchers(min_age_days=max(60,int(params.get('days',60))))
-                affected=res['deleted_vouchers'];ok=res['success'];msg=res['message']
+                res=delete_expired_vouchers(delete_type=params.get('delete_type','all'),min_age_days=max(60,int(params.get('days',60))))
+                affected=res['deleted_vouchers'];ok=bool(res['success'] and res.get('deletion_complete'));msg=res['message']
             elif action=='SEND_DAILY_SALES_REPORT':
                 from services.bot_notifications_service import trigger_daily_sales_summary
                 ok,msg=trigger_daily_sales_summary()

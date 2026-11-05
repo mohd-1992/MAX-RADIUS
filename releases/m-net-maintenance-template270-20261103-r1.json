@@ -1,0 +1,21 @@
+{
+  "tag": "max-radius-web:2.7.0-maintenance-template-local-20261103-r1",
+  "id": "sha256:2489716712d288fc738351f8590abfd0d9ae97eded0b18b16f45bd859d0d73c0",
+  "size": 2899284704,
+  "base": "sha256:533df08839920c995983402ae42bce6cf9e1fe6295cfc693860c6633e6857385",
+  "seconds": 11.59,
+  "state": "ACCEPTED_M_ONLY",
+  "version": "2.7.0",
+  "target": "m.max-net.net",
+  "web": "4db9342fd1fe6f9c3eb24282729abc9af85335d15345710681d13147cbe4cc45",
+  "web_only": true,
+  "maintenance_page_http": 200,
+  "read_only_api_checks": 2,
+  "focused_tests": 10,
+  "business_tables_equal": 25,
+  "untargeted_unchanged": 84,
+  "license_valid": true,
+  "live_deletion_or_backup": false,
+  "registry_push": false,
+  "transferred_bytes": 616356
+}

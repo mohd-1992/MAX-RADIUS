@@ -1,0 +1,142 @@
+{
+  "status": "ACCEPTED_LOCAL_ONLY",
+  "version": "2.7.0",
+  "source": {
+    "bytes": 51839356,
+    "mib": 49.437862396240234,
+    "sha256": "0e33404fe5fe78c2d07e535786bb6bfa1385fdaf718384ed8148754d76142ff5",
+    "existing_file_unchanged": true,
+    "new_download": false
+  },
+  "images": {
+    "before": "sha256:5455db7ca85a1d5f6c5c205fca0e171cefb28dc9f008dc56d25d4ecd090fa2ca",
+    "after": "sha256:bd046305c881dfa113a0a43b50d036097cba700f0730c1d79bcfb8625f3dd998"
+  },
+  "cases": [
+    {
+      "case": "before-keep",
+      "bytes": 51840251,
+      "mib": 49.4387,
+      "backup_seconds": 75.63,
+      "restore_seconds": 105.32,
+      "cards_restored": 54432,
+      "delete_seconds": 0,
+      "delete_result": null,
+      "financial_tables_exact": 11,
+      "all_remaining_card_rows_and_quotas_exact": true,
+      "destination_license_exact": true,
+      "worker_peak_rss_mib": 82.01953125,
+      "session_counts": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 326651,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 0,
+        "wisp_account_usage_seals": 0
+      },
+      "summary": null
+    },
+    {
+      "case": "after-keep",
+      "bytes": 39006839,
+      "mib": 37.1998,
+      "backup_seconds": 63.17,
+      "restore_seconds": 75.48,
+      "cards_restored": 54432,
+      "delete_seconds": 0,
+      "delete_result": null,
+      "financial_tables_exact": 11,
+      "all_remaining_card_rows_and_quotas_exact": true,
+      "destination_license_exact": true,
+      "worker_peak_rss_mib": 81.9140625,
+      "session_counts": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 33306,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 49306,
+        "wisp_account_usage_seals": 293345
+      },
+      "summary": {
+        "format": 1,
+        "scope": "backup_only",
+        "eligible_cards": 25364,
+        "summarized_sessions": 293345,
+        "summary_rows": 49306,
+        "protected_cards": 147,
+        "financial_records": "complete"
+      }
+    },
+    {
+      "case": "after-delete",
+      "bytes": 21713355,
+      "mib": 20.7075,
+      "backup_seconds": 13.22,
+      "restore_seconds": 47.91,
+      "cards_restored": 28921,
+      "delete_seconds": 409.97,
+      "delete_result": {
+        "success": true,
+        "deleted_vouchers": 25511,
+        "deleted_radcheck": 25512,
+        "deleted_radusergroup": 25511,
+        "deleted_radreply": 2,
+        "deleted_radacct": 0,
+        "pending": 0,
+        "skipped": 0,
+        "processed": 25511,
+        "total": 25511,
+        "queue_failures": 0,
+        "pending_reasons": {},
+        "duration_seconds": 409.94,
+        "message": "تم حذف 25511 كرت؛ 0 مؤجل للحماية و0 تغيرت حالته. السجل المالي وملخص الاستهلاك محفوظان.",
+        "deletion_complete": true
+      },
+      "financial_tables_exact": 11,
+      "all_remaining_card_rows_and_quotas_exact": true,
+      "destination_license_exact": true,
+      "worker_peak_rss_mib": 69.18359375,
+      "session_counts": {
+        "wisp_vouchers": 28921,
+        "wisp_subscribers": 0,
+        "radacct": 10963,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 145703,
+        "wisp_account_usage_summary": 49761,
+        "wisp_account_usage_seals": 315688
+      },
+      "summary": {
+        "format": 1,
+        "scope": "backup_only",
+        "eligible_cards": 0,
+        "summarized_sessions": 0,
+        "summary_rows": 0,
+        "protected_cards": 0,
+        "financial_records": "complete"
+      }
+    }
+  ],
+  "saving_percent": {
+    "keep_vs_original": 24.75,
+    "delete_vs_original": 58.11,
+    "delete_vs_keep": 44.33
+  },
+  "format": "tar.gz, actual compiled production writer; no ZIP conversion",
+  "scope": "local pinned Docker only, no client/domain/router/issuer/telegram/registry access",
+  "extra_old_delete": "intentionally stopped incomplete diagnostic; no archive size or full duration accepted",
+  "cleanup": {
+    "removed_owned_containers": 3,
+    "volumes_and_images_preserved": true,
+    "other_containers_untouched": true,
+    "at": "2026-11-03T22:20:20.275615+00:00"
+  },
+  "resource_samples": 1212
+}

@@ -19,6 +19,9 @@ TARGETS = DETAIL_TABLES + ('radpostauth',)
 META_TABLES = ('wisp_subscribers', 'wisp_vouchers', 'wisp_session_baselines')
 MAX_STATEMENT = 8 * 1024 * 1024
 MAX_ROW = 1024 * 1024
+POLICY_COLUMNS = frozenset(('id','username','last_renewed_at','radacctid','acctuniqueid',
+    'acctsessionid','acctstarttime','acctstoptime','acctterminatecause','authdate',
+    'account_username','account_read_username','account_subscriber_id','account_voucher_id'))
 UNCERTAIN = {b'stale-session-timeout', b'watchdog-autoheal-timeout', b'backup-restored-closed'}
 INSERT = re.compile(rb'^INSERT INTO `([A-Za-z0-9_]+)`(?:\s*\(([^;]*?)\))? VALUES\s*', re.S)
 CREATE = re.compile(rb'^CREATE TABLE(?: IF NOT EXISTS)? `([A-Za-z0-9_]+)`')
@@ -49,7 +52,7 @@ def _date(value):
         return None
 
 
-def _events(stream):
+def _events(stream, targets=None):
     """Bounded native/legacy dump statements; unknown input fails before publish."""
     stream.seek(0)
     columns = {}
@@ -71,7 +74,7 @@ def _events(stream):
             if line.startswith(b')'):
                 schema = None
         match = INSERT.match(line)
-        if not match or match[1].decode('ascii') not in TARGETS + META_TABLES:
+        if not match or match[1].decode('ascii') not in (targets if targets is not None else TARGETS + META_TABLES):
             yield None, None, line
             continue
         raw = line
@@ -96,10 +99,11 @@ def _events(stream):
         yield table, tuple(fields), raw
 
 
-def _rows(raw, columns):
+def _rows(raw, columns, projection=None):
     start = INSERT.match(raw).end()
     cursor = start
     found = False
+    selected = None if projection is None else tuple((i,k) for i,k in enumerate(columns) if k in projection)
     for match in ROW.finditer(raw, start):
         if raw[cursor:match.start()].strip(b' \t\r\n,'):
             raise ValueError('Unrecognized SQL value syntax.')
@@ -109,7 +113,9 @@ def _rows(raw, columns):
         values = VALUE.findall(row[1:-1])
         if len(values) != len(columns):
             raise ValueError('SQL backup row does not match its column contract.')
-        yield row, dict(zip(columns, (_literal(v.strip()) for v in values)))
+        decoded = (dict(zip(columns, (_literal(v.strip()) for v in values))) if selected is None else
+                   {k:_literal(values[i].strip()) for i,k in selected})
+        yield row, decoded
         cursor = match.end()
         found = True
     if not found or raw[cursor:].strip() != b';':
@@ -200,7 +206,7 @@ def compact_dump(stream, snapshot_at, work_parent=None, session_days=90, auth_da
                     schemas.add(definition[1].decode('ascii'))
                 if table not in META_TABLES + DETAIL_TABLES:
                     continue
-                for _, row in _rows(raw, columns):
+                for _, row in _rows(raw, columns, POLICY_COLUMNS):
                     if table in META_TABLES[:2]:
                         kind = 'subscriber' if table == 'wisp_subscribers' else 'voucher'
                         db.execute('INSERT INTO owner VALUES(?,?,?,?)', (kind, _integer(row['id']), row['username'], row.get('last_renewed_at')))
@@ -226,7 +232,7 @@ def compact_dump(stream, snapshot_at, work_parent=None, session_days=90, auth_da
                 if table in contracts and contracts[table] != columns:
                     raise ValueError('Changing insert column order is unsupported for ' + table)
                 contracts[table] = columns
-                for literal, row in _rows(raw, columns):
+                for literal, row in _rows(raw, columns, POLICY_COLUMNS):
                     if table == 'radpostauth':
                         date = _date(row.get('authdate'))
                         omit = bool(date and auth_cutoff is not None and date < auth_cutoff and not db.execute(
@@ -280,7 +286,7 @@ def compact_dump(stream, snapshot_at, work_parent=None, session_days=90, auth_da
 class _FilteredGzip:
     def __init__(self, target):
         self.target = target
-        self.compressor = zlib.compressobj(9, zlib.DEFLATED, 31, 8, zlib.Z_FILTERED)
+        self.compressor = zlib.compressobj(6, zlib.DEFLATED, 31, 8, zlib.Z_FILTERED)
 
     def write(self, data):
         self.target.write(self.compressor.compress(data))

@@ -1318,7 +1318,8 @@ CREATE TABLE IF NOT EXISTS wisp_traffic_history (
  payload_version TINYINT NOT NULL DEFAULT 0,
  captured_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  KEY idx_traffic_owner (reseller_id,acctstarttime), KEY idx_traffic_start (acctstarttime),
- KEY idx_traffic_subscriber (account_subscriber_id), KEY idx_traffic_voucher (account_voucher_id)
+ KEY idx_traffic_subscriber (account_subscriber_id), KEY idx_traffic_voucher (account_voucher_id),
+ KEY idx_traffic_purge_legacy (account_voucher_id,account_subscriber_id,account_username,username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 
@@ -1347,3 +1348,22 @@ CREATE TABLE IF NOT EXISTS wisp_traffic_rollup_state (
  cycle_rows BIGINT NOT NULL DEFAULT 0, last_cycle_rows BIGINT NOT NULL DEFAULT 0,
  last_completed_at DATETIME NULL, started_at DATETIME NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Settled expired voucher usage: additive; no financial/RADIUS triggers.
+CREATE TABLE IF NOT EXISTS wisp_account_usage_summary (
+ summary_key CHAR(64) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ voucher_id BIGINT NOT NULL, username VARCHAR(64) NOT NULL, reseller_id BIGINT NULL,
+ cycle_start DATETIME NULL, first_start DATETIME NOT NULL, last_start DATETIME NOT NULL,
+ nasipaddress VARCHAR(45) NOT NULL DEFAULT '', calledstationid VARCHAR(128) NOT NULL DEFAULT '',
+ nasportid VARCHAR(128) NOT NULL DEFAULT '', framedprotocol VARCHAR(32) NOT NULL DEFAULT '',
+ servicetype VARCHAR(32) NOT NULL DEFAULT '', report_visible TINYINT NOT NULL DEFAULT 1,
+ input_bytes DECIMAL(30,0) NOT NULL, output_bytes DECIMAL(30,0) NOT NULL,
+ uptime_seconds DECIMAL(30,0) NOT NULL, session_count BIGINT NOT NULL,
+ unconfirmed_sessions BIGINT NOT NULL DEFAULT 0,
+ KEY idx_usage_voucher (voucher_id,first_start), KEY idx_usage_owner (reseller_id,first_start)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS wisp_account_usage_seals (
+ acctuniqueid VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ voucher_id BIGINT NOT NULL, input_bytes BIGINT NOT NULL, output_bytes BIGINT NOT NULL,
+ uptime_seconds BIGINT NOT NULL, KEY idx_usage_seal_voucher(voucher_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

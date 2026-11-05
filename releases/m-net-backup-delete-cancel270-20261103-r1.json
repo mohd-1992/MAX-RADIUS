@@ -1,0 +1,23 @@
+{
+  "tag": "max-radius-web:2.7.0-backup-delete-final-local-20261103-r2",
+  "id": "sha256:533df08839920c995983402ae42bce6cf9e1fe6295cfc693860c6633e6857385",
+  "size": 2897883163,
+  "base": "sha256:103978a3009cda4d952e5b0c7901143acf4a8fd2df2e64eaacce718c09d19df0",
+  "seconds": 49.03,
+  "version": "2.7.0",
+  "target": "m.max-net.net",
+  "web_only": true,
+  "core_unchanged": "sha256:04fd43b4e13f6842d8d26d99250f5825eb3bb0bf67df58f5c35f125909f55f83",
+  "unit_tests": 79,
+  "compiled_native_cases": 34,
+  "registry_push": false,
+  "git_push": false,
+  "live_deletion_or_backup_trial": false,
+  "state": "ACCEPTED_M_ONLY",
+  "container": "e45b9c2d782b492247c31e784f6f3f91c92392a22cbfb1219dd927d024a619b0",
+  "business_tables_equal": 25,
+  "untargeted_containers_unchanged": 84,
+  "license_valid": true,
+  "stopped_target_containers": 0,
+  "transferred_bytes": 6038904
+}

@@ -23,6 +23,7 @@ COPY database/license_capacity.py database/maintenance_jobs.py ./database/
 COPY database/permission_catalog.py database/quick_card_schema.py database/first_use_policy.py ./database/
 COPY database/userman_import_schema.py database/subscriber_edit_schema.py database/account_mac_schema.py database/sales_source_schema.py ./database/
 COPY database/traffic_history_schema.py database/traffic_samples_schema.py ./database/
+COPY database/usage_summary_schema.py ./database/
 COPY database/loyalty_schema.py database/cycle_safety.py database/nas_session_safety.py database/voucher_sales_schema.py ./database/
 COPY database/migrations/ ./database/migrations/
 COPY database/update_plans/ ./database/update_plans/

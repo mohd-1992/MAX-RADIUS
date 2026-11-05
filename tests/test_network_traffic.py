@@ -15,7 +15,7 @@ class NetworkTraffic(unittest.TestCase):
     def test_scope_dates_and_archival_identity(self):
         start=dt.datetime(2026,10,26);end=dt.datetime(2026,10,27)
         sql,params=sessions_sql(7,start,end)
-        self.assertEqual(params,(7,7,start,end)*3+(7,start,end))
+        self.assertEqual(params,(7,7,start,end)*3+(7,start,end)*2)
         self.assertEqual(sql.count('acctstarttime>=%s'),4)
         self.assertEqual(sql.count('acctstarttime<%s'),4)
         self.assertIn('radacct_archive_owned',sql)

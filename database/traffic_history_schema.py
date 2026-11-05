@@ -37,7 +37,8 @@ TABLE_SQL = '''CREATE TABLE IF NOT EXISTS wisp_traffic_history (
  payload_version TINYINT NOT NULL DEFAULT 0,
  captured_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  KEY idx_traffic_owner (reseller_id,acctstarttime), KEY idx_traffic_start (acctstarttime),
- KEY idx_traffic_subscriber (account_subscriber_id), KEY idx_traffic_voucher (account_voucher_id)
+ KEY idx_traffic_subscriber (account_subscriber_id), KEY idx_traffic_voucher (account_voucher_id),
+ KEY idx_traffic_purge_legacy (account_voucher_id,account_subscriber_id,account_username,username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin'''
 
 
@@ -99,6 +100,13 @@ def install_traffic_history_schema(conn):
             for name, definition in DETAIL_COLUMNS.items():
                 if name not in names:
                     cur.execute(f'ALTER TABLE wisp_traffic_history ADD COLUMN `{name}` {definition}')
+            cur.execute('SHOW INDEX FROM wisp_traffic_history')
+            purge_index=sorted((r for r in cur.fetchall() if r['Key_name']=='idx_traffic_purge_legacy'),key=lambda r:r['Seq_in_index'])
+            expected=['account_voucher_id','account_subscriber_id','account_username','username']
+            if not purge_index:
+                cur.execute('CREATE INDEX idx_traffic_purge_legacy ON wisp_traffic_history('+','.join(expected)+')')
+            elif [r['Column_name'] for r in purge_index]!=expected:
+                raise RuntimeError('Unexpected legacy purge index contract')
             cur.execute('SHOW COLUMNS FROM wisp_traffic_history')
             names=[row['Field'] for row in cur.fetchall()]
             fields=','.join('COALESCE(a.account_username,a.username) AS username' if name=='username' else 'a.`'+name+'`' for name in names)

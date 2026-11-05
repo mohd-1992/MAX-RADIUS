@@ -1,0 +1,53 @@
+{
+  "status": "READY_LOCAL_NOT_UPLOADED",
+  "version": "2.7.0",
+  "release": "2.7.0-maintenance-20261105-r2",
+  "images": {
+    "core": {
+      "tag": "mohd777/max-radius-core:2.7.0-maintenance-20261105-r2",
+      "id": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+      "size": 314730239,
+      "seconds": 1.92,
+      "local_image_id": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+      "registry_digest": null,
+      "registry_uploaded": false,
+      "platform": "linux/amd64"
+    },
+    "web": {
+      "tag": "mohd777/max-radius-web:2.7.0-maintenance-20261105-r2",
+      "id": "sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+      "size": 2873573785,
+      "seconds": 11.52,
+      "local_image_id": "sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+      "registry_digest": null,
+      "registry_uploaded": false,
+      "platform": "linux/amd64"
+    }
+  },
+  "artifact_dir": "releases/2.7.0-maintenance-20261105-r2",
+  "artifact_files": {
+    "checks.json": "5c81477af81626d48eaca5da6cf76d6020a9819ad75798c3496fa07a0b80d69c",
+    "images.env": "1d79c58a2a96bab35c0f86d49c08744cf2fdb9176614ab6cc187fe7444932410",
+    "README.md": "ff4013e3b5934f1fa74296f867182fec97b3a34ffb234f82083712d1f4e74ce9",
+    "release-candidate.json": "7652c1a11b8eb4145235e13441524fae3511302c27a71a0f086c3d105c52a355",
+    "source-manifest.json": "e58a4e39be655af0d965c60a5bd318ad74db7cc9d85866fa2c754e1e217815ab",
+    "upload-plan.json": "457a7f292e3e99f94c64383ed2750803c6e36322608bc9959b789877675cf61c",
+    "verify-local.ps1": "fb0647db34fefae40b831ea848d3a343a9fc8dc2f60086068f245ceb0addd2a8"
+  },
+  "source_inventory_complete": true,
+  "source_files": 321,
+  "weekly_enhancements_included": false,
+  "tests": {
+    "isolated": 172,
+    "compiled_integration": 45,
+    "license_restore": 1,
+    "shared_schema_migration": 1,
+    "radius_packets": 14,
+    "radius_checks": 7
+  },
+  "local_lab_closed": true,
+  "registry_uploaded": false,
+  "git_pushed": false,
+  "mutable_tags_changed": false,
+  "domains_or_clients_updated": false
+}

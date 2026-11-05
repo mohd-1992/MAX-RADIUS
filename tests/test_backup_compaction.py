@@ -136,6 +136,16 @@ class RetentionTests(unittest.TestCase):
 
 
 class NativeReaderTests(unittest.TestCase):
+    def test_projected_decode_keeps_original_full_row_literal(self):
+        raw=b"INSERT INTO `t` VALUES (7,'full payload',NULL);\n"
+        literal_value,decoded=next(b._rows(raw,('id','payload','nullable'),('id','nullable')))
+        self.assertEqual(literal_value,b"(7,'full payload',NULL)")
+        self.assertEqual(decoded,{'id':b'7','nullable':None})
+
+    def test_projection_still_validates_the_full_column_contract(self):
+        with self.assertRaises(ValueError):
+            list(b._rows(b"INSERT INTO `t` VALUES (7,'extra');\n",('id',),('id',)))
+
     def test_multiline_insert_preserves_sql_bytes_and_column_contract(self):
         prefix = b'INSERT INTO `radpostauth` (`id`,`username`,`authdate`) VALUES\n'
         raw = prefix + b"(1,'semi;colon','2026-10-31'),\n\n(2,'quote\\\'name','2026-10-31')\n;\n"

@@ -1,0 +1,24 @@
+{
+  "phase": "ACCEPTED",
+  "medians": {
+    "before": {
+      "backup_seconds": 58.9152,
+      "restore_seconds": 59.180350000000004,
+      "archive_bytes": 17079974.0
+    },
+    "after": {
+      "backup_seconds": 47.24315,
+      "restore_seconds": 58.44435,
+      "archive_bytes": 17581933.5
+    }
+  },
+  "all_four_restores_accepted": true,
+  "financial_cards_quotas_license_exact": true,
+  "recent_reports_exact": true,
+  "retention_receipts_verified": true,
+  "sql_data_identical": true,
+  "known_additive_schema_bytes": 49,
+  "only_ignored_difference": "explicit unconfirmed_sessions BIGINT default0 declaration in compatibility CREATE IF NOT EXISTS guard; all remaining SQL bytes equal",
+  "improvement_percent": 19.81,
+  "size_increase_percent": 2.94
+}

@@ -182,13 +182,16 @@ def action_activate_subscriber(entity_id, admin_username='admin', entity_type='s
 
 
 def action_delete_entity(entity_type, entity_id, admin_username='admin'):
-    from services.account_lifecycle_service import delete_account
+    from services.account_lifecycle_service import delete_account, deletion_pending_message
+    entity_type = 'voucher' if entity_type == 'card' else entity_type
+    if entity_type not in ('voucher','subscriber'):
+        return False, 'نوع الحساب غير صالح.'
     entity, kind = get_target_entity(entity_type, entity_id)
     if not entity:
         return False, 'الحساب غير موجود'
     result = delete_account(kind, entity['id'])
     if result.get('pending'):
-        return False, 'الحذف قيد الانتظار: تم منع الدخول وطلب فصل جميع الجلسات؛ أعد المحاولة بعد إغلاقها.'
+        return False, deletion_pending_message(result)
     if result.get('deleted'):
         log_audit(1, admin_username, 'DELETE_ACCOUNT', kind, f'Deleted {entity["username"]}; financial history retained')
         return True, 'تم الحذف مع حفظ السجل المالي والمحاسبي.'

@@ -1,14 +1,14 @@
 {
   "format": 1,
-  "release": "20261102-v2.7.0-r1",
+  "release": "20261105-v2.7.0-maintenance-r2",
   "version": "2.7.0",
   "platform": "linux/amd64",
   "channel": "manual-install",
   "automatic_distribution": false,
   "client_updater_compatible": false,
   "images": {
-    "web": "mohd777/max-radius-web@sha256:5455db7ca85a1d5f6c5c205fca0e171cefb28dc9f008dc56d25d4ecd090fa2ca",
-    "core": "mohd777/max-radius-core@sha256:10cc88946c5ed6310a36c4c11b7e991277137da87eb019958f2eb45c8d2eabf5",
+    "web": "mohd777/max-radius-web@sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+    "core": "mohd777/max-radius-core@sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
     "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
     "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
     "autoheal": "willfarrell/autoheal@sha256:f8adb7a2343aaeaa2757561b52428ebf9d3bb8e304d0f7a77fd13de395610504"
@@ -17,17 +17,23 @@
     "clock_guard": "v1"
   },
   "bundle": {
-    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261102-v2.7.0-r1.tar.gz",
-    "sha256": "9fe5c1e51406ddd5d2bfa35c5e142163477abee000d250e08906d54ede2531a7"
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261105-v2.7.0-maintenance-r2.tar.gz",
+    "sha256": "346ddf4fd359fcd97c6d6976daa453125ac915aae7960189f12e35e09a3466d5"
   },
   "telegram_document_part_limit_bytes": 45000000,
   "limitations": [
-    "Published 2.7.0 Web/Core images pinned by digest; no image rebuild or mutable tag change.",
-    "Manual installer distribution; no hosted tenant or license update is initiated by this manifest.",
-    "Database, L2TP and Autoheal image digests remain the previously approved installer references.",
-    "Database memory tuning is a separate explicit host configuration, not automatically applied by this installer.",
+    "Published maintenance r2 Web/Core images are pinned by verified registry digest.",
+    "This manifest selects future explicit manual installations; it does not update running domains or clients.",
+    "Database, L2TP, Autoheal and clock-guard references retain the previous approved selections.",
+    "Database memory tuning remains a separate explicit host configuration.",
+    "New weekly-maintenance scheduling, weekly expired-card deletion and space reclamation are excluded.",
     "Connected identity edits with enabled FastTrack retain the documented settlement limitation.",
-    "Local package and image integrity checks do not prove every host network, NAS or financial transaction."
+    "Local fixture and native RADIUS tests do not prove every hardware NAS, host network or real issuer path."
   ],
-  "source_manifest": "releases/source-20261102-v2.7.0-repository-r1.json"
+  "source_manifest": "releases/source-20261105-v2.7.0-maintenance-r2.json",
+  "image_tags": {
+    "web": "mohd777/max-radius-web:2.7.0-maintenance-20261105-r2",
+    "core": "mohd777/max-radius-core:2.7.0-maintenance-20261105-r2"
+  },
+  "weekly_enhancements_included": false
 }

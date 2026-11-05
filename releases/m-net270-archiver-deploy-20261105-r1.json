@@ -1,0 +1,39 @@
+{
+  "target": "m.max-net.net",
+  "version": "2.7.0",
+  "status": "DEPLOYED_ACCEPTED",
+  "image": {
+    "tag": "max-radius-web:2.7.0-archiver-local-20261105-r1",
+    "id": "sha256:7ca684ccfaa52926aab2635214d1b8aac25084a0ccc3c1d674edceaabe229483",
+    "size": 2920721043,
+    "base": "sha256:1508c922f5125d9260c1a96c22b478335ef0efc7824b5f59014a4a546519ccf4",
+    "seconds": 55.26
+  },
+  "web": "8c500c9e2b452a5d94b380a17bdf092983af4cf7fb27fa39565d295e90c02f77",
+  "core": "e61f791ab5d93919a378125d066a4da1fb6a45619a0661b9b34b30ed5741b0ec",
+  "db": "5ab464143fdd9f8e6aee9ae28246c714c3aeb4d621f10cc49f04c078d0cddd29",
+  "compiled_cases": 11,
+  "embedded_templates": 80,
+  "ui_scripts": 2,
+  "business_tables_equal": 35,
+  "untargeted_unchanged": 84,
+  "delta_bytes": 4977737,
+  "health": {
+    "at_utc": "2026-11-05T02:53:08.328301+00:00",
+    "images_exact": true,
+    "no_oom": true,
+    "web_healthy": true,
+    "restarts": 0,
+    "cards": 6296,
+    "expired": 2,
+    "active_maintenance_jobs": 0,
+    "open_sessions": 0,
+    "lease_valid_and_fresh": true
+  },
+  "live_mutating_tests": false,
+  "registry_push": false,
+  "git_push": false,
+  "latest_changed": false,
+  "rollback_image_and_config_retained": true,
+  "local_lab_closed": true
+}

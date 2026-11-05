@@ -134,6 +134,7 @@ import sqlite3
 import datetime
 import shutil
 import secrets
+import time
 from pathlib import Path
 from database.db import DB_PATH, get_connection, db_session, is_mysql_conn, execute_write, execute_update, query_one, query_all, log_audit
 from core.config import BACKUPS_DIR, STORAGE_DIR, UPLOADS_DIR, DB_TYPE, APP_VERSION
@@ -494,6 +495,7 @@ def _native_mysql_restore(sql_path, before_import=None):
     with tempfile.TemporaryFile(mode='w+b') as stream:
         prefix = "SET SESSION time_zone='%s'; SET SESSION innodb_lock_wait_timeout=180; SET FOREIGN_KEY_CHECKS=0; SET UNIQUE_CHECKS=0; SET autocommit=0;\n" % get_db_timezone_offset()
         stream.write(prefix.encode('utf-8'))
+        stream.write(b'SET @max_usage_summary_reader_v1=1;\n')
         from services.mysql_restore_stream import rebind_dump_definers
         with open(sql_path, 'rb') as source:
             rebind_dump_definers(source, stream)
@@ -536,12 +538,22 @@ def _create_backup(sql_file, admin_username, notes, dispatch_notifications):
     conn.close()
 
     retention_receipt = None
+    creation_timings = {}
     if is_mysql:
         from core.time_service import get_db_storage_now
         retention_time = get_db_storage_now()
+        stage_started = time.monotonic()
         table_names = _native_mysql_dump(sql_file)
+        creation_timings['dump'] = round(time.monotonic()-stage_started,3)
         from services.backup_compaction import compact_dump
+        from services.backup_usage_summary import summarize_dump
+        stage_started = time.monotonic()
+        summary_receipt = summarize_dump(sql_file, retention_time, work_parent=str(STORAGE_DIR))
+        creation_timings['summary'] = round(time.monotonic()-stage_started,3)
+        stage_started = time.monotonic()
         retention_receipt = compact_dump(sql_file, retention_time, work_parent=str(STORAGE_DIR))
+        creation_timings['retention'] = round(time.monotonic()-stage_started,3)
+        retention_receipt['expired_usage_summary'] = summary_receipt
         db_engine_name = 'mysql'
     else:
         # SQLite dump
@@ -578,9 +590,12 @@ def _create_backup(sql_file, admin_username, notes, dispatch_notifications):
 
     if retention_receipt is not None:
         meta['retention_policy'] = retention_receipt
+        meta['required_restore_capabilities'] = ['expired_usage_summary_v1']
+        meta['creation_timings_seconds'] = dict(creation_timings)
 
     # Standard gzip remains readable by previous releases; publish only when complete.
     from services.backup_compaction import atomic_tarfile
+    archive_started = time.monotonic()
     with atomic_tarfile(filepath) as tar:
         # 1. Database dump
         if not is_mysql:
@@ -645,6 +660,7 @@ def _create_backup(sql_file, admin_username, notes, dispatch_notifications):
                 pass
 
     # Compute size and hash
+    creation_timings['archive'] = round(time.monotonic()-archive_started,3)
     size_bytes = os.path.getsize(filepath)
     size_mb = round(size_bytes / (1024 * 1024), 2)
     checksum = get_file_sha256(filepath)
@@ -695,13 +711,14 @@ def _create_backup(sql_file, admin_username, notes, dispatch_notifications):
 
     extra_msg = " وجارٍ إرسالها إلى تيليجرام تلقائياً..." if auto_tg_sent else "."
     if retention_receipt is not None:
-        extra_msg += ' تفاصيل الجلسات لآخر 90 يومًا مع حماية المحاسبة، والسجلات المالية كاملة.'
+        extra_msg += ' الكروت وبياناتها المالية محفوظة، مع تلخيص جلسات الكروت المنتهية المؤهلة.'
     log_audit(1, admin_username, 'CREATE_BACKUP', 'backup', f'Created comprehensive backup {filename} ({size_mb} MB)')
     return True, f"تم إنشاء النسخة الاحتياطية [{filename}] بنجاح بحجم ({size_mb:.2f} MB){extra_msg}", {
         'filename': filename,
         'file_size_mb': size_mb,
         'system_version': CURRENT_SYSTEM_VERSION,
-        'telegram_auto_dispatched': auto_tg_sent
+        'telegram_auto_dispatched': auto_tg_sent,
+        'creation_timings_seconds': creation_timings
     }
 
 def upload_backup_file(file_storage, admin_username='admin'):
@@ -917,6 +934,7 @@ def _restore_backup(filename, admin_username, temp_dir, license_state=None):
         restored_mac_metadata = False
         restored_sale_metadata = False
         restored_sale_audit = False
+        restored_usage_summary = False
         restored_traffic_history = False
         restored_rollup_tables = set()
         if sql_path:
@@ -930,6 +948,7 @@ def _restore_backup(filename, admin_username, temp_dir, license_state=None):
                     restored_sale_metadata |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_sale_sources\b',line,re.I))
                     rollup_match = re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(wisp_traffic_checkpoints|wisp_traffic_rollups|wisp_traffic_rollup_state)\b',line,re.I)
                     if rollup_match: restored_rollup_tables.add(rollup_match.group(1).lower())
+                    restored_usage_summary |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_account_usage_summary\b',line,re.I))
                     restored_traffic_history |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_traffic_history\b',line,re.I))
                     restored_sale_audit |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_sale_source_audit\b',line,re.I))
         # Execute database restoration
@@ -987,6 +1006,10 @@ def _restore_backup(filename, admin_username, temp_dir, license_state=None):
                         install_traffic_samples_schema(restored_db)
                         clear_legacy_rollups(restored_db)
                     install_subscriber_edit_schema(restored_db)
+                    from database.usage_summary_schema import install_usage_summary_schema,clear_legacy_usage_summary
+                    install_usage_summary_schema(restored_db)
+                    if sql_path and not restored_usage_summary:
+                        clear_legacy_usage_summary(restored_db)
                     install_accounting_triggers(restored_db)
         except Exception as e:
             schema_restore_error = str(e)

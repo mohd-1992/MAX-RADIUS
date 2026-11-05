@@ -554,10 +554,10 @@ def update_subscriber(sub_id, data, admin_username='admin', conn=None, record_au
     return True
 
 def delete_subscriber(sub_id, admin_username='admin'):
-    from services.account_lifecycle_service import delete_account
+    from services.account_lifecycle_service import delete_account, deletion_pending_message
     result = delete_account('subscriber', sub_id)
     if result.get('pending'):
-        raise ValueError('تم منع الدخول وطلب فصل جميع الجلسات؛ أعد الحذف بعد إغلاقها. الفواتير محفوظة.')
+        raise ValueError(deletion_pending_message(result)+' الفواتير محفوظة.')
     if result.get('deleted'):
         log_audit(1, admin_username, 'DELETE_SUBSCRIBER', 'subscribers', f'Deleted subscriber {sub_id}; invoices retained')
     return bool(result.get('deleted'))

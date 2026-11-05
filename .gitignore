@@ -253,6 +253,9 @@ tests/fixtures/*
 
 # Reviewed isolated regressions and explicit lab drivers for 2.6.9/2.7.0.
 !tests/test_identity_edit_settlement.py
+!tests/test_voucher_expiry_policy.py
+!tests/test_backup_usage_summary.py
+!tests/test_expired_voucher_purge.py
 !tests/test_backup_archive_policy.py
 !tests/test_batch_text_export.py
 !tests/test_financial_input_guards.py
@@ -278,3 +281,15 @@ tests/fixtures/*
 
 # Reviewed runtime-only default installer bundle for 2.7.0.
 !/releases/runtime-20261102-v2.7.0-r1.tar.gz
+
+!tests/test_deletion_cancel.py
+!tests/test_cleanup_progress_ui.js
+!tests/test_archive_jobs_ui.js
+!tests/test_archiver_jobs.py
+
+# Reviewed runtime-only maintenance installer bundle.
+!/releases/runtime-20261105-v2.7.0-maintenance-r2.tar.gz
+!/releases/2.7.0-maintenance-20261105-r2/images.env
+
+# Keep reviewed test modules importable in a fresh clone.
+!tests/__init__.py

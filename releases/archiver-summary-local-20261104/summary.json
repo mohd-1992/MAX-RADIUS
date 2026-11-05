@@ -1,0 +1,250 @@
+{
+  "local_only": true,
+  "version": "2.7.0",
+  "runtime": "source-overlay-vs-compiled-base-1508c922f512",
+  "aging_simulation": "2027-02-04 19:30 +03:00; source dates unchanged",
+  "unit_tests": 79,
+  "integration_cases": 31,
+  "http_submission_seconds": 0.05971380999835674,
+  "cases": [
+    {
+      "case": "bench-control",
+      "operation_seconds": 2.264991053380072e-06,
+      "operation_timing_valid": true,
+      "backup_seconds": 68.82194843600155,
+      "backup_bytes": 25187869,
+      "restore_seconds": 55.81394485599594,
+      "raw_sql_bytes": 260141027,
+      "raw_dump_seconds": 7.051312474999577,
+      "counts_before": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 326651,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 0,
+        "wisp_account_usage_seals": 0
+      },
+      "counts_after": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 326651,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 0,
+        "wisp_account_usage_seals": 0
+      },
+      "table_stats_before": {
+        "data_bytes": "237535232",
+        "index_bytes": "315195392",
+        "free_bytes": "55574528"
+      },
+      "table_stats_after": {
+        "data_bytes": "237535232",
+        "index_bytes": "315195392",
+        "free_bytes": "55574528"
+      },
+      "file_bytes_before": 663273472,
+      "file_bytes_after": 663273472,
+      "protected_after_operation": true,
+      "restored_protected_exact": true,
+      "result": {
+        "processed": null,
+        "total": null,
+        "summarized_sessions": null,
+        "summary_groups": null,
+        "protected_cards": null,
+        "archived_sessions": null
+      }
+    },
+    {
+      "case": "old-archive",
+      "operation_seconds": 17.89536977300304,
+      "operation_timing_valid": true,
+      "backup_seconds": null,
+      "backup_bytes": null,
+      "restore_seconds": null,
+      "raw_sql_bytes": 260142589,
+      "raw_dump_seconds": 2.0807719089934835,
+      "counts_before": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 326651,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 0,
+        "wisp_account_usage_seals": 0
+      },
+      "counts_after": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 326640,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 11,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 0,
+        "wisp_account_usage_seals": 0
+      },
+      "table_stats_before": {
+        "data_bytes": "237535232",
+        "index_bytes": "315195392",
+        "free_bytes": "55574528"
+      },
+      "table_stats_after": {
+        "data_bytes": "237535232",
+        "index_bytes": "315195392",
+        "free_bytes": "55574528"
+      },
+      "file_bytes_before": 663273472,
+      "file_bytes_after": 663273472,
+      "protected_after_operation": true,
+      "restored_protected_exact": null,
+      "result": {
+        "processed": null,
+        "total": null,
+        "summarized_sessions": null,
+        "summary_groups": null,
+        "protected_cards": null,
+        "archived_sessions": null
+      }
+    },
+    {
+      "case": "new-archive",
+      "operation_seconds": 22.14208984900324,
+      "operation_timing_valid": true,
+      "backup_seconds": 65.48183089100348,
+      "backup_bytes": 25187836,
+      "restore_seconds": 60.43551382199803,
+      "raw_sql_bytes": 260142589,
+      "raw_dump_seconds": 4.1437491070100805,
+      "counts_before": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 326651,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 0,
+        "wisp_account_usage_seals": 0
+      },
+      "counts_after": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 326640,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 11,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 0,
+        "wisp_account_usage_seals": 0
+      },
+      "table_stats_before": {
+        "data_bytes": "237535232",
+        "index_bytes": "315195392",
+        "free_bytes": "55574528"
+      },
+      "table_stats_after": {
+        "data_bytes": "237535232",
+        "index_bytes": "315195392",
+        "free_bytes": "55574528"
+      },
+      "file_bytes_before": 663273472,
+      "file_bytes_after": 663273472,
+      "protected_after_operation": true,
+      "restored_protected_exact": true,
+      "result": {
+        "processed": 11,
+        "total": 11,
+        "summarized_sessions": 0,
+        "summary_groups": null,
+        "protected_cards": 0,
+        "archived_sessions": 11
+      }
+    },
+    {
+      "case": "new-summary",
+      "operation_seconds": null,
+      "operation_timing_valid": false,
+      "backup_seconds": 32.1408362689981,
+      "backup_bytes": 25234826,
+      "restore_seconds": 54.316464196992456,
+      "raw_sql_bytes": 180411251,
+      "raw_dump_seconds": 2.139347200994962,
+      "counts_before": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 326651,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 0,
+        "wisp_account_usage_seals": 0
+      },
+      "counts_after": {
+        "wisp_vouchers": 54432,
+        "wisp_subscribers": 0,
+        "radacct": 33306,
+        "radacct_archive": 0,
+        "wisp_imported_session_history": 0,
+        "wisp_traffic_history": 0,
+        "radpostauth": 534438,
+        "wisp_account_usage_summary": 49306,
+        "wisp_account_usage_seals": 293345
+      },
+      "table_stats_before": {
+        "data_bytes": "237535232",
+        "index_bytes": "315195392",
+        "free_bytes": "55574528"
+      },
+      "table_stats_after": {
+        "data_bytes": "258850816",
+        "index_bytes": "322502656",
+        "free_bytes": "119537664"
+      },
+      "file_bytes_before": 663273472,
+      "file_bytes_after": 776339456,
+      "protected_after_operation": true,
+      "restored_protected_exact": true,
+      "result": {
+        "processed": 25511,
+        "total": 25511,
+        "summarized_sessions": 293345,
+        "summary_groups": 49306,
+        "protected_cards": 147,
+        "archived_sessions": 0
+      }
+    }
+  ],
+  "interruption": "Windows measurement-file rename conflict after 9570 cards. All protected references matched. Remaining IDs only continued; full summary operation duration is invalid.",
+  "nas_tested": false,
+  "real_issuer_tested": false,
+  "compiled_candidate_built": false,
+  "resource_peaks_all_lab_phases": {
+    "db": {
+      "cpu_percent": 199.24,
+      "memory_mib": 1010.0
+    },
+    "before": {
+      "cpu_percent": 103.42,
+      "memory_mib": 347.9
+    },
+    "after": {
+      "cpu_percent": 105.24,
+      "memory_mib": 388.4
+    }
+  },
+  "no_oom_no_restarts": true,
+  "seed_unchanged": true,
+  "lab_closed": true,
+  "owned_test_containers_removed": 3,
+  "evidence_and_volumes_retained": true
+}

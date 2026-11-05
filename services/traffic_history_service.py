@@ -131,7 +131,7 @@ def preserve_before_replacement(conn):
             last=max(ids)
 
 
-def compact_duplicate_history(max_pages=1000, page_size=250):
+def compact_duplicate_history(max_pages=1000, page_size=250, cancel_callback=None):
     """Resume a bounded scan; remove only verified, eligible existing copies.
 
     No unique imported history is archived here. The persisted per-source cursor
@@ -180,6 +180,8 @@ def compact_duplicate_history(max_pages=1000, page_size=250):
                     sql(conn,"INSERT INTO wisp_system_settings (`key`,value) VALUES ('history_compact_source',?) ON DUPLICATE KEY UPDATE value=VALUES(value)",(str((index+1)%len(SOURCES)),))
                 return len(rows),removed,next_id
             while pages<max(1,int(max_pages)):
+                if cancel_callback and cancel_callback():
+                    return dict(result,pending=True,cancelled=True)
                 scanned,removed,next_id=run_transaction(step)
                 pages+=1;result['scanned']+=scanned;result['removed']+=removed
                 if not next_id:break

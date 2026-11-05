@@ -688,6 +688,17 @@ def api_cleanup_job_status(job_id=None):
         return jsonify(success=False,message='تعذر قراءة تقدم المهمة: '+str(exc)),503
 
 
+@system_bp.route('/api/tools/database-maintenance/clean-expired/jobs/<job_id>/cancel', methods=['POST'], endpoint='api_cancel_cleanup_job')
+def api_cancel_cleanup_job(job_id):
+    from services.maintenance_job_service import cancel_cleanup_job
+    try:
+        job=cancel_cleanup_job(job_id,session.get('admin_username','admin'))
+        if job is None:return jsonify(success=False,message='المهمة غير موجودة'),404
+        return jsonify(success=True,job=job)
+    except ValueError as exc:
+        return jsonify(success=False,message=str(exc)),400
+
+
 @system_bp.route('/api/tools/database-maintenance/table-sizes', endpoint="api_table_sizes")
 
 def api_table_sizes():
@@ -713,22 +724,49 @@ def api_prune_historical_logs():
 
 @system_bp.route('/api/tools/database-maintenance/archive', methods=['POST'], endpoint="api_maintenance_archive_sessions")
 def api_maintenance_archive_sessions():
-    data = request.json if request.is_json else request.form.to_dict()
-    days = data.get('days', 90)
-    chunk = data.get('chunk_size', 5000)
+    data = (request.get_json(silent=True) if request.is_json else request.form.to_dict()) or {}
+    from services.maintenance_job_service import start_archive_job
     try:
-        days = int(days)
-    except (ValueError, TypeError):
-        days = 90
+        job,created=start_archive_job(data.get('days',90),data.get('mode','archive'),data.get('chunk_size',500),session.get('admin_username','admin'))
+        return jsonify(success=True,job=job,already_running=not created),202
+    except (ValueError,TypeError) as exc:return jsonify(success=False,message=str(exc)),409
+    except Exception:
+        logger.exception('Unable to submit history maintenance')
+        return jsonify(success=False,message='تعذر تأكيد بدء معالجة التاريخ؛ راجع حالة المهمة قبل إعادة المحاولة.'),503
+
+
+@system_bp.route('/api/tools/database-maintenance/archive/plan', methods=['GET'], endpoint='api_archive_plan')
+def api_archive_plan():
+    from services.accounting_archiver_service import get_archive_plan
     try:
-        chunk = int(chunk)
-    except (ValueError, TypeError):
-        chunk = 5000
-    from services.accounting_archiver_service import archive_old_sessions
-    ok, msg = archive_old_sessions(days_threshold=days, chunk_size=chunk)
-    if ok:
-        log_audit(1, 'admin', 'DB_ARCHIVE_SESSIONS', 'tools', f'Archived sessions older than {days} days: {msg}')
-    return jsonify({'success': ok, 'message': msg})
+        plan=get_archive_plan(request.args.get('days',90),request.args.get('mode','archive'))
+        return jsonify(success=True,plan=plan)
+    except (ValueError,TypeError) as exc:return jsonify(success=False,message=str(exc)),400
+    except Exception:
+        logger.exception('Unable to calculate archive preview')
+        return jsonify(success=False,message='تعذر حساب التاريخ المؤهل حاليًا.'),503
+
+
+@system_bp.route('/api/tools/database-maintenance/archive/jobs/latest', methods=['GET'], endpoint='api_latest_archive_job')
+@system_bp.route('/api/tools/database-maintenance/archive/jobs/<job_id>', methods=['GET'], endpoint='api_archive_job_status')
+def api_archive_job_status(job_id=None):
+    from services.maintenance_job_service import get_maintenance_job
+    try:
+        job=get_maintenance_job('accounting-archive',job_id)
+        if job_id and job is None:return jsonify(success=False,message='المهمة غير موجودة'),404
+        return jsonify(success=True,job=job)
+    except Exception:return jsonify(success=False,message='تعذرت قراءة حالة المعالجة.'),503
+
+
+@system_bp.route('/api/tools/database-maintenance/archive/jobs/<job_id>/cancel', methods=['POST'], endpoint='api_cancel_archive_job')
+def api_cancel_archive_job(job_id):
+    from services.maintenance_job_service import cancel_maintenance_job
+    try:
+        job=cancel_maintenance_job(job_id,'accounting-archive',session.get('admin_username','admin'))
+        if job is None:return jsonify(success=False,message='المهمة غير موجودة'),404
+        return jsonify(success=True,job=job)
+    except ValueError as exc:return jsonify(success=False,message=str(exc)),400
+    except Exception:return jsonify(success=False,message='تعذر تأكيد الإلغاء؛ راجع حالة المهمة.'),503
 
 
 @system_bp.route('/api/tools/database-maintenance/optimize-tables', methods=['POST'], endpoint="api_optimize_tables")

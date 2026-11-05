@@ -1,0 +1,10 @@
+{
+  "checks.json": "5c81477af81626d48eaca5da6cf76d6020a9819ad75798c3496fa07a0b80d69c",
+  "images.env": "1d79c58a2a96bab35c0f86d49c08744cf2fdb9176614ab6cc187fe7444932410",
+  "README.md": "0064e7502e8addc81c2d9273e176f394a1e593d2cee020ba1d02f416de856e83",
+  "registry.json": "510fcc158e20a9047d221ef812b0be057736fbd6717c4f37545267f7ba6160ec",
+  "release-candidate.json": "a74ed176ab51452f5ee847b77690ecd7c48e412c59e79268582e599584bc7831",
+  "source-manifest.json": "e58a4e39be655af0d965c60a5bd318ad74db7cc9d85866fa2c754e1e217815ab",
+  "upload-plan.json": "2f116b73bbd4bb261335d0cf44d0fecf2e592b3e9e2f66845191f431ebda7d9d",
+  "verify-local.ps1": "fb0647db34fefae40b831ea848d3a343a9fc8dc2f60086068f245ceb0addd2a8"
+}
