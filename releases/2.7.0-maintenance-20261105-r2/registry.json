@@ -8,9 +8,9 @@
   },
   "core": {
     "tag": "mohd777/max-radius-core:2.7.0-maintenance-20261105-r2",
-    "registry_digest": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
-    "pinned_reference": "mohd777/max-radius-core@sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
-    "local_image_id": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+    "registry_digest": "sha256:6e71f1e291a90d8c45df79a3f88c5886193bb774054ec3d7e30e72d470b928af",
+    "pinned_reference": "mohd777/max-radius-core@sha256:6e71f1e291a90d8c45df79a3f88c5886193bb774054ec3d7e30e72d470b928af",
+    "local_image_id": "sha256:6e71f1e291a90d8c45df79a3f88c5886193bb774054ec3d7e30e72d470b928af",
     "local_config_and_layers_equal": true
   }
 }

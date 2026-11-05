@@ -293,3 +293,5 @@ tests/fixtures/*
 
 # Keep reviewed test modules importable in a fresh clone.
 !tests/__init__.py
+!tests/test_radius_quota_query_scope.py
+!/releases/runtime-20261105-v2.7.0-maintenance-r2-sqlfix.tar.gz

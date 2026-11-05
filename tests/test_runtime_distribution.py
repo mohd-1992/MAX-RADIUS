@@ -42,6 +42,11 @@ class BundleContracts(unittest.TestCase):
         manifest = json.loads((ROOT/'release.json').read_text())
         source = json.loads((ROOT/manifest['source_manifest']).read_text())
         self.assertEqual(manifest['images']['web'], source['web_image'])
+        self.assertEqual(manifest['images']['core'], source['core_image'])
+        self.assertEqual(manifest['image_tags'], source['image_tags'])
+        registry = json.loads((ROOT/'releases'/manifest['image_tags']['core'].split(':')[-1]/'registry.json').read_text())
+        for role in ('web', 'core'):
+            self.assertEqual(manifest['images'][role], registry[role]['pinned_reference'])
         self.assertEqual(manifest['version'], source['version'])
         for reference in manifest['images'].values():
             self.assertRegex(reference, r'@sha256:[a-f0-9]{64}$')
@@ -69,6 +74,11 @@ class BundleContracts(unittest.TestCase):
 
     def test_legacy_bundle_supported(self):
         self.assertEqual(self.check_archive(BASE, 'none'), 0)
+
+    def test_default_source_checker_tracks_selected_release(self):
+        result = subprocess.run([sys.executable, str(ROOT/'scripts/verify_release_source.py')], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue(json.loads(result.stdout)['passed'])
 
     def test_r13_bundle_supported(self):
         self.assertEqual(self.check_archive(BASE+HOST), 0)

@@ -22,6 +22,8 @@ class ListSafetyTests(unittest.TestCase):
         self.db.execute('ALTER TABLE wisp_subscribers ADD COLUMN created_at TEXT')
         self.db.execute('ALTER TABLE wisp_subscribers ADD COLUMN first_used_at TEXT')
         self.db.execute('ALTER TABLE radacct ADD COLUMN calledstationid TEXT')
+        # This subscriber-only fixture has no voucher summaries or sealed rows.
+        self.db.execute('CREATE VIEW radacct_quota_owned AS SELECT *,1 AS session_weight FROM radacct_owned')
         self.db.execute('CREATE TABLE wisp_session_baselines(radacctid INTEGER,renewed_at TEXT,baseline_input_bytes INTEGER,baseline_output_bytes INTEGER,baseline_seconds INTEGER)')
         self.db.execute("UPDATE wisp_subscribers SET last_renewed_at='2026-10-11 17:00:00',created_at='2026-10-01 12:00:00'")
         class AccountingReadError(Exception):pass
@@ -93,6 +95,8 @@ class ListSafetyTests(unittest.TestCase):
         self.assertEqual(self.db.execute('SELECT balance FROM wisp_subscribers').fetchone()[0],110)
         self.assertEqual(self.db.execute('SELECT COUNT(*) FROM wisp_invoices').fetchone()[0],1)
     def render(self,name,**context):
+        context.setdefault('session_history',dict(total=len(context.get('sessions', [])),page=1,pages=1))
+        context.setdefault('mac_policy',dict(enabled=False,addresses=[]))
         with self.app.test_request_context('/subscribers'):
             request.url_rule=SimpleNamespace(endpoint='subscribers')
             session['permissions']=['subscribers.view','subscribers.edit','subscribers.disconnect','subscribers.renew','subscribers.delete','wallets.manage']

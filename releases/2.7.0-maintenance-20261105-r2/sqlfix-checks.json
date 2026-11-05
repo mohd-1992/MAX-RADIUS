@@ -1,0 +1,15 @@
+{
+  "scope": "Corrected Core authentication SQL, unchanged published Web; selected local acceptance, not all historical test files",
+  "source_unit_cases": 302,
+  "guard_unit_cases": 45,
+  "SQL_semantic_cases": 30,
+  "maintenance_integration_cases": 45,
+  "native_financial_cases": 38,
+  "native_radius_packets": 14,
+  "realistic_load_packets": 9195,
+  "four_cpu_load_packets": 5243,
+  "accepted_load_failures": 0,
+  "old_historical_suite_not_accepted": true,
+  "report": "docs/RELEASE_270_QUOTA_SQL_FIX_LOCAL_20261105.md",
+  "client_or_domain_updates": false
+}

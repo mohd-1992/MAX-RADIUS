@@ -1,0 +1,17 @@
+{
+  "release": "20261105-v2.7.0-maintenance-r2-sqlfix",
+  "archive_sha256": "a5274ccf62feb7aa5ad82e2a425bd5377ad8e32795ce943c43220ad60158fe61",
+  "members_lf_sha256": {
+    "docker-compose.production.yml": "0cf2ff2f7c8ea1ba350e3bf5063c312cad2b94916363fe37991854a40e086fd2",
+    "database/schema_mysql.sql": "34bfbc12c7d63e4107a30fc2669d6b9925a1a8b2fdf7d698150742f16ca7bb23",
+    "docker/l2tp/options.xl2tpd": "b52c69d2254f7648efd426958dd72de0704c96ba1f33d327f31a657e80922995",
+    "storage/keys/master_public_key.pem": "db15592a0478a92330e0b977a10a3f48d9c811953c7d67ec6dcd6cc6ff94d704",
+    "host/clock-guard/clock_ready.py": "fb26a7fa8877a505f3d70f67cf3c6fcdf941bd8c641eb2f6ab83b32d89dcd377",
+    "host/clock-guard/managed_files.py": "58492d9a707b47572745020aa01133309ddd2afdbe5c37647bd02b7e2e135763",
+    "host/clock-guard/active_files.py": "2c106b6bb00438d29169505d3ba6841ad9aa2c2b476e1ae0430e8890709ca7f8",
+    "host/clock-guard/manage.py": "031535d904924472d327fe0907fecb4d8eee9cc8e65993b69f357fae97281bf3",
+    "host/clock-guard/99-max-radius-clock-ready.conf": "c18ee0f3e158a6db88c49c6c69f1c875eb7b5533104c278aa0398d118e4daf27",
+    "runtime-release.env": "f3289a80cfc17f61f9ca57dce759acb950cfb035db9dd50eeb7765a832843770"
+  },
+  "scope": "Immutable installer bundle; independent of future development source."
+}

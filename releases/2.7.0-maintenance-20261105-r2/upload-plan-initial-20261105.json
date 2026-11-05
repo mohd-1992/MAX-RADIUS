@@ -1,0 +1,29 @@
+{
+  "execute_now": false,
+  "requires_explicit_upload_request": false,
+  "mutable_tags_changed": false,
+  "preconditions": [
+    "Verify local image IDs using verify-local.ps1",
+    "Use a new immutable tag; verify it does not already contain another release",
+    "Authenticate to the intended Docker Hub account"
+  ],
+  "commands": [
+    [
+      "docker",
+      "push",
+      "mohd777/max-radius-core:2.7.0-maintenance-20261105-r2"
+    ],
+    [
+      "docker",
+      "push",
+      "mohd777/max-radius-web:2.7.0-maintenance-20261105-r2"
+    ]
+  ],
+  "after_upload": [
+    "Record and verify the registry digest for each exact tag",
+    "Do not replace registry_digest with local_image_id",
+    "Publish or configure an installer/updater only in a separately authorized step"
+  ],
+  "executed": true,
+  "verified": true
+}

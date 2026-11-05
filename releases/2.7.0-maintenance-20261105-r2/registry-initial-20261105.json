@@ -1,0 +1,16 @@
+{
+  "web": {
+    "tag": "mohd777/max-radius-web:2.7.0-maintenance-20261105-r2",
+    "registry_digest": "sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+    "pinned_reference": "mohd777/max-radius-web@sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+    "local_image_id": "sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+    "local_config_and_layers_equal": true
+  },
+  "core": {
+    "tag": "mohd777/max-radius-core:2.7.0-maintenance-20261105-r2",
+    "registry_digest": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+    "pinned_reference": "mohd777/max-radius-core@sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+    "local_image_id": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+    "local_config_and_layers_equal": true
+  }
+}

@@ -25,9 +25,12 @@ def verify(root, manifest):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument('--manifest', default='releases/source-20261105-v2.7.0-maintenance-r2.json')
+    parser.add_argument('--manifest', help='Defaults to source_manifest in release.json')
     args = parser.parse_args()
-    result = verify(args.root, args.root / args.manifest)
+    manifest = args.manifest
+    if manifest is None:
+        manifest = json.loads((args.root / 'release.json').read_text(encoding='utf-8-sig'))['source_manifest']
+    result = verify(args.root, args.root / manifest)
     print(json.dumps(result, indent=2))
     return 0 if result['passed'] else 1
 

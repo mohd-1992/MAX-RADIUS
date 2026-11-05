@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "release": "2.7.0-maintenance-20261105-r2",
+  "version": "2.7.0",
+  "platform": "linux/amd64",
+  "channel": "manual-images-published",
+  "publish_ready": true,
+  "registry_uploaded": true,
+  "automatic_distribution": false,
+  "automatic_update_envelope_included": false,
+  "installer_default_changed": true,
+  "latest_changed": false,
+  "domains_or_clients_updated": false,
+  "images": {
+    "core": {
+      "tag": "mohd777/max-radius-core:2.7.0-maintenance-20261105-r2",
+      "id": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+      "size": 314730239,
+      "seconds": 1.92,
+      "local_image_id": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+      "registry_digest": "sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a",
+      "registry_uploaded": true,
+      "platform": "linux/amd64",
+      "pinned_reference": "mohd777/max-radius-core@sha256:8c5594cf7a89e7127aff1cae0303d3967ca2af0d7043c01229fe1825b7a4836a"
+    },
+    "web": {
+      "tag": "mohd777/max-radius-web:2.7.0-maintenance-20261105-r2",
+      "id": "sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+      "size": 2873573785,
+      "seconds": 11.52,
+      "local_image_id": "sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+      "registry_digest": "sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc",
+      "registry_uploaded": true,
+      "platform": "linux/amd64",
+      "pinned_reference": "mohd777/max-radius-web@sha256:db5c36f5e93fb842b97c6c3de59b703994933184594b2476d346a6552e7378cc"
+    }
+  },
+  "source_manifest_sha256": "e58a4e39be655af0d965c60a5bd318ad74db7cc9d85866fa2c754e1e217815ab",
+  "checks_sha256": "5c81477af81626d48eaca5da6cf76d6020a9819ad75798c3496fa07a0b80d69c",
+  "database_image_change": false,
+  "database_memory_configuration_change": false,
+  "shared_engine_per_schema_migrations": true,
+  "existing_weekly_worker_unchanged": true,
+  "weekly_enhancements_included": false,
+  "rejected_revision": "2.7.0-maintenance-20261105-r1",
+  "notes": [
+    "Local image IDs are not claimed as registry digests; pin registry digests only after verified upload.",
+    "Core configuration and diagnostic detail binary are equivalent to tested 04fd; the release tag pairs it with the consolidated Web.",
+    "No new weekly auto-delete, space-reclamation schedule or weekly job wiring is included.",
+    "Per-target inventory, data checks and rollback planning remain necessary before deployment."
+  ],
+  "core_equivalent_to": "sha256:04fd43b4e13f6842d8d26d99250f5825eb3bb0bf67df58f5c35f125909f55f83",
+  "prepared_at_aden": "2026-11-05T12:15:55.071453+03:00",
+  "tests": {
+    "isolated": 172,
+    "compiled_integration": 45,
+    "license_restore": 1,
+    "shared_schema_migration": 1,
+    "radius_packets": 14,
+    "radius_checks": 7
+  }
+}
