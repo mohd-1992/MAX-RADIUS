@@ -16,6 +16,7 @@ import io
 import datetime
 import threading
 import time
+import copy
 from database.db import get_connection, is_mysql_conn, adapt_query, query_all, query_one, execute_write, log_audit
 from services.import_state_service import imported_policy_rate
 
@@ -39,7 +40,16 @@ _PROGRESS_STATE = {
 def get_migration_progress():
     """Returns a snapshot of the current migration progress."""
     with _PROGRESS_LOCK:
-        return dict(_PROGRESS_STATE)
+        return copy.deepcopy(_PROGRESS_STATE)
+
+
+def reset_migration_admission():
+    """Publish the new running job before its HTTP admission can return."""
+    with _PROGRESS_LOCK:
+        _CANCEL_EVENT.clear()
+        _PROGRESS_STATE.clear()
+        _PROGRESS_STATE.update(status='running', percent=0, stage='جاري بدء الاستيراد...',
+                               processed=0, total=0, stats={}, error=None, message='')
 
 def update_migration_progress(percent=None, stage=None, processed=None, total=None, stats=None, status=None, error=None, message=None):
     """Safely updates global progress state."""
@@ -53,7 +63,7 @@ def update_migration_progress(percent=None, stage=None, processed=None, total=No
         if total is not None:
             _PROGRESS_STATE['total'] = total
         if stats is not None:
-            _PROGRESS_STATE['stats'] = stats
+            _PROGRESS_STATE['stats'] = copy.deepcopy(stats)
         if status is not None:
             _PROGRESS_STATE['status'] = status
         if error is not None:
@@ -63,8 +73,11 @@ def update_migration_progress(percent=None, stage=None, processed=None, total=No
 
 def cancel_migration():
     """Signals active migration to safely abort and rollback."""
-    _CANCEL_EVENT.set()
-    update_migration_progress(stage="جاري الإلغاء والتراجع الآمن...", status="cancelling")
+    with _PROGRESS_LOCK:
+        if _PROGRESS_STATE['status'] not in ('running', 'cancelling'):
+            return {'success': False, 'message': 'لا توجد عملية استيراد جارية لإلغائها.'}
+        _CANCEL_EVENT.set()
+        _PROGRESS_STATE.update(stage='جاري الإلغاء والتراجع الآمن...', status='cancelling')
     return {'success': True, 'message': 'تم إرسال إشارة إلغاء عملية الاستيراد.'}
 
 from database.schema_healer import (TRIGGER_SUB_SQL, TRIGGER_VOUCHER_SQL,
@@ -74,7 +87,11 @@ from services.import_state_service import import_now, validity_duration, parse_i
 
 def _open_backup_stream(file_path_or_bytes):
     if isinstance(file_path_or_bytes, (str, os.PathLike)):
-        if str(file_path_or_bytes).endswith('.gz'):
+        # Upload caching uses one fixed name; the suffix is not a compression
+        # contract. Plain SQL and gzip SQL must both work after upload.
+        with open(file_path_or_bytes, 'rb') as source:
+            compressed = source.read(2) == b'\x1f\x8b'
+        if compressed:
             return gzip.open(file_path_or_bytes, 'rt', encoding='utf-8', errors='ignore')
         else:
             return open(file_path_or_bytes, 'rt', encoding='utf-8', errors='ignore')
@@ -502,13 +519,14 @@ def verify_migration_license(db):
 
 @_license_guarded('data_import')
 @heavy_operation
-def execute_database_migration(file_input, options=None):
+def execute_database_migration(file_input, options=None, _cancel_prepared=False):
     """
     High-Performance Database Migration Engine.
     Executes fast bulk streaming with support for progress reporting, session consolidation, and safe cancellation rollback.
     """
     global _CANCEL_EVENT
-    _CANCEL_EVENT.clear()
+    if not _cancel_prepared:
+        _CANCEL_EVENT.clear()
 
     if options is None:
         options = {}
@@ -521,6 +539,12 @@ def execute_database_migration(file_input, options=None):
     import_sessions = (session_mode != 'none') and options.get('import_sessions', True)
     package_mapping = options.get('package_mapping', {})
     collision_strategy = options.get('collision_strategy', 'overwrite')
+    if collision_strategy not in ('skip', 'overwrite'):
+        raise ValueError('خيار معالجة الحسابات المكررة غير صالح؛ لم يتم تغيير البيانات.')
+    if _CANCEL_EVENT.is_set():
+        message = 'تم إلغاء الاستيراد قبل بدء معالجة البيانات.'
+        update_migration_progress(status='cancelled', stage=message, error=message, message=message)
+        raise RuntimeError(message)
 
     stats = {
         'packages_created': 0,
@@ -532,6 +556,7 @@ def execute_database_migration(file_input, options=None):
         'sessions_imported': 0,
         'radius_synced': 0,
         'skipped_duplicates': 0,
+        'updated_existing_accounts': 0,
         'errors': []
     }
 
@@ -641,7 +666,7 @@ def execute_database_migration(file_input, options=None):
                             pass
 
                 try:
-                    cur.execute("SET SESSION innodb_lock_wait_timeout = 180;")
+                    cur.execute("SET SESSION innodb_lock_wait_timeout = 3;")
                     cur.execute("SET SESSION tx_isolation = 'READ-COMMITTED';")
                 except Exception:
                     try:
@@ -651,23 +676,13 @@ def execute_database_migration(file_input, options=None):
 
                 verify_migration_license(db)
 
-                cur.execute("SET unique_checks = 0;")
-                cur.execute("SET foreign_key_checks = 0;")
                 # Keep trigger definitions installed; suppress activation only on this import connection.
                 cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('wisp_vouchers','wisp_subscribers','wisp_voucher_batches','radacct','wisp_imported_session_history','wisp_traffic_history','radcheck','radreply','radusergroup','wisp_packages','wisp_managers','wisp_global_sequence') AND engine <> 'InnoDB'")
                 if cur.fetchone():
                     raise RuntimeError('Database migration requires transactional InnoDB tables.')
                 cur.execute("SET @max_radius_import = 1")
-                from services.traffic_history_service import preserve_before_replacement
-                preserve_before_replacement(db)
-                cur.execute("DELETE FROM wisp_vouchers;")
-                cur.execute("DELETE FROM wisp_subscribers;")
-                cur.execute("DELETE FROM wisp_voucher_batches;")
-                cur.execute("DELETE FROM radacct;")
-                cur.execute("DELETE FROM wisp_imported_session_history;")
-                cur.execute("DELETE FROM radcheck WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
-                cur.execute("DELETE FROM radusergroup WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
-                cur.execute("DELETE FROM radreply WHERE username NOT IN ('healthcheck', 'probe_user', 'admin');")
+                from services.userman_import_journal import lock_writers
+                lock_writers(db)
 
             except Exception:
                 raise
@@ -818,12 +833,13 @@ def execute_database_migration(file_input, options=None):
         user_id_to_state = {}
         subscriber_usernames_set = set()
         user_id_to_subscriber = {}
+        source_accounts = {}
 
         try:
             pre_stream = _open_backup_stream(file_input)
-            for line in pre_stream:
+            for line in bounded_sql_lines(pre_stream):
                 line_str = line.strip()
-                if line_str.startswith("INSERT INTO `user_qutas`") or line_str.startswith("INSERT INTO `users`"):
+                if line_str.startswith(("INSERT INTO `user_qutas`", "INSERT INTO `users`", "INSERT INTO `cards`")):
                     val_idx = line_str.find(" VALUES (")
                     if val_idx == -1:
                         continue
@@ -873,6 +889,17 @@ def execute_database_migration(file_input, options=None):
                                     else:
                                         subscriber_usernames_set.add(u_name)
                                         user_id_to_subscriber[u_id] = u_name
+                                        if import_subscribers:
+                                            source_accounts[u_name.casefold()] = dict(
+                                                username=u_name, kind='subscriber', password=vals[6] or vals[10] or u_name,
+                                                full_name=((vals[1] or '')+' '+(vals[2] or '')).strip(),
+                                                phone=vals[36] if len(vals)>36 else None)
+                    elif tname == 'cards' and import_cards:
+                        for rc in rows_chunks:
+                            vals = _parse_sql_tuple(rc)
+                            if len(vals)>=10 and vals[7] and vals[7]!='_invalid':
+                                source_accounts.setdefault(vals[7].casefold(), dict(
+                                    username=vals[7],kind='voucher',password=vals[8] or vals[7]))
             pre_stream.close()
 
             # Cross-link all card users with accurate expiration dates and states
@@ -888,6 +915,15 @@ def execute_database_migration(file_input, options=None):
 
         except Exception as e:
             raise RuntimeError("Failed to read authoritative source cycle quotas before importing sessions.") from e
+
+        from services.sql_migration_scope import prepare_identity
+        admitted = {}
+        for key, account in sorted(source_accounts.items()):
+            if _CANCEL_EVENT.is_set():
+                raise RuntimeError('تم إلغاء عملية الاستيراد بناءً على طلب المستخدم.')
+            if prepare_identity(db, strategy=collision_strategy, stats=stats, **account):
+                admitted[key] = account['kind']
+        queued_usernames = set()
 
         stream = _open_backup_stream(file_input)
         created_batches_cache = {}
@@ -917,6 +953,8 @@ def execute_database_migration(file_input, options=None):
         def _flush_radacct(bulk, history=False):
             if not bulk:
                 return
+            from services.sql_migration_scope import validate_session_owners
+            validate_session_owners(db, bulk, history=history)
             sample_len = len(bulk[0]) if bulk else 0
             if sample_len == 25:
                 sql = adapt_query("""
@@ -1027,6 +1065,10 @@ def execute_database_migration(file_input, options=None):
 
                         if not import_subscribers:
                             continue
+                        key = u_name.casefold()
+                        if admitted.get(key) != 'subscriber' or key in queued_usernames:
+                            continue
+                        queued_usernames.add(key)
 
                         if u_id in user_quotas and user_quotas[u_id].get('expire_date'):
                             u_exp = user_quotas[u_id]['expire_date']
@@ -1090,15 +1132,6 @@ def execute_database_migration(file_input, options=None):
                             INSERT INTO wisp_subscribers (
                                 username, password, full_name, phone, service_type, package_id, status, expires_at, last_renewed_at, notes, created_at
                             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                            ON DUPLICATE KEY UPDATE
-                                password = VALUES(password),
-                                full_name = VALUES(full_name),
-                                phone = VALUES(phone),
-                                service_type = VALUES(service_type),
-                                package_id = VALUES(package_id),
-                                status = VALUES(status),
-                                expires_at = VALUES(expires_at),
-                                last_renewed_at = VALUES(last_renewed_at)
                         """, db)
                         cur.executemany(sub_sql, subscribers_bulk)
                         stats['subscribers_imported'] += len(subscribers_bulk)
@@ -1141,6 +1174,10 @@ def execute_database_migration(file_input, options=None):
 
                         if not c_user or c_user == '_invalid' or c_user in subscriber_usernames_set:
                             continue
+                        key = c_user.casefold()
+                        if admitted.get(key) != 'voucher' or key in queued_usernames:
+                            continue
+                        queued_usernames.add(key)
 
                         matched_pkg = resolved_pkg_map.get(c_pid, default_pkg)
                         target_reseller_id = resolved_admin_map.get(c_aid, None)
@@ -1206,9 +1243,12 @@ def execute_database_migration(file_input, options=None):
 
                         batch_id = created_batches_cache.get(c_series)
                         if not batch_id:
-                            _exec_sql(cur, db, "SELECT id FROM wisp_voucher_batches WHERE name = ? OR batch_number = ? LIMIT 1", (c_series, c_series[:30]))
+                            _exec_sql(cur, db, "SELECT id,package_id,reseller_id FROM wisp_voucher_batches WHERE name = ? OR batch_number = ? LIMIT 1", (c_series, c_series[:30]))
                             b_row = cur.fetchone()
                             if b_row:
+                                if (int(b_row['package_id']) != int(matched_pkg['id'])
+                                        or b_row['reseller_id'] != target_reseller_id):
+                                    raise ValueError('حزمة المصدر موجودة بعقد أو مالك مختلف؛ لم يتم تغيير البيانات.')
                                 batch_id = b_row['id'] if isinstance(b_row, dict) else b_row[0]
                             else:
                                 _exec_sql(cur, db, """
@@ -1259,17 +1299,6 @@ def execute_database_migration(file_input, options=None):
                                     snap_rate_download, snap_rate_upload, snap_rate_limit_str,
                                     snap_simultaneous_sessions, snap_mikrotik_group
                                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                ON DUPLICATE KEY UPDATE
-                                    package_id = VALUES(package_id),
-                                    status = VALUES(status),
-                                    expire_reason = VALUES(expire_reason),
-                                    first_used_at = VALUES(first_used_at),
-                                    expires_at = VALUES(expires_at),
-                                    last_renewed_at = VALUES(last_renewed_at),
-                                    snap_volume_quota_mb = VALUES(snap_volume_quota_mb),
-                                    snap_validity_value = VALUES(snap_validity_value),
-                                    snap_validity_unit = VALUES(snap_validity_unit),
-                                    snap_validity_days = VALUES(snap_validity_days)
                             """, db)
                             cur.executemany(v_sql, vouchers_bulk)
                             stats['cards_imported'] += len(vouchers_bulk)
@@ -1300,6 +1329,8 @@ def execute_database_migration(file_input, options=None):
                         if len(vals) >= 30:
                             s_user = vals[3]
                             if not s_user or s_user == '_invalid':
+                                continue
+                            if s_user.casefold() not in admitted:
                                 continue
                             if card_consumption_mode == 'fresh_unused' and s_user in card_usernames_set:
                                 continue
@@ -1389,15 +1420,6 @@ def execute_database_migration(file_input, options=None):
                     INSERT INTO wisp_subscribers (
                         username, password, full_name, phone, service_type, package_id, status, expires_at, last_renewed_at, notes, created_at
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                    ON DUPLICATE KEY UPDATE
-                        password = VALUES(password),
-                        full_name = VALUES(full_name),
-                        phone = VALUES(phone),
-                        service_type = VALUES(service_type),
-                        package_id = VALUES(package_id),
-                        status = VALUES(status),
-                        expires_at = VALUES(expires_at),
-                        last_renewed_at = VALUES(last_renewed_at)
                 """, db)
                 cur.executemany(sub_sql, subscribers_bulk)
                 stats['subscribers_imported'] += len(subscribers_bulk)
@@ -1413,17 +1435,6 @@ def execute_database_migration(file_input, options=None):
                         snap_rate_download, snap_rate_upload, snap_rate_limit_str,
                         snap_simultaneous_sessions, snap_mikrotik_group
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                        package_id = VALUES(package_id),
-                        status = VALUES(status),
-                        expire_reason = VALUES(expire_reason),
-                        first_used_at = VALUES(first_used_at),
-                        expires_at = VALUES(expires_at),
-                        last_renewed_at = VALUES(last_renewed_at),
-                        snap_volume_quota_mb = VALUES(snap_volume_quota_mb),
-                        snap_validity_value = VALUES(snap_validity_value),
-                        snap_validity_unit = VALUES(snap_validity_unit),
-                        snap_validity_days = VALUES(snap_validity_days)
                 """, db)
                 cur.executemany(v_sql, vouchers_bulk)
                 stats['cards_imported'] += len(vouchers_bulk)
@@ -1459,6 +1470,8 @@ def execute_database_migration(file_input, options=None):
             if import_sessions and user_sessions_agg:
                 now_str = now_dt.strftime('%Y-%m-%d %H:%M:%S')
                 for u_name, agg in user_sessions_agg.items():
+                    if u_name.casefold() not in admitted:
+                        continue
                     if session_mode != 'consolidated' and u_name not in authoritative_usage_usernames:
                         continue
                     start_str = agg['first_start'] or now_str
@@ -1490,6 +1503,8 @@ def execute_database_migration(file_input, options=None):
         effective_quotas = dict(subscriber_quotas) if import_subscribers else {}
         if import_cards and card_consumption_mode != 'fresh_unused':
             effective_quotas.update(card_quotas)
+        effective_quotas = {name: quota for name, quota in effective_quotas.items()
+                            if name.casefold() in admitted}
         apply_import_quota_allowances(db, effective_quotas)
 
         update_migration_progress(
@@ -1498,38 +1513,13 @@ def execute_database_migration(file_input, options=None):
             stats=stats
         )
 
-        # Finalize all imported data inside the same transaction.
-        cur.execute("""
-            UPDATE radacct 
-            SET acctstoptime = COALESCE(acctupdatetime, acctstarttime, CURRENT_TIMESTAMP),
-                acctterminatecause = 'Database-Imported-Closed'
-            WHERE acctstoptime IS NULL
-        """)
-        cur.execute("""
+        # Imported rows already carry their historical closure. Existing live
+        # sessions and missing credentials outside this import are never repaired.
+        cur.executemany(adapt_query("""
             UPDATE wisp_voucher_batches b 
             SET b.card_count = (SELECT COUNT(*) FROM wisp_vouchers v WHERE v.batch_id = b.id)
-        """)
-        cur.execute("""
-            INSERT INTO radcheck (username, attribute, op, value)
-            SELECT s.username, 'Cleartext-Password', ':=', s.password
-            FROM wisp_subscribers s
-            WHERE s.status = 'active'
-              AND NOT EXISTS (
-                  SELECT 1 FROM radcheck rc 
-                  WHERE rc.username = s.username AND rc.attribute = 'Cleartext-Password'
-              )
-        """)
-        cur.execute("""
-            INSERT INTO radusergroup (username, groupname, priority)
-            SELECT s.username, p.name, 1
-            FROM wisp_subscribers s
-            JOIN wisp_packages p ON s.package_id = p.id
-            WHERE s.status = 'active'
-              AND NOT EXISTS (
-                  SELECT 1 FROM radusergroup rg 
-                  WHERE rg.username = s.username
-              )
-        """)
+            WHERE b.id=?
+        """, db), [(bid,) for bid in sorted(set(created_batches_cache.values()))])
         if _CANCEL_EVENT.is_set():
             raise RuntimeError("تم إلغاء عملية الاستيراد بناءً على طلب المستخدم.")
         if is_mysql_conn(db):
@@ -1611,15 +1601,19 @@ def start_async_migration(file_input, options=None):
     def run():
         try:
             with operation_slot():
+                # Reset only after admission owns the slot and before returning
+                # acceptance. A cancel arriving afterwards must not be cleared.
+                reset_migration_admission()
                 admission['accepted'] = True
                 ready.set()
                 try:
-                    execute_database_migration(file_input, options)
+                    execute_database_migration(file_input, options, _cancel_prepared=True)
                 except Exception as exc:
                     # The executor records rollback/cancellation itself. Also
                     # cover rejection before its body (e.g. license admission).
                     if get_migration_progress().get('status') not in ('error', 'cancelled'):
-                        update_migration_progress(status='error', error=str(exc), message=str(exc))
+                        update_migration_progress(status='cancelled' if _CANCEL_EVENT.is_set() else 'error',
+                                                  error=str(exc), message=str(exc))
         except Exception as exc:
             # Admission failed: do not replace progress of an existing import.
             admission['error'] = str(exc)

@@ -12,6 +12,7 @@ import urllib.parse
 
 from services.system_update_runtime import (Docker, UpdateError, candidate_spec, endpoints_for,
                                            inspect, restore, write_json)
+from services.system_update_safety import Budget, required, contract_program, PROBE as SAFE_PROBE
 
 PROBE = r'''import json,hashlib,pathlib,subprocess
 from core.config import APP_VERSION
@@ -94,6 +95,11 @@ def prepare(api, config, response, current, folder):
     if not manifest:
         raise UpdateError('No approved release')
     old = owned_snapshot(api, config)
+    contracts=config.get('runtime_contracts')
+    if required(manifest['version']):
+        code=contract_program(old['web'],contracts)
+        if code and execute(api,old['web']['Id'],code,timeout=5).get('verified') is not True:
+            raise UpdateError('Current startup contract changed')
     if manifest.get('requirements') and manifest.get('migration') != 'explicit':
         for role,reference in manifest['requirements']['rollback']['images'].items():
             image=api('GET','/images/'+urllib.parse.quote(old[role]['Image'],safe='')+'/json')
@@ -126,6 +132,7 @@ def prepare(api, config, response, current, folder):
     plan = {'job': folder.name, 'old': old, 'images': images, 'references': manifest['images'],
             'version': manifest['version'], 'previous_version': current, 'publisher_key': before['publisher_key'],
             'accounting': before['rows'], 'release': manifest['release'], 'project': config['project']}
+    if contracts:plan['runtime_contracts']=contracts
     if config.get('compose_path'):
         path = Path(config['compose_path'])
         if path.is_symlink() or not path.is_file():
@@ -179,6 +186,11 @@ def prepare(api, config, response, current, folder):
 
 def wait_ready(api, ident, role, plan, rollback=False, sleep=time.sleep, clock=time.monotonic):
     end = clock()+150
+    strict=required(plan['version'])
+    if strict:end=clock()+35 if rollback else end
+    budget = getattr(api, 'update_budget', None)
+    if budget:
+        end = min(end, budget.recovery if rollback else budget.forward)
     while clock() < end:
         value = inspect(api, ident)
         if not value['State']['Running'] or value['State'].get('OOMKilled'):
@@ -186,10 +198,14 @@ def wait_ready(api, ident, role, plan, rollback=False, sleep=time.sleep, clock=t
         if value['State'].get('Health', {}).get('Status') in (None, 'healthy'):
             try:
                 if role == 'web':
-                    result = execute(api, ident, PROBE)
+                    result = execute(api, ident, SAFE_PROBE if strict else PROBE, timeout=10 if strict else 120)
                     expected = plan['previous_version'] if rollback else plan['version']
-                    if (all(result.get(k) for k in ('verified','license','lease')) and result['version'] == expected
+                    renewed = not strict or (result.get('http') and result.get('lease_deadline','') > plan.get('lease_before',''))
+                    if (renewed and all(result.get(k) for k in ('verified','license','lease')) and result['version'] == expected
                             and result['publisher_key'] == plan['publisher_key']):
+                        contract=contract_program(plan['old']['web'],plan.get('runtime_contracts')) if strict else None
+                        if contract and execute(api,ident,contract,timeout=5).get('verified') is not True:
+                            raise UpdateError('Replacement startup contract changed')
                         compare = execute(api, ident, COMPARE, [json.dumps(plan['accounting'])])
                         if compare.get('preserved') is not True:
                             raise UpdateError('Accounting checkpoint did not verify')
@@ -203,7 +219,7 @@ def wait_ready(api, ident, role, plan, rollback=False, sleep=time.sleep, clock=t
                         return
             except (UpdateError, OSError, KeyError, ValueError):
                 pass
-        sleep(2)
+        sleep(min(2, max(0, end-clock())))
     raise UpdateError('Runtime health, trust, license or accounting did not verify')
 
 
@@ -236,6 +252,16 @@ def persist_compose(plan, folder, rollback=False):
     os.replace(temp, path)
 
 
+def verify_dependencies(api, plan):
+    for role in ('core','db'):
+        old = plan['old'][role]
+        now = inspect(api,old['Id'])
+        addresses = lambda v:{k:e.get('IPAddress') for k,e in v.get('NetworkSettings',{}).get('Networks',{}).items()}
+        if (now['Image']!=old['Image'] or now['State']['StartedAt']!=old['State']['StartedAt']
+                or not now['State']['Running'] or addresses(now)!=addresses(old)):
+            raise UpdateError('Core/database continuity or routing identity changed')
+
+
 def run_job(folder, api=None, wait=None):
     import fcntl
     preliminary = json.loads((Path(folder)/'plan.private.json').read_text(encoding='utf-8'))
@@ -243,6 +269,8 @@ def run_job(folder, api=None, wait=None):
         from services.system_update_migrations import run
         return run(folder,api,wait)
     api, folder = api or Docker(), Path(folder)
+    raw_api = api
+    budget = None
     wait = wait or wait_ready
     with (folder/'execution.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -273,6 +301,23 @@ def run_job(folder, api=None, wait=None):
                 spec['Env'].append('MAX_UPDATE_SOCKET=/max-update-socket/controller.sock')
             for role in specs:
                 specs[role].setdefault('Labels', {})['max.update.job'] = plan['job']
+            if required(plan['version']):
+                if set(specs) != {'web'}:
+                    raise UpdateError('Lease-safe transition is Web-only')
+                contract=contract_program(plan['old']['web'],plan.get('runtime_contracts'))
+                if contract and execute(api,plan['old']['web']['Id'],contract,timeout=5).get('verified') is not True:
+                    raise UpdateError('Startup contract changed before switch')
+                proof = execute(api, plan['old']['web']['Id'], SAFE_PROBE, timeout=10)
+                if proof.get('version') != plan['previous_version'] or proof.get('publisher_key') != plan['publisher_key']:
+                    raise UpdateError('Pre-switch runtime trust changed')
+                budget = Budget(proof)
+                api = budget.api(raw_api)
+                plan['accounting'] = proof['rows']
+                plan['lease_before'] = proof['lease_deadline']
+                write_json(folder/'plan.private.json',plan)
+                state['lease_budget_seconds'] = proof['lease_remaining']
+                state['forward_deadline'] = budget.forward
+                state['recovery_deadline'] = budget.recovery
             state.update(switch_attempted=True, status='running', percent=60, stage='تبديل المكونات المعتمدة')
             write_json(state_path, state)
             for role in ('web','core'):
@@ -297,6 +342,8 @@ def run_job(folder, api=None, wait=None):
             database = inspect(api,plan['old']['db']['Id'])
             if database['Image'] != plan['old']['db']['Image'] or database['State']['StartedAt'] != plan['old']['db']['State']['StartedAt']:
                 raise UpdateError('Database identity changed')
+            if budget:
+                verify_dependencies(api,plan)
             persist_compose(plan,folder)
             if plan.get('controller'):
                 state.update(status='handoff_pending',percent=95,stage='اكتمل تحديث Web؛ جار تسليم محرك التحديث')
@@ -313,6 +360,13 @@ def run_job(folder, api=None, wait=None):
                 state.update(status='error',percent=0,stage='توقف التحديث قبل التبديل')
             else:
                 try:
+                    if budget is None and required(plan['version']):
+                        budget=Budget.for_recovery(state)
+                        api=budget.api(raw_api)
+                    if budget:
+                        budget.recovering = True
+                    state['recovering'] = True
+                    write_json(state_path,state)
                     for role in ('core','web'):
                         record = state['services'].get(role,{})
                         if not record.get('touched'): continue
@@ -326,6 +380,10 @@ def run_job(folder, api=None, wait=None):
                                      'endpoints':endpoints_for(old)},record)
                         wait(api,old['Id'],role,plan,rollback=True)
                     persist_compose(plan,folder,rollback=True)
+                    if required(plan['version']):
+                        if not state['services'].get('web',{}).get('touched'):
+                            wait(api,plan['old']['web']['Id'],'web',plan,rollback=True)
+                        verify_dependencies(api,plan)
                     state.update(status='rolled_back',percent=0,stage='أعيد الإصدار السابق وتحقق تشغيله مع حفظ أحدث المحاسبة')
                 except Exception:
                     state.update(status='recovery_required',percent=0,stage='يلزم تحقق الاسترداد؛ لا تعِد التحديث')

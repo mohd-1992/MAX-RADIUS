@@ -189,12 +189,16 @@ def enqueue_deletion_disconnects(kind, entity_id, result):
     result['queue_failures']=failures
 
 
-def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, min_age_days=0, expected_cycle=None, expected_reason=None, connection=None, expected_category='all', transaction_owned=False, queue_pending=True):
+def delete_account(kind, entity_id, expected_expired=False, delete_acct=False, min_age_days=0, expected_cycle=None, expected_reason=None, connection=None, expected_category='all', transaction_owned=False, queue_pending=True, expected_scope=None):
     """Preserve money/history. Open sessions defer deletion and prevent new auth."""
     def operation(conn):
         table, row = lock_account(conn, kind, entity_id)
         if not row:
             return {'deleted':False,'missing':True}
+        if expected_scope is not None:
+            from services.automation_scope_service import matches
+            if not matches(row, expected_scope):
+                return {'deleted':False,'skipped':True}
         if expected_expired:
             from services.voucher_expiry_policy import expiry_category
             if expected_category != 'all' and expiry_category(row.get('expire_reason')) != expected_category:

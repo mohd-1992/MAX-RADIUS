@@ -68,44 +68,13 @@ def reload_freeradius_clients():
     except Exception:
         pass
 
-    docker_socket_path = '/var/run/docker.sock'
-    if not os.path.exists(docker_socket_path):
-        # Development or test environment without Docker socket mounted
-        return True, "تم حفظ بيانات أجهزة NAS في قاعدة البيانات بنجاح (بيئة غير حاوية)."
-
-    try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(4.0)
-        s.connect(docker_socket_path)
-        req = (
-            b"POST /containers/max_radius_core/restart?t=2 HTTP/1.1\r\n"
-            b"Host: localhost\r\n"
-            b"Connection: close\r\n\r\n"
-        )
-        s.sendall(req)
-        response = b""
-        while True:
-            chunk = s.recv(1024)
-            if not chunk:
-                break
-            response += chunk
-        s.close()
-
-        status_line = response.split(b"\r\n")[0].decode('utf-8', errors='ignore') if response else ""
-        if "204" in status_line or "200" in status_line:
-            return True, "تم تطبيق التعديلات وإعادة تحميل خادم FreeRADIUS بنجاح."
-        else:
-            err_msg = f"فشل تطبيق التعديلات على FreeRADIUS: استجاب الخادم بـ {status_line}"
-            logger_nas = None
-            try:
-                import logging
-                logger_nas = logging.getLogger('nas_service')
-                logger_nas.error(err_msg)
-            except Exception:
-                pass
-            return False, err_msg
-    except Exception as e:
-        return False, f"تعذر الاتصال بـ Docker Daemon لتطبيق التعديلات: {str(e)}"
+    from services import hosted_control_service as hosted
+    if not hosted.configured() and not os.path.exists('/var/run/docker.sock'):
+        return True, 'تم حفظ بيانات أجهزة NAS في قاعدة البيانات بنجاح (بيئة غير حاوية).'
+    # Reuse the same verified project/full-ID boundary as the service controls.
+    # Never restart a global canonical name belonging to another installation.
+    from services.system_control_service import execute_service_action
+    return execute_service_action('freeradius', 'restart', admin_username='admin')
 
 
 def sync_nas_table_entries():
@@ -206,20 +175,16 @@ def delete_nas_device(nas_id, admin_username='admin'):
     if nas:
         ip = nas.get('ip_address', '').strip()
         name = nas.get('name', '').strip()
-        try:
-            if ip:
-                execute_write('DELETE FROM nas WHERE nasname = ?', (ip,))
-        except Exception:
-            pass
-        # Automatically delete and kill any associated L2TP VPN tunnel
-        try:
-            from services.l2tp_service import delete_l2tp_tunnel, kill_l2tp_session
-            tun = query_one("SELECT id, username, tunnel_ip FROM wisp_l2tp_tunnels WHERE tunnel_ip = ? OR name = ?", (ip, name))
-            if tun:
-                kill_l2tp_session(username=tun.get('username'), tunnel_ip=tun.get('tunnel_ip'))
-                delete_l2tp_tunnel(tun['id'], admin_username=admin_username)
-        except Exception:
-            pass
+        # A similarly named tunnel is not proof of an IP binding. Complete any
+        # exact linked-tunnel removal before deleting this NAS's SQL credentials.
+        from services.l2tp_service import delete_l2tp_tunnel
+        tunnels = query_all('SELECT id FROM wisp_l2tp_tunnels WHERE tunnel_ip=?', (ip,))
+        if len(tunnels) > 1:
+            raise ValueError('ربط النفق غير فريد؛ لم تُحذف بيانات NAS.')
+        if tunnels and not delete_l2tp_tunnel(tunnels[0]['id'], admin_username=admin_username):
+            raise ValueError('تعذر حذف النفق المرتبط؛ لم تُحذف بيانات NAS.')
+        if ip:
+            execute_write('DELETE FROM nas WHERE nasname=?', (ip,))
         execute_write('DELETE FROM wisp_nas_devices WHERE id = ?', (nas_id,))
         applied, msg = sync_nas_table_entries()
         log_audit(1, admin_username, 'DELETE_NAS', 'nas', f'Deleted NAS {name or nas_id} ({ip}) and cleaned all associated radius client entries')

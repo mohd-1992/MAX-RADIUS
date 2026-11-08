@@ -24,6 +24,12 @@ def get_nas_diagnostics_overview(skip_live_probe=False):
 def test_coa_port(ip, port=3799, secret=None):
     if not ip:
         return False, 'لم يتم تحديد عنوان IP صالح'
+    try:
+        port = int(port)
+    except (TypeError, ValueError, OverflowError):
+        return False, 'منفذ CoA غير صالح'
+    if not 1 <= port <= 65535:
+        return False, 'منفذ CoA غير صالح'
     
     # Try finding secret if not provided
     if not secret:
@@ -41,3 +47,8 @@ def test_coa_port(ip, port=3799, secret=None):
     )
     res = client.disconnect_user(username='_radius_probe_test_user_', is_test_probe=True)
     return res.get('success', False), res.get('message', 'تم إرسال طلب الفحص')
+
+
+def send_test_coa_disconnect(ip, nas_secret=None, coa_port=3799):
+    """Compatibility route: probe the reserved diagnostic identity only."""
+    return test_coa_port(ip, port=coa_port, secret=nas_secret)

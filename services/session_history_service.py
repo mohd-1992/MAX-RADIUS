@@ -22,8 +22,12 @@ def history_sql(username, owner):
         columns += [f"CONVERT({fallback} USING utf8mb4) COLLATE utf8mb4_bin AS fallback_id",
                     f"{1 if table == 'radacct_owned' else 0} AS live_source",
                     f"{1 if table == 'wisp_imported_session_history_owned' else 0} AS imported_history"]
-        clauses = ["LOWER(username)=LOWER(%s)", "COALESCE(acctterminatecause,'')<>'Consolidated-Historical-Import'"]
-        params.append(username)
+        # A legacy consolidated row is the only history on some imported accounts.
+        # Hide it only when the detailed imported history exists, matching analytics.
+        clauses = ["LOWER(username)=LOWER(%s)", """(COALESCE(acctterminatecause,'')<>'Consolidated-Historical-Import'
+            OR NOT EXISTS (SELECT 1 FROM wisp_imported_session_history_owned h
+                           WHERE LOWER(h.username)=LOWER(%s)))"""]
+        params.extend((username, username))
         if owner is not None:
             scope, count = owner_scope_sql(table)
             clauses.append(scope)
@@ -53,12 +57,25 @@ def get_session_history(username, page=1, page_size=50):
                 cur.execute(statement.replace('?', '%s'), values)
                 return list(cur.fetchall())
             try:
-                total = int(query(f'SELECT COUNT(*) n FROM ({sql}) sessions', params)[0]['n'])
-                pages = max(1, (total + page_size - 1) // page_size) if page_size else 1
-                page = max(1, min(int(page), pages))
                 order = ' ORDER BY acctstarttime DESC,acctuniqueid DESC,acctsessionid DESC,username,nasipaddress,fallback_id'
                 suffix = ' LIMIT %s OFFSET %s' if page_size else ''
-                rows = query(sql + order + suffix, params + ((page_size, (page-1)*page_size) if page_size else ()))
+                requested = max(1, int(page))
+                maria = 'mariadb' in str(getattr(conn, 'get_server_info', lambda: '')()).lower()
+                if maria:
+                    selected = sql.replace('SELECT ', 'SELECT SQL_CALC_FOUND_ROWS ', 1)
+                    rows = query(selected + order + suffix,
+                                 params + ((page_size, (requested-1)*page_size) if page_size else ()))
+                    # Nothing may issue SQL between the selected rows and FOUND_ROWS.
+                    total = int(query('SELECT FOUND_ROWS() n')[0]['n'])
+                    pages = max(1, (total + page_size - 1) // page_size) if page_size else 1
+                    page = min(requested, pages)
+                    if page != requested and page_size:
+                        rows = query(sql + order + suffix, params + (page_size, (page-1)*page_size))
+                else:
+                    total = int(query(f'SELECT COUNT(*) n FROM ({sql}) sessions', params)[0]['n'])
+                    pages = max(1, (total + page_size - 1) // page_size) if page_size else 1
+                    page = min(requested, pages)
+                    rows = query(sql + order + suffix, params + ((page_size, (page-1)*page_size) if page_size else ()))
                 format_history_rows(rows, query)
                 return dict(rows=rows,total=total,page=page,pages=pages)
             finally:
@@ -80,9 +97,14 @@ def format_history_rows(rows, query):
 
 
 def iter_session_history(username, batch_size=250):
-    """One consistent snapshot for the complete export, with bounded row batches."""
+    """One source read and one snapshot, with bounded memory and private disk use."""
     from database.db import get_connection
     from core.ownership import owner_id
+    from services.heavy_operation_service import lock_root, export_cancelled, ExportCancelled
+    from services.session_spool import SessionSpool
+    import pymysql
+    if batch_size <= 0:
+        raise ValueError('Session batch size must be positive.')
     sql,params=history_sql(username,owner_id())
     with get_connection() as conn:
         try:
@@ -91,10 +113,20 @@ def iter_session_history(username, batch_size=250):
                 def query(statement, values=()):
                     cur.execute(statement.replace('?', '%s'),values)
                     return list(cur.fetchall())
-                total=int(query(f'SELECT COUNT(*) n FROM ({sql}) sessions',params)[0]['n'])
-                for offset in range(0,max(total,1),batch_size):
-                    rows=query(sql+' ORDER BY acctstarttime DESC,acctuniqueid DESC,acctsessionid DESC,username,nasipaddress,fallback_id LIMIT %s OFFSET %s',params+(batch_size,offset))
-                    format_history_rows(rows,query)
-                    yield rows,total,offset
+                with SessionSpool(directory=lock_root()) as spool:
+                    with conn.cursor(pymysql.cursors.SSDictCursor) as source:
+                        source.execute(sql+' ORDER BY acctstarttime DESC,acctuniqueid DESC,acctsessionid DESC,username,nasipaddress,fallback_id',params)
+                        while True:
+                            if export_cancelled():
+                                raise ExportCancelled()
+                            rows = source.fetchmany(batch_size)
+                            if not rows:
+                                break
+                            spool.append(rows)
+                    for index, rows in enumerate(spool.batches(batch_size)):
+                        if export_cancelled():
+                            raise ExportCancelled()
+                        format_history_rows(rows,query)
+                        yield rows,spool.total,index*batch_size
         finally:
             conn.rollback()

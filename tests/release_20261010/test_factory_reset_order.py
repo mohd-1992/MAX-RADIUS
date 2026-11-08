@@ -13,16 +13,17 @@ class Tests(unittest.TestCase):
   events=[]; saved=[]; running={'value':True}
   @contextmanager
   def lock(*a,**k):yield True
-  def close(progress):
+  def close(progress,**kwargs):
    self.assertTrue(running['value']); events.append('close')
    if close_error:raise RuntimeError('missing Stop')
   def docker(method,path):events.append('stop');running['value']=False
   backup=types.ModuleType('services.backup_service');backup.create_backup=lambda **k:(True,'ok',{})
   maintenance=types.ModuleType('services.db_maintenance_service')
-  maintenance._wipe_factory_database=lambda *a:events.append('wipe') or []
+  maintenance._wipe_factory_database=lambda *a,**kwargs:events.append('wipe') or []
   maintenance._reclaim_factory_space=lambda *a:dict(success=True)
   def restore(*a):events.append('restore');running['value']=True;return []
-  env=dict(job_lock=lock,execute_update=lambda *a:1,_drain_operational_requests=lambda:None,
+  env=dict(job_lock=lock,execute_update=lambda *a:1,_drain_operational_requests=lambda **kwargs:None,
+   FactoryResetCancelled=type('FixtureCancelled',(Exception,),{}),_check_cancel=lambda *a:None,_claim_wipe=lambda *a:None,
    _cores=lambda:[dict(id='core',was_running=True)],_save=lambda *a,**k:saved.append(a),
    _close_sessions=close,_docker=docker,_inspect=lambda *a:dict(State=dict(Running=running['value'])),
    query_one=lambda *a:dict(n=int(late_session)),_restore=restore,log_audit=lambda *a:None,
@@ -30,7 +31,8 @@ class Tests(unittest.TestCase):
   tree=ast.parse((ROOT/'services/factory_reset_service.py').read_text(encoding='utf8'))
   node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_worker')
   exec(compile(ast.Module(body=[node],type_ignores=[]),'worker','exec'),env)
-  with patch.dict(sys.modules,{'services.backup_service':backup,'services.db_maintenance_service':maintenance}):
+  archive=types.ModuleType('services.maintenance_reset_state');archive.archive_reset_state=lambda *a:{}
+  with patch.dict(sys.modules,{'services.backup_service':backup,'services.db_maintenance_service':maintenance,'services.maintenance_reset_state':archive}):
    env['_worker']('job',dict(keep_packages=True,keep_resellers=False),'admin')
   return events,saved[-1]
  def test_accounting_remains_running_until_sessions_close(self):

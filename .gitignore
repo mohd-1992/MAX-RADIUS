@@ -90,6 +90,7 @@ tests/*
 !tests/test_import_quota_regression.py
 !tests/test_voucher_pages.py
 !tests/test_nas_shared_path.py
+!tests/test_checkpoint_diagnostics.py
 !tests/voucher_page_fixture.py
 !tests/test_package_page.py
 !tests/test_subscriber_admin_safety.py
@@ -122,6 +123,19 @@ reports/
 !tests/test_import_loyalty_fixes.py
 !tests/import_loyalty_mariadb_regression.py
 !tests/test_license_activation.py
+!tests/test_license_atomic_publish_271.py
+!tests/test_service_control_scope_271.py
+!tests/test_network_control_scope_271.py
+!tests/test_profile_password_guard_271.py
+!tests/test_dynamic_form_csrf_271.js
+!tests/test_lifecycle_disconnect_271.py
+!tests/test_invoice_design_dialect_271.py
+!tests/test_invoice_design_sqlite_271.py
+!tests/test_radius_simulator_scope_271.py
+!tests/test_migration_stream_sniff_271.py
+!tests/test_sql_migration_scope_271.py
+!tests/test_migration_cancel_admission_271.py
+!tests/test_migration_progress_admission_271.py
 
 # Instance data and private operational references must never enter Git.
 /storage/*
@@ -295,3 +309,31 @@ tests/fixtures/*
 !tests/__init__.py
 !tests/test_radius_quota_query_scope.py
 !/releases/runtime-20261105-v2.7.0-maintenance-r2-sqlfix.tar.gz
+
+# SQL performance regression coverage.
+!tests/test_sql_performance_270.py
+!tests/test_web_performance_271.py
+
+# Full-system audit regression contracts.
+!tests/test_routeros_framing.py
+!tests/test_full270_audit_regressions.py
+!tests/test_audit_csrf_fetch.js
+!tests/test_license_capacity.py
+
+# Reviewed local 2.7.1 automation contracts.
+!tests/test_automation_271.py
+
+!tests/test_hosted_radius_probe_271.py
+
+!tests/test_wireguard_delete_confirmation_271.py
+
+!tests/test_bulk_package_receipts_271.py
+
+!tests/test_bulk_package_receipts_271.js
+
+!tests/test_watchdog_unknown_probe_271.py
+
+!tests/test_watchdog_unknown_probe_271.js
+
+# Verified immutable runtime installer bundle for 2.7.1.
+!/releases/runtime-20261108-v2.7.1-r25.tar.gz

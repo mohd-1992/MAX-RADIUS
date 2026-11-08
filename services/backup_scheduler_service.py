@@ -76,6 +76,8 @@ def _scheduled_daily_sales_summary_job():
         rule=query_one("SELECT COUNT(*) n FROM wisp_automation_rules WHERE action_type='SEND_DAILY_SALES_REPORT' AND is_active=1 AND schedule_enabled=1")
         if rule and rule['n']:
             return
+        if query_one("SELECT 1 n FROM wisp_automation_tasks WHERE enabled=1 AND deleted_at IS NULL AND kind='report' AND JSON_UNQUOTE(JSON_EXTRACT(definition,'$.params.period'))='day' LIMIT 1"):
+            return
         from services.bot_notifications_service import trigger_daily_sales_summary
         ok, res = trigger_daily_sales_summary()
         logger.info(f"Daily sales summary job completed: ok={ok}, res={res}")

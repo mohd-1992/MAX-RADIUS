@@ -144,6 +144,9 @@ class Controller:
             if (not manifest or manifest['version'] != body['version'] or manifest['release'] != body['release_id']
                     or response['offer']['manifest_sha256'] != body['manifest_sha256']):
                 raise ValueError('Release changed or was withdrawn; review it again')
+            from services.system_update_safety import required
+            if required(manifest['version']) and not config.get('executor_image'):
+                raise ValueError('Prepared lease-safe executor is required before enrollment')
             # Explicit retries are allowed only after a confirmed pre-switch failure.
             receipt = self.root/('release-'+hashlib.sha256(manifest['release'].encode()).hexdigest()+'.private.json')
             review = None
@@ -192,16 +195,44 @@ class Controller:
             if reference not in executor.get('RepoDigests',[]):raise ValueError('Prepared executor digest is missing')
             helper_image = executor['Id']
         helper = {'Image':helper_image,'Entrypoint':['python','-c'],
-                  'Cmd':['from services.system_update_host import worker;worker("/max-update-private",'+repr(job)+')'],
+                  'Cmd':['from services.system_update_host import '+('supervise' if config.get('executor_image') else 'worker')+';'+('supervise' if config.get('executor_image') else 'worker')+'("/max-update-private",'+repr(job)+')'],
                   'Env':['PATH=/opt/venv/bin:/usr/local/bin:/usr/bin:/bin','PYTHONDONTWRITEBYTECODE=1'],
                   'Labels':{'max.update.controller':config['project'],'max.update.job':job},
                   'HostConfig':{'ReadonlyRootfs':True,'RestartPolicy':{'Name':'on-failure','MaximumRetryCount':1},
+                      'Memory':268435456,'NanoCpus':500000000,'PidsLimit':64,
                       'Mounts':config['controller_mounts'], 'Tmpfs':{'/tmp':'rw,nosuid,size=33554432'},
                       'LogConfig':{'Type':'json-file','Config':{'max-size':'5m','max-file':'1'}}}}
         # A supervisor in the same helper survives loss of the worker process.
         created = self.api('POST','/containers/create?name=max_update_'+job,helper)
         write_json(folder/'helper.private.json',{'id':created['Id']})
         self.api('POST','/containers/'+created['Id']+'/start')
+
+def supervise(root, job):
+    """Independent helper parent; only its own child can be terminated.
+
+    A restarted helper recovers the journal instead of replaying preparation.
+    The signed lease is never renewed or extended by this supervisor.
+    """
+    import subprocess
+    if not re.fullmatch('[0-9a-f]{32}',job):raise ValueError('Invalid job')
+    folder=Path(root)/'jobs'/job
+    code='from services.system_update_host import worker;worker('+repr(str(root))+','+repr(job)+')'
+    child=subprocess.Popen([sys.executable,'-c',code])
+    while child.poll() is None:
+        try:
+            state=json.loads((folder/'state.json').read_text())
+            expired=state.get('forward_deadline') and time.monotonic()>=state['forward_deadline']
+            if expired and state.get('switch_attempted') and not state.get('recovering') and state.get('status')=='running':
+                child.terminate()
+                try:child.wait(timeout=3)
+                except subprocess.TimeoutExpired:child.kill();child.wait(timeout=3)
+                return worker(root,job)
+        except (OSError,ValueError):pass
+        time.sleep(.5)
+    state=json.loads((folder/'state.json').read_text())
+    if child.returncode and state.get('status') not in ('completed','rolled_back','error','recovery_required'):
+        return worker(root,job)
+
 
 def worker(root, job):
     root=Path(root)

@@ -841,166 +841,110 @@ def install_and_activate_license(license_str, master_server_url=DEFAULT_MASTER_S
             return False, 'عنوان خادم التراخيص غير آمن. استخدم https://license.max-net.net بدل عنوان HTTP القديم.'
         return False, messages.get(getattr(ex, 'code', None), 'تعذر الاتصال الآمن بخادم التراخيص أو التحقق من رده؛ راجع الاتصال وHTTPS وتوقيت الجهاز.')
 
-    raw_json = json.dumps({k:v for k,v in pkg_dict.items() if k != 'enrollment_token'}, ensure_ascii=False)
-    sig_b64 = pkg_dict.get('signature', '')
-    
-    # Save into wisp_license_info
-    conn = get_connection()
-    is_mysql = is_mysql_conn(conn)
-    conn.close()
-    
-    # Maintain single active license record in wisp_license_info
-    execute_write("DELETE FROM wisp_license_info WHERE license_id != %s" if is_mysql else "DELETE FROM wisp_license_info WHERE license_id != ?", (lic_id,))
-    existing = query_one("SELECT id FROM wisp_license_info WHERE license_id = %s" if is_mysql else "SELECT id FROM wisp_license_info WHERE license_id = ?", (lic_id,))
-    if existing:
-        if is_mysql:
-            execute_write("""
-            UPDATE wisp_license_info SET
-                client_name = %s, plan_tier = %s, hardware_id = %s,
-                max_subscribers = %s, max_active_sessions = %s, max_nas = %s, max_managers = %s,
-                features_json = %s, raw_package_json = %s, signature_b64 = %s,
-                issued_at = %s, expires_at = %s, status = 'active',
-                last_verified_at = CURRENT_TIMESTAMP, last_heartbeat_at = CURRENT_TIMESTAMP,
-                master_server_url = %s
-            WHERE id = %s
-            """, (
-                client_name, plan_tier, hw_id, max_subs, max_active, max_nas, max_managers,
-                json.dumps(features), raw_json, sig_b64,
-                payload.get('issued_at'), payload.get('expires_at'),
-                master_server_url, existing['id']
-            ))
-        else:
-            execute_write("""
-            UPDATE wisp_license_info SET
-                client_name = ?, plan_tier = ?, hardware_id = ?,
-                max_subscribers = ?, max_active_sessions = ?, max_nas = ?, max_managers = ?,
-                features_json = ?, raw_package_json = ?, signature_b64 = ?,
-                issued_at = ?, expires_at = ?, status = 'active',
-                last_verified_at = CURRENT_TIMESTAMP, last_heartbeat_at = CURRENT_TIMESTAMP,
-                master_server_url = ?
-            WHERE id = ?
-            """, (
-                client_name, plan_tier, hw_id, max_subs, max_active, max_nas, max_managers,
-                json.dumps(features), raw_json, sig_b64,
-                payload.get('issued_at'), payload.get('expires_at'),
-                master_server_url, existing['id']
-            ))
-    else:
-        if is_mysql:
-            execute_write("""
-            INSERT INTO wisp_license_info (
-                license_id, client_name, plan_tier, hardware_id,
-                max_subscribers, max_active_sessions, max_nas, max_managers, features_json,
-                raw_package_json, signature_b64, issued_at, expires_at,
-                status, last_heartbeat_at, master_server_url
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP, %s)
-            """, (
-                lic_id, client_name, plan_tier, hw_id, max_subs, max_active, max_nas, max_managers,
-                json.dumps(features), raw_json, sig_b64,
-                payload.get('issued_at'), payload.get('expires_at'), master_server_url
-            ))
-        else:
-            execute_write("""
-            INSERT INTO wisp_license_info (
-                license_id, client_name, plan_tier, hardware_id,
-                max_subscribers, max_active_sessions, max_nas, max_managers, features_json,
-                raw_package_json, signature_b64, issued_at, expires_at,
-                status, last_heartbeat_at, master_server_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, ?)
-            """, (
-                lic_id, client_name, plan_tier, hw_id, max_subs, max_active, max_nas, max_managers,
-                json.dumps(features), raw_json, sig_b64,
-                payload.get('issued_at'), payload.get('expires_at'), master_server_url
-            ))
-        
-    clear_license_cache()
+    try:
+        _persist_verified_package(pkg_dict, master_server_url)
+    except Exception:
+        logger.exception('License activation persistence could not be confirmed')
+        clear_license_cache()
+        return False, 'تعذر تأكيد حفظ الترخيص؛ راجع حالته الحالية قبل إعادة المحاولة.'
     return True, f"تم تفعيل وتوثيق الترخيص الرقمي ({lic_id}) بنجاح!"
 
 
-def _apply_verified_package_to_db(pkg_dict, master_server_url=DEFAULT_MASTER_SERVER_URL):
+def _lease_values(package, info):
+    until = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=90)
+    expires = package['payload'].get('expires_at')
+    if expires and not info.get('is_lifetime'):
+        expiry = datetime.datetime.fromisoformat(expires.replace('Z', '+00:00'))
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=datetime.timezone.utc)
+        until = min(until, expiry.astimezone(datetime.timezone.utc))
+    return until.replace(tzinfo=None)
+
+
+def _write_runtime_lease(cursor, conn, row_id, raw_json, allowed, info, until):
+    import hashlib
+    from database.db import adapt_query
+    cursor.execute(adapt_query("""INSERT INTO wisp_license_runtime_state
+        (id,license_row_id,package_hash,is_valid,license_mode,max_active_sessions,valid_until)
+        VALUES(1,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
+        license_row_id=VALUES(license_row_id),package_hash=VALUES(package_hash),
+        is_valid=VALUES(is_valid),license_mode=VALUES(license_mode),
+        max_active_sessions=VALUES(max_active_sessions),valid_until=VALUES(valid_until)""", conn),
+        (row_id, hashlib.sha256(raw_json.encode('utf-8')).hexdigest() if raw_json else None,
+         int(allowed), info.get('license_mode', 'unknown'), info.get('max_active_sessions'), until))
+
+
+def _persist_verified_package(pkg_dict, master_server_url):
+    """Commit an approved package and its exact RADIUS lease as one transaction.
+
+    Callers must first obtain authenticated approval from the license authority.
+    The runtime row is locked before package rows, matching the capacity guard.
+    A failed write leaves the previous package and lease intact.
     """
-    Applies and saves an already verified license package payload into local wisp_license_info.
-    """
-    payload = pkg_dict['payload']
-    lic_id = payload.get('license_id')
-    client_name = payload.get('client_name')
-    plan_tier = payload.get('plan_tier', 'Enterprise')
-    hw_id = payload.get('hardware_id', 'ANY')
+    from database.db import adapt_query
+    package = {k: v for k, v in pkg_dict.items() if k != 'enrollment_token'}
+    subscribers, nas, active = get_current_system_counts()
+    if min(subscribers, nas, active) < 0:
+        raise RuntimeError('Verified capacity counts are unavailable')
+    valid, message, info = verify_license_package(package, current_active_sessions=active,
+                                                current_nas=nas, current_subscribers=subscribers)
+    if not valid:
+        raise ValueError(message)
+    clock_ok, message = check_and_update_monotonic_time()
+    if not clock_ok:
+        raise ValueError(message)
+    if is_license_blacklisted(info['license_id']):
+        raise ValueError('License is locally revoked')
+    payload = package['payload']
     limits = payload.get('limits', {})
-    max_subs = limits.get('max_subscribers', 5000)
-    max_active = limits.get('max_active_sessions', limits.get('max_concurrent_sessions', 0))
-    max_nas = limits.get('max_nas', 15)
-    max_managers = limits.get('max_managers', 10)
-    features = payload.get('features', {})
-    raw_json = json.dumps(pkg_dict, ensure_ascii=False)
-    sig_b64 = pkg_dict.get('signature', '')
-    
+    raw_json = json.dumps(package, ensure_ascii=False)
+    fields = ('client_name', 'plan_tier', 'hardware_id', 'max_subscribers',
+              'max_active_sessions', 'max_nas', 'max_managers', 'features_json',
+              'raw_package_json', 'signature_b64', 'issued_at', 'expires_at', 'master_server_url')
+    values = (payload.get('client_name'), payload.get('plan_tier', 'Enterprise'),
+              payload.get('hardware_id', 'ANY'), limits.get('max_subscribers', 5000),
+              limits.get('max_active_sessions', limits.get('max_concurrent_sessions', 0)),
+              limits.get('max_nas', 15), limits.get('max_managers', 10),
+              json.dumps(payload.get('features', {})), raw_json, package.get('signature', ''),
+              payload.get('issued_at'), payload.get('expires_at'), master_server_url)
     conn = get_connection()
-    is_mysql = is_mysql_conn(conn)
-    conn.close()
-    
-    existing = query_one("SELECT id FROM wisp_license_info WHERE license_id = %s" if is_mysql else "SELECT id FROM wisp_license_info WHERE license_id = ?", (lic_id,))
-    if existing:
-        if is_mysql:
-            execute_write("""
-            UPDATE wisp_license_info SET
-                client_name = %s, plan_tier = %s, hardware_id = %s,
-                max_subscribers = %s, max_active_sessions = %s, max_nas = %s, max_managers = %s,
-                features_json = %s, raw_package_json = %s, signature_b64 = %s,
-                issued_at = %s, expires_at = %s, status = 'active',
-                last_verified_at = CURRENT_TIMESTAMP, last_heartbeat_at = CURRENT_TIMESTAMP,
-                master_server_url = %s
-            WHERE id = %s
-            """, (
-                client_name, plan_tier, hw_id, max_subs, max_active, max_nas, max_managers,
-                json.dumps(features), raw_json, sig_b64,
-                payload.get('issued_at'), payload.get('expires_at'),
-                master_server_url, existing['id']
-            ))
-        else:
-            execute_write("""
-            UPDATE wisp_license_info SET
-                client_name = ?, plan_tier = ?, hardware_id = ?,
-                max_subscribers = ?, max_active_sessions = ?, max_nas = ?, max_managers = ?,
-                features_json = ?, raw_package_json = ?, signature_b64 = ?,
-                issued_at = ?, expires_at = ?, status = 'active',
-                last_verified_at = CURRENT_TIMESTAMP, last_heartbeat_at = CURRENT_TIMESTAMP,
-                master_server_url = ?
-            WHERE id = ?
-            """, (
-                client_name, plan_tier, hw_id, max_subs, max_active, max_nas, max_managers,
-                json.dumps(features), raw_json, sig_b64,
-                payload.get('issued_at'), payload.get('expires_at'),
-                master_server_url, existing['id']
-            ))
-    else:
-        if is_mysql:
-            execute_write("""
-            INSERT INTO wisp_license_info (
-                license_id, client_name, plan_tier, hardware_id,
-                max_subscribers, max_active_sessions, max_nas, max_managers, features_json,
-                raw_package_json, signature_b64, issued_at, expires_at,
-                status, last_heartbeat_at, master_server_url
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active', CURRENT_TIMESTAMP, %s)
-            """, (
-                lic_id, client_name, plan_tier, hw_id, max_subs, max_active, max_nas, max_managers,
-                json.dumps(features), raw_json, sig_b64,
-                payload.get('issued_at'), payload.get('expires_at'), master_server_url
-            ))
-        else:
-            execute_write("""
-            INSERT INTO wisp_license_info (
-                license_id, client_name, plan_tier, hardware_id,
-                max_subscribers, max_active_sessions, max_nas, max_managers, features_json,
-                raw_package_json, signature_b64, issued_at, expires_at,
-                status, last_heartbeat_at, master_server_url
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', CURRENT_TIMESTAMP, ?)
-            """, (
-                lic_id, client_name, plan_tier, hw_id, max_subs, max_active, max_nas, max_managers,
-                json.dumps(features), raw_json, sig_b64,
-                payload.get('issued_at'), payload.get('expires_at'), master_server_url
-            ))
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute('SELECT id FROM wisp_license_runtime_state WHERE id=1 FOR UPDATE')
+            if not cursor.fetchone():
+                raise RuntimeError('RADIUS license state is not initialized')
+            cursor.execute(adapt_query('SELECT id FROM wisp_license_info WHERE license_id=? FOR UPDATE', conn),
+                           (info['license_id'],))
+            previous = cursor.fetchone()
+            cursor.execute(adapt_query('DELETE FROM wisp_license_info WHERE license_id!=?', conn),
+                           (info['license_id'],))
+            if previous:
+                row_id = previous['id']
+                assignments = ','.join(name + '=?' for name in fields)
+                cursor.execute(adapt_query('UPDATE wisp_license_info SET ' + assignments +
+                    ",status='active',last_verified_at=CURRENT_TIMESTAMP,last_heartbeat_at=CURRENT_TIMESTAMP WHERE id=?", conn),
+                    values + (row_id,))
+            else:
+                columns = ','.join(fields)
+                markers = ','.join('?' for _ in fields)
+                cursor.execute(adapt_query('INSERT INTO wisp_license_info (license_id,' + columns +
+                    ",status,last_verified_at,last_heartbeat_at) VALUES (?," + markers +
+                    ",'active',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)", conn), (info['license_id'],) + values)
+                row_id = cursor.lastrowid
+            _write_runtime_lease(cursor, conn, row_id, raw_json, True, info, _lease_values(package, info))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
     clear_license_cache()
+
+
+def _apply_verified_package_to_db(pkg_dict, master_server_url=DEFAULT_MASTER_SERVER_URL):
+    """Save an authority-approved OTA package through the same atomic boundary."""
+    _persist_verified_package(pkg_dict, master_server_url)
+
 
 def sync_license_heartbeat_with_server(max_retries=3):
     """
@@ -1160,17 +1104,35 @@ def publish_radius_license_state():
             lease_until = min(lease_until, exp.astimezone(datetime.timezone.utc))
     else:
         info = {}
-    # Pending/stale seats are not expired by a wall clock: only a confirmed Stop releases them.
-    execute_write("""INSERT INTO wisp_license_runtime_state
-        (id,license_row_id,package_hash,is_valid,license_mode,max_active_sessions,valid_until)
-        VALUES(1,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE
-        license_row_id=VALUES(license_row_id),package_hash=VALUES(package_hash),
-        is_valid=VALUES(is_valid),license_mode=VALUES(license_mode),
-        max_active_sessions=VALUES(max_active_sessions),valid_until=VALUES(valid_until)""",
-        (row['id'] if row else None,
-         hashlib.sha256(row['raw_package_json'].encode('utf-8')).hexdigest() if row else None,
-         int(allowed),info.get('license_mode','unknown'),info.get('max_active_sessions'),
-         lease_until.replace(tzinfo=None)))
+    # Lock in the same order as activation. A publisher that verified the old
+    # package must never overwrite the new package's lease after its commit.
+    from database.db import adapt_query
+    conn = get_connection()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute('SELECT id FROM wisp_license_runtime_state WHERE id=1 FOR UPDATE')
+            if not cursor.fetchone():
+                raise RuntimeError('RADIUS license state is not initialized')
+            cursor.execute("""SELECT l.id,l.raw_package_json,l.status,
+                EXISTS(SELECT 1 FROM wisp_revoked_licenses b WHERE b.license_id=l.license_id) blocked
+                FROM wisp_license_info l ORDER BY l.id DESC LIMIT 1 FOR UPDATE""")
+            current = cursor.fetchone()
+            if bool(current) != bool(row) or (current and (
+                    current['id'] != row['id'] or current['raw_package_json'] != row['raw_package_json'])):
+                conn.rollback()
+                clear_license_cache()
+                return False
+            allowed = allowed and bool(current and current['status'] in ('active', 'over_quota')
+                                       and not current['blocked'])
+            _write_runtime_lease(cursor, conn, row['id'] if row else None,
+                row['raw_package_json'] if row else None, allowed, info, lease_until.replace(tzinfo=None))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    return True
 
 
 def _run_radius_license_state_worker():

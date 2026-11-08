@@ -466,14 +466,22 @@ def pay_invoice_action(inv_id):
 
 def save_invoice_design_action():
     try:
-        for k in ['invoice_header', 'tax_number', 'invoice_footer']:
-            val = request.form.get(k)
-            if val is not None:
-                execute_write('''
-                    INSERT INTO wisp_system_settings (key, value, description)
-                    VALUES (?, ?, 'Invoice Setting')
-                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-                ''', (k, val))
+        from database.db import db_session, is_mysql_conn, adapt_query
+        # One save is one transaction; absent fields retain their old values.
+        with db_session() as conn:
+            statement = '''INSERT INTO wisp_system_settings (`key`, `value`, description)
+                VALUES (?, ?, 'Invoice Setting') '''
+            statement += ('ON DUPLICATE KEY UPDATE `value`=VALUES(`value`)'
+                          if is_mysql_conn(conn) else
+                          'ON CONFLICT(`key`) DO UPDATE SET `value`=excluded.`value`')
+            cursor = conn.cursor()
+            try:
+                for k in ['invoice_header', 'tax_number', 'invoice_footer']:
+                    val = request.form.get(k)
+                    if val is not None:
+                        cursor.execute(adapt_query(statement, conn), (k, val))
+            finally:
+                cursor.close()
         flash('تم حفظ وتطبيق تصميم الفاتورة بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ: {str(e)}', 'danger')

@@ -174,11 +174,17 @@ def report(args, now=None, timezone=None):
                     MAX(observed_at) AS last_observed
                     FROM {source} GROUP BY nasipaddress,service_type,server_name,
                     CASE WHEN service_type='pppoe' THEN server_interface ELSE '' END''',params)
-            option_rows=options_query(f'''SELECT DISTINCT nasipaddress AS nas_address,service_type,server_name,
-                CASE WHEN service_type='pppoe' THEN server_interface ELSE '' END AS server_interface
-                FROM {scope}''',scope_params)
             source,params=sessions_sql(owner,start,end,nas=selected.get('nas'))
             rows=grouped(source,params)
+            if not start and not end and not selected.get('nas'):
+                # The all-time aggregate already contains every catalog dimension.
+                # Reuse this request's exact deduplication, including conflicts and
+                # settled summaries, rather than grouping history a second time.
+                option_rows=rows
+            else:
+                option_rows=options_query(f'''SELECT DISTINCT nasipaddress AS nas_address,service_type,server_name,
+                    CASE WHEN service_type='pppoe' THEN server_interface ELSE '' END AS server_interface
+                    FROM {scope}''',scope_params)
         conn.rollback()
     finally:
         conn.close()

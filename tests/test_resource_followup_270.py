@@ -41,8 +41,8 @@ class Resources(unittest.TestCase):
         self.assertEqual(str(package_metrics([dict(total_reseller_profit=Decimal('0.00'))])['total_reseller_profit']),'0.00')
         self.assertEqual(str(package_metrics([])['total_reseller_profit']),'0.00')
 
-    def test_nas_filter_is_parameterized_in_all_four_sources(self):
+    def test_nas_filter_is_parameterized_in_details_and_settled_summary(self):
         sql,params=sessions_sql(nas='192.0.2.1')
-        self.assertEqual(params,('192.0.2.1',)*4)
+        self.assertEqual(params,('192.0.2.1',)*5)
         self.assertEqual(sql.count("COALESCE(nasipaddress,'')=%s"),4)
         self.assertNotIn('192.0.2.1',sql)

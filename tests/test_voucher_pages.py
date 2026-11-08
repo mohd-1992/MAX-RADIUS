@@ -84,11 +84,16 @@ class VoucherPageTests(unittest.TestCase):
         with patch.dict(self.ns,sync_voucher_to_radius=fail),self.assertRaises(RuntimeError):self.ns['update_voucher_card'](2,'fixture-2','fixture-changed')
         self.assertEqual(self.row('SELECT password FROM wisp_vouchers WHERE id=2')['password'],'fixture-password')
         self.assertEqual(self.row("SELECT value FROM radcheck WHERE username='fixture-2' AND attribute='Cleartext-Password'")['value'],'fixture-password')
-    def test_profile_mac_sync_and_manual_suspension(self):
+    def test_observed_mac_does_not_enable_allowlist_and_manual_suspension(self):
         self.ns['update_voucher_card'](2,'fixture-2','fixture-changed',bound_mac='aa:bb:cc:dd:ee:ff')
-        self.assertEqual(self.row("SELECT value FROM radcheck WHERE username='fixture-2' AND attribute='Calling-Station-Id'")['value'],'AA:BB:CC:DD:EE:FF')
+        self.assertIsNone(self.row("SELECT value FROM radcheck WHERE username='fixture-2' AND attribute='Calling-Station-Id'"))
+        self.assertEqual(self.row("SELECT enabled FROM wisp_account_mac_policies WHERE account_type='voucher' AND account_id=2")['enabled'],0)
+        # A modern policy must be edited through its dedicated optimistic API.
+        with self.assertRaises(ValueError):
+            self.ns['update_voucher_card'](2,'fixture-2','fixture-ignored',bound_mac='')
+        self.assertEqual(self.row('SELECT password FROM wisp_vouchers WHERE id=2')['password'],'fixture-changed')
         self.db.execute("UPDATE wisp_vouchers SET status='suspended' WHERE id=2");self.db.commit()
-        self.ns['update_voucher_card'](2,'fixture-2','fixture-next',bound_mac='')
+        self.ns['update_voucher_card'](2,'fixture-2','fixture-next',bound_mac='aa:bb:cc:dd:ee:ff')
         self.assertEqual(self.row("SELECT COUNT(*) n FROM radcheck WHERE username='fixture-2'")['n'],0)
     def test_used_rename_rejected_but_unused_rename_allowed(self):
         with self.assertRaises(ValueError):self.ns['update_voucher_card'](2,'fixture-renamed','fixture-pass')

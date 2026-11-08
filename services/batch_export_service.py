@@ -1,4 +1,5 @@
 """Versioned voucher workbooks and private, offline HTML-to-PDF rendering."""
+import contextlib
 import datetime
 import io
 import json
@@ -136,6 +137,14 @@ def export_snapshot(batch_id, owner=None):
             return f'CASE WHEN b.radacctid IS NULL AND ({cycle} IS NULL OR a.acctstarttime>={cycle}) THEN COALESCE(a.{column},0) WHEN b.radacctid IS NOT NULL THEN CASE WHEN COALESCE(a.{column},0)>COALESCE(b.{baseline},0) THEN COALESCE(a.{column},0)-COALESCE(b.{baseline},0) ELSE 0 END ELSE 0 END'
         totals = {}
         mac_policies = {}
+        username_join='LOWER(a.username)=LOWER(s.username)'
+        if is_mysql_conn(conn):
+            # On the known Unicode CI contract LOWER is redundant. Unknown or
+            # case-sensitive schemas retain the original comparison verbatim.
+            collations=[rows("SHOW FULL COLUMNS FROM "+table+" WHERE Field='username'")
+                        for table in ('radacct','wisp_vouchers')]
+            if all(r and r[0].get('Collation')=='utf8mb4_unicode_ci' for r in collations):
+                username_join='a.username=s.username'
         for offset in range(0, len(cards), 400):
             ids = [c['id'] for c in cards[offset:offset + 400]]
             for item in rows("SELECT p.account_id,p.enabled,m.mac,m.note FROM wisp_account_mac_policies p LEFT JOIN wisp_account_mac_addresses m ON m.account_type=p.account_type AND m.account_id=p.account_id WHERE p.account_type='voucher' AND p.account_id IN (" + ','.join('?' for _ in ids) + ') ORDER BY p.account_id,m.mac', tuple(ids)):
@@ -148,7 +157,7 @@ def export_snapshot(batch_id, owner=None):
                 SUM({delta('acctsessiontime','baseline_seconds')}) AS uptime_secs,
                 MAX(CASE WHEN a.acctstarttime<{cycle} AND (a.acctstoptime IS NULL OR a.acctstoptime>{cycle})
                      AND b.radacctid IS NULL THEN 1 ELSE 0 END) AS incomplete
-                FROM wisp_vouchers s LEFT JOIN radacct a ON LOWER(a.username)=LOWER(s.username)
+                FROM wisp_vouchers s LEFT JOIN radacct a ON {username_join}
                 LEFT JOIN wisp_session_baselines b ON b.radacctid=a.radacctid AND b.renewed_at={cycle}
                 WHERE s.id IN ({','.join('?' for _ in ids)}) GROUP BY s.id,s.username'''
             for record in rows(sql, tuple(ids)):
@@ -283,14 +292,33 @@ def validate_export_row(row):
     return result
 
 
-def _render_pdf_local(html, static_folder):
-    """No HTTP, cookies, file:// or arbitrary file reads in the renderer."""
+def iter_card_pdf_groups(cards, cards_per_page=None):
+    """Bundle existing A4 sheets without changing a sheet's grid or card order."""
+    if cards_per_page is None:
+        chunk_size = 48
+    else:
+        if type(cards_per_page) is not int or cards_per_page < 1:
+            raise ValueError('عدد الكروت في الورقة يجب أن يكون موجبًا.')
+        # At most four physical sheets and 156 cards per new DOM. A legacy
+        # single sheet larger than that retains its existing size unchanged.
+        sheets = max(1, min(4, 156 // cards_per_page))
+        chunk_size = cards_per_page * sheets
+    for offset in range(0, len(cards), chunk_size):
+        subset = cards[offset:offset + chunk_size]
+        pages = ([subset] if cards_per_page is None else
+                 [subset[i:i + cards_per_page]
+                  for i in range(0, len(subset), cards_per_page)])
+        yield subset, pages
+
+
+@contextlib.contextmanager
+def _pdf_renderer(static_folder):
+    """One offline browser per bounded group; fresh page state for every part."""
     if not _PDF_SLOT.acquire(blocking=False):
         raise RuntimeError('جارٍ تجهيز ملف آخر. أعد المحاولة بعد قليل.')
     try:
         from playwright.sync_api import sync_playwright
         root = Path(static_folder).resolve()
-        errors = []
         with sync_playwright() as pw:
             executable = os.environ.get('MAX_PDF_CHROMIUM')
             if not executable and Path('/usr/bin/chromium').exists():
@@ -298,36 +326,60 @@ def _render_pdf_local(html, static_folder):
             browser = pw.chromium.launch(headless=True, executable_path=executable)
             try:
                 context = browser.new_context(service_workers='block', accept_downloads=False)
+                errors = []
+                cache, cache_bytes = {}, 0
                 def asset(route):
+                    nonlocal cache_bytes
                     url = urlsplit(route.request.url)
                     path = unquote(url.path)
                     if url.scheme == 'https' and url.netloc == 'max-export.invalid' and path.startswith('/static/'):
                         target = (root / path[len('/static/'):]).resolve()
                         if target.is_relative_to(root) and target.is_file():
-                            route.fulfill(body=target.read_bytes(), content_type=mimetypes.guess_type(target.name)[0] or 'application/octet-stream')
+                            body = cache.get(target)
+                            if body is None:
+                                body = target.read_bytes()
+                                if cache_bytes + len(body) <= 8 * 1024**2:
+                                    cache[target] = body
+                                    cache_bytes += len(body)
+                            route.fulfill(body=body, content_type=mimetypes.guess_type(target.name)[0] or 'application/octet-stream')
                             return
                     errors.append('asset')
                     route.abort()
                 context.route('**/*', asset)
-                page = context.new_page()
-                page.set_default_timeout(45000)
-                page.on('pageerror', lambda error: errors.append('script'))
-                # Relative resources use a synthetic, entirely intercepted origin.
-                html = html.replace('<head>', '<head><base href="https://max-export.invalid/">', 1)
-                page.set_content(html, wait_until='networkidle', timeout=60000)
-                page.evaluate('''async () => {
+                def render(html):
+                    errors.clear()
+                    page = context.new_page()
+                    try:
+                        page.set_default_timeout(45000)
+                        page.on('pageerror', lambda error: errors.append('script'))
+                        # Synthetic origin, entirely intercepted; no network IO.
+                        html = html.replace('<head>', '<head><base href="https://max-export.invalid/">', 1)
+                        # Every resource is local and intercepted. The load event,
+                        # fonts.ready and image readiness below are the contract;
+                        # a network-idle grace period adds 500ms to every part.
+                        page.set_content(html, wait_until='load', timeout=60000)
+                        page.evaluate('''async () => {
                     await document.fonts.ready;
                     await Promise.all(Array.from(document.images).map(img => img.complete ? null :
                         new Promise(resolve => {img.onload = resolve; img.onerror = resolve;})));
                     if (Array.from(document.images).some(img => !img.naturalWidth)) throw new Error('image');
-                }''')
-                if errors:
-                    raise RuntimeError('تعذر تحميل أحد عناصر التصميم. راجع الصورة والتصميم ثم أعد المحاولة.')
-                return page.pdf(format='A4', print_background=True, prefer_css_page_size=True)
+                        }''')
+                        if errors:
+                            raise RuntimeError('تعذر تحميل أحد عناصر التصميم. راجع الصورة والتصميم ثم أعد المحاولة.')
+                        return page.pdf(format='A4', print_background=True, prefer_css_page_size=True)
+                    finally:
+                        page.close()
+                yield render
             finally:
                 browser.close()
     finally:
         _PDF_SLOT.release()
+
+
+def _render_pdf_local(html, static_folder):
+    """Single-part entry point, with the same offline restrictions."""
+    with _pdf_renderer(static_folder) as render:
+        return render(html)
 
 
 def render_pdf(html, static_folder):

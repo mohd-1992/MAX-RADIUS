@@ -195,7 +195,21 @@ def api_change_package():
     new_package_id = request.form.get('new_package_id')
     raw_ro = request.form.get('enable_rollover')
     enable_rollover = raw_ro in ('1', 'true', 'on', True, 1)
-    success, msg = action_bulk_execute(action_change_package, target_type, ids, new_package_id=new_package_id, enable_rollover=enable_rollover, admin_username=get_current_manager().get('username') or 'admin')
+    operation_id = request.form.get('operation_id', '')
+    action = action_change_package
+    if operation_id:
+        import hashlib
+        import re
+        if not re.fullmatch('[a-f0-9]{32}', operation_id):
+            return jsonify(success=False, message='مرجع تغيير الباقة غير صالح؛ أعد فتح العملية.'), 400
+
+        def change_one(kind, ident, **options):
+            # One stable receipt per normalized target, independent of list order.
+            child_id = hashlib.sha256(f'{operation_id}:{kind}:{int(ident)}'.encode()).hexdigest()[:32]
+            return action_change_package(kind, ident, operation_id=child_id, **options)
+
+        action = change_one
+    success, msg = action_bulk_execute(action, target_type, ids, new_package_id=new_package_id, enable_rollover=enable_rollover, admin_username=get_current_manager().get('username') or 'admin')
     return jsonify({'success': success, 'message': msg})
 
 
@@ -991,6 +1005,58 @@ def api_automation_run():
     from services.automation_rules_service import execute_rule_now
     ok, msg = execute_rule_now(rule_id)
     return jsonify({'success': ok, 'message': msg})
+
+
+@system_bp.route('/api/automation-tasks', methods=['GET', 'POST'], endpoint='api_automation_tasks')
+@system_bp.route('/api/automation-tasks/<action>', methods=['POST'], endpoint='api_automation_task_action')
+@login_required
+@require_feature('automation_rules')
+def api_automation_tasks(action=None):
+    # These are system-wide maintenance tasks and financial reports, not reseller jobs.
+    from core.ownership import is_global_admin
+    if not is_global_admin(get_current_manager()):
+        return jsonify(success=False, message='إدارة المهام العامة للمدير الرئيسي فقط'), 403
+    from services import automation_task_service as tasks
+    try:
+        if request.method == 'GET':
+            return jsonify(success=True, **tasks.overview())
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            raise ValueError('بيانات الطلب غير صالحة')
+        if action is None:
+            return jsonify(success=True, task=tasks.save(data))
+        if action == 'delete':
+            tasks.remove(data.get('id'), data.get('revision'))
+        elif action == 'run':
+            return jsonify(success=True, run_id=tasks.submit(data.get('id'), data.get('request_id')))
+        elif action == 'cancel':
+            tasks.cancel(data.get('run_id'))
+        elif action == 'schedule':
+            from services.automation_schedule_service import next_times
+            return jsonify(success=True, dates=[d.isoformat() for d in next_times(data)])
+        elif action == 'policy':
+            return jsonify(success=True, policy=tasks.save_policy(data))
+        else:
+            raise ValueError('إجراء غير صالح')
+        return jsonify(success=True)
+    except (ValueError, TypeError, KeyError, OverflowError) as exc:
+        return jsonify(success=False, message=str(exc)), 400
+
+
+@system_bp.route('/api/automation-notices', endpoint='api_automation_notices')
+@login_required
+@require_feature('automation_rules')
+def api_automation_notices():
+    from core.ownership import is_global_admin
+    if not is_global_admin(get_current_manager()):
+        return jsonify(success=False), 403
+    from services.automation_task_service import ensure_tables
+    ensure_tables()
+    notices = query_all("""SELECT n.task_id,n.state,n.message,n.updated_at FROM wisp_automation_notices n
+        JOIN wisp_automation_tasks t ON t.id=n.task_id
+        WHERE t.deleted_at IS NULL AND t.enabled=1 AND (n.state='low' OR n.updated_at>UTC_TIMESTAMP()-INTERVAL 1 DAY)
+        ORDER BY n.updated_at DESC LIMIT 20""")
+    return jsonify(success=True, notices=notices)
 
 
 @system_bp.route('/tools/database-migration', endpoint="database_migration_studio")

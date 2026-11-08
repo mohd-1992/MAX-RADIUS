@@ -10,6 +10,8 @@ from urllib.parse import urlencode
 
 def voucher_fixture():
     app,db,ns=package_fixture()
+    from sqlite_contract_fixture import transaction
+    ns['db_session']=lambda:transaction(db)
     class Elements(HTMLParser):
         def __init__(self,html):super().__init__();self.items=[];self.feed(html)
         def handle_starttag(self,tag,attrs):self.items.append((tag,dict(attrs)))
@@ -34,7 +36,10 @@ def voucher_fixture():
     design_tree=ast.parse((ROOT/'services/card_design_service.py').read_text(encoding='utf-8'))
     columns=next(n.value for n in ast.walk(design_tree) if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='new_columns' for t in n.targets))
     for col,kind in ast.literal_eval(columns):definitions['wisp_card_templates'][col]=kind.split()[0]
-    for name in ['wisp_audit_logs','wisp_packages','wisp_subscribers','wisp_vouchers','radacct','radcheck','radreply','radusergroup','wisp_voucher_batches','wisp_managers','wisp_roles','wisp_resellers','wisp_manager_invoices','wisp_reseller_transactions','wisp_card_templates','wisp_system_settings','wisp_voucher_sales','wisp_nas_devices','wisp_session_baselines','user_audit_logs']:
+    definitions.update(wisp_account_mac_policies=dict(account_type='TEXT',account_id='INT',enabled='INT'),
+        wisp_account_mac_addresses=dict(account_type='TEXT',account_id='INT',mac='TEXT',note='TEXT'),
+        wisp_account_mac_receipts=dict(operation_id='TEXT',account_type='TEXT',account_id='INT',actor='TEXT',fingerprint='TEXT',result='TEXT'))
+    for name in ['wisp_audit_logs','wisp_packages','wisp_subscribers','wisp_vouchers','radacct','radcheck','radreply','radusergroup','wisp_voucher_batches','wisp_managers','wisp_roles','wisp_resellers','wisp_manager_invoices','wisp_reseller_transactions','wisp_card_templates','wisp_system_settings','wisp_voucher_sales','wisp_nas_devices','wisp_session_baselines','user_audit_logs','wisp_account_mac_policies','wisp_account_mac_addresses','wisp_account_mac_receipts']:
         db.execute('DROP TABLE IF EXISTS '+name)
         cols=definitions.get(name,{})
         assert cols,name
@@ -50,6 +55,9 @@ def voucher_fixture():
     db.create_function('CONCAT',-1,lambda *a:''.join(str(v) for v in a))
     now=datetime.datetime(2026,10,11,18)
     db.create_function('NOW',0,lambda:now.isoformat(' '))
+    # This fixture owns every account. Native suites test the real owner views.
+    db.execute('CREATE VIEW radacct_owned AS SELECT * FROM radacct')
+    db.execute('CREATE VIEW radacct_quota_owned AS SELECT * FROM radacct')
     ns.update(query_all=rows,query_one=one,execute_write=write,execute_many=many,execute_update=write,
         session=session,
         datetime=datetime,json=json,os=os,secrets=secrets,string=string,logging=logging,Response=Response,
@@ -82,11 +90,12 @@ def voucher_fixture():
     seed('wisp_managers',id=1,username='fixture-manager',wallet_balance=100,is_active=1,is_deleted=0)
     for ident,state in enumerate(['unused','active','expired','recharged','suspended','disabled'],1):
         seed('wisp_vouchers',id=ident,batch_id=1,package_id=1,username='fixture-'+str(ident),password='fixture-password',pin_code='fixture-pin-'+str(ident),serial_number='fixture-serial-'+str(ident),status=state,snap_price=10,snap_volume_quota_mb=10,snap_validity_value=0,snap_validity_unit='days',snap_validity_days=0,balance=100,extra_quota_mb=5,created_at='2026-10-01 12:00:00',last_renewed_at='2026-10-11 17:00:00',expires_at='2027-01-01 12:00:00' if state!='unused' else None)
-        seed('radcheck',username='fixture-'+str(ident),attribute='Cleartext-Password',op=':=',value='fixture-password')
+        if state!='recharged':
+            seed('radcheck',username='fixture-'+str(ident),attribute='Cleartext-Password',op=':=',value='fixture-password')
     seed('radacct',radacctid=1,username='fixture-2',acctsessionid='sess',nasipaddress='fixture-nas',acctinputoctets=100,acctoutputoctets=200,acctsessiontime=7200,acctstarttime='2026-10-11 16:00:00',acctupdatetime='2026-10-11 17:56:00')
     seed('wisp_card_templates',id=1,name='Fixture design',design_type='image',width_mm=85,height_mm=52,cards_per_row=2,cards_per_col=5,margin_top_mm=10,margin_page_mm=10,card_spacing_mm=3,is_default=1,config_json=json.dumps(ns['DEFAULT_CARD_CONFIG']),bg_image='')
     app.before_request(ns['guard_voucher_permissions'])
-    ownership_stub=types.ModuleType('core.ownership');ownership_stub.generation_owner=lambda owner,package:owner
+    ownership_stub=types.ModuleType('core.ownership');ownership_stub.generation_owner=lambda owner,package:owner;ownership_stub.owner_id=lambda:None
     license_stub=types.ModuleType('services.license_guard_service');license_stub.get_active_license_status=lambda **kwargs:dict(valid=True,status='active',features={})
     quota_stub=types.ModuleType('services.quota_service');quota_stub.calculate_account_quota=lambda *a,**kw:dict(used_down_bytes=150,used_up_bytes=75,used_total_bytes=225,is_quota_unlimited=False,total_quota_mb=15,remaining_bytes=15*1048576-225,quota_used_pct=1)
     sub_stub=types.ModuleType('services.subscriber_service');sub_stub.get_heartbeat_cutoff_str=ns['get_heartbeat_cutoff_str']
@@ -95,8 +104,14 @@ def voucher_fixture():
     load_functions('services/quota_service.py',['get_accounting_totals_batch','get_voucher_accounting_totals_batch'],quota_ns)
     class AccountingReadError(Exception):pass
     quota_ns['AccountingReadError']=AccountingReadError
-    quota_stub.get_voucher_accounting_totals_batch=quota_ns['get_voucher_accounting_totals_batch']
+    def fixture_totals(ids):
+        import database.db as fixture_db
+        with patch.object(fixture_db,'DB_TYPE','sqlite'):
+            return quota_ns['get_voucher_accounting_totals_batch'](ids)
+    quota_stub.get_voucher_accounting_totals_batch=fixture_totals
     quota_stub.AccountingReadError=AccountingReadError
+    # Match the SQLite branch of the batch reader; never open an external DB.
+    quota_ns['get_connection']=lambda:(_ for _ in ()).throw(AssertionError('Unexpected native DB connection'))
     ns['get_target_entity']=lambda kind,ident:(one('SELECT * FROM '+('wisp_vouchers' if kind=='voucher' else 'wisp_subscribers')+' WHERE id=?',(ident,)),kind)
     ns['Decimal']=Decimal;ns['InvalidOperation']=InvalidOperation;ns['ROUND_HALF_UP']=ROUND_HALF_UP;ns['urlencode']=urlencode
     radius_stub=types.ModuleType('core.radius_sync');radius_stub.sync_voucher_to_radius=ns['sync_voucher_to_radius'];radius_stub.sync_subscriber_to_radius=lambda *args,**kw:True
@@ -116,6 +131,23 @@ def voucher_fixture():
         with ns['db_session']() as conn:return operation(conn)
     lifecycle_stub.run_transaction=run_tx
     stubs={'core.radius_sync':radius_stub,'services.account_lifecycle_service':lifecycle_stub,'services.license_guard_service':license_stub,'services.quota_service':quota_stub,'services.subscriber_service':sub_stub,'core.time_service':time_stub}
+
+    # Exercise real MAC persistence against the owned SQL fixture. Router jobs
+    # and session history have independent native contracts, not SQLite SQL.
+    from core.mac_policy import normalize_mac,validate_policy
+    from contextlib import nullcontext
+    import hashlib
+    mac_ns=dict(db_session=ns['db_session'],adapt_query=lambda q,c:q,is_mysql_conn=lambda c:False,
+                TABLES={'subscriber':'wisp_subscribers','voucher':'wisp_vouchers'},
+                normalize_mac=normalize_mac,validate_policy=validate_policy,MAX_ADDRESSES=10,
+                hashlib=hashlib,json=json,re=re,nullcontext=nullcontext)
+    load_functions('services/account_mac_service.py',['_query','initialize_mac_policy','reject_legacy_mac_change','_account','_policy','get_mac_policy','_receipt','save_mac_policy'],mac_ns)
+    mac_stub=types.ModuleType('services.account_mac_service')
+    for name in ('initialize_mac_policy','reject_legacy_mac_change','get_mac_policy','save_mac_policy'):setattr(mac_stub,name,mac_ns[name])
+    stubs['services.account_mac_service']=mac_stub
+    history_stub=types.ModuleType('services.session_history_service')
+    history_stub.get_session_history=lambda *a,**kw:dict(rows=[],total=0,page=1,pages=1)
+    stubs['services.session_history_service']=history_stub
 
     from visibility_fixture import install_fixture_visibility
     install_fixture_visibility(app,ns)

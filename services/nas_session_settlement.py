@@ -369,3 +369,22 @@ def freeze_and_disconnect(snapshot, include_ppp=False):
                 pass
         for api in apis.values():
             api.close()
+
+
+def disconnect_for_identity(snapshot):
+    """Called under settled_account's login guard; never seal or fabricate Stop.
+
+    The existing lifecycle disconnect verifies the RADIUS target and NAS generation.
+    The caller must still wait for actual Accounting-Stop for every captured ID.
+    Keep snapshot intact so the final accounting barrier cannot lose its targets.
+    """
+    from services.coa_queue_service import _disconnect_single_session
+    from services.renewal_settlement_service import SettlementPending
+    for rid, session in list(snapshot.items()):
+        row = session['row']
+        result = _disconnect_single_session(
+            row['username'], row['nasipaddress'], row['acctsessionid'],
+            row.get('framedipaddress'), row.get('callingstationid'), rid,
+            lifecycle_stop=True, expected_start=row['acctstarttime'])
+        if not result.get('success'):
+            raise SettlementPending('تعذر تأكيد فصل الجلسة المحددة؛ لم تحفظ تعديلات الهوية. قد تكون بعض الجلسات انفصلت؛ راجع حالتها قبل المحاولة مجددًا.')

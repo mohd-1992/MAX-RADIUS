@@ -20,7 +20,7 @@ class RequirementTests(unittest.TestCase):
     def test_wrong_platform_and_new_protocol_are_rejected(self):
         self.value['platforms']=['linux/arm64']
         with self.assertRaises(ValueError):self.validate()
-        self.value['platforms']=['linux/amd64'];self.value['engine_protocol']=4
+        self.value['platforms']=['linux/amd64'];self.value['engine_protocol']=r.ENGINE_PROTOCOL+1
         with self.assertRaises(ValueError):self.validate()
     def test_sql_and_forward_only_are_not_falsely_advertised(self):
         self.assertIn('migration',r.CAPABILITIES)
@@ -29,7 +29,7 @@ class RequirementTests(unittest.TestCase):
         self.value['migration_plan']=None;self.value['rollback']={'policy':'forward_only','images':{}}
         with self.assertRaises(ValueError):self.validate()
     def test_unimplemented_preparation_target_is_rejected(self):
-        self.value['prepares_engine_protocol']=4
+        self.value['prepares_engine_protocol']=r.ENGINE_PROTOCOL+1
         with self.assertRaises(ValueError):self.validate()
     def test_rollback_repositories_are_role_scoped(self):
         self.value['rollback']['images']['web']='mohd777/max-radius-core@sha256:'+'a'*64

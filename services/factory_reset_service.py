@@ -304,6 +304,8 @@ def recover_factory_reset():
 def sanitize_restored_jobs():
     """Imported worker journals belong to another runtime and cannot be resumed."""
     ensure_job_table()
+    from services.automation_task_service import sanitize_restored_tasks
+    sanitize_restored_tasks()
     rows=query_all("SELECT job_id,progress FROM wisp_maintenance_jobs WHERE active_key IS NOT NULL")
     for row in rows:
         result=json.loads(row['progress'])

@@ -103,7 +103,12 @@ def api_radius_simulator_test():
     user = request.form.get('username', '').strip()
     pwd = request.form.get('password', '').strip()
     srv = request.form.get('server', '127.0.0.1').strip()
-    port = int(request.form.get('port', 1812))
+    try:
+        port = int(request.form.get('port', 1812))
+        if not 1 <= port <= 65535:
+            raise ValueError('port range')
+    except (TypeError, ValueError, OverflowError):
+        return jsonify(success=False, message='منفذ RADIUS غير صالح.'), 400
     secret = request.form.get('secret', 'testing123').strip()
     from services.radius_sim_service import simulate_radius_auth
     res = simulate_radius_auth(user, pwd, radius_server=srv, radius_port=port, nas_secret=secret)

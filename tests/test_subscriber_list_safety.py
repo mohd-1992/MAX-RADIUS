@@ -18,6 +18,12 @@ class Elements(HTMLParser):
 
 class ListSafetyTests(unittest.TestCase):
     def setUp(self):
+        # This fixture uses SQLite; do not select MySQL-only summary SQL merely
+        # because the developer's default runtime configuration is MySQL.
+        from unittest.mock import patch
+        db_type = patch('database.db.DB_TYPE', 'sqlite')
+        db_type.start()
+        self.addCleanup(db_type.stop)
         self.app,self.db,self.ns=fixture()
         self.db.execute('ALTER TABLE wisp_subscribers ADD COLUMN created_at TEXT')
         self.db.execute('ALTER TABLE wisp_subscribers ADD COLUMN first_used_at TEXT')

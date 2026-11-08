@@ -62,6 +62,8 @@ def ensure_automation_tables():
                     ('توليد ملخص تقارير المبيعات اليومي', 'DAILY_23_59', 'SEND_DAILY_SALES_REPORT', 1)
                 """)
             db.commit()
+            from services.automation_task_service import ensure_tables
+            ensure_tables()
             _READY = True
     finally:
         db.close()
@@ -97,8 +99,11 @@ def get_automation_overview():
         db.close()
 
 @_license_guarded('automation_rules')
-def toggle_rule(rule_id, is_active):
+def _toggle_rule_legacy(rule_id, is_active):
     """Enable or disable an automation rule."""
+    if not str(rule_id).isdigit() or int(rule_id) < 1:
+        return False, 'القاعدة غير موجودة.'
+    ensure_automation_tables()
     db = _get_db()
     try:
         with db.cursor() as cur:
@@ -111,10 +116,30 @@ def toggle_rule(rule_id, is_active):
         db.close()
 
 @_license_guarded('automation_rules')
+def toggle_rule(rule_id, is_active):
+    if not str(rule_id).isdigit() or int(rule_id)<1:
+        return False,'القاعدة غير موجودة.'
+    from services.automation_task_service import ensure_tables, task_lock
+    from database.db import query_one
+    ensure_automation_tables();ensure_tables()
+    with task_lock('config') as acquired:
+        if not acquired:return False,'يوجد تعديل مهام جارٍ'
+        if is_active:
+            rule=query_one('SELECT action_type FROM wisp_automation_rules WHERE id=?',(rule_id,))
+            kind={'ARCHIVE_OLD_SESSIONS':'summary','CLEAN_EXPIRED_CARDS':'delete','SEND_DAILY_SALES_REPORT':'report'}.get((rule or {}).get('action_type'))
+            if kind and query_one('SELECT id FROM wisp_automation_tasks WHERE kind=? AND enabled=1 AND deleted_at IS NULL LIMIT 1',(kind,)):
+                return False,'مهمة بديلة من النوع نفسه مفعلة؛ أوقفها قبل تفعيل القاعدة السابقة'
+        return _toggle_rule_legacy(rule_id,is_active)
+
+
+@_license_guarded('automation_rules')
 def execute_rule_now(rule_id, scheduled=False, expected_last=None):
+    if not str(rule_id).isdigit() or int(rule_id) < 1:
+        return False, 'القاعدة غير موجودة.'
     from services.factory_reset_service import factory_reset_active
     if factory_reset_active():
         return False, 'إعادة المصنع قيد التنفيذ.'
+    ensure_automation_tables()
     import json
     from services.account_lifecycle_service import job_lock
     from database.db import query_one, execute_write
@@ -158,6 +183,8 @@ def run_due_rules():
     from database.db import query_all
     from core.time_service import get_system_now, get_db_storage_now
     ensure_automation_tables()
+    from services.automation_task_service import tick
+    tick()
     now=get_system_now()
     for rule in query_all('SELECT * FROM wisp_automation_rules WHERE is_active=1 AND schedule_enabled=1 ORDER BY id'):
         event=rule['trigger_event'];last=rule.get('last_run_at')

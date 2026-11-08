@@ -455,17 +455,11 @@ def trigger_daily_sales_summary():
         finally:
             db.close()
 
-        msg = (
-            f"📊 <b>التقرير المالي والمبيعات اليومي - MAX RADIUS</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"📅 <b>التاريخ:</b> <code>{today_str}</code>\n"
-            f"🎫 <b>الكروت المفعلة اليوم:</b> <b>{vouchers_count} كرت</b>\n"
-            f"💵 <b>إجمالي الإيرادات اليوم:</b> <b>{total_revenue:,.2f} ريال</b>\n"
-            f"👥 <b>المشتركون النشطون:</b> <b>{active_subs} مشترك</b>\n"
-            f"📶 <b>المتصلون الآن بالشبكة:</b> <b>{online_sessions} جلسة</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━\n"
-            f"#Daily_Sales #Financial_Report #MAX_RADIUS"
-        )
+        from services.sales_summary_message import format_sales_summary
+        msg = format_sales_summary('day', today_str, today_str,
+            voucher_count=vouchers_count, voucher_revenue=total_revenue,
+            active_subscribers=active_subs, online_sessions=online_sessions,
+            legacy_daily=True)
         return send_telegram_alert(msg, message_type='DAILY_SUMMARY')
     except Exception as e:
         return False, str(e)

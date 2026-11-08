@@ -477,10 +477,12 @@ def update_manager_profile(manager_id, full_name, email, phone, current_password
     phone = phone.strip() if phone else ''
 
     if new_password:
-        # Check current password unless user is Super Admin
-        if current_password is not None:
-            if not verify_manager_password(mgr['password_hash'], current_password):
-                raise ValueError("كلمة المرور الحالية غير صحيحة.")
+        # Self-service password changes always require the current credential.
+        # A missing form field must not bypass verification for any role.
+        if not current_password:
+            raise ValueError("كلمة المرور الحالية مطلوبة لتغيير كلمة المرور.")
+        if not verify_manager_password(mgr['password_hash'], current_password):
+            raise ValueError("كلمة المرور الحالية غير صحيحة.")
 
         new_hash = hash_manager_password(new_password)
         execute_write('''

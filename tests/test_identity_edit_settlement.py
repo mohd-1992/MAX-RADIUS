@@ -131,7 +131,7 @@ class IdentityEditTests(unittest.TestCase):
         self.settlement._disconnect = Mock()
         self.nas = types.ModuleType('services.nas_session_settlement')
         self.nas.actual_stop = lambda r: bool(r.get('acctstoptime') and r.get('acctterminatecause') not in (None, '', 'NAS-Verified-Closed') + self.settlement.NON_FINAL_CAUSES)
-        self.nas.freeze_and_disconnect = Mock()
+        self.nas.disconnect_for_identity = Mock()
         self.nas.recover_journals = Mock()
         self.visited, self.live, self.unreachable = [], {}, set()
         self.login_ok = True
@@ -240,7 +240,7 @@ class IdentityEditTests(unittest.TestCase):
         self.account()
         self.live[('192.0.2.2', '/ip/hotspot/active/print')] = [{'user': 'fixture-old', 'address': '192.0.2.7', 'mac-address': '02:00:00:00:00:01'}]
         with self.assertRaises(self.settlement.SettlementPending): self.edit('subscriber', {'username': 'fixture-new'})
-        self.nas.freeze_and_disconnect.assert_not_called()
+        self.nas.disconnect_for_identity.assert_not_called()
 
     def test_current_open_or_unsealed_session_blocks_scoped_wait(self):
         self.account()
@@ -249,6 +249,9 @@ class IdentityEditTests(unittest.TestCase):
         self.q("UPDATE radacct SET acctstoptime='2026-11-02 16:00:00' WHERE radacctid=2")
         with self.assertRaises(self.settlement.SettlementPending): self.settlement.wait_for_final_accounting('fixture-old', session_ids=(2,))
         self.q("INSERT INTO wisp_nas_session_seals VALUES(2,'192.0.2.1','live-sid')")
+        with self.assertRaises(self.settlement.SettlementPending):
+            self.settlement.wait_for_final_accounting('fixture-old', session_ids=(2,))
+        self.q("UPDATE radacct SET acctterminatecause='User-Request' WHERE radacctid=2")
         self.settlement.wait_for_final_accounting('fixture-old', session_ids=(2,))
         self.settlement._disconnect.assert_not_called()
 
@@ -257,6 +260,18 @@ class IdentityEditTests(unittest.TestCase):
         self.q("UPDATE radacct SET acctterminatecause='User-Request' WHERE radacctid=1")
         self.settlement.wait_for_final_accounting('fixture-old', session_ids=(1,))
         with self.assertRaises(self.settlement.SettlementPending): self.settlement.wait_for_final_accounting('fixture-old', session_ids=(99,))
+
+    def test_multiple_captured_generations_bind_individually(self):
+        self.account()
+        self.q("UPDATE radacct SET acctterminatecause='User-Request' WHERE radacctid=1")
+        for ident in (2, 3):
+            self.q("INSERT INTO radacct(radacctid,username,nasipaddress,acctsessionid,acctstoptime,acctterminatecause) VALUES(?,'fixture-old','192.0.2.1',?,'2026-11-02 16:00:00','User-Request')", (ident, 'closed-'+str(ident)))
+        self.assertEqual(self.settlement.identity_pending_sessions('fixture-old', (3, 2, 1, 2)), [])
+        self.q('UPDATE radacct SET acctstoptime=NULL WHERE radacctid=3')
+        self.assertEqual([r['radacctid'] for r in self.settlement.identity_pending_sessions('fixture-old', (1, 2, 3))], [3])
+        self.q("INSERT INTO radacct(radacctid,username,nasipaddress,acctsessionid,acctstoptime,acctterminatecause) VALUES(4,'other-owner','192.0.2.1','foreign','2026-11-02 16:00:00','User-Request')")
+        with self.assertRaises(self.settlement.SettlementPending):
+            self.settlement.identity_pending_sessions('fixture-old', (1, 2, 4))
 
     def test_pending_reservation_still_blocks_offline_identity(self):
         self.account()
@@ -273,6 +288,19 @@ class IdentityEditTests(unittest.TestCase):
         self.assertTrue(self.edit('subscriber', {'password': 'new-password'})['success'])
         self.assertFalse(self.visited)
 
+    def test_identity_does_not_probe_or_freeze_existing_limits(self):
+        self.account()
+        with patch.object(self.policy, 'preflight', side_effect=AssertionError('Financial preflight entered')):
+            self.assertTrue(self.edit('subscriber', {'service_type':'pppoe'})['success'])
+        self.nas.disconnect_for_identity.assert_called_once()
+
+    def test_legacy_service_preserved_for_unrelated_edit(self):
+        self.account()
+        self.q("UPDATE wisp_subscribers SET service_type='broadband' WHERE id=1")
+        self.assertTrue(self.edit('subscriber', {'full_name':'fixture-changed'})['success'])
+        self.assertEqual(self.q('SELECT service_type FROM wisp_subscribers')[0]['service_type'],'broadband')
+        self.assertFalse(self.visited)
+
     def test_failed_nas_login_rejects_identity(self):
         self.account(); self.login_ok = False
         with self.assertRaises(self.settlement.SettlementPending): self.edit('subscriber', {'username': 'fixture-new'})
@@ -287,16 +315,18 @@ class IdentityEditTests(unittest.TestCase):
     def test_current_sessions_must_close_with_evidence_before_contract_save(self):
         self.account()
         self.q("INSERT INTO radacct(radacctid,username,nasipaddress,acctsessionid) VALUES(2,'fixture-old','192.0.2.1','live-sid')")
-        self.policy.checkpoint = Mock(return_value={2: {'kind': 'hotspot'}})
+        # Compiled modules are cached across fixtures. Restore this override
+        # before another case exercises the real NAS checkpoint.
+        self.patchers.append(patch.object(self.policy, 'checkpoint', return_value={2: {'kind': 'hotspot'}}))
+        self.patchers[-1].start()
         before = self.q('SELECT * FROM wisp_subscribers')[0]
         # An accepted disconnect alone provides neither Stop nor a counter seal.
         with self.assertRaises(self.settlement.SettlementPending): self.edit('subscriber', {'username': 'fixture-new'})
         self.assertEqual(before, self.q('SELECT * FROM wisp_subscribers')[0])
         def sealed(snapshot, **kw):
-            self.q("UPDATE radacct SET acctstoptime='2026-11-02 16:00:00',acctterminatecause='NAS-Verified-Closed' WHERE radacctid=2")
-            self.q("INSERT INTO wisp_nas_session_seals VALUES(2,'192.0.2.1','live-sid')")
-            snapshot.clear()  # The real freeze removes its sealed snapshot rows.
-        self.nas.freeze_and_disconnect.side_effect = sealed
+            self.q("UPDATE radacct SET acctstoptime='2026-11-02 16:00:00',acctterminatecause='User-Request' WHERE radacctid=2")
+            # The real identity path keeps captured IDs until actual Stop is verified.
+        self.nas.disconnect_for_identity.side_effect = sealed
         self.policy.checkpoint.return_value = {2: {'kind': 'hotspot'}}
         self.assertTrue(self.edit('subscriber', {'username': 'fixture-new'})['success'])
         self.settlement._disconnect.assert_not_called()
@@ -306,10 +336,10 @@ class IdentityEditTests(unittest.TestCase):
         row = self.q('SELECT * FROM wisp_subscribers')[0]
         data = dict(operation_id='a'*32, expected_revision=self.sub.revision(row), username='fixture-new')
         first = self.sub.edit_subscriber(1, data)
-        visits, freezes = len(self.visited), self.nas.freeze_and_disconnect.call_count
+        visits, freezes = len(self.visited), self.nas.disconnect_for_identity.call_count
         self.assertEqual(first, self.sub.edit_subscriber(1, data))
         self.assertEqual(visits, len(self.visited))
-        self.assertEqual(freezes, self.nas.freeze_and_disconnect.call_count)
+        self.assertEqual(freezes, self.nas.disconnect_for_identity.call_count)
 
     def test_old_accept_alone_after_renewal_does_not_require_new_renewal(self):
         self.account()

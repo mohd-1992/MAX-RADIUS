@@ -2,7 +2,7 @@
 import platform
 import re
 
-ENGINE_PROTOCOL = 3
+ENGINE_PROTOCOL = 4
 CAPABILITIES = ['web','core','signed_audience','release_requirements_v1','migration']
 
 

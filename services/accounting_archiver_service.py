@@ -242,7 +242,7 @@ def get_archive_plan(days=90, mode='archive'):
     return dict(days=days,mode=mode,count=int(row['n']),unit='cards',exact_at_read=False)
 
 
-def _summarize_old_expired(days, progress_callback=None, cancel_callback=None):
+def _summarize_old_expired(days, progress_callback=None, cancel_callback=None, account_scope=None, account_limit=50000):
     """Use the existing purge summary engine, preserving accounts and credentials."""
     from services.account_lifecycle_service import sql,run_transaction,lock_account
     from services.expired_voucher_purge import purge_details
@@ -251,8 +251,11 @@ def _summarize_old_expired(days, progress_callback=None, cancel_callback=None):
     statement,branches=_summary_candidates()
     # Bounded control list, never unbounded session payloads. A later manual job
     # may cover the remaining candidates; no automatic replay after restart.
-    ids=query_all('SELECT id FROM ('+statement+') candidates ORDER BY id LIMIT 50001',(cutoff,)*branches)
-    capped=len(ids)>50000;ids=ids[:50000]
+    from services.automation_scope_service import predicate, matches
+    clause, scope_values = predicate(account_scope or {}, 'v')
+    account_limit=max(1,min(int(account_limit),50000))
+    ids=query_all('SELECT candidates.id FROM ('+statement+') candidates JOIN wisp_vouchers v ON v.id=candidates.id WHERE '+clause+' ORDER BY candidates.id LIMIT ?', (cutoff,)*branches+scope_values+(account_limit+1,))
+    capped=len(ids)>account_limit;ids=ids[:account_limit]
     r=dict(success=True,total=len(ids),processed=0,summarized_sessions=0,summary_groups=0,
            archived_sessions=0,protected_cards=0,skipped_cards=0,pending_reasons={},stage='summary',capped=capped)
     if progress_callback:progress_callback(dict(r))
@@ -260,7 +263,7 @@ def _summarize_old_expired(days, progress_callback=None, cancel_callback=None):
         if cancel_callback and cancel_callback():r['cancelled']=True;break
         def summarize(conn):
             _,account=lock_account(conn,'voucher',selected['id'])
-            if not account or account['status']!='expired':return dict(skipped=True)
+            if not account or account['status']!='expired' or not matches(account,account_scope or {}):return dict(skipped=True)
             aliases=sql(conn,'SELECT username FROM wisp_voucher_names WHERE voucher_id=?',(account['id'],),'all')
             names=tuple({account['username'],*(row['username'] for row in aliases)})
             marks=','.join('?' for _ in names)
@@ -285,13 +288,13 @@ def _summarize_old_expired(days, progress_callback=None, cancel_callback=None):
 
 @_license_guarded('accounting_archiver')
 def run_archive_maintenance(days=90, mode='archive', chunk_size=500,
-                            progress_callback=None, cancel_callback=None):
+                            progress_callback=None, cancel_callback=None, account_scope=None, account_limit=50000):
     from services.account_lifecycle_service import job_lock
     days=_validate_archive_options(days,mode)
     with job_lock('accounting-archive') as own,job_lock('factory-reset') as factory,job_lock('expired-card-delete') as deletion:
         if not (own and factory and deletion):
             raise ValueError('توجد عملية صيانة أخرى؛ أعد المحاولة بعد اكتمالها.')
-        if mode=='summary':return _summarize_old_expired(days,progress_callback,cancel_callback)
+        if mode=='summary':return _summarize_old_expired(days,progress_callback,cancel_callback,account_scope,account_limit)
         return _archive_old_sessions_locked(days,chunk_size,progress_callback,cancel_callback,return_receipt=True)
 
 @_license_guarded('accounting_archiver')

@@ -40,7 +40,8 @@ class HandoffTests(unittest.TestCase):
     def probe(self,*args,**kwargs):self.probes.append(kwargs.get('previous',False))
     def run_handoff(self,probe=None):return h.run(self.folder,self.api,probe or self.probe)
     def test_success_is_verified_and_persistent_and_not_replayed(self):
-        result=self.run_handoff();self.assertEqual(result['status'],'completed');self.assertEqual(result['engine_protocol'],3)
+        from services.system_update_requirements import ENGINE_PROTOCOL
+        result=self.run_handoff();self.assertEqual(result['status'],'completed');self.assertEqual(result['engine_protocol'],ENGINE_PROTOCOL)
         import yaml
         self.assertEqual(yaml.safe_load(self.compose.read_text())['services']['update_controller']['image'],self.plan['references']['web'])
         self.assertFalse(self.api.rows[self.old['Id']]['State']['Running']);self.assertEqual(self.probes,[False])

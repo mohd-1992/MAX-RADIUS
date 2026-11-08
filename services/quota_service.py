@@ -126,28 +126,50 @@ def get_accounting_totals_batch(subscriber_ids, entity_type="subscriber"):
     up = delta('acctinputoctets', 'baseline_input_bytes')
     down = delta('acctoutputoctets', 'baseline_output_bytes')
     uptime = delta('acctsessiontime', 'baseline_seconds')
+    if not ids:
+        return result
     try:
-        for offset in range(0, len(ids), 400):
-            chunk = ids[offset:offset + 400]
-            placeholders = ','.join('?' for _ in chunk)
-            rows = query_all(f'''SELECT LOWER(s.username) AS username,
-                SUM({up}) AS up_bytes, SUM({down}) AS down_bytes,
-                SUM({uptime}) AS uptime_secs,
-                MAX(CASE WHEN a.acctstarttime < {cycle}
-                    AND (a.acctstoptime IS NULL OR a.acctstoptime > {cycle})
-                    AND b.radacctid IS NULL THEN 1 ELSE 0 END) AS incomplete
-                FROM {table} s
-                LEFT JOIN {accounting_view} a ON LOWER(a.username) = LOWER(s.username)
-                LEFT JOIN wisp_session_baselines b ON b.radacctid = a.radacctid
-                    AND b.renewed_at = {cycle}
-                WHERE s.id IN ({placeholders}) GROUP BY s.id, s.username''', tuple(chunk))
-            for row in rows:
-                if row['incomplete']:
-                    result[row['username']] = None
-                else:
-                    up_bytes, down_bytes = int(row['up_bytes'] or 0), int(row['down_bytes'] or 0)
-                    result[row['username']] = dict(up_bytes=up_bytes, down_bytes=down_bytes,
-                        total_bytes=up_bytes + down_bytes, uptime_secs=int(row['uptime_secs'] or 0))
+        from contextlib import ExitStack
+        with ExitStack() as resources:
+            reader = query_all
+            if DB_TYPE == 'mysql':
+                # The name prefilter and aggregation must share a snapshot;
+                # a concurrent rename/renewal must never turn usage into zero.
+                conn = resources.enter_context(get_connection())
+                resources.callback(conn.rollback)
+                cur = resources.enter_context(conn.cursor())
+                cur.execute('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY')
+                def reader(statement, values=()):
+                    cur.execute(adapt_query(statement, conn), values)
+                    return list(cur.fetchall())
+            for offset in range(0, len(ids), 400):
+                chunk = ids[offset:offset + 400]
+                placeholders = ','.join('?' for _ in chunk)
+                source, source_params = accounting_view, ()
+                if DB_TYPE == 'mysql':
+                    names = reader(f'SELECT username FROM {table} WHERE id IN ({placeholders})', tuple(chunk))
+                    if not names:
+                        continue
+                    from services.quota_batch_sql import batch_quota_source
+                    source, source_params = batch_quota_source(row['username'] for row in names)
+                rows = reader(f'''SELECT LOWER(s.username) AS username,
+                    SUM({up}) AS up_bytes, SUM({down}) AS down_bytes,
+                    SUM({uptime}) AS uptime_secs,
+                    MAX(CASE WHEN a.acctstarttime < {cycle}
+                        AND (a.acctstoptime IS NULL OR a.acctstoptime > {cycle})
+                        AND b.radacctid IS NULL THEN 1 ELSE 0 END) AS incomplete
+                    FROM {table} s
+                    LEFT JOIN {source} a ON LOWER(a.username) = LOWER(s.username)
+                    LEFT JOIN wisp_session_baselines b ON b.radacctid = a.radacctid
+                        AND b.renewed_at = {cycle}
+                    WHERE s.id IN ({placeholders}) GROUP BY s.id, s.username''', source_params + tuple(chunk))
+                for row in rows:
+                    if row['incomplete']:
+                        result[row['username']] = None
+                    else:
+                        up_bytes, down_bytes = int(row['up_bytes'] or 0), int(row['down_bytes'] or 0)
+                        result[row['username']] = dict(up_bytes=up_bytes, down_bytes=down_bytes,
+                            total_bytes=up_bytes + down_bytes, uptime_secs=int(row['uptime_secs'] or 0))
 
     except Exception as exc:
         raise AccountingReadError('تعذرت قراءة محاسبة قائمة المشتركين.') from exc

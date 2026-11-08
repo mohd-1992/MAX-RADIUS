@@ -145,16 +145,23 @@ def restore(api, plan, state):
         new = inspect(api, new_id)
         if new['Image'] != plan['target_id'] or new['Config'].get('Labels', {}).get('max.update.job') != plan['job']:
             raise UpdateError('Candidate identity changed')
+        role = plan.get('role', 'web')
+        if role not in ('web', 'core', 'update_controller'):
+            raise UpdateError('Unsupported rollback role')
+        # Include the exact candidate ID. Old deterministic job-only names can
+        # already belong to another completed attempt on a crowded host.
+        retained_name = 'max_' + role + '_failed_update_' + plan['job'] + '_' + new_id
+        fleet = api('GET', '/containers/json?all=1')
+        if any('/'+retained_name in v.get('Names',[]) and v['Id']!=new_id for v in fleet):
+            raise UpdateError('Foreign container owns retained candidate name')
         if new['State']['Running']:
             api('POST', '/containers/' + new_id + '/stop?t=20')
         api('POST', '/containers/' + new_id + '/update', {'RestartPolicy': {'Name': 'no'}})
         for net in new['NetworkSettings']['Networks']:
             if new.get('HostConfig',{}).get('NetworkMode') in ('none','host'):continue
             api('POST', '/networks/' + urllib.parse.quote(net, safe='') + '/disconnect', {'Container': new_id, 'Force': True})
-        role = plan.get('role', 'web')
-        if role not in ('web', 'core', 'update_controller'):
-            raise UpdateError('Unsupported rollback role')
-        api('POST', '/containers/' + new_id + '/rename?name=max_' + role + '_failed_update_' + plan['job'])
+        if new['Name'] != '/'+retained_name:
+            api('POST', '/containers/' + new_id + '/rename?name='+retained_name)
     # Never take a name from a container outside this round.
     fleet = api('GET', '/containers/json?all=1')
     occupants = [v['Id'] for v in fleet if plan['old']['Name'] in v.get('Names', [])]

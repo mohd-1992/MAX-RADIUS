@@ -1,254 +1,42 @@
 {% extends "base.html" %}
-
-{% block title %}محرك الأتمتة والمهام الذكية{% endblock %}
-{% block page_title %}محرك أتمتة العمليات والمهام المجدولة الذكية{% endblock %}
-
-{% block content %}
-<div class="space-y-6">
-
-    <!-- Top Banner -->
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#0b0f19] p-5 rounded-2xl border border-[#1c2840] shadow-sm">
-        <div class="flex items-center gap-3.5">
-            <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-xl flex-shrink-0">
-                <i class="fa-solid fa-wand-magic-sparkles"></i>
-            </div>
-            <div>
-                <h2 class="text-xl font-black text-white flex items-center gap-2">
-                    محرك الأتمتة والمهام الذكية (Automation & Rules Engine)
-                </h2>
-                <p class="text-xs text-slate-400 mt-0.5">قواعد أتمتة ذكية لأرشفة الحسابات القديمة، تنظيف الكروت المنتهية، ومزامنة الجلسات العالقة</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-3">
-            <button onclick="location.reload()" class="px-4 py-2.5 bg-[#070b14] hover:bg-[#11192b] text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm">
-                <i class="fa-solid fa-arrows-rotate text-emerald-400"></i>
-                <span>تحديث الحالة</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- KPI Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- 1. Active Rules -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">القواعد النشطة</span>
-                <div class="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center text-base border border-purple-500/20">
-                    <i class="fa-solid fa-list-check"></i>
-                </div>
-            </div>
-            <div class="mt-3">
-                <h4 class="text-2xl font-black text-purple-400 font-mono">{{ data.active_rules_count }} / {{ data.rules|length }}</h4>
-                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>الحالة:</span>
-                    <span class="font-bold text-emerald-400">تعمل بالخلفية</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. Total Executions -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">إجمالي مرات التنفيذ</span>
-                <div class="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center text-base border border-blue-500/20">
-                    <i class="fa-solid fa-rotate"></i>
-                </div>
-            </div>
-            <div class="mt-3">
-                <h4 class="text-2xl font-black text-white font-mono">{{ data.total_runs_count }}</h4>
-                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>معدل النجاح:</span>
-                    <span class="font-bold text-emerald-400">100%</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 3. Engine Status -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">محرك الجدولة (Scheduler)</span>
-                <div class="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-base border border-emerald-500/20">
-                    <i class="fa-solid fa-clock"></i>
-                </div>
-            </div>
-            <div class="mt-3">
-                <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <h4 class="text-base font-black text-emerald-400">Active Cron Engine</h4>
-                </div>
-                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>الفحص:</span>
-                    <span class="font-mono text-slate-300 font-bold">كل دقيقة</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. Mode -->
-        <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold text-slate-400">وضع الأتمتة</span>
-                <div class="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center text-base border border-amber-500/20">
-                    <i class="fa-solid fa-shield-halved"></i>
-                </div>
-            </div>
-            <div class="mt-3">
-                <h4 class="text-base font-black text-amber-400">Non-Destructive</h4>
-                <div class="mt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-[#162136] pt-2">
-                    <span>الأمان:</span>
-                    <span class="font-bold text-emerald-400">موثق في سجل التدقيق</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Rules Table -->
-    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
-        <div class="p-5 border-b border-[#1c2840] flex items-center justify-between">
-            <h3 class="font-bold text-white flex items-center gap-2 text-sm">
-                <i class="fa-solid fa-robot text-purple-400"></i>
-                قواعد الأتمتة المجدولة في النظام
-            </h3>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-right text-xs">
-                <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
-                    <tr>
-                        <th class="py-3.5 px-5">اسم القاعدة والهدف</th>
-                        <th class="py-3.5 px-5">الحدث المشغل (Trigger)</th>
-                        <th class="py-3.5 px-5">الإجراء المنفذ (Action)</th>
-                        <th class="py-3.5 px-5">آخر تنفيذ</th>
-                        <th class="py-3.5 px-5">مرات التشغيل</th>
-                        <th class="py-3.5 px-5">الحالة</th>
-                        <th class="py-3.5 px-5 text-left">التحكم</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-[#1c2840]">
-                    {% for r in data.rules %}
-                    <tr class="hover:bg-[#11192b] transition">
-                        <td class="py-3.5 px-5 font-bold text-white">{{ r.rule_name }}</td>
-                        <td class="py-3.5 px-5 font-mono text-cyan-400">{{ r.trigger_event }}</td>
-                        <td class="py-3.5 px-5 font-mono text-purple-400">{{ r.action_type }}</td>
-                        <td class="py-3.5 px-5 font-mono text-slate-400 text-[11px]">{{ r.last_run_at or 'لم ينفذ بعد' }}</td>
-                        <td class="py-3.5 px-5 font-mono font-bold text-slate-300">{{ r.execution_count }} مرة</td>
-                        <td class="py-3.5 px-5">
-                            {% if r.is_active %}
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">مفعل</span>
-                            {% else %}
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">معطل</span>
-                            {% endif %}
-                        </td>
-                        <td class="py-3.5 px-5 text-left">
-                            <div class="flex items-center gap-2 justify-end">
-                                <button onclick="runRuleNow({{ r.id }})" class="px-3 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 rounded-lg text-xs font-bold transition flex items-center gap-1">
-                                    <i class="fa-solid fa-play text-[10px]"></i>
-                                    <span>تشغيل فوري</span>
-                                </button>
-                                <button onclick="toggleRuleState({{ r.id }}, {{ 0 if r.is_active else 1 }})" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition">
-                                    {{ 'تعطيل' if r.is_active else 'تفعيل' }}
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-    <!-- Execution Logs -->
-    <div class="bg-[#0b0f19] border border-[#1c2840] rounded-2xl overflow-hidden shadow-sm">
-        <div class="p-5 border-b border-[#1c2840] flex items-center justify-between">
-            <h3 class="font-bold text-white flex items-center gap-2 text-sm">
-                <i class="fa-solid fa-clipboard-list text-blue-400"></i>
-                سجل تنفيذ مهام الأتمتة التاريخية
-            </h3>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-right text-xs">
-                <thead class="bg-[#070b14] text-slate-300 uppercase font-bold border-b border-[#1c2840]">
-                    <tr>
-                        <th class="py-3 px-4">اسم المهمة والقاعدة</th>
-                        <th class="py-3 px-4">الحالة</th>
-                        <th class="py-3 px-4">العناصر المتأثرة</th>
-                        <th class="py-3 px-4">تفاصيل النتيجة</th>
-                        <th class="py-3 px-4">تاريخ ووقت التنفيذ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-[#1c2840]">
-                    {% for l in data.logs %}
-                    <tr class="hover:bg-[#11192b] transition">
-                        <td class="py-3 px-4 font-bold text-white">{{ l.rule_name }}</td>
-                        <td class="py-3 px-4">
-                            {% if l.status == 'success' %}
-                            <span class="text-emerald-400 font-bold flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> نجاح</span>
-                            {% else %}
-                            <span class="text-rose-400 font-bold flex items-center gap-1"><i class="fa-solid fa-circle-xmark"></i> فشل</span>
-                            {% endif %}
-                        </td>
-                        <td class="py-3 px-4 font-mono font-bold text-cyan-400">{{ l.affected_count }}</td>
-                        <td class="py-3 px-4 text-slate-300 text-xs">{{ l.details }}</td>
-                        <td class="py-3 px-4 font-mono text-slate-400 text-[11px]">{{ l.executed_at }}</td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" class="py-6 text-center text-slate-400">لا توجد سجلات تنفيذ مسجلة بعد.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-
-</div>
-<p class="text-xs text-slate-400">القواعد القديمة تحتاج تفعيلًا صريحًا لبدء الجدولة الفعلية؛ قاعدة الحذف تحمي الجلسات وتستهدف الكروت المنتهية وصلاحيتها قبل 60 يومًا.</p>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    const runningRules = new Set();
-    function runRuleNow(ruleId) {
-        const operationSwal = window.createOperationNotification();
-        if (runningRules.has(ruleId)) return;
-        operationSwal.fire({
-            title: 'تشغيل مهمة الأتمتة الآن',
-            text: 'هل تريد تنفيذ القاعدة الآن؟ ستعرض النتيجة الفعلية بعد اكتمالها.',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'نعم، تشغيل الآن',
-            cancelButtonText: 'إلغاء'
-        }).then(res => {
-            if (res.isConfirmed) {
-                runningRules.add(ruleId);
-                operationSwal.fire({ title: 'جارٍ التنفيذ...', didOpen: () => Swal.showLoading() });
-                const fd = new FormData();
-                fd.append('rule_id', ruleId);
-                fetch('/api/automation-rules/run', { method: 'POST', body: fd })
-                    .then(r => r.json())
-                    .then(data => {
-                        runningRules.delete(ruleId);
-                        if (data.success) {
-                            operationSwal.fire('اكتمل التنفيذ', data.message, 'success').then(() => location.reload());
-                        } else {
-                            operationSwal.fire('خطأ', data.message, 'error');
-                        }
-                    }).catch(error => { runningRules.delete(ruleId); operationSwal.uncertain('خطأ', String(error), 'error'); });
-            }
-        });
-    }
-
-    function toggleRuleState(ruleId, newState) {
-        const fd = new FormData();
-        fd.append('rule_id', ruleId);
-        fd.append('is_active', newState);
-        fetch('/api/automation-rules/toggle', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    Swal.fire('خطأ', data.message, 'error');
-                }
-            });
-    }
-</script>
-{% endblock %}
+{% block title %}محرك الأتمتة والمهام{% endblock %}
+{% block page_title %}محرك الأتمتة والمهام{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{{ url_for('static', filename='automation-tasks.css') }}">{% endblock %}
+{% block content %}<div class="automation-preview">
+    <section class="page-heading bg-[#0b0f19] border-[#1c2840] shadow-sm hover:shadow-md transition-all duration-300"><div class="automation-heading-content"><div class="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-2xl flex-shrink-0 shadow-inner" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></div><div><h1>محرك الأتمتة والمهام <span class="tag violet">الجديد</span></h1><p>خصص أعمالك المتكررة، واضبط مواعيدها، وتابع نتائجها من مكان واحد.</p></div></div><button class="button primary" id="newTask"><i class="fa-solid fa-plus"></i> إنشاء مهمة</button></section>
+    <details class="setting-card bg-[#0b0f19] border-[#1c2840] shadow-sm" style="margin-bottom:18px"><summary>القواعد السابقة</summary><p class="hint">تحتفظ بجدولتها الحالية؛ أوقف القاعدة القديمة قبل تفعيل بديل من النوع نفسه.</p><div id="legacyRules"></div></details>
+    <section class="metrics" id="metrics" aria-label="ملخص المهام"></section>
+    <section class="workspace bg-[#0b0f19] border-[#1c2840] shadow-sm hover:shadow-md transition-all duration-300">
+      <div class="tabs" role="tablist" aria-label="أقسام محرك الأتمتة">
+        <button class="tab active" data-tab="tasks" role="tab" aria-selected="true"><i class="fa-regular fa-calendar-check"></i> المهام المجدولة <span id="taskCount">0</span></button>
+        <button class="tab" data-tab="catalog" role="tab" aria-selected="false"><i class="fa-solid fa-layer-group"></i> مكتبة المهام</button>
+        <button class="tab" data-tab="history" role="tab" aria-selected="false"><i class="fa-solid fa-clock-rotate-left"></i> سجل التنفيذ</button>
+        <button class="tab" data-tab="settings" role="tab" aria-selected="false"><i class="fa-solid fa-sliders"></i> سياسة التشغيل</button>
+      </div>
+      <div id="tasksPanel" class="panel">
+        <div class="toolbar"><div class="search"><i class="fa-solid fa-magnifying-glass"></i><input id="search" aria-label="بحث في المهام" placeholder="ابحث باسم المهمة أو نوعها..."></div><select id="statusFilter" aria-label="حالة المهمة"><option value="all">جميع الحالات</option><option value="active">مفعلة</option><option value="paused">متوقفة</option><option value="running">قيد التشغيل</option></select><select id="typeFilter" aria-label="نوع المهمة"><option value="all">جميع الأنواع</option></select><span class="toolbar-count" id="visibleCount"></span></div>
+        <div class="task-layout"><div id="taskList" class="task-list"></div><aside class="agenda bg-[#0b0f19] border-[#1c2840] shadow-sm hover:shadow-md transition-all duration-300"><div class="agenda-title"><span class="tiny-icon"><i class="fa-regular fa-calendar"></i></span><h3>المواعيد القادمة</h3></div><p class="muted small">حسب الجدول المحدد</p><div id="agendaList"></div><div class="agenda-tip"><i class="fa-solid fa-shield-halved"></i><div><strong>الخدمة أولًا</strong><p>المهام الثقيلة تنتظر دورها، ولا تتداخل مع بعضها.</p></div></div></aside></div>
+      </div>
+      <div id="catalogPanel" class="panel hidden"><div class="section-heading"><h2>مهمة مناسبة لكل احتياج</h2><p>اختر قالبًا جاهزًا، ثم خصص نطاقه ووقت تشغيله.</p></div><div id="catalogGrid" class="catalog-grid"></div></div>
+      <div id="historyPanel" class="panel hidden"><div class="toolbar"><div><h2>سجل التنفيذ</h2><p class="muted small">تفاصيل المحاولات ونتائج التشغيل</p></div><select id="historyFilter" aria-label="تصفية سجل التنفيذ"><option value="all">جميع النتائج</option><option value="success">نجاح</option><option value="failed">فشل</option><option value="partial">جزئي</option><option value="cancelled">ملغى</option></select></div><div class="table-wrap"><table><thead><tr><th>المهمة</th><th>النتيجة</th><th>بداية التنفيذ</th><th>المدة</th><th>العناصر / النتيجة</th><th></th></tr></thead><tbody id="historyBody"></tbody></table></div></div>
+      <div id="settingsPanel" class="panel hidden"><div class="section-heading"><h2>سياسة التشغيل العامة</h2><p>قواعد مشتركة تحافظ على انتظام المهام وأولوية الخدمة.</p></div><form id="policyForm"><div class="settings-grid"><section class="setting-card bg-[#0b0f19] border-[#1c2840] shadow-sm hover:shadow-md transition-all duration-300"><h3><i class="fa-solid fa-arrows-spin"></i> التزامن والمواعيد الفائتة</h3><label>المهام الثقيلة المتزامنة<select name="concurrency"><option>مهمة واحدة فقط</option></select></label><label>عند عودة النظام بعد توقف<select name="missed" id="policyMissed"><option value="skip">تخطي المواعيد الفائتة</option><option value="once">تنفيذ جولة واحدة فقط</option></select></label><div class="hint">لا تتراكم عدة تشغيلات للمهمة نفسها عند عودة النظام.</div></section><section class="setting-card bg-[#0b0f19] border-[#1c2840] shadow-sm hover:shadow-md transition-all duration-300"><h3><i class="fa-solid fa-shield-halved"></i> الحماية والإشعارات</h3><label class="check-row"><input id="policyResource" type="checkbox" checked> تأجيل المهام الثقيلة عند ضغط الموارد</label><label class="check-row"><input id="policyNotify" type="checkbox" checked> إشعار عند الفشل أو النتيجة الجزئية</label><label class="check-row"><input type="checkbox" checked disabled> مراجعة المهام بعد نقل أو استعادة المنظومة</label><label>الاحتفاظ بسجل التشغيل<select id="policyRetention"><option value="90">90 يومًا</option><option value="30">30 يومًا</option><option value="180">180 يومًا</option></select></label><div class="hint">الاحتفاظ هنا لسجل المهام فقط، ولا يشمل المال أو المحاسبة.</div></section></div><div class="policy-actions"><button class="button primary">حفظ الإعدادات</button><span class="muted small">تطبق على المهام الجديدة.</span></div></form></div>
+    </section>
+<dialog id="editorDialog" class="editor-dialog" aria-labelledby="editorTitle">
+<form id="taskForm">
+  <header class="modal-header"><div class="modal-heading"><span class="modal-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></span><div><h2 id="editorTitle">إنشاء مهمة جديدة</h2><p>حدد المهمة، واضبط جدولها، ثم راجع المواعيد.</p></div></div><button type="button" class="icon-button" data-close="editorDialog" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></header>
+  <div class="editor-body"><div class="editor-fields">
+    <section class="form-section"><div class="form-section-title"><span>1</span><h3>المهمة والنطاق</h3></div><div class="form-grid"><label class="full">اسم المهمة<input id="taskName" required maxlength="90" placeholder="مثال: تلخيص الجلسات الأسبوعي"></label><label class="full">نوع المهمة<select id="taskType"></select></label></div><div id="typeDescription" class="type-description"></div><div id="parameters" class="form-grid"></div></section>
+    <section class="form-section"><div class="form-section-title"><span>2</span><h3>متى تعمل؟</h3><span class="tag neutral"><i class="fa-regular fa-clock"></i> توقيت عدن</span></div><div class="form-grid"><label class="full">نمط التكرار<select id="scheduleMode"><option value="daily">يوميًا بأوقات محددة</option><option value="interval">كل مدة محددة</option><option value="weekly">أسبوعيًا في أيام محددة</option><option value="monthly">شهريًا في يوم محدد</option><option value="once">مرة واحدة</option></select></label></div>
+    <div id="weeklyFields" class="hidden"><label class="field-label">أيام التشغيل</label><div id="weekdayChoices" class="weekdays"></div></div>
+    <div id="monthlyFields" class="form-grid hidden"><label>يوم الشهر<input type="number" id="monthDay" value="1" min="1" max="31"></label><label>إذا لم يوجد هذا اليوم<select id="monthFallback"><option value="last">آخر يوم في الشهر</option><option value="skip">تخطي الشهر</option></select></label></div>
+    <div id="intervalFields" class="form-grid hidden"><label>التشغيل كل<input id="intervalValue" type="number" min="1" max="365" value="6"></label><label>الوحدة<select id="intervalUnit"><option value="hours">ساعات</option><option value="minutes">دقائق</option><option value="days">أيام</option></select></label><p class="hint full">يُحسب التكرار من وقت البداية المحدد، وليس من وقت انتهاء آخر محاولة.</p></div>
+    <div id="timesFields"><div class="label-line"><span class="field-label">أوقات التشغيل</span><button type="button" id="addTime" class="text-button"><i class="fa-solid fa-plus"></i> إضافة وقت</button></div><div id="timeList" class="time-list"></div><p id="frequencyLabel" class="hint"></p></div>
+    <div class="form-grid"><label>يبدأ من<input id="startDate" type="date" required></label><label id="intervalStartLabel" class="hidden">وقت البداية<input id="intervalStart" type="time" value="03:00"></label><label id="endModeLabel">ينتهي<select id="endMode"><option value="never">دون تاريخ نهاية</option><option value="date">في تاريخ محدد</option><option value="count">بعد عدد تشغيلات</option></select></label><label id="endDateLabel" class="hidden">تاريخ النهاية<input id="endDate" type="date"></label><label id="maxRunsLabel" class="hidden">عدد المواعيد<input id="maxRuns" type="number" min="1" max="10000" value="10"></label></div><p id="countHint" class="hint hidden">الحد لمرات التشغيل المجدولة، ولا تُحتسب إعادة المحاولة كموعد جديد.</p>
+    </section>
+    <section class="form-section"><div class="form-section-title"><span>3</span><h3>خيارات التنفيذ</h3></div><label class="check-row"><input id="enabled" type="checkbox" checked> تفعيل الجدولة بعد الحفظ</label><label class="check-row"><input id="notify" type="checkbox" checked> إشعار داخل اللوحة عند الفشل أو التنفيذ الجزئي</label><label class="check-row"><input id="resourcePause" type="checkbox" checked> تأجيل المهمة إذا كان النظام تحت ضغط</label><div id="deleteConfirmation" class="warning-box hidden"><i class="fa-solid fa-triangle-exclamation"></i><div>الحذف نهائي للعناصر المؤهلة فقط.<label class="check-row"><input id="destructiveConsent" type="checkbox"> أفهم نطاق الحذف وأريد جدولة هذه المهمة</label></div></div><div class="hint">كل موعد له تنفيذ مستقل. تُراجع النتيجة غير المؤكدة قبل أي إعادة محاولة.</div></section>
+  </div><aside class="schedule-preview"><span class="eyebrow">راجع قبل الحفظ</span><h3>هكذا ستعمل مهمتك</h3><div id="scheduleSummary"></div><div class="preview-divider"></div><div class="label-line"><h4>المواعيد القادمة</h4><span class="tag neutral">5 مواعيد</span></div><div id="nextDates" aria-live="polite"></div><div class="hint"><i class="fa-solid fa-circle-info"></i> المواعيد محسوبة حسب توقيت Asia/Aden.</div></aside></div>
+  <footer class="modal-footer"><span class="small muted"><i class="fa-solid fa-circle-info"></i> راجع الإعدادات قبل الحفظ</span><div><button type="button" class="button secondary" data-close="editorDialog">إلغاء</button><button type="submit" class="button primary"><i class="fa-regular fa-floppy-disk"></i> حفظ المهمة</button></div></footer>
+</form></dialog>
+<dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle"><header class="modal-header"><h2 id="detailTitle">تفاصيل المهمة</h2><button class="icon-button" data-close="detailDialog" aria-label="إغلاق"><i class="fa-solid fa-xmark"></i></button></header><div id="detailContent" class="detail-content"></div><footer class="modal-footer"><span class="small muted">تفاصيل المهمة</span><button class="button secondary" data-close="detailDialog">إغلاق</button></footer></dialog>
+</div>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='automation-tasks.js') }}"></script>{% endblock %}

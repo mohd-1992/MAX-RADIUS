@@ -1553,6 +1553,7 @@
     // 4. Change Package
     function openChangePackageModal(type, idOrIds, username, currentPkgId) {
         closeAllActionDropdowns();
+        document.getElementById('formChangePkg').dataset.packageOperationId = window.newSessionOperationId();
         const isBulk = Array.isArray(idOrIds);
         document.getElementById('cp_type').value = type;
         document.getElementById('cp_id').value = isBulk ? idOrIds.join(',') : idOrIds;
@@ -1572,6 +1573,7 @@
         });
         const fd = new FormData(document.getElementById('formChangePkg'));
         appendTargetIds(fd, 'cp_id');
+        fd.set('operation_id', document.getElementById('formChangePkg').dataset.packageOperationId);
         fetch('/api/actions/change-package', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(res => {

@@ -102,9 +102,9 @@ def edit_voucher(card_id,data,actor='admin',can_change_expiry=False):
         previous=receipt(op,card_id,actor,digest)
         if previous:return previous
         if identity:
-            from services.nas_session_settlement import freeze_and_disconnect
+            from services.nas_session_settlement import disconnect_for_identity
             session_ids = tuple(local.snapshot)
-            freeze_and_disconnect(local.snapshot,include_ppp=True)
+            disconnect_for_identity(local.snapshot)
             wait_for_final_accounting(row['username'], session_ids=session_ids)
         with db_session() as conn:
             with conn.cursor() as cur:

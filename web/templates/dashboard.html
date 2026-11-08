@@ -5,6 +5,26 @@
 {% block content %}
 <div class="space-y-6">
     {% include 'components/backup_activation_notice.html' %}
+    {% if not is_reseller_scope() and has_feature('automation_rules') %}
+    <div id="automation-space-notices" class="space-y-2" aria-live="polite"></div>
+    <script>
+    document.addEventListener('DOMContentLoaded',()=>{
+        const root=document.getElementById('automation-space-notices');
+        async function refreshSpace(){try{
+            const response=await fetch('/api/automation-notices',{credentials:'same-origin'});
+            if(!response.ok)return;
+            const data=await response.json();if(!data.success)return;
+            root.replaceChildren(...data.notices.map(n=>{
+                const card=document.createElement('div');
+                card.className='bg-[#0b0f19] border rounded-2xl p-4 text-sm '+(n.state==='low'?'border-amber-500/50 text-amber-400':'border-emerald-500/40 text-emerald-400');
+                card.textContent=(n.state==='low'?'تنبيه المساحة: ':'المساحة ضمن الحد: ')+n.message+' • آخر تحقق: '+n.updated_at;
+                return card;
+            }));
+        }catch{/* Preserve last observed notice; a network error is not recovery. */}}
+        refreshSpace();setInterval(refreshSpace,60000);
+    });
+    </script>
+    {% endif %}
 
     <!-- ========================================================== -->
     <!-- 0. تنبيه توفر تحديث جديد للنظام (Persistent Update Alert) -->

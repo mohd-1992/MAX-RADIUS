@@ -14,7 +14,7 @@ def configured():
             or bool(os.environ.get('MAX_CONTROL_SOCKET') or os.environ.get('MAX_CONTROL_TENANT_ID')))
 
 
-def request(method, path):
+def request(method, path, body=None):
     if os.environ.get('MAX_CONTROL_MODE') != 'hosted':
         raise RuntimeError('إعداد وصلة المضيف غير مكتمل؛ لم يستخدم Docker بديلًا.')
     endpoint = os.environ.get('MAX_CONTROL_SOCKET', '')
@@ -29,7 +29,14 @@ def request(method, path):
 
     conn = Connection('localhost', timeout=6)
     try:
-        conn.request(method, path, headers={'Connection': 'close'})
+        headers = {'Connection': 'close'}
+        encoded = None
+        if body is not None:
+            encoded = json.dumps(body).encode('utf-8')
+            if len(encoded) > 8192:
+                raise RuntimeError('طلب فحص المضيف أكبر من الحد المسموح.')
+            headers['Content-Type'] = 'application/json'
+        conn.request(method, path, body=encoded, headers=headers)
         response = conn.getresponse()
         raw = response.read(1024 * 1024 + 1)
         if response.status >= 400 or len(raw) > 1024 * 1024:
@@ -79,6 +86,30 @@ def current_core():
     if core_health() is not True:
         raise RuntimeError('لم تتأكد استجابة RADIUS الموثقة للمصادقة والمحاسبة.')
     return data['services']['core']
+
+
+def radius_simulation(username, password, secret, server='127.0.0.1', port=1812):
+    """One fixed diagnostic capability, never arbitrary tenant exec."""
+    if server not in ('127.0.0.1', 'localhost', '::1') or int(port) != 1812:
+        raise RuntimeError('فحص الاستضافة مقيد بمحرك RADIUS الخاص بهذه المنظومة.')
+    data = state()
+    if 'radius_probe_v1' not in data.get('capabilities', []):
+        raise RuntimeError('وصلة المضيف لا تدعم فحص RADIUS المقيد بعد.')
+    core = data['services']['core']
+    status = core.get('State', {})
+    if not status.get('Running') or status.get('Paused') or status.get('Restarting'):
+        raise RuntimeError('محرك المنظومة غير جاهز للفحص.')
+    result = request('POST', '/max/v1/radius/probe',
+                     dict(username=username, password=password or 'none', secret=secret,
+                          expected_core_id=core['Id']))
+    if (not isinstance(result, dict) or result.get('schema') != 1
+            or result.get('tenant_id') != data['tenant_id']
+            or result.get('core_id') != core['Id']
+            or type(result.get('exit_code')) is not int
+            or not isinstance(result.get('output'), str)
+            or len(result['output'].encode('utf-8')) > 65536):
+        raise RuntimeError('نتيجة الفحص لا تطابق هوية محرك المنظومة.')
+    return result
 
 
 _probe_lock = threading.Lock()

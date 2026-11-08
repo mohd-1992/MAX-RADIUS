@@ -60,7 +60,7 @@ def validate(row, data):
     if username!=row['username'] and not re.fullmatch(r'[A-Za-z0-9_.@+\-]{1,64}',username):
         raise ValueError('اسم المستخدم: من 1 إلى 64 حرفًا إنجليزيًا أو رقمًا أو . _ @ + - دون مسافات.')
     service=data.get('service_type',row['service_type'])
-    if service not in ('hotspot','pppoe'):
+    if service not in ('hotspot','pppoe') and service != row['service_type']:
         raise ValueError('اختر Hotspot أو PPPoE.')
     mac=str(data.get('mac_binding',row.get('mac_binding')) or '').strip().upper().replace('-',':')
     from services.account_mac_service import reject_legacy_mac_change
@@ -149,9 +149,9 @@ def edit_subscriber(subscriber_id, data, actor='admin', can_change_expiry=False)
         previous=receipt(operation_id,subscriber_id,actor,digest)
         if previous:return previous
         if identity_change:
-            from services.nas_session_settlement import freeze_and_disconnect
+            from services.nas_session_settlement import disconnect_for_identity
             session_ids = tuple(local.snapshot)
-            freeze_and_disconnect(local.snapshot,include_ppp=True)
+            disconnect_for_identity(local.snapshot)
             wait_for_final_accounting(row['username'], session_ids=session_ids)
         with db_session() as conn:
             with conn.cursor() as cur:

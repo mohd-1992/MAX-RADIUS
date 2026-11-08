@@ -126,7 +126,11 @@ def collect(conn,now=None,page_size=1000,max_pages=5):
             with conn.cursor() as cur:
                 cur.execute('SELECT cursor_id,cycle_rows,started_at FROM wisp_traffic_rollup_state WHERE id=1 FOR UPDATE')
                 state=cur.fetchone()
-                cur.execute('''SELECT a.*,COALESCE(v.reseller_id,v2.reseller_id) reseller_id,
+                cur.execute('''SELECT a.radacctid,a.acctuniqueid,a.username,a.acctsessionid,
+                    a.nasipaddress,a.acctstarttime,a.acctstoptime,a.acctupdatetime,
+                    a.calledstationid,a.nasportid,a.framedprotocol,a.servicetype,
+                    a.acctinputoctets,a.acctoutputoctets,
+                    COALESCE(v.reseller_id,v2.reseller_id) reseller_id,
                     (v.id IS NOT NULL OR v2.id IS NOT NULL) owner_account_exists
                     FROM radacct a LEFT JOIN wisp_vouchers v ON v.id=a.account_voucher_id
                     LEFT JOIN wisp_vouchers v2 ON a.account_voucher_id IS NULL

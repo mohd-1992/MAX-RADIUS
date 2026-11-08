@@ -491,11 +491,24 @@ def active_card_users():
     total_pages = max(1, (total_records + per_page - 1) // per_page)
     page = min(page, total_pages)
     offset = (page - 1) * per_page
-    # Derived session/accounting columns use the existing hydration for the
-    # complete filtered result, then sort before slicing into pages.
+    # Small derived sorts retain their single-chunk path. Large sets select
+    # compact global keys first, then hydrate only the selected page.
     load_limit = per_page if sql_order else total_records
     load_offset = offset if sql_order else 0
     query_order = sql_order or 'v.id DESC'
+    list_now=get_db_storage_now().replace(tzinfo=None)
+    compact_usage=None
+    # Small sets already fit one quota chunk; avoid extra selection queries.
+    compact_page = not sql_order and total_records > 400
+    if compact_page:
+        from services.card_list_page_service import page_ids
+        from services.quota_service import get_voucher_accounting_totals_batch, AccountingReadError
+        selected_ids,compact_usage=page_ids(query_all,where_sql,params,list_sort,offset,per_page,
+            list_now,cutoff_s,
+            get_voucher_accounting_totals_batch,AccountingReadError)
+        where_sql += ' AND v.id IN ('+','.join('?' for _ in selected_ids)+')' if selected_ids else ' AND 1=0'
+        params.extend(selected_ids)
+        load_limit,load_offset=per_page,0
     
     cards_query = f'''
         SELECT v.*,
@@ -541,7 +554,7 @@ def active_card_users():
         placeholders = ','.join(['?'] * len(usernames))
         from services.quota_service import get_voucher_accounting_totals_batch, AccountingReadError
         try:
-            traffic_map = get_voucher_accounting_totals_batch([c['id'] for c in cards])
+            traffic_map = compact_usage if compact_usage is not None else get_voucher_accounting_totals_batch([c['id'] for c in cards])
         except AccountingReadError:
             traffic_map = {}
 
@@ -575,7 +588,7 @@ def active_card_users():
         for lr in (last_rows or []):
             last_map[lr['username'].lower()] = lr
 
-    now = get_db_storage_now().replace(tzinfo=None)
+    now = list_now
 
     for c in cards:
         u_key = c['username'].lower() if c.get('username') else ''
@@ -714,7 +727,9 @@ def active_card_users():
         c['uptime_str'] = format_duration(dur_s)
 
     if not sql_order:
-        cards = sort_rows(cards, list_sort)[offset:offset + per_page]
+        cards = sort_rows(cards, list_sort)
+        if not compact_page:
+            cards = cards[offset:offset + per_page]
     packages = query_all("SELECT id, name, price, service_type, rate_download, rate_upload FROM wisp_packages WHERE is_active = 1")
     batches = query_all("SELECT id, name, batch_number FROM wisp_voucher_batches ORDER BY id DESC")
     return render_template('active_card_users.html',
@@ -1416,19 +1431,19 @@ def print_cards(batch_id):
         return jsonify(success=False, message='تصدير PDF متاح للحزم من 1 إلى 2000 كرت.'), 400
     try:
         import io
-        from services.batch_export_service import batch_download_name
+        from services.batch_export_service import batch_download_name, iter_card_pdf_groups
         from services.pdf_export_service import render_parts
         from services.heavy_operation_service import ExportCancelled
         def parts():
-            # Keep custom page grids intact at each PDF boundary.
-            chunk_size=cards_per_page if selected_design else 48
-            for offset in range(0,len(cards),chunk_size):
-                subset=cards[offset:offset+chunk_size]
+            # Render several existing A4 sheets together; the visible grid and
+            # individual sheet boundaries remain controlled by the template.
+            for subset, pages in iter_card_pdf_groups(
+                    cards, cards_per_page if selected_design else None):
                 yield render_template('print_cards.html',batch=batch,cards=subset,
-                    card_pages=[subset],tpl=template,saved_config_json=saved_config_json,
+                    card_pages=pages,tpl=template,saved_config_json=saved_config_json,
                     designs=designs,selected_design=selected_design,
                     selected_design_id=int(design_id) if design_id and str(design_id).isdigit() else None)
-        payload=render_parts(parts(),current_app.static_folder,timeout=600)
+        payload=render_parts(parts(),current_app.static_folder,timeout=600,parts_per_worker=8)
         response = send_file(payload, mimetype='application/pdf',
                              as_attachment=True, download_name=batch_download_name(batch['name'], 'pdf'), max_age=0)
         response.call_on_close(payload.close)

@@ -130,25 +130,22 @@ def get_container_fleet_status():
     current = next((c for c in raw_list if c.get('Id') in runtime_ids), None) if len(runtime_ids) == 1 else None
     project = (current or {}).get('Labels', {}).get('com.docker.compose.project')
     if not project:
-        # The inherited hostname is a project hint only, never a service target.
-        details, _ = docker_api_request('GET', '/containers/' + os.environ.get('HOSTNAME', 'unknown') + '/json')
-        labels = ((details or {}).get('Config', {}).get('Labels', {}) if isinstance(details, dict) else {})
-        if labels.get('com.docker.compose.service') in ('web', 'wisp-web'):
-            project = labels.get('com.docker.compose.project')
-    if not project:
         return _get_fallback_container_fleet('تعذر تحديد منظومة الحاويات؛ لن يتم التحكم بحاويات أخرى')
     if project:
         for default, role in zip(MONITORED_CONTAINER_NAMES, ('autoheal', 'freeradius', 'wisp-web', 'mariadb', 'l2tp')):
-            aliases = {'freeradius': 'radius_core', 'wisp-web': 'web', 'mariadb': 'db'}
+            aliases = {'freeradius': ('freeradius', 'radius_core', 'core'),
+                       'wisp-web': ('wisp-web', 'web'), 'mariadb': ('mariadb', 'db', 'database')}
             candidates = [c for c in raw_list
                           if c.get('Labels', {}).get('com.docker.compose.project') == project
-                          and c.get('Labels', {}).get('com.docker.compose.service') in (role, aliases.get(role, role))]
+                          and c.get('Labels', {}).get('com.docker.compose.service') in aliases.get(role, (role,))]
             own = [c for c in candidates if current and c.get('Id') == current.get('Id')]
             named = [c for c in candidates if '/' + default in c.get('Names', [])]
             running = [c for c in candidates if c.get('State') == 'running']
-            # A canonical stopped service remains visible; archives never become
-            # substitutes. Ambiguous noncanonical services fail closed.
-            match = own[0] if own else named[0] if len(named) == 1 else running[0] if len(running) == 1 else None
+            # A unique Compose service remains addressable after an explicit
+            # stop. Multiple stopped generations cannot select a rollback.
+            match = (own[0] if own else named[0] if len(named) == 1
+                     else running[0] if len(running) == 1
+                     else candidates[0] if len(candidates) == 1 else None)
             containers_map[default] = match
         containers_map = {key: value for key, value in containers_map.items() if value and value.get('Labels', {}).get('com.docker.compose.project') == project}
     

@@ -39,7 +39,7 @@ class Tests(unittest.TestCase):
   def lock(name,timeout=0):
    locks.append((name,timeout))
    yield expiry if name=='expiry-sweep' else True
-  env=dict(_restore=lambda *a:[],log_audit=lambda *a:None,job_lock=lock,_save=lambda *a,**k:saved.append((a,k)),execute_update=lambda *a:1,_drain_operational_requests=lambda:(_ for _ in ()).throw(RuntimeError('test stop before any destructive work')),log=types.SimpleNamespace(exception=lambda *a:None))
+  env=dict(_restore=lambda *a:[],log_audit=lambda *a:None,job_lock=lock,_save=lambda *a,**k:saved.append((a,k)),execute_update=lambda *a:1,FactoryResetCancelled=type('FixtureCancelled',(Exception,),{}),_check_cancel=lambda *a:None,_drain_operational_requests=lambda **kwargs:(_ for _ in ()).throw(RuntimeError('test stop before any destructive work')),log=types.SimpleNamespace(exception=lambda *a:None))
   exec(function('factory_reset_service.py','_worker'),env);env['_worker']('test',{},'test');return locks,saved
  def test_reset_waits_bounded_and_does_not_wipe_on_timeout(self):
   locks,saved=self.worker(False);self.assertIn(('expiry-sweep',60),locks);self.assertFalse(saved[-1][0][1]['data_reset']);self.assertIn('مهلة',saved[-1][0][1]['message'])

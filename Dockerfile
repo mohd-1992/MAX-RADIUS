@@ -50,7 +50,7 @@ COPY --from=build /opt/venv /opt/venv
 COPY --from=build /app /app
 COPY --from=build /opt/max-protection /opt/max-protection
 RUN mkdir -p /app/storage/backups /app/storage/uploads /app/storage/logs && chmod +x /app/entrypoint.sh
-LABEL org.opencontainers.image.version="2.7.0" max.release.channel="control-v1"
+LABEL org.opencontainers.image.version="2.7.1" max.release.channel="control-v1"
 EXPOSE 80/tcp 5090/tcp 18120/udp 18130/udp 37990/udp
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD curl -f http://localhost:5090/ || exit 1
 ENTRYPOINT ["/app/entrypoint.sh"]

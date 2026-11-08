@@ -438,7 +438,7 @@ def run_auto_maintenance_job(retention_days=90):
     return dict(result, duplicate_compaction=compact)
 
 
-def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000, min_age_days=0, progress_callback=None, cancel_callback=None):
+def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000, min_age_days=0, progress_callback=None, cancel_callback=None, account_scope=None):
     from services.account_lifecycle_service import delete_account, job_lock, run_transaction, enqueue_deletion_disconnects
     result=dict(success=True,deleted_vouchers=0,deleted_radcheck=0,deleted_radusergroup=0,deleted_radreply=0,deleted_radacct=0,pending=0,skipped=0,processed=0,total=0,queue_failures=0,pending_reasons={})
     started=time.time()
@@ -457,6 +457,11 @@ def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50
         with job_lock('expired-card-delete') as acquired:
             if not acquired:raise ValueError('الحذف أو إعادة المصنع قيد التنفيذ بالفعل.')
             where="status='expired'";params=[]
+            if account_scope is not None:
+                from services.automation_scope_service import predicate
+                clause, scope_values = predicate(account_scope)
+                where += ' AND (' + clause + ')'
+                params.extend(scope_values)
             if min_age_days:
                 where+=' AND expires_at < NOW()-INTERVAL ? DAY';params.append(max(1,int(min_age_days)))
             if delete_type != 'all':
@@ -474,7 +479,7 @@ def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50
                     def operation(transaction):
                         staged=[]
                         for row in chunk:
-                            state=delete_account('voucher',row['id'],expected_expired=True,delete_acct=delete_acct,min_age_days=min_age_days,expected_cycle=str(row.get('last_renewed_at') or ''),expected_reason=row.get('expire_reason'),expected_category=delete_type,connection=transaction,transaction_owned=True,queue_pending=False)
+                            state=delete_account('voucher',row['id'],expected_expired=True,delete_acct=delete_acct,min_age_days=min_age_days,expected_cycle=str(row.get('last_renewed_at') or ''),expected_reason=row.get('expire_reason'),expected_category=delete_type,connection=transaction,transaction_owned=True,queue_pending=False,expected_scope=account_scope)
                             staged.append((row['id'],state))
                         return staged
                     committed=run_transaction(operation,connection=conn)
@@ -834,7 +839,7 @@ def fix_all_audit_issues():
                     message=f'لم تكتمل المعالجة: {exc}',duration_seconds=round(time.time()-started,2))
 
 
-FACTORY_RESET_TABLES = ('wisp_account_usage_seals','wisp_account_usage_summary','wisp_traffic_checkpoints','wisp_traffic_rollups','wisp_traffic_rollup_state','wisp_traffic_samples','wisp_traffic_history','wisp_sale_source_audit','wisp_sale_sources','wisp_account_mac_addresses','wisp_account_mac_policies','wisp_account_mac_receipts','wisp_voucher_names','wisp_voucher_edit_receipts','wisp_subscriber_names','wisp_subscriber_edit_receipts','wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
+FACTORY_RESET_TABLES = ('wisp_automation_deliveries','wisp_automation_policy','wisp_automation_notices','wisp_automation_runs','wisp_automation_tasks','wisp_account_usage_seals','wisp_account_usage_summary','wisp_traffic_checkpoints','wisp_traffic_rollups','wisp_traffic_rollup_state','wisp_traffic_samples','wisp_traffic_history','wisp_sale_source_audit','wisp_sale_sources','wisp_account_mac_addresses','wisp_account_mac_policies','wisp_account_mac_receipts','wisp_voucher_names','wisp_voucher_edit_receipts','wisp_subscriber_names','wisp_subscriber_edit_receipts','wisp_online_policy_outbox','wisp_renewal_guards','wisp_userman_import_journal','wisp_userman_import_batches','wisp_quick_card_issues','radcheck','radreply','radusergroup','radacct','radacct_archive','wisp_imported_session_history','radpostauth','wisp_session_baselines','wisp_session_reservations','wisp_voucher_sales','wisp_vouchers','wisp_voucher_batches','wisp_subscribers','wisp_invoices','wisp_manager_invoices','wisp_reseller_transactions','wisp_global_sequence','user_audit_logs','wisp_loyalty_wallets','wisp_loyalty_transactions','wisp_automation_logs','wisp_deletion_requests','wisp_wallet_ledger','wisp_reseller_wallets','wisp_notification_logs','wisp_whatsapp_logs')
 
 
 def _wipe_factory_database(keep_packages=True, keep_resellers=False, job_id=None):

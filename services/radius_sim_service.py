@@ -7,6 +7,7 @@ Provides direct Access-Request and CoA packet testing, attribute validation, and
 
 import time
 import subprocess
+import re
 from database.db import get_connection
 
 _get_db = get_connection
@@ -45,25 +46,40 @@ def simulate_radius_auth(username, password, nas_ip='127.0.0.1', nas_secret='tes
     finally:
         db.close()
 
-    cmd = [
-        "docker", "exec", "max_radius_core", 
-        "radtest", username, password or "none", radius_server, "0", nas_secret
-    ]
-    
     raw_output = ""
     is_accept = False
     attributes = []
+    verified = False
     
     try:
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=3.5)
+        from services import hosted_control_service as hosted
+        from services.system_control_service import get_container_info
+        if hosted.configured():
+            result = hosted.radius_simulation(username, password, nas_secret,
+                                               radius_server, radius_port)
+            raw_output, exit_code = result['output'], result['exit_code']
+        else:
+            core = get_container_info(['max_radius_core'])
+            ident = core.get('container_id', '')
+            if not core.get('is_running') or not re.fullmatch(r'[a-f0-9]{64}', ident):
+                raise RuntimeError('No unique running owned RADIUS container')
+            port = int(radius_port)
+            if not 1 <= port <= 65535:
+                raise ValueError('Invalid RADIUS port')
+            destination = radius_server if port == 1812 else f'{radius_server}:{port}'
+            cmd = ['docker', 'exec', ident, 'radtest', username,
+                   password or 'none', destination, '0', nas_secret]
+            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=3.5)
+            raw_output, exit_code = proc.stdout, proc.returncode
         elapsed_ms = round((time.time() - start_time) * 1000, 1)
-        raw_output = proc.stdout
         
-        if "Received Access-Accept" in raw_output or "Access-Accept" in raw_output:
+        if exit_code == 0 and re.search(r'^\s*Received Access-Accept\b', raw_output, re.MULTILINE):
             is_accept = True
+            verified = True
             status_code = "Access-Accept"
-        elif "Received Access-Reject" in raw_output or "Access-Reject" in raw_output:
+        elif re.search(r'^\s*Received Access-Reject\b', raw_output, re.MULTILINE):
             is_accept = False
+            verified = True
             status_code = "Access-Reject"
         elif "No reply" in raw_output or "timeout" in raw_output.lower():
             is_accept = False
@@ -72,37 +88,34 @@ def simulate_radius_auth(username, password, nas_ip='127.0.0.1', nas_secret='tes
             is_accept = False
             status_code = "Unknown Response"
 
+        safe_lines = []
         for line in raw_output.splitlines():
             line = line.strip()
+            if re.search(r'(?:User|Cleartext|CHAP|MS-CHAP)-Password\s*[=:]', line, re.I):
+                safe_lines.append('[credential redacted]')
+                continue
+            safe_lines.append(line)
             if "=" in line and not line.startswith("Sent") and not line.startswith("rad_recv"):
                 parts = line.split("=", 1)
                 attributes.append({
                     'attr': parts[0].strip(),
                     'val': parts[1].strip()
                 })
+        raw_output = '\n'.join(safe_lines)
 
-    except Exception as e:
+    except Exception:
         elapsed_ms = round((time.time() - start_time) * 1000, 1)
-        if db_info:
-            is_match = (db_info.get('password') == password) or (not password and db_info.get('attribute') == 'Cleartext-Password')
-            if is_match and db_info.get('voucher_status') in (None, 'active', 'unused', 'used'):
-                is_accept = True
-                status_code = "Access-Accept (Direct DB Check)"
-                for ra in reply_attrs:
-                    attributes.append({'attr': ra['attribute'], 'val': ra['value']})
-            else:
-                is_accept = False
-                status_code = "Access-Reject (Invalid Password/Status)"
-        else:
-            is_accept = False
-            status_code = f"Access-Reject (User Not Found: {str(e)})"
+        is_accept = False
+        status_code = 'Unavailable / Not Verified'
+        raw_output = 'تعذر تنفيذ اختبار RADIUS موثق ضمن حدود هذه المنظومة؛ لم تثبت نتيجة مصادقة.'
 
     return {
         'username': username,
         'status': status_code,
         'is_accept': is_accept,
+        'verified': verified,
         'elapsed_ms': elapsed_ms,
-        'raw_output': raw_output if raw_output else "Direct Evaluation",
+        'raw_output': raw_output or 'لم يصل رد RADIUS موثق.',
         'attributes': attributes if attributes else [{'attr': ra['attribute'], 'val': ra['value']} for ra in reply_attrs],
         'db_user_exists': bool(db_info),
         'assigned_group': db_info.get('groupname', 'N/A') if db_info else 'غير مسجل'

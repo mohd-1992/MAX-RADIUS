@@ -18,6 +18,7 @@ class Tests(unittest.TestCase):
   lifecycle.ACCOUNTING_UNCERTAIN_REASON='uncertain'
   license=types.ModuleType('services.license_guard_service');license.get_active_license_status=lambda:dict(valid=valid)
   radius=types.ModuleType('core.radius_sync');radius.sync_subscriber_to_radius=lambda *a,**k:events.append('sync') or sync
+  radius.sync_voucher_to_radius=radius.sync_subscriber_to_radius
   env=dict(log_user_audit=lambda *a:events.append('audit'))
   tree=ast.parse((ROOT/'services/quick_action_service.py').read_text(encoding='utf8'))
   node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='action_activate_subscriber')

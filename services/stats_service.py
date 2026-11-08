@@ -60,6 +60,17 @@ _LIVE_METRICS_CACHE = {
 _WORKER_STARTED = False
 _LAST_ACTIVATION_SYNC = 0
 
+# Same predicates as the former seven independent counts, including overlaps.
+# SUM is explicitly zero for an empty tenant database.
+VOUCHER_COUNTS_SQL = '''SELECT COUNT(*) AS total,
+    COALESCE(SUM(first_used_at IS NOT NULL OR status IN ('active','used','expired')),0) AS activated,
+    COALESCE(SUM(status IN ('active','used') AND (expires_at IS NULL OR expires_at>CURRENT_TIMESTAMP)),0) AS active,
+    COALESCE(SUM(status='expired' OR (expires_at IS NOT NULL AND expires_at<=CURRENT_TIMESTAMP)),0) AS expired,
+    COALESCE(SUM(status='unused'),0) AS unused,
+    COALESCE(SUM(status IN ('suspended','disabled')),0) AS disabled,
+    COALESCE(SUM(status='recharged'),0) AS recharged
+    FROM wisp_vouchers'''
+
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -218,12 +229,11 @@ def _collect_db_metrics_internal():
     total_active_sessions = active_sessions_q['total'] if active_sessions_q else 0
     
     # 1. Total Card Subscribers (All activated vouchers: expired and non-expired)
-    tot_act_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE first_used_at IS NOT NULL OR status IN ('active', 'used', 'expired')")
-    total_card_subscribers = tot_act_q['c'] if tot_act_q else 0
+    voucher_counts = query_one(VOUCHER_COUNTS_SQL) or {}
+    total_card_subscribers = int(voucher_counts.get('activated') or 0)
 
     # 2. Active Card Subscribers (Non-expired active vouchers only)
-    act_valid_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE status IN ('active', 'used') AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)")
-    active_subscribers = act_valid_q['c'] if act_valid_q else 0
+    active_subscribers = int(voucher_counts.get('active') or 0)
 
     # 3. Online Live Sessions strictly separated by protocol:
     # A. Broadband / PPPoE: Only sessions with framedprotocol = 'PPP' or PPPoE port
@@ -266,27 +276,17 @@ def _collect_db_metrics_internal():
     total_unique_online = online_subscribers + online_vouchers_cards
 
     # 4. Expired Card Subscribers (Quota or Time exhausted)
-    exp_q = query_one('''
-        SELECT COUNT(*) as c
-        FROM wisp_vouchers
-        WHERE status = 'expired'
-           OR (expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP)
-    ''')
-    expired_vouchers = exp_q['c'] if exp_q else 0
+    expired_vouchers = int(voucher_counts.get('expired') or 0)
 
     # Available Vouchers (Inventory)
-    avail_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE status = 'unused'")
-    available_vouchers = avail_q['c'] if avail_q else 0
+    available_vouchers = int(voucher_counts.get('unused') or 0)
 
     # Disabled & Recharged Vouchers
-    dis_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE status IN ('suspended','disabled')")
-    disabled_vouchers = dis_q['c'] if dis_q else 0
+    disabled_vouchers = int(voucher_counts.get('disabled') or 0)
 
-    rech_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers WHERE status = 'recharged'")
-    recharged_vouchers = rech_q['c'] if rech_q else 0
+    recharged_vouchers = int(voucher_counts.get('recharged') or 0)
 
-    tot_q = query_one("SELECT COUNT(*) as c FROM wisp_vouchers")
-    total_vouchers = tot_q['c'] if tot_q else 0
+    total_vouchers = int(voucher_counts.get('total') or 0)
 
     v_stats = {
         'unused': available_vouchers,

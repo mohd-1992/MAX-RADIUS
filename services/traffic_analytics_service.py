@@ -29,19 +29,30 @@ def get_traffic_analytics_report(timeframe='30d'):
             date_filter = "acctstarttime >= DATE_SUB(NOW(), INTERVAL 30 DAY)"
             prev_filter = "acctstarttime >= DATE_SUB(NOW(), INTERVAL 60 DAY) AND acctstarttime < DATE_SUB(NOW(), INTERVAL 30 DAY)"
 
-        # 1. Total Cumulative Download & Upload
+        # Hour buckets already contain the exact sums and session counts.
+        # Only global distinct usernames need their own aggregation. Keep the
+        # original top query verbatim, including its tie/collation behavior.
+        cur.execute(f"SELECT COUNT(DISTINCT username) AS n FROM radacct_owned WHERE {date_filter}")
+        unique_users=(cur.fetchone() or {}).get('n',0)
         cur.execute(f"""
             SELECT 
-                COALESCE(SUM(acctinputoctets), 0) as total_upload_bytes,
-                COALESCE(SUM(acctoutputoctets), 0) as total_download_bytes,
-                COUNT(*) as total_sessions,
-                COUNT(DISTINCT username) as total_unique_users
+                HOUR(acctstarttime) as hour_of_day,
+                COUNT(*) as sessions_count,
+                SUM(acctinputoctets) as hour_up_bytes,
+                SUM(acctoutputoctets) as hour_down_bytes,
+                SUM(acctinputoctets + acctoutputoctets) as hour_traffic_bytes
             FROM radacct_owned
             WHERE {date_filter}
+            GROUP BY HOUR(acctstarttime)
+            ORDER BY hour_of_day ASC
         """)
-        overall = cur.fetchone() or {}
-        if not isinstance(overall, dict) and hasattr(overall, 'keys'):
-            overall = dict(overall)
+        raw_hourly = cur.fetchall() or []
+        from decimal import localcontext
+        with localcontext() as precision:
+            precision.prec=80
+            overall=dict(total_upload_bytes=sum((r['hour_up_bytes'] or 0 for r in raw_hourly),0),
+                total_download_bytes=sum((r['hour_down_bytes'] or 0 for r in raw_hourly),0),
+                total_sessions=sum(r['sessions_count'] for r in raw_hourly),total_unique_users=unique_users)
 
         total_upload_bytes = float(overall.get('total_upload_bytes') or 0)
         total_download_bytes = float(overall.get('total_download_bytes') or 0)
@@ -98,19 +109,7 @@ def get_traffic_analytics_report(timeframe='30d'):
             })
 
         # 3. Peak Hour Distribution (24-Hour traffic distribution with separate DL and UL)
-        cur.execute(f"""
-            SELECT 
-                HOUR(acctstarttime) as hour_of_day,
-                COUNT(*) as sessions_count,
-                SUM(acctinputoctets) as hour_up_bytes,
-                SUM(acctoutputoctets) as hour_down_bytes,
-                SUM(acctinputoctets + acctoutputoctets) as hour_traffic_bytes
-            FROM radacct_owned
-            WHERE {date_filter}
-            GROUP BY HOUR(acctstarttime)
-            ORDER BY hour_of_day ASC
-        """)
-        raw_hourly = cur.fetchall() or []
+
         hourly_raw = {}
         for r in raw_hourly:
             if not isinstance(r, dict) and hasattr(r, 'keys'):

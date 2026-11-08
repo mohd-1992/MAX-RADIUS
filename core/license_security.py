@@ -31,10 +31,11 @@ def persistent_secret(storage, env_name='SECRET_KEY'):
 
 
 def protects_admin_account_request(req):
-    return (req.path.startswith(('/api/tools/mikrotik-import/jobs/', '/api/tools/database-maintenance/'))
-            or req.path in ('/settings/license/activate', '/settings/license/sync-heartbeat')
-            or req.path.startswith(('/packages', '/subscribers', '/api/subscribers/', '/api/actions/', '/vouchers', '/api/vouchers/', '/card-designer', '/managers', '/roles', '/resellers', '/api/reseller-wallets/', '/impersonate/', '/profile/update'))
-            or req.path.startswith('/invoices'))
+    # Administrative routes use cookie sessions. New routes must inherit CSRF
+    # protection instead of silently falling outside an endpoint allow-list.
+    # Portal authentication and provider webhooks have separate trust contracts.
+    return (req.path not in ('/login', '/api/whatsapp/webhook', '/user')
+            and not req.path.startswith('/user/'))
 
 def install_csrf(app, protected):
     from flask import request, session, abort
@@ -45,10 +46,12 @@ def install_csrf(app, protected):
     app.jinja_env.globals['csrf_token'] = token
     @app.before_request
     def check_csrf():
-        if request.method == 'POST' and protected(request):
+        if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and protected(request):
             expected = session.get('_license_csrf', '')
             actual = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token', '')
-            if not expected or not isinstance(actual, str) or not hmac.compare_digest(expected, actual):
+            if (not isinstance(expected, str) or not expected
+                    or not isinstance(actual, str)
+                    or not hmac.compare_digest(expected.encode('utf-8'), actual.encode('utf-8'))):
                 abort(403, 'Invalid CSRF token')
     @app.after_request
     def inject_form_tokens(response):

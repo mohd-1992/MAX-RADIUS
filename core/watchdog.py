@@ -126,7 +126,10 @@ def check_radius_engine_health():
     host = os.environ.get('RADIUS_HOST') or os.environ.get('RADIUS_SERVER_IP') or 'radius_core'
     port = int(os.environ.get('RADIUS_AUTH_PORT', 1812))
     is_responsive, _ = radius_probe(port)
-    is_responsive = is_responsive is True
+    if is_responsive is None:
+        # Missing probe credentials are unknown, not evidence of a down engine.
+        # Preserve any last verified transition until a real probe is available.
+        return None
 
     if not is_responsive and _last_radius_state:
         log_system_alert(

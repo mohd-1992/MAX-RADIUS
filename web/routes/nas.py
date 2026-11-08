@@ -168,8 +168,8 @@ def edit_nas_action(nas_id):
     return redirect(url_for('nas_details_page', nas_id=nas_id))
 
 
-@nas_bp.route('/nas/delete/<int:nas_id>', methods=['GET', 'POST'], endpoint="delete_nas_action_alt")
-@nas_bp.route('/nas/<int:nas_id>/delete', methods=['GET', 'POST'], endpoint="delete_nas_action")
+@nas_bp.route('/nas/delete/<int:nas_id>', methods=['POST'], endpoint="delete_nas_action_alt")
+@nas_bp.route('/nas/<int:nas_id>/delete', methods=['POST'], endpoint="delete_nas_action")
 @login_required
 def delete_nas_action(nas_id):
     try:
@@ -303,7 +303,7 @@ def l2tp_save_settings_action():
         current_mgr = get_current_manager()
         admin_user = current_mgr['username'] if current_mgr else 'admin'
         save_l2tp_network_settings(request.form, admin_username=admin_user)
-        flash('تم حفظ وتطبيق إعدادات شبكة L2TP/IPsec VPN وإعادة تشغيل خادم النفق بنجاح.', 'success')
+        flash('تم حفظ إعدادات شبكة L2TP/IPsec VPN بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء حفظ إعدادات شبكة VPN: {str(e)}', 'danger')
     return redirect(url_for('l2tp_tunnels_page', tab='l2tp'))
@@ -318,7 +318,7 @@ def api_l2tp_settings():
             admin_user = current_mgr['username'] if current_mgr else 'admin'
             data = request.get_json() if request.is_json else request.form
             save_l2tp_network_settings(data, admin_username=admin_user)
-            return jsonify({'success': True, 'message': 'تم حفظ وتطبيق الإعدادات وإعادة تشغيل خادم النفق بنجاح'})
+            return jsonify({'success': True, 'message': 'تم حفظ إعدادات شبكة النفق بنجاح'})
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)}), 400
     else:
@@ -352,8 +352,8 @@ def l2tp_edit_tunnel_action(tunnel_id):
     return redirect(url_for('l2tp_tunnels_page', tab='l2tp'))
 
 
-@nas_bp.route('/nas/l2tp/delete/<int:tunnel_id>', methods=['GET', 'POST'], endpoint="l2tp_delete_tunnel_action")
-@nas_bp.route('/nas/l2tp/<int:tunnel_id>/delete', methods=['GET', 'POST'], endpoint="l2tp_delete_tunnel_action_alt")
+@nas_bp.route('/nas/l2tp/delete/<int:tunnel_id>', methods=['POST'], endpoint="l2tp_delete_tunnel_action")
+@nas_bp.route('/nas/l2tp/<int:tunnel_id>/delete', methods=['POST'], endpoint="l2tp_delete_tunnel_action_alt")
 @login_required
 def l2tp_delete_tunnel_action(tunnel_id):
     try:
@@ -416,7 +416,7 @@ def wireguard_add_tunnel_action():
         current_mgr = get_current_manager()
         admin_user = current_mgr['username'] if current_mgr else 'admin'
         add_wireguard_tunnel(request.form, admin_username=admin_user)
-        flash('تمت إضافة نفق WireGuard وتسجيله في النواة وFreeRADIUS بنجاح.', 'success')
+        flash('تم حفظ نفق WireGuard وإعدادات الراوتر بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء إضافة راوتر WireGuard: {str(e)}', 'danger')
     return redirect(url_for('l2tp_tunnels_page', tab='wireguard'))
@@ -429,14 +429,14 @@ def wireguard_edit_tunnel_action(tunnel_id):
         current_mgr = get_current_manager()
         admin_user = current_mgr['username'] if current_mgr else 'admin'
         update_wireguard_tunnel(tunnel_id, request.form, admin_username=admin_user)
-        flash('تم حفظ تعديلات نفق WireGuard وتحديث النواة بنجاح.', 'success')
+        flash('تم حفظ تعديلات نفق WireGuard بنجاح.', 'success')
     except Exception as e:
         flash(f'خطأ أثناء تعديل نفق WireGuard: {str(e)}', 'danger')
     return redirect(url_for('l2tp_tunnels_page', tab='wireguard'))
 
 
-@nas_bp.route('/nas/wireguard/delete/<int:tunnel_id>', methods=['GET', 'POST'], endpoint="wireguard_delete_tunnel_action")
-@nas_bp.route('/nas/wireguard/<int:tunnel_id>/delete', methods=['GET', 'POST'], endpoint="wireguard_delete_tunnel_action_alt")
+@nas_bp.route('/nas/wireguard/delete/<int:tunnel_id>', methods=['POST'], endpoint="wireguard_delete_tunnel_action")
+@nas_bp.route('/nas/wireguard/<int:tunnel_id>/delete', methods=['POST'], endpoint="wireguard_delete_tunnel_action_alt")
 @login_required
 def wireguard_delete_tunnel_action(tunnel_id):
     try:
@@ -521,7 +521,7 @@ def api_nas_diagnostics_status():
 def api_nas_diagnostics_coa_port():
     payload = request.get_json(silent=True) or request.form
     ip = (payload.get('ip') or '').strip()
-    port = int(payload.get('port', 3799) or 3799)
+    port = payload.get('port', 3799) or 3799
     secret = (payload.get('secret') or '').strip() or None
     from services.nas_diagnostics_service import test_coa_port
     ok, res = test_coa_port(ip, port=port, secret=secret)
@@ -532,7 +532,7 @@ def api_nas_diagnostics_coa_port():
 def api_nas_diagnostics_coa_disconnect():
     ip = request.form.get('ip', '').strip()
     secret = request.form.get('secret', '').strip() or None
-    port = int(request.form.get('port', 3799) or 3799)
+    port = request.form.get('port', 3799) or 3799
     from services.nas_diagnostics_service import send_test_coa_disconnect
     ok, msg = send_test_coa_disconnect(ip, nas_secret=secret, coa_port=port)
     return jsonify({'success': ok, 'message': msg})

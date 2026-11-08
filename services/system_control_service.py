@@ -87,73 +87,39 @@ def get_container_info(container_names):
             return hosted.container_info(container_names)
         except Exception:
             return {'exists': False, 'name': 'hosted-service', 'status': 'unknown', 'is_running': False, 'uptime': 'غير متحقق', 'read_only': True}
-    if isinstance(container_names, str):
-        candidates = [container_names]
-    else:
-        candidates = list(container_names)
-
-    # 1. Try Docker Socket REST API on candidates
-    for name in candidates:
-        info = query_docker_socket(f'/containers/{name}/json')
-        if isinstance(info, dict) and 'State' in info:
-            state = info.get('State', {})
-            status = state.get('Status', 'unknown') # running, exited, restarting
-            is_running = state.get('Running', False)
-            started_at = state.get('StartedAt', '')
-            
-            uptime_str = 'غير متوفر'
-            if is_running and started_at:
-                try:
-                    cleaned = started_at.split('.')[0].replace('Z', '')
-                    dt_start = datetime.datetime.fromisoformat(cleaned)
-                    now_utc = datetime.datetime.utcnow()
-                    diff_sec = int((now_utc - dt_start).total_seconds())
-                    uptime_str = format_seconds(diff_sec)
-                except Exception:
-                    pass
-                    
-            return {
-                'exists': True,
-                'name': name,
-                'status': status,
-                'is_running': is_running,
-                'uptime': uptime_str,
-                'image': info.get('Config', {}).get('Image', '') or info.get('Image', '')
-            }
-
-    # 2. Try docker CLI fallback if present
-    for name in candidates:
+    candidates = [container_names] if isinstance(container_names, str) else list(container_names)
+    roles = {
+        'max_radius_core': 'radius', 'wisp_freeradius_v2': 'radius', 'max-radius-freeradius': 'radius',
+        'max_radius_web': 'web', 'wisp_web_v2': 'web', 'max-radius-wisp-web': 'web',
+        'max_radius_db': 'database', 'wisp_mariadb_v2': 'database',
+        'max_radius_autoheal': 'autoheal', 'wisp_autoheal_v2': 'autoheal',
+    }
+    unknown = dict(exists=False, name=candidates[0] if candidates else 'unknown',
+                   status='unknown', is_running=False, uptime='غير متحقق', read_only=True)
+    desired = next((roles[name] for name in candidates if name in roles), None)
+    if desired is None:
+        return unknown
+    from services.autoheal_service import get_container_fleet_status, _resolve_managed_container
+    matches = [row for row in get_container_fleet_status()
+               if row.get('role') == desired and row.get('container_id')]
+    if len(matches) != 1:
+        return unknown
+    # The resolver re-inspects the immutable ID, project and service label.
+    info, error = _resolve_managed_container(matches[0]['container_id'], require_id=True)
+    if error or not info:
+        return unknown
+    state = info.get('State', {})
+    uptime = 'غير متوفر'
+    if state.get('Running') and state.get('StartedAt'):
         try:
-            res = subprocess.run(['docker', 'inspect', name], capture_output=True, text=True, timeout=4)
-            if res.returncode == 0:
-                data = json.loads(res.stdout)
-                if data and len(data) > 0:
-                    state = data[0].get('State', {})
-                    is_running = state.get('Running', False)
-                    status = state.get('Status', 'running' if is_running else 'stopped')
-                    started_at = state.get('StartedAt', '')
-                    uptime_str = 'غير متوفر'
-                    if is_running and started_at:
-                        try:
-                            cleaned = started_at.split('.')[0].replace('Z', '')
-                            dt_start = datetime.datetime.fromisoformat(cleaned)
-                            now_utc = datetime.datetime.utcnow()
-                            diff_sec = int((now_utc - dt_start).total_seconds())
-                            uptime_str = format_seconds(diff_sec)
-                        except Exception:
-                            pass
-                    return {
-                        'exists': True,
-                        'name': name,
-                        'status': status,
-                        'is_running': is_running,
-                        'uptime': uptime_str,
-                        'image': data[0].get('Config', {}).get('Image', '')
-                    }
-        except Exception:
+            started = datetime.datetime.fromisoformat(state['StartedAt'].split('.')[0].replace('Z', ''))
+            uptime = format_seconds(int((datetime.datetime.utcnow() - started).total_seconds()))
+        except (TypeError, ValueError):
             pass
+    return dict(exists=True, name=info['Name'].lstrip('/'), container_id=info['Id'],
+                status=state.get('Status', 'unknown'), is_running=bool(state.get('Running')),
+                uptime=uptime, image=info.get('Config', {}).get('Image') or info.get('Image', ''))
 
-    return {'exists': False, 'name': candidates[0], 'status': 'unknown', 'is_running': False, 'uptime': 'غير متوفر'}
 
 def get_database_metrics():
     """Calculates live database size, table count, and server uptime."""
@@ -412,54 +378,31 @@ def execute_service_action(service_id, action, admin_username='admin'):
 
     # Find the actual existing container name
     info = get_container_info(candidates)
-    container_name = info.get('name', candidates[0])
+    container_id = info.get('container_id')
+    if not info.get('exists') or not container_id:
+        return False, 'تعذر تثبيت هوية الخدمة وملكيتها لهذه المنظومة؛ لم يُنفذ الإجراء.'
 
-    # Special handling for Web Server Restart to return response before restart
+    from services.autoheal_service import _resolve_managed_container
+    def apply_verified_action():
+        current, error = _resolve_managed_container(container_id, require_id=True)
+        if error or not current:
+            return False
+        result = query_docker_socket(f'/containers/{container_id}/{action}', method='POST')
+        return result is not None and result is not False
+
     if service_id == 'web':
+        if action == 'stop':
+            return False, 'لا يمكن إيقاف خادم الويب من داخله لتجنب انقطاع لوحة التحكم بشكل دائم.'
         if action == 'restart':
             def delayed_restart():
                 time.sleep(1.0)
-                query_docker_socket(f'/containers/{container_name}/restart', method='POST')
-                try:
-                    os._exit(0)
-                except Exception:
-                    pass
-
+                # Docker performs the restart. Never terminate this process when
+                # ownership verification or the daemon request failed.
+                apply_verified_action()
             threading.Thread(target=delayed_restart, daemon=True).start()
-            return True, "تم إرسال أمر إعادة تشغيل خادم الويب بنجاح. ستتم إعادة التحميل خلال ثوانٍ معدودة."
-        elif action == 'stop':
-            return False, "لا يمكن إيقاف خادم الويب من داخله لتجنب انقطاع لوحة التحكم بشكل دائم."
+            return True, 'تم إرسال أمر إعادة تشغيل خادم الويب الخاص بهذه المنظومة.'
 
-    # 1. Try Docker Socket API
-    socket_res = query_docker_socket(f'/containers/{container_name}/{action}', method='POST')
-    if socket_res is not None and socket_res is not False:
+    if apply_verified_action():
         action_names = {'restart': 'إعادة تشغيل', 'stop': 'إيقاف', 'start': 'تشغيل'}
-        return True, f"تم {action_names.get(action, action)} محرك [{service_id}] بنجاح."
-
-    # 2. Try docker CLI subprocess
-    try:
-        res = subprocess.run(['docker', action, container_name], capture_output=True, text=True, timeout=15)
-        if res.returncode == 0:
-            action_names = {'restart': 'إعادة تشغيل', 'stop': 'إيقاف', 'start': 'تشغيل'}
-            return True, f"تم {action_names.get(action, action)} محرك [{service_id}] بنجاح."
-        else:
-            return False, f"فشل تنفيذ الأمر: {res.stderr.strip() or res.stdout.strip()}"
-    except Exception:
-        pass
-
-    # 3. Systemd / Linux service fallback
-    systemd_map = {
-        'freeradius': 'freeradius',
-        'mariadb': 'mariadb',
-        'web': 'wisp-web'
-    }
-    systemd_service = systemd_map.get(service_id)
-    if systemd_service:
-        try:
-            res = subprocess.run(['systemctl', action, systemd_service], capture_output=True, text=True, timeout=10)
-            if res.returncode == 0:
-                return True, f"تم تنفيذ {action} على الخدمة {systemd_service} بنجاح عبر Systemd."
-        except Exception:
-            pass
-
-    return False, f"تعذر الوصول لمحرك التحكم لتنفيذ الأمر على خدمة [{service_id}]."
+        return True, f"تم {action_names[action]} محرك [{service_id}] بنجاح."
+    return False, 'تعذر تنفيذ الإجراء على الخدمة المثبتة؛ لم تُستخدم خدمة بديلة.'

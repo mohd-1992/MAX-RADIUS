@@ -363,6 +363,7 @@
                     <div>
                         <label for="editSubscriber_service_type" class="block text-slate-300 font-semibold mb-1">نوع الخدمة</label>
                         <select id="editSubscriber_service_type" name="service_type" class="w-full bg-[#070b14] border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:border-blue-500">
+                            {% if subscriber.service_type not in ('hotspot', 'pppoe') %}<option value="{{ subscriber.service_type }}" selected>{{ subscriber.service_type }} (الحالي)</option>{% endif %}
                             <option value="hotspot" {% if subscriber.service_type == 'hotspot' %}selected{% endif %}>Hotspot</option>
                             <option value="pppoe" {% if subscriber.service_type == 'pppoe' %}selected{% endif %}>PPPoE</option>
                         </select>

@@ -77,26 +77,33 @@ class RouterOSApiProtocol:
         else:
             self.sock.sendall(b'\xF0' + struct.pack('!I', length))
 
+    def _read_exact(self, size):
+        data = bytearray()
+        while len(data) < size:
+            chunk = self.sock.recv(size - len(data))
+            if not chunk:
+                raise ConnectionError('RouterOS API reply ended inside a word')
+            data.extend(chunk)
+        return bytes(data)
+
     def _read_len(self):
-        b1 = self.sock.recv(1)
-        if not b1:
-            return 0
+        b1 = self._read_exact(1)
         b1_val = b1[0]
         if (b1_val & 0x80) == 0:
             return b1_val
         elif (b1_val & 0xC0) == 0x80:
-            b2 = self.sock.recv(1)[0]
+            b2 = self._read_exact(1)[0]
             return ((b1_val & 0x3F) << 8) + b2
         elif (b1_val & 0xE0) == 0xC0:
-            b2, b3 = self.sock.recv(2)
+            b2, b3 = self._read_exact(2)
             return ((b1_val & 0x1F) << 16) + (b2 << 8) + b3
         elif (b1_val & 0xF0) == 0xE0:
-            b2, b3, b4 = self.sock.recv(3)
+            b2, b3, b4 = self._read_exact(3)
             return ((b1_val & 0x0F) << 24) + (b2 << 16) + (b3 << 8) + b4
         elif (b1_val & 0xF8) == 0xF0:
-            b = self.sock.recv(4)
+            b = self._read_exact(4)
             return struct.unpack('!I', b)[0]
-        return 0
+        raise ValueError('Unsupported RouterOS API length prefix')
 
     def write_word(self, word):
         if isinstance(word, str):
@@ -117,12 +124,7 @@ class RouterOSApiProtocol:
             w_len = self._read_len()
             if w_len == 0:
                 break
-            data = bytearray()
-            while len(data) < w_len:
-                chunk = self.sock.recv(w_len - len(data))
-                if not chunk:
-                    break
-                data.extend(chunk)
+            data = self._read_exact(w_len)
             res.append(data.decode('utf-8', errors='replace'))
         return res
 

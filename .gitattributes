@@ -6,3 +6,5 @@ releases/2.7.0-maintenance-20261105-r2/* text eol=lf
 
 # Unified patch context preserves upstream indentation verbatim.
 docker/freeradius/patches/*.patch -whitespace
+
+releases/2.7.1/* text eol=lf

@@ -128,22 +128,24 @@ def _disconnect(row, username):
 def identity_pending_sessions(username, session_ids):
     """Check this edit's live generations; historical uncertainty stays intact."""
     ids = tuple(sorted(set(int(rid) for rid in session_ids)))
-    clause = ' OR a.radacctid IN (' + ','.join(['%s'] * len(ids)) + ')' if ids else ''
+    # Keep one bound parameter per captured generation in the compiled runtime
+    # as well as source execution. The connection adapter owns SQL dialects.
+    clause = ' OR a.radacctid IN (' + ','.join('?' for _ in ids) + ')' if ids else ''
     rows = query_all("""SELECT a.radacctid,a.acctstoptime,a.acctterminatecause,
         s.radacctid AS sealed FROM radacct_owned a
         LEFT JOIN wisp_nas_session_seals s ON s.radacctid=a.radacctid
           AND s.nasipaddress=a.nasipaddress AND s.acctsessionid=a.acctsessionid
-        WHERE a.username=%s AND (a.acctstoptime IS NULL""" + clause + ')', (username,) + ids)
+        WHERE a.username=? AND (a.acctstoptime IS NULL""" + clause + ')', (username,) + ids)
     if not set(ids).issubset({int(row['radacctid']) for row in rows}):
         raise SettlementPending('تغيرت سجلات الجلسات أثناء تعديل الحساب؛ لم تُحفظ التغييرات.')
     from services.nas_session_settlement import actual_stop
     return [row for row in rows if not row.get('acctstoptime') or
-            (not actual_stop(row) and not row.get('sealed'))]
+            (not actual_stop(row) and (int(row['radacctid']) in ids or not row.get('sealed')))]
 
 
 def wait_for_final_accounting(username, *, session_ids=None):
     # A scoped identity edit has already inventoried every configured NAS and
-    # frozen/disconnected its current sessions. Old synthetic closures cannot
+    # disconnected its current sessions without counter sealing. Old synthetic closures cannot
     # supply missing lifetime counters and must not be relabelled as actual Stop.
     identity_edit = session_ids is not None
     pending = (lambda: identity_pending_sessions(username, session_ids)) if identity_edit else (lambda: pending_sessions(username))
@@ -195,7 +197,7 @@ def settled_account(username, *, identity_change=False):
         current_radius_container()
         if query_one("SELECT 1 AS pending FROM wisp_session_reservations WHERE username=%s AND radacctid IS NULL AND expires_at>NOW() LIMIT 1",(username,)):
             from services.online_policy_service import fail
-            fail()
+            fail('pending_auth_reservation')
         snapshot = checkpoint(username, all_nas=True) if identity_change else checkpoint(username)
         # A cycle timestamp has second precision; never overwrite a same-second cut.
         latest = query_one("SELECT last_renewed_at FROM wisp_subscribers WHERE username=%s UNION ALL SELECT last_renewed_at FROM wisp_vouchers WHERE username=%s LIMIT 1", (username, username))
@@ -203,7 +205,8 @@ def settled_account(username, *, identity_change=False):
             now = query_one('SELECT NOW() AS now')['now']
             if latest['last_renewed_at'] >= now:
                 raise SettlementPending('\u0627\u0646\u062a\u0638\u0631 \u062b\u0627\u0646\u064a\u0629 \u0642\u0628\u0644 \u062a\u0643\u0631\u0627\u0631 \u0627\u0644\u0639\u0645\u0644\u064a\u0629.')
-        preflight(snapshot)
+        if not identity_change:
+            preflight(snapshot)
         intent(username)
         with view(snapshot):
             from services.online_policy_service import local

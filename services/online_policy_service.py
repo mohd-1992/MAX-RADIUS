@@ -20,7 +20,12 @@ log = logging.getLogger(__name__)
 local = threading.local()
 
 
-def fail():
+def fail(reason='unspecified', *, error_type=None):
+    # Server-side reason codes only: no account identifiers, API payloads,
+    # credentials or exception text. The public rejection remains unchanged.
+    import logging
+    logging.getLogger(__name__).warning('Online checkpoint rejected: reason=%s error_type=%s',
+                                       reason, error_type or 'none')
     from services.renewal_settlement_service import SettlementPending
     raise SettlementPending('\u062a\u0639\u0630\u0631 \u062a\u062b\u0628\u064a\u062a \u0639\u062f\u0627\u062f\u0627\u062a \u0627\u0644\u062c\u0644\u0633\u0627\u062a \u0623\u0648 \u062a\u062d\u062f\u064a\u062b \u062d\u062f\u0648\u062f \u0627\u0644\u0631\u0627\u0648\u062a\u0631\u061b \u0644\u0645 \u062a\u0646\u0641\u0630 \u0627\u0644\u0639\u0645\u0644\u064a\u0629 \u0648\u0644\u0645 \u064a\u062a\u0645 \u0627\u0644\u062e\u0635\u0645.')
 
@@ -62,8 +67,8 @@ def checkpoint(username, *, all_nas=False):
     from services.nas_session_settlement import recover_journals
     try:
         recover_journals(username)
-    except Exception:
-        fail()
+    except Exception as exc:
+        fail('journal_recovery', error_type=type(exc).__name__)
     rows = rows_for(username)
     # Inspect known NAS even when Start has not arrived, to avoid overlooking a login.
     nas_ips = {r['nasipaddress'] for r in rows}
@@ -79,16 +84,16 @@ def checkpoint(username, *, all_nas=False):
     now = query_one('SELECT NOW() AS now')['now']
     for ip in nas_ips:
         if inventory_deadline is not None and time.monotonic() >= inventory_deadline:
-            fail()
+            fail('inventory_deadline')
         n = query_one('SELECT * FROM wisp_nas_devices WHERE ip_address=%s', (ip,))
         if not n or not n.get('api_username') or not n.get('secret'):
-            fail()
+            fail('nas_configuration')
         api = RouterOSApiProtocol(ip, port=n['api_port'], timeout=5)
         try:
             api.connect()
             logged_in = api.login(n['api_username'], n['api_password'])
             if all_nas and not logged_in:
-                fail()
+                fail('nas_login')
             hot = api.execute_command('/ip/hotspot/active/print', ['?user='+username])
             ppp = api.execute_command('/ppp/active/print', ['?name='+username])
             if ppp:
@@ -100,14 +105,14 @@ def checkpoint(username, *, all_nas=False):
                     links=[r for r in interfaces if str(r.get('remote-address','')).upper()==str(live.get('caller-id','')).upper() and r.get('running')=='true']
                     counters=[r for r in stats if links and r.get('.id')==links[0].get('.id')]
                     if len(matches)!=1 or len(links)!=1 or len(counters)!=1 or live.get('radius')!='true':
-                        fail()
+                        fail('ppp_identity_or_counters')
                     r=matches[0];counter=counters[0]
                     if abs((now-r['acctstarttime']).total_seconds()-seconds(live['uptime']))>15:
-                        fail()
+                        fail('ppp_uptime')
                     # Existing PPP directional limits must be unlimited; the existing
                     # global quota/expiry sweeper remains its byte enforcement owner.
                     if int(live.get('limit-bytes-in',0)) or int(live.get('limit-bytes-out',0)):
-                        fail()
+                        fail('ppp_directional_limits')
                     result[r['radacctid']]={'row':r,'nas':n,'live':live,'kind':'pppoe',
                         'input':int(counter['rx-byte']),'output':int(counter['tx-byte']),
                         'seconds':seconds(live['uptime'])}
@@ -116,19 +121,19 @@ def checkpoint(username, *, all_nas=False):
                     and r['framedipaddress']==live.get('address')
                     and str(r['callingstationid']).upper().replace('-',':')==str(live.get('mac-address')).upper()]
                 if len(matches)!=1 or live.get('radius')!='true':
-                    fail()
+                    fail('hotspot_identity')
                 r=matches[0]
                 age = (now-r['acctstarttime']).total_seconds()
                 if abs(age-seconds(live['uptime']))>15:
-                    fail()
+                    fail('hotspot_uptime')
                 if 'limit-bytes-total' not in live:
                     # Missing means unlimited; zero is the explicit wire encoding.
                     live['limit-bytes-total']='0'
                 result[r['radacctid']]={'row':r, 'nas':n, 'live':live,
                     'kind':'hotspot','input':int(live['bytes-in']), 'output':int(live['bytes-out']),
                     'seconds':seconds(live['uptime'])}
-        except Exception:
-            fail()
+        except Exception as exc:
+            fail('nas_read_or_validation', error_type=type(exc).__name__)
         finally:
             api.close()
     # An absent NAS entry alone supplies no missing lifetime counters.
@@ -137,7 +142,7 @@ def checkpoint(username, *, all_nas=False):
         if row['radacctid'] not in result:
             latest = query_one('SELECT acctstoptime FROM radacct WHERE radacctid=%s', (row['radacctid'],))
             if latest and latest['acctstoptime'] is None:
-                fail()
+                fail('open_sql_session_absent_on_nas')
     return result
 
 

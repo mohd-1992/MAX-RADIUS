@@ -177,6 +177,42 @@ def _counter_verified_disconnect(username, radacctid, nas_ip, session_id, framed
         if target:raise RuntimeError('Target settlement incomplete')
 
 
+def _disconnect_lifecycle_account_sessions(task):
+    """Retire the current sessions of a still-blocked account with real Stops."""
+    from services.account_lifecycle_service import lifecycle_disconnect_still_required
+    from services.online_policy_service import checkpoint
+    from services.nas_session_settlement import disconnect_for_identity
+    from services.renewal_settlement_service import wait_for_final_accounting, SettlementPending
+    username = task['username']
+    with _disconnect_account_guard(username):
+        if not lifecycle_disconnect_still_required(task):
+            return {'success': True, 'status': 'cancelled_after_state_change'}
+        snapshot = checkpoint(username)
+        target = {rid: session for rid, session in snapshot.items()
+                  if not task.get('nas_ip') or session['row']['nasipaddress'] == task['nas_ip']}
+        ids = list(target)
+        # Inventory may take time; a later reactivation supersedes this task.
+        if not lifecycle_disconnect_still_required(task):
+            return {'success': True, 'status': 'cancelled_after_state_change'}
+        try:
+            unverified = False
+            for rid, session in target.items():
+                try:
+                    disconnect_for_identity({rid: session})
+                except SettlementPending:
+                    # A partial NAS failure must not leave the other captured
+                    # sessions online. Never resend the uncertain generation.
+                    unverified = True
+            if unverified:
+                raise SettlementPending('A captured generation was not verified')
+            wait_for_final_accounting(username, session_ids=ids)
+        except SettlementPending as exc:
+            raise RuntimeError('لم يتأكد اكتمال الفصل أو وصول المحاسبة النهائية؛ راجع حالة الجلسات. لم تُنشأ محاسبة افتراضية.') from exc
+        return {'success': True, 'status': 'nas_confirmed_disconnected',
+                'target_sessions': len(ids), 'accounting_final': True,
+                'message': 'تأكد فصل الجلسات المستهدفة ووصول محاسبتها النهائية.'}
+
+
 def _disconnect_account_sessions(username, nas_ip=None):
     """One guard and one snapshot for all target generations, with one retry."""
     from services.online_policy_service import checkpoint
@@ -205,6 +241,7 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
     res = {'success': False, 'status': 'disconnect_unverified',
            'message': 'لم يتم تأكيد اختفاء الجلسة من الراوتر.'}
     ros = None
+    stage = 'connect'
     try:
         if not api_port or not api_user:
             raise RuntimeError('NAS verification unavailable')
@@ -213,7 +250,9 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
         ros.connect()
         if not ros.login(api_user, api_pass):
             raise RuntimeError('NAS verification login failed')
+        stage = 'inventory_before'
         before = _nas_inventory(ros, username)
+        stage = 'select_generation'
         matches = _select_nas_session(before, session_id, framed_ip, mac_address)
         if not matches:
             # Inventory with other account sessions cannot prove a missing target
@@ -231,6 +270,7 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
                 if not original.get('uptime') or abs((clock-expected_start).total_seconds()-seconds(original['uptime']))>15:
                     raise RuntimeError('NAS session generation does not match accounting')
             if lifecycle_stop:
+                stage = 'lifecycle_disconnect'
                 if original.get('radius') != 'true':
                     raise RuntimeError('Lifecycle target is not a verified RADIUS session')
                 # Expiry needs a real Stop, not a financial counter seal. FastTrack
@@ -238,17 +278,20 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
                 client = RadiusCoaClient(target_nas_ip, secret, coa_port, timeout=1.8)
                 client.disconnect_user(username=username, framed_ip=framed_ip,
                                        session_id=session_id, mac_address=mac_address)
+                stage = 'verify_after_coa'
                 remaining = _select_nas_session(_nas_inventory(ros, username), session_id, framed_ip, mac_address)
                 if remaining:
                     # Delete only the previously verified generation, never an
                     # account-wide selector or a replacement login.
                     if len(remaining) != 1 or remaining[0][0] != path or remaining[0][1].get('.id') != original.get('.id'):
                         raise RuntimeError('NAS session generation changed')
+                    stage = 'remove_verified_generation'
                     replies = ros.talk_raw([path + '/remove', '=.id=' + original['.id']])
                     if not any(kind == '!done' for kind, _ in replies) or any(kind in ('!trap', '!fatal') for kind, _ in replies):
                         raise RuntimeError('NAS rejected lifecycle disconnect')
             else:
                 _counter_verified_disconnect(username, radacctid, target_nas_ip, session_id, framed_ip, mac_address)
+            stage = 'verify_absence'
             for attempt in range(3):
                 after = _nas_inventory(ros, username)
                 remaining = _select_nas_session(after, session_id, framed_ip, mac_address)
@@ -261,6 +304,7 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
         res['message'] = 'تأكد اختفاء الجلسة المطلوبة من الراوتر.'
         # Final usage belongs to Accounting-Stop (or a separate verified-counter
         # settlement). ACK/API done never closes radacct or fabricates counters.
+        stage = 'read_final_accounting'
         stopped = query_one('SELECT acctstoptime,acctterminatecause FROM radacct WHERE radacctid=%s AND username=%s',
                             (radacctid, username)) if radacctid else None
         synthetic = ('Admin-Reset-CoA','Stale-Session-Timeout','Watchdog-Autoheal-Timeout','Backup-Restored-Closed')
@@ -276,6 +320,10 @@ def _disconnect_single_session(username, nas_ip, session_id, framed_ip, mac_addr
         if not final:
             res['message'] += ' المحاسبة النهائية قيد الاستلام؛ لم يُغلق سجلها افتراضياً.'
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            'Session disconnect verification failed: stage=%s error_type=%s',
+            stage, type(exc).__name__)
         res.update(success=False, status='disconnect_unverified', error=type(exc).__name__,
                    message='تعذر تأكيد فصل الجلسة؛ لم يُغلق سجل المحاسبة افتراضياً.')
     finally:
@@ -342,7 +390,9 @@ def _process_coa_task(task):
                 active_sessions = query_all(session_sql, params)
 
                 if active_sessions:
-                    res = _disconnect_account_sessions(username,nas_ip)
+                    res = (_disconnect_lifecycle_account_sessions(task)
+                           if task.get('lifecycle_kind') else
+                           _disconnect_account_sessions(username,nas_ip))
                 else:
                     # No active sessions in radacct; send probe to default NAS
                     res = _disconnect_single_session(username, nas_ip, None, framed_ip, mac_address, None,

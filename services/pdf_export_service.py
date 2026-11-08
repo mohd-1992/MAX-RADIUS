@@ -22,8 +22,11 @@ def group_memory(pgid):
     return total
 
 
-def render_parts(parts, static_folder, timeout=180, memory_mb=768, cancelled=None):
+def render_parts(parts, static_folder, timeout=180, memory_mb=768, cancelled=None,
+                 parts_per_worker=4):
     """Parts are generated lazily; temporary PDFs are merged in order, no truncation."""
+    if type(parts_per_worker) is not int or not 1 <= parts_per_worker <= 8:
+        raise ValueError('عدد أجزاء عامل PDF يجب أن يكون بين 1 و8.')
     if cancelled is None:
         from services.heavy_operation_service import export_cancelled
         cancelled=export_cancelled
@@ -32,16 +35,30 @@ def render_parts(parts, static_folder, timeout=180, memory_mb=768, cancelled=Non
         started = time.monotonic()
         try:
             count = 0
-            for index, html in enumerate(parts):
+            iterator = iter(parts)
+            while True:
                 if cancelled and cancelled():
                     raise ExportCancelled('أُلغي التصدير؛ لم يُصدر ملف جزئي.')
                 if time.monotonic() - started >= timeout:
                     raise TimeoutError('انتهت مهلة التصدير. حدد نطاقًا أصغر وأعد المحاولة.')
-                source = root / 'part.html'; target = root / f'{index}.pdf'
-                source.write_text(html, encoding='utf-8')
+                group_start = count
+                group_count = 0
+                # Session exports retain four parts. Card exports explicitly
+                # opt into eight, under the same process-group memory budget.
+                for index in range(group_start, group_start + parts_per_worker):
+                    if cancelled and cancelled():
+                        raise ExportCancelled('أُلغي التصدير؛ لم يُصدر ملف جزئي.')
+                    try:
+                        html = next(iterator)
+                    except StopIteration:
+                        break
+                    (root / f'{index}.html').write_text(html, encoding='utf-8')
+                    group_count += 1
+                if not group_count:
+                    break
                 command = [sys.executable, '-B', '-c',
-                           'from services.pdf_export_service import render_worker; import sys; render_worker(*sys.argv[1:])',
-                           str(source), str(target), str(Path(static_folder).resolve())]
+                           'from services.pdf_export_service import render_group_worker; import sys; render_group_worker(*sys.argv[1:])',
+                           str(root), str(Path(static_folder).resolve()), str(group_start), str(group_count)]
                 process = subprocess.Popen(command, start_new_session=(os.name != 'nt'),
                                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 try:
@@ -53,9 +70,12 @@ def render_parts(parts, static_folder, timeout=180, memory_mb=768, cancelled=Non
                         if os.name != 'nt' and group_memory(process.pid) > memory_mb * 1024**2:
                             raise RuntimeError('تعقيد التصميم تجاوز ميزانية التصدير؛ قلل الصور أو حجم النطاق.')
                         time.sleep(.1)
-                    if process.returncode or not target.is_file():
+                    if process.returncode or not all((root / f'{i}.pdf').is_file()
+                            for i in range(group_start, group_start + group_count)):
                         raise RuntimeError('تعذر تجهيز أحد أجزاء الملف؛ لم يُصدر ملف جزئي.')
-                    count += 1
+                    count += group_count
+                    for i in range(group_start, count):
+                        (root / f'{i}.html').unlink()
                 finally:
                     # The group was created here; it contains only this renderer.
                     if process.poll() is None:
@@ -121,6 +141,22 @@ def render_worker(source,target,assets):
     try:
         from services.batch_export_service import _render_pdf_local
         Path(target).write_bytes(_render_pdf_local(Path(source).read_text(encoding='utf-8'), assets))
+    finally:
+        reap_worker_children()
+
+
+def render_group_worker(directory, assets, start, count):
+    prepare_worker()
+    try:
+        from services.batch_export_service import _pdf_renderer
+        start, count = int(start), int(count)
+        if start < 0 or not 1 <= count <= 8:
+            raise ValueError('Invalid bounded PDF group.')
+        root = Path(directory)
+        with _pdf_renderer(assets) as render:
+            for index in range(start, start + count):
+                source = root / f'{index}.html'
+                (root / f'{index}.pdf').write_bytes(render(source.read_text(encoding='utf-8')))
     finally:
         reap_worker_children()
 

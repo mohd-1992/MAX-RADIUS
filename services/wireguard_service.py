@@ -392,8 +392,10 @@ def delete_wireguard_tunnel(tunnel_id, admin_username='admin'):
     pub = tun.get('public_key')
     ip = tun.get('tunnel_ip')
 
-    if pub:
-        remove_peer_from_kernel(pub)
+    if pub and not remove_peer_from_kernel(pub):
+        # Preserve the desired configuration when host removal is uncertain.
+        # A transport failure must not discard the only record of a live peer.
+        raise RuntimeError('تعذر تأكيد إزالة طرف WireGuard من المحرك؛ لم تحذف إعدادات النفق أو الراوتر. راجع حالة النفق قبل إعادة الطلب.')
 
     execute_write("DELETE FROM wisp_wireguard_tunnels WHERE id = ?", (tunnel_id,))
     if ip:

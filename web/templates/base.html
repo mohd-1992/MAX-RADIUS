@@ -15,15 +15,38 @@
             window.fetch = (input, options = {}) => {
                 const url = new URL(input instanceof Request ? input.url : input, window.location.href);
                 const method = (options.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
-                if (url.origin === window.location.origin && method === 'POST' &&
-                    (url.pathname.startsWith('/api/tools/database-maintenance/') || url.pathname.startsWith('/api/actions/') || url.pathname.startsWith('/api/subscribers/') || url.pathname.startsWith('/api/vouchers/') || url.pathname.startsWith('/vouchers/') || url.pathname.startsWith('/managers/') || url.pathname.startsWith('/api/reseller-wallets/') || url.pathname === '/profile/update')) {
+                if (url.origin === window.location.origin && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
                     const headers = new Headers(options.headers || (input instanceof Request ? input.headers : undefined));
                     headers.set('X-CSRF-Token', document.querySelector('meta[name="csrf-token"]').content);
                     options = { ...options, headers };
                 }
                 return originalFetch(input, options);
             };
-        })();
+        
+            const attachFormToken = (form, submitter = null) => {
+                if (!(form instanceof HTMLFormElement)) return;
+                const attribute = name => HTMLFormElement.prototype.getAttribute.call(form, name);
+                const method = ((submitter && submitter.getAttribute('formmethod')) ?? attribute('method') ?? 'GET').toUpperCase();
+                const action = (submitter && submitter.getAttribute('formaction')) ?? attribute('action');
+                const url = new URL(action || window.location.href, document.baseURI || window.location.href);
+                if (url.origin !== window.location.origin || method !== 'POST') return;
+                let input = HTMLFormElement.prototype.querySelector.call(form, 'input[name="csrf_token"]');
+                if (!input) {
+                    input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'csrf_token';
+                    HTMLFormElement.prototype.appendChild.call(form, input);
+                }
+                input.value = document.querySelector('meta[name="csrf-token"]').content;
+            };
+            const originalSubmit = HTMLFormElement.prototype.submit;
+            HTMLFormElement.prototype.submit = function () {
+                attachFormToken(this);
+                return originalSubmit.call(this);
+            };
+            document.addEventListener('submit', event => attachFormToken(event.target, event.submitter), true);
+
+})();
     </script>
 
     <!-- Instant Theme Loader to prevent white/dark flashes -->

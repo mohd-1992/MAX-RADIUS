@@ -335,7 +335,7 @@
                         html: `
                             <div class="text-right text-xs space-y-2 text-slate-200">
                                 <p>✅ قاعدة البيانات: <strong class="${data.data.db_healthy ? 'text-emerald-400' : 'text-rose-400'}">${data.data.db_healthy ? 'متصلة وصحية' : 'تعذر الاتصال'}</strong></p>
-                                <p>✅ محرك FreeRADIUS: <strong class="${data.data.radius_healthy ? 'text-emerald-400' : 'text-rose-400'}">${data.data.radius_healthy ? 'يستجيب للطلبات' : 'غير مستجيب'}</strong></p>
+                                <p>✅ محرك FreeRADIUS: <strong class="${data.data.radius_healthy == null ? 'text-slate-400' : data.data.radius_healthy ? 'text-emerald-400' : 'text-rose-400'}">${data.data.radius_healthy == null ? 'الاستجابة غير متحققة' : data.data.radius_healthy ? 'يستجيب للطلبات' : 'غير مستجيب'}</strong></p>
                                 <p>💾 مساحة التخزين المتبقية: <strong class="text-sky-400 font-mono">${data.data.disk_free_pct}%</strong></p>
                             </div>
                         `,

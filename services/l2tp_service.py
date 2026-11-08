@@ -84,6 +84,21 @@ def save_l2tp_network_settings(form_or_data, admin_username='admin'):
 
 def _docker_exec_run(container_name, cmd, timeout=3.0):
     """Executes a command inside a Docker container via Docker socket or CLI."""
+    from services import hosted_control_service as hosted
+    if hosted.configured():
+        return dict(success=False, stdout='', stderr='خدمة الأنفاق المشتركة تدار من المضيف؛ لا تنفيذ Docker بديلًا.')
+    from services.autoheal_service import get_container_fleet_status, _resolve_managed_container
+    peers = [row for row in get_container_fleet_status()
+             if row.get('role') == 'vpn' and row.get('container_id')]
+    if len(peers) != 1:
+        return dict(success=False, stdout='', stderr='تعذر تثبيت حاوية الأنفاق الخاصة بهذه المنظومة.')
+    peer = peers[0]
+    if container_name not in (L2TP_CONTAINER_NAME, peer['name'], peer['container_id']):
+        return dict(success=False, stdout='', stderr='مرجع حاوية الأنفاق لا يخص هذه المنظومة.')
+    info, error = _resolve_managed_container(peer['container_id'], require_id=True)
+    if error or not info or not info.get('State', {}).get('Running'):
+        return dict(success=False, stdout='', stderr=error or 'حاوية الأنفاق غير عاملة.')
+    container_id = info['Id']
     try:
         class _UnixHTTPConnection(http.client.HTTPConnection):
             def __init__(self, socket_path, timeout=timeout):
@@ -96,32 +111,45 @@ def _docker_exec_run(container_name, cmd, timeout=3.0):
 
         import json
         conn = _UnixHTTPConnection('/var/run/docker.sock', timeout=timeout)
-        body1 = json.dumps({"AttachStdout": True, "AttachStderr": True, "Cmd": cmd})
-        conn.request('POST', f'/containers/{container_name}/exec', body1, {'Content-Type': 'application/json'})
-        resp1 = conn.getresponse()
-        resp_data = resp1.read().decode('utf-8', errors='ignore')
-        exec_id = json.loads(resp_data).get("Id") if resp_data else None
+        body = json.dumps(dict(AttachStdout=True, AttachStderr=True, Cmd=cmd))
+        conn.request('POST', f'/containers/{container_id}/exec', body, {'Content-Type': 'application/json'})
+        response = conn.getresponse()
+        raw = response.read()
+        status = response.status
         conn.close()
-
+        if status >= 400:
+            return dict(success=False, stdout='', stderr=f'تعذر إنشاء تنفيذ النفق ({status}).')
+        exec_id = json.loads(raw).get('Id')
         if not exec_id:
-            return {"success": False, "stdout": "", "stderr": "Failed to create exec instance"}
-
-        conn2 = _UnixHTTPConnection('/var/run/docker.sock', timeout=timeout)
-        body2 = json.dumps({"Detach": False, "Tty": False})
-        conn2.request('POST', f'/exec/{exec_id}/start', body2, {'Content-Type': 'application/json'})
-        resp2 = conn2.getresponse()
-        raw_body = resp2.read()
-        conn2.close()
-
-        out = raw_body.decode('utf-8', errors='ignore')
-        return {"success": True, "stdout": out, "stderr": ""}
-    except Exception:
-        try:
-            cli_cmd = ['docker', 'exec', container_name] + cmd
-            r = subprocess.run(cli_cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=timeout)
-            return {"success": r.returncode == 0, "stdout": r.stdout, "stderr": r.stderr}
-        except Exception as e:
-            return {"success": False, "stdout": "", "stderr": str(e)}
+            return dict(success=False, stdout='', stderr='لم يتحقق مرجع تنفيذ النفق.')
+        conn = _UnixHTTPConnection('/var/run/docker.sock', timeout=timeout)
+        conn.request('POST', f'/exec/{exec_id}/start', json.dumps(dict(Detach=False, Tty=False)),
+                     {'Content-Type': 'application/json'})
+        response = conn.getresponse()
+        raw = response.read()
+        status = response.status
+        conn.close()
+        if status >= 400:
+            return dict(success=False, stdout='', stderr=f'تعذر تنفيذ أمر النفق ({status}).')
+        # Non-TTY exec replies are multiplexed; do not mix header bytes with IP/PID data.
+        chunks, offset = [], 0
+        while offset + 8 <= len(raw) and raw[offset] in (1, 2) and raw[offset+1:offset+4] == bytes(3):
+            length = int.from_bytes(raw[offset+4:offset+8], 'big')
+            if offset + 8 + length > len(raw):
+                raise RuntimeError('Incomplete Docker exec output')
+            chunks.append(raw[offset+8:offset+8+length])
+            offset += 8 + length
+        text = (b''.join(chunks) if chunks else raw).decode('utf-8', errors='replace')
+        conn = _UnixHTTPConnection('/var/run/docker.sock', timeout=timeout)
+        conn.request('GET', f'/exec/{exec_id}/json')
+        response = conn.getresponse()
+        state = json.loads(response.read())
+        conn.close()
+        if state.get('Running') or state.get('ExitCode') != 0:
+            return dict(success=False, stdout=text, stderr='لم يكتمل أمر النفق بنجاح.')
+        return dict(success=True, stdout=text, stderr='')
+    except Exception as exc:
+        return dict(success=False, stdout='', stderr=str(exc))
 
 
 def ensure_l2tp_host_route():
@@ -131,6 +159,21 @@ def ensure_l2tp_host_route():
         subprocess.run(['ip', 'route', 'replace', '192.168.44.0/24', 'via', '172.18.0.10'], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
+
+
+def _ppp_secret_field(value):
+    value = str(value)
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise ValueError('بيانات النفق لا تقبل أسطرًا أو محارف تحكم.')
+    return '"' + value.replace('\\', '\\\\').replace('"', '\\"') + '"'
+
+
+def _ppp_peer_ip(value):
+    import ipaddress
+    address = ipaddress.IPv4Address(str(value))
+    if address.is_unspecified or address.is_loopback or address.is_multicast or str(address) == '255.255.255.255':
+        raise ValueError('عنوان طرف النفق غير صالح.')
+    return str(address)
 
 
 def sync_all_tunnels_to_vpn():
@@ -149,7 +192,7 @@ def sync_all_tunnels_to_vpn():
         u = t['username']
         p = t['password']
         ip = t.get('tunnel_ip') or '*'
-        lines.append(f'"{u}"\t*\t"{p}"\t{ip}')
+        lines.append(_ppp_secret_field(u) + '\t*\t' + _ppp_secret_field(p) + '\t' + _ppp_peer_ip(ip))
     
     # Wildcard fallback accounts
     # No wildcard fallback accounts allowed for strict security
@@ -174,20 +217,40 @@ def sync_all_tunnels_to_vpn():
     except Exception as ex:
         logger.warning(f"[L2TP Engine] Storage write warning: {ex}")
     
-    # Trigger host-level unified tunnel manager to merge all tenants tunnels
+    # Hosted transport retains its existing reconciliation bridge, with no
+    # native Docker fallback into a shared tunnel service.
+    from services import hosted_control_service as hosted
+    bridge = None
     try:
         from services.wireguard_service import _query_wg_bridge
-        _query_wg_bridge('sync_all')
+        bridge = _query_wg_bridge('sync_all')
     except Exception:
         pass
-    
-    write_cmd = [
-        'bash', '-c',
-        f"cat << 'EOF' >> /etc/ppp/chap-secrets\n{file_content}EOF\nsort -u /etc/ppp/chap-secrets -o /etc/ppp/chap-secrets && cp /etc/ppp/chap-secrets /etc/ppp/pap-secrets && chmod 600 /etc/ppp/chap-secrets /etc/ppp/pap-secrets && cat /etc/ppp/options.xl2tpd > /etc/ppp/options 2>/dev/null || true; iptables -t nat -C POSTROUTING -o ppp+ -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o ppp+ -j MASQUERADE"
-    ]
-    res = _docker_exec_run(L2TP_CONTAINER_NAME, write_cmd, timeout=3.0)
-    logger.info(f"[L2TP Engine] Synced {len(tunnels or [])} tunnels to PPP secrets.")
-    return res.get('success', False)
+    if hosted.configured():
+        return bool(isinstance(bridge, dict) and bridge.get('success'))
+
+    import base64
+    encoded = base64.b64encode(file_content.encode('utf-8')).decode('ascii')
+    # This container belongs to this installation. Replace its complete active
+    # credential set, rather than appending deleted users forever. Values travel
+    # as data arguments and cannot terminate a shell heredoc.
+    script = r'''set -euo pipefail
+umask 077
+chap=$(mktemp /etc/ppp/chap-secrets.max-XXXXXX)
+pap=$(mktemp /etc/ppp/pap-secrets.max-XXXXXX)
+trap 'rm -f "$chap" "$pap"' EXIT
+printf '%s' "$1" | base64 -d > "$chap"
+cp "$chap" "$pap"
+chmod 600 "$chap" "$pap"
+mv -f "$chap" /etc/ppp/chap-secrets
+mv -f "$pap" /etc/ppp/pap-secrets
+if [ -f /etc/ppp/options.xl2tpd ]; then cp /etc/ppp/options.xl2tpd /etc/ppp/options; fi
+iptables -t nat -C POSTROUTING -o ppp+ -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o ppp+ -j MASQUERADE
+'''
+    res = _docker_exec_run(L2TP_CONTAINER_NAME, ['bash', '-c', script, 'max-owned-ppp-secrets', encoded], timeout=3.0)
+    logger.info('L2TP credential synchronization completed=%s for %d configured tunnels', bool(res.get('success')), len(tunnels or []))
+    return bool(res.get('success'))
+
 
 def get_public_vps_ip():
     """Retrieves the public VPS IP address with caching."""
@@ -407,6 +470,9 @@ def add_l2tp_tunnel(form_or_data, admin_username='admin'):
 
     if not username or not password:
         raise ValueError("اسم المستخدم وكلمة المرور للنفق مطلوبان.")
+    _ppp_secret_field(username)
+    _ppp_secret_field(password)
+    tunnel_ip = _ppp_peer_ip(tunnel_ip)
 
     # 2. Auto-generate secure, random API port and credentials if not explicitly provided
     if not data.get('api_port') or str(data.get('api_port')).strip() in ('8728', '0', ''):
@@ -490,7 +556,10 @@ def update_l2tp_tunnel(tunnel_id, form_or_data, admin_username='admin'):
     name = (data.get('name') or old['name']).strip()
     username = str(data.get('username') or old['username']).strip()
     password = str(data.get('password') or old['password']).strip()
+    _ppp_secret_field(username)
+    _ppp_secret_field(password)
     tunnel_ip = str(data.get('tunnel_ip') or data.get('assigned_ip') or old['tunnel_ip']).strip()
+    tunnel_ip = _ppp_peer_ip(tunnel_ip)
     radius_secret = str(data.get('radius_secret') or old.get('radius_secret') or 'max123').strip()
     ipsec_secret = str(data.get('ipsec_secret') or old.get('ipsec_secret') or '').strip()
     description = str(data.get('description') or old.get('description') or '').strip()
@@ -525,15 +594,61 @@ def update_l2tp_tunnel(tunnel_id, form_or_data, admin_username='admin'):
 
 def kill_l2tp_session(username=None, tunnel_ip=None):
     """Immediately terminates an active L2TP PPP session from the kernel/daemon."""
+    import ipaddress
+    if not tunnel_ip and username:
+        matches = query_all('SELECT tunnel_ip FROM wisp_l2tp_tunnels WHERE username=?', (username,))
+        if len(matches) != 1:
+            return False
+        tunnel_ip = matches[0]['tunnel_ip']
     try:
-        pat = str(username or tunnel_ip or 'ppp')
-        cmd = [
-            'bash', '-c',
-            f"pkill -9 -f 'pppd.*{pat}' 2>/dev/null || true; for iface in $(ip -o link show | awk -F': ' '/ppp/ {{print $2}}'); do ip link delete $iface 2>/dev/null || true; done"
-        ]
-        _docker_exec_run(L2TP_CONTAINER_NAME, cmd, timeout=2.0)
-    except Exception as e:
-        logger.warning(f"[L2TP Engine] Failed to kill session for {username}/{tunnel_ip}: {e}")
+        peer_ip = str(ipaddress.IPv4Address(str(tunnel_ip or '')))
+    except ValueError:
+        return False
+    observation = _docker_exec_run(L2TP_CONTAINER_NAME, ['ip', '-o', '-4', 'addr', 'show'], timeout=3.0)
+    if not observation.get('success'):
+        return False
+    matches = []
+    for line in observation.get('stdout', '').splitlines():
+        found = re.search(r'^\d+:\s+(ppp\d+)(?:@[^ ]+)?\s+inet\s+[^ ]+\s+peer\s+([0-9.]+)', line)
+        if found and found[2] == peer_ip:
+            matches.append(found[1])
+    if not matches:
+        return True
+    if len(matches) != 1:
+        return False
+    # Only a verified PPP daemon for this exact interface/peer may receive TERM.
+    # No shell pattern from a username, no SIGKILL and no sweep over other links.
+    script = r'''set -euo pipefail
+iface="$1"; peer="$2"
+[[ "$iface" =~ ^ppp[0-9]+$ ]] || exit 20
+pidfile="/run/$iface.pid"
+[[ -f "$pidfile" && ! -L "$pidfile" ]] || exit 21
+read -r pid < "$pidfile"
+[[ "$pid" =~ ^[1-9][0-9]*$ ]] || exit 22
+exe=$(readlink "/proc/$pid/exe")
+[[ "${exe##*/}" == pppd ]] || exit 23
+identity=$(awk '{print $22}' "/proc/$pid/stat")
+index=$(cat "/sys/class/net/$iface/ifindex")
+ip -o -4 addr show dev "$iface" | awk -v p="$peer" '$0 ~ / peer / {for(i=1;i<NF;i++) if($i=="peer") {split($(i+1),a,"/"); if(a[1]==p) found=1}} END {exit !found}'
+[[ "$(awk '{print $22}' "/proc/$pid/stat")" == "$identity" ]] || exit 24
+[[ "$(cat "/sys/class/net/$iface/ifindex")" == "$index" ]] || exit 25
+read -r current < "$pidfile"
+[[ "$current" == "$pid" ]] || exit 26
+kill -TERM "$pid"
+'''
+    outcome = _docker_exec_run(L2TP_CONTAINER_NAME, ['bash', '-c', script, 'max-owned-ppp-stop', matches[0], peer_ip], timeout=4.0)
+    if not outcome.get('success'):
+        return False
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        live = _docker_exec_run(L2TP_CONTAINER_NAME, ['ip', '-o', '-4', 'addr', 'show'], timeout=2.0)
+        if not live.get('success'):
+            return False
+        if not any(re.search(r'\bpeer\s+' + re.escape(peer_ip) + r'(?:/|\s|$)', line)
+                   for line in live.get('stdout', '').splitlines()):
+            return True
+        time.sleep(.1)
+    return False
 
 
 def delete_l2tp_tunnel(tunnel_id, admin_username='admin'):
@@ -544,7 +659,11 @@ def delete_l2tp_tunnel(tunnel_id, admin_username='admin'):
 
     ip = tun.get('tunnel_ip')
     u = tun.get('username')
-    kill_l2tp_session(username=u, tunnel_ip=ip)
+    from services import hosted_control_service as hosted
+    # Hosted transport is reconciled by its existing shared host bridge; it must
+    # never execute native Docker/PPP commands from a tenant Web container.
+    if not hosted.configured() and not kill_l2tp_session(username=u, tunnel_ip=ip):
+        raise ValueError('تعذر تأكيد فصل النفق المحدد؛ لم تُحذف بياناته أو أي نفق آخر.')
 
     execute_write("DELETE FROM wisp_l2tp_tunnels WHERE id = ?", (tunnel_id,))
     if ip:

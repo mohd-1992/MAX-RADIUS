@@ -170,6 +170,28 @@ LEDGER = '''(SELECT 'voucher' AS event_kind,s.id,s.activated_at AS event_at,s.us
     FROM wisp_invoices i WHERE i.status='paid'
       AND COALESCE(i.package_name,'') NOT IN ('إيداع رصيد محفظة','سحب/تصحيح رصيد محفظة')) e'''
 FROM = LEDGER+''' LEFT JOIN wisp_sale_sources x ON x.event_kind=e.event_kind AND x.event_id=e.id'''
+
+
+def report_source(record_kind):
+    """Choose the validated ledger branch before joining/filtering the report.
+
+    Keep LEDGER unchanged for the dashboard's combined income series. The page
+    already requires exactly one record kind; no monetary record is cached.
+    """
+    if record_kind not in ('voucher','invoice'):
+        raise ValueError('نوع السجل غير صالح.')
+    voucher, invoice = LEDGER[1:-3].split('    UNION ALL\n', 1)
+    # UNION takes column names from its first branch. When selecting invoices
+    # alone, retain those names explicitly (amount is used as both price/cost).
+    invoice = '''SELECT 'invoice' AS event_kind,i.id,i.paid_at AS event_at,
+        COALESCE(i.subscriber_name,i.invoice_number) AS username,
+        i.invoice_number AS serial_number,'فواتير المشتركين' AS batch_name,
+        COALESCE(i.package_name,'') AS package_name,i.amount AS price,i.amount AS cost,
+        NULL AS reseller_id,'فاتورة مشترك مدفوعة' AS operation
+        FROM wisp_invoices i WHERE i.status='paid'
+        AND COALESCE(i.package_name,'') NOT IN ('إيداع رصيد محفظة','سحب/تصحيح رصيد محفظة')'''
+    branch = voucher if record_kind=='voucher' else invoice
+    return '('+branch+') e LEFT JOIN wisp_sale_sources x ON x.event_kind=e.event_kind AND x.event_id=e.id'
 # Resolve display names only; historical NAS identity and source snapshots stay intact.
 NAS_LABEL = """COALESCE(
     (SELECT NULLIF(TRIM(n.name),'') FROM wisp_nas_devices n
@@ -260,6 +282,7 @@ def report(args, export=False, now=None, timezone=None):
         from core.time_service import get_configured_timezone_name
         timezone = get_configured_timezone_name()
     selected, where, params = filters(args,owner_id(),now,timezone)
+    report_from = report_source(selected['record_kind'])
     table_sorts = sort_settings(args)
     try:
         page = max(1,int(args.get('page',1)))
@@ -281,9 +304,9 @@ def report(args, export=False, now=None, timezone=None):
                     COALESCE(GROUP_CONCAT(DISTINCT NULLIF(x.service_type,'') ORDER BY x.service_type SEPARATOR ','),'') AS service_type,
                     MIN(e.price) AS minimum_price,MAX(e.price) AS maximum_price,
                     MIN({ISP}) AS minimum_isp,MAX({ISP}) AS maximum_isp,{MONEY_SQL}
-                    FROM {FROM} WHERE {where} GROUP BY e.package_name) package_groups
+                    FROM {report_from} WHERE {where} GROUP BY e.package_name) package_groups
                     ORDER BY {sort_order('package',table_sorts)}''',params)
-            metrics = query('SELECT '+MONEY_SQL+' FROM '+FROM+' WHERE '+where,params)[0] if export else package_metrics(packages)
+            metrics = query('SELECT '+MONEY_SQL+' FROM '+report_from+' WHERE '+where,params)[0] if export else package_metrics(packages)
             total = int(metrics['sold_count'])
             if export and total>50000:
                 raise ValueError('النتائج تتجاوز 50000 عملية؛ حدد فترة أصغر لتصدير كامل دون اقتطاع.')
@@ -299,7 +322,7 @@ def report(args, export=False, now=None, timezone=None):
                 COALESCE(x.resolution_reason,'') AS resolution_reason,
                 COALESCE(NULLIF(m.full_name,''),m.username,CONCAT('موزع #',e.reseller_id),'مباشر (الإدارة)') AS reseller_name,
                 {ISP} AS isp_share,{COMMISSION} AS reseller_margin,e.event_at AS activated_at
-                FROM {FROM} LEFT JOIN wisp_managers m ON m.id=e.reseller_id WHERE {where}
+                FROM {report_from} LEFT JOIN wisp_managers m ON m.id=e.reseller_id WHERE {where}
                 ORDER BY {sort_order('log',table_sorts)} LIMIT %s OFFSET %s''',params+(limit,offset))
             servers=[];chart=None;pkg_options=[];point_options=[]
             nas_catalog={};traffic_chart=None;resellers=[];undated=0
@@ -310,21 +333,21 @@ def report(args, export=False, now=None, timezone=None):
                     CASE WHEN COUNT(NULLIF(x.server_name,''))=COUNT(*) AND MIN(NULLIF(x.server_name,''))=MAX(NULLIF(x.server_name,''))
                         THEN COALESCE(MAX(NULLIF(x.server_name,'')),'') ELSE '' END AS server_name,
                     MIN(COALESCE(x.server_interface,'')) AS server_interface,{MONEY_SQL}
-                    FROM {FROM} WHERE {where}
+                    FROM {report_from} WHERE {where}
                     GROUP BY COALESCE(x.server_key,'unknown')) server_groups
                     ORDER BY {sort_order('server',table_sorts)}''',params)
                 from services.report_time_axis import sales_series
-                chart = sales_series(query,FROM,where,params,selected,now,timezone)
+                chart = sales_series(query,report_from,where,params,selected,now,timezone)
                 # Options share the permission scope and record kind, but remain
                 # independent of the selected date/server so filters can be changed.
                 _, scope, scope_params = filters({'record_kind':selected['record_kind'],'period':'all'},owner_id(),now,timezone)
-                pkg_options = options_query(f'SELECT DISTINCT e.package_name AS name FROM {FROM} WHERE {scope} ORDER BY name',scope_params)
+                pkg_options = options_query(f'SELECT DISTINCT e.package_name AS name FROM {report_from} WHERE {scope} ORDER BY name',scope_params)
                 point_options = options_query(f'''SELECT COALESCE(x.server_key,'unknown') AS server_key,
                     MIN(COALESCE(x.nas_address,'')) AS nas_address,MIN({NAS_LABEL}) AS nas_label,
                     MIN(COALESCE(x.service_type,'')) AS service_type,
                     CASE WHEN COUNT(NULLIF(x.server_name,''))=COUNT(*) AND MIN(NULLIF(x.server_name,''))=MAX(NULLIF(x.server_name,''))
                         THEN COALESCE(MAX(NULLIF(x.server_name,'')),'') ELSE '' END AS server_name,
-                    MIN(COALESCE(x.server_interface,'')) AS server_interface FROM {FROM} WHERE {scope}
+                    MIN(COALESCE(x.server_interface,'')) AS server_interface FROM {report_from} WHERE {scope}
                     GROUP BY COALESCE(x.server_key,'unknown')''',scope_params)
                 nas_catalog = {}
                 if owner_id() is None:
@@ -363,9 +386,9 @@ def report(args, export=False, now=None, timezone=None):
                 point_options = list(known.values())
                 traffic_chart = traffic_for_period(query,selected,owner_id(),now,timezone) if not export else None
                 resellers = options_query(f'''SELECT DISTINCT m.id,m.username,m.full_name,COALESCE(NULLIF(m.full_name,''),m.username) AS name
-                    FROM {FROM} JOIN wisp_managers m ON m.id=e.reseller_id WHERE {scope} ORDER BY m.id''',scope_params)
+                    FROM {report_from} JOIN wisp_managers m ON m.id=e.reseller_id WHERE {scope} ORDER BY m.id''',scope_params)
                 _, undated_where, undated_params = filters(dict(selected,period='all'),owner_id(),now,timezone)
-                undated = query(f'SELECT COUNT(*) AS n FROM {FROM} WHERE {undated_where} AND e.event_at IS NULL',undated_params)[0]['n']
+                undated = query(f'SELECT COUNT(*) AS n FROM {report_from} WHERE {undated_where} AND e.event_at IS NULL',undated_params)[0]['n']
         conn.rollback()
     finally:
         conn.close()

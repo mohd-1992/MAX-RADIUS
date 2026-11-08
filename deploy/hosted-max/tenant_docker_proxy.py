@@ -1,7 +1,8 @@
 """Host-owned Docker compatibility view for one MAX tenant, never a daemon proxy.
 
 The Compose labels below describe the scoped API view, not host Docker labels.
-No environment, mounts, exec, image mutation, or shared-service writes are exposed.
+No environment, mounts, arbitrary exec, image mutation, or shared-service writes
+are exposed. One diagnostic capability runs fixed radtest arguments in own Core.
 """
 import datetime as dt
 import http.client
@@ -11,6 +12,10 @@ from pathlib import Path
 import re
 import socket
 import socketserver
+import subprocess
+import threading
+import select
+import time
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlsplit
 
@@ -43,9 +48,74 @@ def docker(method, path):
         conn.close()
 
 
+def validate_radius_probe(payload):
+    required = {'username', 'password', 'secret', 'expected_core_id'}
+    if not isinstance(payload, dict) or set(payload) != required:
+        raise Denied('Invalid diagnostic request')
+    limits = {'username': 253, 'password': 128, 'secret': 128, 'expected_core_id': 64}
+    for field, limit in limits.items():
+        value = payload[field]
+        if (not isinstance(value, str) or len(value.encode('utf-8')) > limit
+                or any(c in value for c in ('\x00', '\r', '\n'))):
+            raise Denied('Invalid diagnostic argument')
+    if (not payload['username'] or payload['username'].startswith('-')
+            or not payload['secret'] or not re.fullmatch('[a-f0-9]{64}', payload['expected_core_id'])):
+        raise Denied('Invalid diagnostic identity')
+    return dict(payload)
+
+
+def run_radius_probe(core_id, payload):
+    """Fixed loopback radtest only; bounded output/time and no shell or fallback."""
+    payload = validate_radius_probe(payload)
+    if core_id != payload['expected_core_id']:
+        raise Denied('Diagnostic target differs from the verified Core')
+    command = ['docker', 'exec', core_id, 'radtest', payload['username'],
+               payload['password'] or 'none', '127.0.0.1', '0', payload['secret']]
+    process = None
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   bufsize=0)
+        deadline = time.monotonic() + 4
+        output = bytearray()
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or not select.select([process.stdout], [], [], remaining)[0]:
+                return dict(exit_code=-1, output='RADIUS probe timeout; no response verified')
+            part = os.read(process.stdout.fileno(), min(4096, 65537-len(output)))
+            if not part:
+                break
+            output.extend(part)
+            if len(output) > 65536:
+                raise Denied('Diagnostic output limit exceeded')
+        code = process.wait(timeout=max(.01, deadline-time.monotonic()))
+        lines = []
+        for line in output.decode('utf-8', errors='replace').splitlines():
+            if re.search(r'(?:User|Cleartext|CHAP|MS-CHAP)-Password\s*[=:]', line, re.I):
+                lines.append('[credential redacted]')
+            else:
+                lines.append(line)
+        cleaned = '\n'.join(lines)
+        if len(cleaned.encode('utf-8')) > 65536:
+            raise Denied('Diagnostic output limit exceeded')
+        return dict(exit_code=int(code), output=cleaned)
+    except subprocess.TimeoutExpired:
+        return dict(exit_code=-1, output='RADIUS probe timeout; no response verified')
+    except OSError:
+        return dict(exit_code=-1, output='Scoped RADIUS probe unavailable; no response verified')
+    finally:
+        if process is not None:
+            if process.poll() is None:
+                process.kill()  # Only the child Docker CLI, never a tenant service.
+                process.wait()
+            if process.stdout is not None:
+                process.stdout.close()
+
+
 class Scope:
-    def __init__(self, config, api=docker):
+    def __init__(self, config, api=docker, probe_runner=None):
         self.config, self.api = config, api
+        self.probe_runner = probe_runner or run_radius_probe
+        self.probe_lock = threading.Lock()
 
     def state(self):
         p = Path(self.config['binding'])
@@ -93,13 +163,34 @@ class Scope:
                 'Image': c['Image'], 'Config': {'Image': c['Config']['Image'], 'Labels': labels},
                 'State': state, 'RestartCount': c.get('RestartCount', 0)}
 
-    def handle(self, method, target):
+    def handle(self, method, target, payload=None):
         if '%' in target or len(target) > 1024:
             raise Denied('Noncanonical request')
         url = urlsplit(target)
         if url.scheme or url.netloc or url.fragment:
             raise Denied('Local requests only')
         b, rows = self.state()
+        probe_request = method == 'POST' and url.path == '/max/v1/radius/probe' and not url.query
+        if payload is not None and not probe_request:
+            raise Denied('Request bodies are not accepted for this operation')
+        if probe_request:
+            arguments = validate_radius_probe(payload)
+            core = rows['core']
+            if arguments['expected_core_id'] != core['Id']:
+                raise Denied('The requested Core generation is no longer current')
+            if not self.probe_lock.acquire(blocking=False):
+                raise Denied('A tenant diagnostic probe is already running')
+            try:
+                b2, fresh = self.state()
+                state = fresh['core']['State']
+                if (b2['id'] != b['id'] or fresh['core']['Id'] != core['Id']
+                        or not state.get('Running') or state.get('Paused') or state.get('Restarting')):
+                    raise Denied('Core changed or is unavailable before the probe')
+                result = self.probe_runner(core['Id'], arguments)
+                return 200, json.dumps(dict(schema=1, tenant_id=b['id'], core_id=core['Id'],
+                                            exit_code=result['exit_code'], output=result['output'])).encode()
+            finally:
+                self.probe_lock.release()
         if method == 'GET' and url.path == '/max/v1/state' and not url.query:
             services = {}
             for role, c in rows.items():
@@ -109,7 +200,8 @@ class Scope:
                 row['read_only'] = role == 'db'
                 services[role] = row
             return 200, json.dumps({'schema': 1, 'tenant_id': b['id'], 'instance': b['instance'],
-                                    'domain': b['domain'], 'services': services}).encode()
+                                    'domain': b['domain'], 'services': services,
+                                    'capabilities': ['radius_probe_v1']}).encode()
         if method == 'GET' and url.path == '/containers/json':
             if set(parse_qs(url.query)) - {'all'}:
                 raise Denied('Unsupported query')
@@ -180,9 +272,26 @@ def serve(config):
     class Handler(BaseHTTPRequestHandler):
         def dispatch(self):
             try:
-                if int(self.headers.get('Content-Length', '0')) != 0 or self.headers.get('Transfer-Encoding'):
-                    raise Denied('Request bodies are not accepted')
-                status, raw = scope.handle(self.command, self.path)
+                if self.headers.get('Transfer-Encoding'):
+                    raise Denied('Transfer encoding is not accepted')
+                lengths = self.headers.get_all('Content-Length', [])
+                if len(lengths) > 1:
+                    raise Denied('Ambiguous request length')
+                try:
+                    length = int(lengths[0]) if lengths else 0
+                except ValueError:
+                    raise Denied('Invalid request length') from None
+                payload = None
+                if length:
+                    if (self.command != 'POST' or self.path != '/max/v1/radius/probe'
+                            or not 0 < length <= 8192
+                            or self.headers.get_content_type() != 'application/json'):
+                        raise Denied('Request body outside diagnostic scope')
+                    try:
+                        payload = json.loads(self.rfile.read(length).decode('utf-8'))
+                    except (ValueError, UnicodeDecodeError):
+                        raise Denied('Invalid diagnostic JSON') from None
+                status, raw = scope.handle(self.command, self.path, payload)
             except Denied as error:
                 status, raw = 403, json.dumps({'message': str(error)}).encode()
             except Exception:
