@@ -1267,8 +1267,22 @@
       ]
     },
     {
+      "file": "database/reporting_schema.py",
+      "sha256": "b7499a7481a0b5b98b29a8e98fe9160c01a07ac9bfe64e1e4bf9698c41596862",
+      "imports": [
+        "database.db"
+      ],
+      "definitions": [
+        {
+          "name": "install_reporting_schema",
+          "line": 29,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "database/sales_source_schema.py",
-      "sha256": "50d45d859ed4be17f84ff7e42cef963e4b487c399852d1d5ee40e4d0bed32715",
+      "sha256": "b86cb95b65728bef749323d2a397f20ca5a4a59df7fe4bf9930eec968276a444",
       "imports": [
         "database.db",
         "database.schema_objects"
@@ -1276,25 +1290,26 @@
       "definitions": [
         {
           "name": "clear_legacy_sale_sources",
-          "line": 26,
+          "line": 27,
           "kind": "FunctionDef"
         },
         {
           "name": "install_sales_source_schema",
-          "line": 50,
+          "line": 53,
           "kind": "FunctionDef"
         }
       ]
     },
     {
       "file": "database/schema_healer.py",
-      "sha256": "4263852059a10814dd272858f5d150ba08e9e50b3120b1296705a294e8f073fa",
+      "sha256": "f2afed3bd2eb0df41dd8705d37e98de85f30499a7e0a865d3e9f6097ef6faccc",
       "imports": [
         "database.db",
         "database.first_use_policy",
         "database.license_capacity",
         "database.loyalty_schema",
         "database.maintenance_jobs",
+        "database.reporting_schema",
         "database.sales_source_schema",
         "database.schema_objects",
         "database.traffic_history_schema",
@@ -1310,12 +1325,12 @@
         },
         {
           "name": "_ensure_cycle_start_default",
-          "line": 443,
+          "line": 445,
           "kind": "FunctionDef"
         },
         {
           "name": "heal_database_schema",
-          "line": 456,
+          "line": 458,
           "kind": "FunctionDef"
         }
       ]
@@ -1401,8 +1416,10 @@
     },
     {
       "file": "database/traffic_samples_schema.py",
-      "sha256": "8e4a45619e33c739f845ff043f08485fd13f63d6025fd1dab5448f9302afe8d7",
-      "imports": [],
+      "sha256": "5501ae7967a2aa68144c780465b7fb7ce90bda6859e31b928ade166e990134b0",
+      "imports": [
+        "database.reporting_schema"
+      ],
       "definitions": [
         {
           "name": "ensure_epoch",
@@ -1411,12 +1428,12 @@
         },
         {
           "name": "install_traffic_samples_schema",
-          "line": 50,
+          "line": 51,
           "kind": "FunctionDef"
         },
         {
           "name": "clear_legacy_rollups",
-          "line": 59,
+          "line": 61,
           "kind": "FunctionDef"
         }
       ]
@@ -1781,6 +1798,92 @@
         {
           "name": "bounded",
           "line": 9,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "deploy/hosted-max/native_tenant_resource_proxy.py",
+      "sha256": "3f7e04f2349ce7b3852671ced0778856b3802a8f803babf360cafec981a3efb6",
+      "imports": [
+        "concurrent.futures",
+        "http.server",
+        "pathlib"
+      ],
+      "definitions": [
+        {
+          "name": "docker",
+          "line": 22,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "Metrics",
+          "line": 38,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "__init__",
+          "line": 39,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "binding",
+          "line": 44,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "owned",
+          "line": 51,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "collect",
+          "line": 75,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "sample",
+          "line": 76,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "handle",
+          "line": 97,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "prepare_socket",
+          "line": 115,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "serve",
+          "line": 139,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "Handler",
+          "line": 151,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "dispatch",
+          "line": 152,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "log_message",
+          "line": 173,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "Server",
+          "line": 176,
+          "kind": "ClassDef"
+        },
+        {
+          "name": "get_request",
+          "line": 179,
           "kind": "FunctionDef"
         }
       ]
@@ -2472,6 +2575,41 @@
       ]
     },
     {
+      "file": "deploy/hosted-max/tenant_resource_proxy.py",
+      "sha256": "8fb5aad5dbe8b8d0a3805ae0bb6deec9ba2a46cb469fa2f462137584d6858c2e",
+      "imports": [
+        "concurrent.futures",
+        "urllib.parse"
+      ],
+      "definitions": [
+        {
+          "name": "collect",
+          "line": 18,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "sample",
+          "line": 28,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "verify",
+          "line": 31,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "respond",
+          "line": 47,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "main",
+          "line": 58,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "deploy/hosted-max/update_controller.py",
       "sha256": "4d8b4b64866bee4b39de51ffdd099a6a1788252c237f53e42be05e9f13ddd8a1",
       "imports": [
@@ -2994,42 +3132,44 @@
     },
     {
       "file": "services/automation_defaults_service.py",
-      "sha256": "cb1ac1382d25f907b8cb31701db7377cdf04b2df08aa41bcca8903bad99140ad",
+      "sha256": "b09cc7806d4022aa45690642154a22023cb4df422f8ebf2c9211119a326dc4b4",
       "imports": [
+        "contextlib",
         "core.time_service",
         "database.db",
+        "services.account_lifecycle_service",
         "services.automation_schedule_service",
+        "services.automation_scope_service",
         "services.automation_task_service",
         "zoneinfo"
       ],
       "definitions": [
         {
-          "name": "default_definitions",
+          "name": "equivalent_action",
           "line": 18,
           "kind": "FunctionDef"
         },
         {
+          "name": "default_definitions",
+          "line": 39,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "install_defaults",
-          "line": 45,
+          "line": 66,
           "kind": "FunctionDef"
         }
       ]
     },
     {
       "file": "services/automation_rules_service.py",
-      "sha256": "075b51ad084323a54c4f6146ed399cc67427007ccf4ea419bb209b3306ffd805",
+      "sha256": "d80671fcbf2191795f296026cd39b42607f978eb4fef861b98996bc5046d9102",
       "imports": [
         "core.license_feature_policy",
         "core.time_service",
         "database.db",
         "datetime",
-        "services.account_lifecycle_service",
-        "services.accounting_archiver_service",
-        "services.autoheal_service",
-        "services.automation_task_service",
-        "services.bot_notifications_service",
-        "services.db_maintenance_service",
-        "services.factory_reset_service"
+        "services.automation_task_service"
       ],
       "definitions": [
         {
@@ -3039,27 +3179,27 @@
         },
         {
           "name": "get_automation_overview",
-          "line": 72,
+          "line": 62,
           "kind": "FunctionDef"
         },
         {
           "name": "_toggle_rule_legacy",
-          "line": 102,
+          "line": 92,
           "kind": "FunctionDef"
         },
         {
           "name": "toggle_rule",
-          "line": 119,
+          "line": 109,
           "kind": "FunctionDef"
         },
         {
           "name": "execute_rule_now",
-          "line": 136,
+          "line": 114,
           "kind": "FunctionDef"
         },
         {
           "name": "run_due_rules",
-          "line": 179,
+          "line": 120,
           "kind": "FunctionDef"
         }
       ]
@@ -3108,7 +3248,7 @@
     },
     {
       "file": "services/automation_task_actions.py",
-      "sha256": "40667a18526b1dff8494f6fa6fd22ec6a2b7538db8e833fd8d1274d2d0c14022",
+      "sha256": "35a872ea6ff75308ecbefd7b92f9552072ca44c7e64c1bdfd805718ffe2eb054",
       "imports": [
         "core.config",
         "core.license_feature_policy",
@@ -3153,7 +3293,7 @@
     },
     {
       "file": "services/automation_task_service.py",
-      "sha256": "9c6251e96cdf4ca6fedc860614a6be67e646608f0272c4499fb3eb8cb0b8e5cc",
+      "sha256": "44b00c800b55f2cc1cb95bd8ccd4b8f4d85e40c324508c146c6e9cd865369b3f",
       "imports": [
         "core.license_feature_policy",
         "database.db",
@@ -3207,83 +3347,88 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "policy",
+          "name": "task_notices",
           "line": 185,
           "kind": "FunctionDef"
         },
         {
+          "name": "policy",
+          "line": 210,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "save_policy",
-          "line": 195,
+          "line": 220,
           "kind": "FunctionDef"
         },
         {
           "name": "_legacy_conflict",
-          "line": 205,
+          "line": 230,
           "kind": "FunctionDef"
         },
         {
           "name": "save",
-          "line": 211,
+          "line": 236,
           "kind": "FunctionDef"
         },
         {
           "name": "remove",
-          "line": 237,
+          "line": 263,
           "kind": "FunctionDef"
         },
         {
           "name": "submit",
-          "line": 247,
+          "line": 292,
           "kind": "FunctionDef"
         },
         {
           "name": "launch_worker",
-          "line": 290,
+          "line": 335,
           "kind": "FunctionDef"
         },
         {
           "name": "cancel",
-          "line": 294,
+          "line": 339,
           "kind": "FunctionDef"
         },
         {
           "name": "finish",
-          "line": 306,
+          "line": 351,
           "kind": "FunctionDef"
         },
         {
           "name": "recover_interrupted",
-          "line": 310,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "tick",
-          "line": 318,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "worker",
-          "line": 328,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "cancelled",
-          "line": 352,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "progress",
           "line": 355,
           "kind": "FunctionDef"
         },
         {
+          "name": "tick",
+          "line": 363,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "worker",
+          "line": 373,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "cancelled",
+          "line": 397,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "progress",
+          "line": 400,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "perform",
-          "line": 401,
+          "line": 446,
           "kind": "FunctionDef"
         },
         {
           "name": "sanitize_restored_tasks",
-          "line": 406,
+          "line": 451,
           "kind": "FunctionDef"
         }
       ]
@@ -3465,7 +3610,7 @@
     },
     {
       "file": "services/backup_service.py",
-      "sha256": "8ebae913b22389e4db218d0f6d6bf9a146be75665773ba36c4c8f8bdbfc55808",
+      "sha256": "c0561c3a7f9ed2a738e291138780b869f703c95f89c067ac7161035a052baa78",
       "imports": [
         "contextlib",
         "core.backup_archive_policy",
@@ -3605,24 +3750,24 @@
         },
         {
           "name": "delete_backup",
-          "line": 1073,
+          "line": 1077,
           "kind": "FunctionDef"
         },
         {
           "name": "get_backup_filepath",
-          "line": 1088,
+          "line": 1092,
           "kind": "FunctionDef"
         },
         {
           "name": "send_backup_to_telegram",
-          "line": 1097,
+          "line": 1101,
           "kind": "FunctionDef"
         }
       ]
     },
     {
       "file": "services/backup_usage_summary.py",
-      "sha256": "8820da5268c892f1c377b0aea7b7b94764e0471a2bf0e8fa6bb8f122961f2026",
+      "sha256": "b491d986806b1b85c870aaf21dbbd31b36a964d18bf866f7459713ac10103617",
       "imports": [
         "database.usage_summary_schema",
         "functools",
@@ -3647,17 +3792,17 @@
         },
         {
           "name": "by_id",
-          "line": 100,
+          "line": 103,
           "kind": "FunctionDef"
         },
         {
           "name": "by_name",
-          "line": 102,
+          "line": 105,
           "kind": "FunctionDef"
         },
         {
           "name": "owner",
-          "line": 103,
+          "line": 106,
           "kind": "FunctionDef"
         }
       ]
@@ -4132,7 +4277,7 @@
     },
     {
       "file": "services/dashboard_reporting_service.py",
-      "sha256": "b27fff6eecb1368cb39927e2562dc62af7178e0d22c589d8f6c27af800bb1c9b",
+      "sha256": "5c9e96f979f05a4800dea8f568da4981852ee0c34be5ebf48d822e273d5905f5",
       "imports": [
         "core.rate_limit",
         "core.time_service",
@@ -4164,17 +4309,17 @@
         },
         {
           "name": "read_series",
-          "line": 52,
+          "line": 54,
           "kind": "FunctionDef"
         },
         {
           "name": "query",
-          "line": 57,
+          "line": 59,
           "kind": "FunctionDef"
         },
         {
           "name": "daily_traffic_metrics",
-          "line": 66,
+          "line": 68,
           "kind": "FunctionDef"
         }
       ]
@@ -4283,7 +4428,7 @@
     },
     {
       "file": "services/db_maintenance_service.py",
-      "sha256": "7e7139c09e5011f783b5be475599cdecfa989167fd3a1adb5acd3cae3b8e41c5",
+      "sha256": "e1b2f9b46686ad3e568b587c6121e193de48782aa6af95ce4e6c53cbfeee2386",
       "imports": [
         "core.mikrotik_api",
         "core.radius_sync",
@@ -4443,14 +4588,15 @@
     },
     {
       "file": "services/expired_voucher_purge.py",
-      "sha256": "ca09fcd67db855240682f304bdbf35265123f95d9a3ad1aad9d50d5e4e5e4031",
+      "sha256": "730f5542dd235e63f067a61b3bcc0f2413b279138a95f21dced6c61f745f8271",
       "imports": [
         "collections",
         "database.db",
         "services.account_lifecycle_service",
         "services.backup_compaction",
         "services.backup_usage_summary",
-        "services.deletion_history_policy"
+        "services.deletion_history_policy",
+        "services.session_service_evidence"
       ],
       "definitions": [
         {
@@ -4863,6 +5009,21 @@
         {
           "name": "ensure_import_package_radius",
           "line": 126,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "services/invoice_cost_service.py",
+      "sha256": "206005065aa416875b456144c9149a822844701b477470ea3155abfb470b42a6",
+      "imports": [
+        "database.db",
+        "decimal"
+      ],
+      "definitions": [
+        {
+          "name": "record_invoice_cost",
+          "line": 5,
           "kind": "FunctionDef"
         }
       ]
@@ -5535,6 +5696,37 @@
       ]
     },
     {
+      "file": "services/measured_traffic_service.py",
+      "sha256": "74a9f48f028051b9f60682f92ecf6a601a5ad52adb0e91dd46acc9757fc4fdbf",
+      "imports": [
+        "database.db",
+        "services.network_traffic_service",
+        "services.report_navigation_service",
+        "services.report_time_axis",
+        "services.sales_reporting_service",
+        "services.session_display_service",
+        "services.traffic_interval_service",
+        "zoneinfo"
+      ],
+      "definitions": [
+        {
+          "name": "read_points",
+          "line": 9,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "report",
+          "line": 33,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "query",
+          "line": 43,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "services/migration_upload_service.py",
       "sha256": "39c9b8b2382997d44da5ca7faf6bfe0ce0a64d15ccb73f435307738374737504",
       "imports": [
@@ -5874,16 +6066,19 @@
     },
     {
       "file": "services/network_traffic_service.py",
-      "sha256": "cc153fd19067139941483a0304e16a0cc1fc23aed264b112c435a55ae17816ec",
+      "sha256": "c2378be4c20439f30018cfee095d6de27094926fef122d301ce4b87fe1e403c7",
       "imports": [
         "core.ownership",
         "core.time_service",
         "database.db",
         "database.traffic_history_schema",
+        "services.measured_traffic_service",
         "services.report_catalog_cache",
+        "services.report_navigation_service",
         "services.sales_reporting_service",
         "services.sales_source_service",
         "services.session_display_service",
+        "services.session_service_evidence",
         "zoneinfo"
       ],
       "definitions": [
@@ -5894,42 +6089,47 @@
         },
         {
           "name": "sessions_sql",
-          "line": 36,
+          "line": 37,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "counter",
+          "line": 67,
           "kind": "FunctionDef"
         },
         {
           "name": "point_info",
-          "line": 101,
+          "line": 118,
           "kind": "FunctionDef"
         },
         {
           "name": "sum_rows",
-          "line": 125,
+          "line": 142,
           "kind": "FunctionDef"
         },
         {
           "name": "matches_point",
-          "line": 135,
+          "line": 152,
           "kind": "FunctionDef"
         },
         {
           "name": "report",
-          "line": 141,
+          "line": 158,
           "kind": "FunctionDef"
         },
         {
           "name": "query",
-          "line": 153,
+          "line": 173,
           "kind": "FunctionDef"
         },
         {
           "name": "grouped",
-          "line": 168,
+          "line": 188,
           "kind": "FunctionDef"
         },
         {
           "name": "format_bytes",
-          "line": 227,
+          "line": 249,
           "kind": "FunctionDef"
         }
       ]
@@ -6125,7 +6325,7 @@
     },
     {
       "file": "services/quick_action_service.py",
-      "sha256": "a1ce16ab29fee576bd7fe52d963c80cdf668b834ef37594b116cd162c3cee8f2",
+      "sha256": "acba57bbad6852568dfd389939f49b7d87f0f37f11c739c05a1465ddd2bf7178",
       "imports": [
         "core.coa",
         "core.ownership",
@@ -6136,6 +6336,7 @@
         "decimal",
         "services.account_lifecycle_service",
         "services.coa_queue_service",
+        "services.invoice_cost_service",
         "services.license_guard_service",
         "services.quota_service",
         "services.rate_policy_service",
@@ -6225,42 +6426,42 @@
         },
         {
           "name": "action_change_package",
-          "line": 618,
+          "line": 620,
           "kind": "FunctionDef"
         },
         {
           "name": "parse_quota_adjustment",
-          "line": 905,
+          "line": 909,
           "kind": "FunctionDef"
         },
         {
           "name": "action_add_quota",
-          "line": 917,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "action_get_usage_history",
           "line": 921,
           "kind": "FunctionDef"
         },
         {
+          "name": "action_get_usage_history",
+          "line": 925,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "action_add_wallet_balance",
-          "line": 967,
+          "line": 971,
           "kind": "FunctionDef"
         },
         {
           "name": "action_deduct_wallet_balance",
-          "line": 970,
+          "line": 974,
           "kind": "FunctionDef"
         },
         {
           "name": "_change_wallet_balance",
-          "line": 973,
+          "line": 977,
           "kind": "FunctionDef"
         },
         {
           "name": "action_disconnect_user",
-          "line": 1018,
+          "line": 1022,
           "kind": "FunctionDef"
         }
       ]
@@ -6562,8 +6763,20 @@
       ]
     },
     {
+      "file": "services/report_navigation_service.py",
+      "sha256": "15b3e5f3472dbcb3d4806c5e4a98bf32f6ce600460e422cfb2a74e7bad66b809",
+      "imports": [],
+      "definitions": [
+        {
+          "name": "navigation",
+          "line": 6,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "services/report_time_axis.py",
-      "sha256": "4fb0adf85e5cf808cecbb9114d2641b472f0f7357e6ca655c88dc6a633fc89a2",
+      "sha256": "6a9845e62c111fbbbaa08d71827434795818802f789e2c02be3bccf16311cb21",
       "imports": [
         "services.sales_reporting_service",
         "zoneinfo"
@@ -6653,7 +6866,7 @@
     },
     {
       "file": "services/sales_reporting_service.py",
-      "sha256": "e88fef23162dec3847a18f3c508e81aa3c1e36c733e4e0bfb902fea4184e0ebd",
+      "sha256": "7c93033c149c938c720a8bc06d2473d93ec621c169c4b225504e61d0b4af3ed3",
       "imports": [
         "core.ownership",
         "core.time_service",
@@ -6663,6 +6876,7 @@
         "services.dashboard_reporting_service",
         "services.network_traffic_service",
         "services.report_catalog_cache",
+        "services.report_navigation_service",
         "services.report_time_axis",
         "services.sales_source_service",
         "services.session_display_service",
@@ -6717,53 +6931,59 @@
         },
         {
           "name": "export_value",
-          "line": 214,
+          "line": 215,
           "kind": "FunctionDef"
         },
         {
           "name": "_label",
-          "line": 221,
+          "line": 222,
           "kind": "FunctionDef"
         },
         {
           "name": "sort_settings",
-          "line": 245,
+          "line": 246,
           "kind": "FunctionDef"
         },
         {
           "name": "sort_order",
-          "line": 256,
+          "line": 257,
           "kind": "FunctionDef"
         },
         {
           "name": "package_metrics",
-          "line": 268,
+          "line": 269,
           "kind": "FunctionDef"
         },
         {
           "name": "report",
-          "line": 278,
+          "line": 279,
           "kind": "FunctionDef"
         },
         {
           "name": "query",
-          "line": 296,
+          "line": 297,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "option_key",
+          "line": 362,
           "kind": "FunctionDef"
         },
         {
           "name": "_range",
-          "line": 442,
+          "line": 449,
           "kind": "FunctionDef"
         }
       ]
     },
     {
       "file": "services/sales_source_service.py",
-      "sha256": "bfd658383147a82293b558632d6a1134527e425fc289996252a3eb4cc4f9a37e",
+      "sha256": "0f037540e6176f97e246b6fffacafaba3984c9822f916bc72e69a409d5f2c78d",
       "imports": [
         "database.db",
         "services.account_lifecycle_service",
-        "services.online_policy_service"
+        "services.online_policy_service",
+        "services.session_service_evidence"
       ],
       "definitions": [
         {
@@ -6793,22 +7013,22 @@
         },
         {
           "name": "backfill_sale_sources",
-          "line": 166,
+          "line": 172,
           "kind": "FunctionDef"
         },
         {
           "name": "enrich_sale_sources",
-          "line": 214,
+          "line": 223,
           "kind": "FunctionDef"
         },
         {
           "name": "start_sales_source_enrichment_worker",
-          "line": 308,
+          "line": 320,
           "kind": "FunctionDef"
         },
         {
           "name": "run",
-          "line": 314,
+          "line": 326,
           "kind": "FunctionDef"
         }
       ]
@@ -6999,6 +7219,53 @@
       ]
     },
     {
+      "file": "services/session_service_evidence.py",
+      "sha256": "1e4f3cc0092ee47bd793c6d4fe01527fbb9f8ebdea468043b42134393fd09283",
+      "imports": [
+        "core.mikrotik_api",
+        "database.db",
+        "services.account_lifecycle_service",
+        "services.sales_source_service"
+      ],
+      "definitions": [
+        {
+          "name": "uptime_seconds",
+          "line": 9,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "matched_service",
+          "line": 21,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "evidence_join",
+          "line": 41,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "protocol_fields",
+          "line": 48,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "apply_evidence",
+          "line": 54,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "record_evidence",
+          "line": 68,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "refresh",
+          "line": 89,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "services/session_spool.py",
       "sha256": "15884c951ec46262911978c74e9c2f4c666529993a8b7bcfccdeb2257ba7d314",
       "imports": [
@@ -7091,7 +7358,7 @@
     },
     {
       "file": "services/stats_service.py",
-      "sha256": "e486037756c6031d409fad9b1d34794a3c6344e40f05098bdd06c0090da7c1d4",
+      "sha256": "452680ec1c5e341506e1aacdb97315acb1551cb38b44f9a7681f5084dc02c750",
       "imports": [
         "concurrent.futures",
         "core.license_feature_policy",
@@ -7104,92 +7371,97 @@
       "definitions": [
         {
           "name": "UnixHTTPConnection",
-          "line": 14,
+          "line": 15,
           "kind": "ClassDef"
         },
         {
           "name": "__init__",
-          "line": 15,
+          "line": 16,
           "kind": "FunctionDef"
         },
         {
           "name": "connect",
-          "line": 18,
+          "line": 19,
           "kind": "FunctionDef"
         },
         {
           "name": "_fetch_single_container_stats",
-          "line": 80,
+          "line": 83,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_fetch_scoped_cpu",
+          "line": 125,
           "kind": "FunctionDef"
         },
         {
           "name": "_collect_server_resources_internal",
-          "line": 122,
+          "line": 146,
           "kind": "FunctionDef"
         },
         {
           "name": "_get_cutoff_str",
-          "line": 204,
+          "line": 237,
           "kind": "FunctionDef"
         },
         {
           "name": "_collect_db_metrics_internal",
-          "line": 211,
+          "line": 244,
           "kind": "FunctionDef"
         },
         {
           "name": "_metrics_collector_loop",
-          "line": 337,
+          "line": 370,
           "kind": "FunctionDef"
         },
         {
           "name": "start_live_metrics_daemon",
-          "line": 359,
+          "line": 392,
           "kind": "FunctionDef"
         },
         {
           "name": "get_server_resources",
-          "line": 371,
+          "line": 404,
           "kind": "FunctionDef"
         },
         {
           "name": "get_dashboard_metrics",
-          "line": 385,
+          "line": 419,
           "kind": "FunctionDef"
         },
         {
           "name": "get_recent_live_sessions",
-          "line": 402,
+          "line": 436,
           "kind": "FunctionDef"
         },
         {
           "name": "get_traffic_chart_data",
-          "line": 453,
+          "line": 487,
           "kind": "FunctionDef"
         },
         {
           "name": "get_sales_chart_data",
-          "line": 468,
+          "line": 502,
           "kind": "FunctionDef"
         },
         {
           "name": "get_internet_ping",
-          "line": 475,
+          "line": 509,
           "kind": "FunctionDef"
         },
         {
           "name": "get_container_uptime_seconds",
-          "line": 538,
+          "line": 572,
           "kind": "FunctionDef"
         },
         {
           "name": "get_system_uptime_str",
-          "line": 556,
+          "line": 590,
           "kind": "FunctionDef"
         },
         {
           "name": "get_latest_system_operations",
-          "line": 603,
+          "line": 637,
           "kind": "FunctionDef"
         }
       ]
@@ -7790,7 +8062,7 @@
     },
     {
       "file": "services/system_update_executor.py",
-      "sha256": "938cbdda89263a7928fef3e9a0bf0ba69f00a739c3a8e306e47101eceb8b64fa",
+      "sha256": "3f7c7f8416a6feb25864f95f1d833bef8fab233da7387e80c9dff4759cda8488",
       "imports": [
         "pathlib",
         "services.system_update_channel",
@@ -7807,33 +8079,38 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "owned_snapshot",
+          "name": "await_switch_lease",
           "line": 68,
           "kind": "FunctionDef"
         },
         {
+          "name": "owned_snapshot",
+          "line": 91,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "prepare",
-          "line": 92,
+          "line": 115,
           "kind": "FunctionDef"
         },
         {
           "name": "wait_ready",
-          "line": 187,
+          "line": 210,
           "kind": "FunctionDef"
         },
         {
           "name": "persist_compose",
-          "line": 226,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "verify_dependencies",
           "line": 255,
           "kind": "FunctionDef"
         },
         {
+          "name": "verify_dependencies",
+          "line": 284,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "run_job",
-          "line": 265,
+          "line": 294,
           "kind": "FunctionDef"
         }
       ]
@@ -8028,7 +8305,7 @@
     },
     {
       "file": "services/system_update_safety.py",
-      "sha256": "33dd265a02ca39b1a337b11ce4baf959ae4d24046e6741a03ac3604655c78d45",
+      "sha256": "0a8c84b75bdd061b6dd078f9e994fe75725cb083878e27b928ba944d92cbe01a",
       "imports": [],
       "definitions": [
         {
@@ -8038,47 +8315,47 @@
         },
         {
           "name": "contract_program",
-          "line": 36,
+          "line": 41,
           "kind": "FunctionDef"
         },
         {
           "name": "required",
-          "line": 48,
+          "line": 53,
           "kind": "FunctionDef"
         },
         {
           "name": "Budget",
-          "line": 55,
+          "line": 60,
           "kind": "ClassDef"
         },
         {
           "name": "__init__",
-          "line": 61,
+          "line": 66,
           "kind": "FunctionDef"
         },
         {
           "name": "for_recovery",
-          "line": 71,
+          "line": 76,
           "kind": "FunctionDef"
         },
         {
           "name": "timeout",
-          "line": 78,
+          "line": 83,
           "kind": "FunctionDef"
         },
         {
           "name": "api",
-          "line": 88,
+          "line": 93,
           "kind": "FunctionDef"
         },
         {
           "name": "bounded",
-          "line": 89,
+          "line": 94,
           "kind": "FunctionDef"
         },
         {
           "name": "replacement_spec",
-          "line": 98,
+          "line": 103,
           "kind": "FunctionDef"
         }
       ]
@@ -8318,8 +8595,35 @@
       ]
     },
     {
+      "file": "services/traffic_interval_service.py",
+      "sha256": "406b2e2b247da6406fa4bd08e6e966d69a614fafe53ba46cdd476b4a1bebc08b",
+      "imports": [],
+      "definitions": [
+        {
+          "name": "save_interval",
+          "line": 5,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "filters",
+          "line": 15,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "read_intervals",
+          "line": 27,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "contribution",
+          "line": 33,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "services/traffic_sample_service.py",
-      "sha256": "4338c8e6a9119ec33b248eb8898c27c7b4018138335d19bf8394ee68ddd4102d",
+      "sha256": "f3bbd3b526fc6d373859abd18bf031c9be8ab92a7aa363c82bf9fed73b5ccbe4",
       "imports": [
         "database.db",
         "database.traffic_samples_schema",
@@ -8327,6 +8631,8 @@
         "services.network_traffic_service",
         "services.report_time_axis",
         "services.sales_source_service",
+        "services.session_service_evidence",
+        "services.traffic_interval_service",
         "zoneinfo"
       ],
       "definitions": [
@@ -8352,39 +8658,39 @@
         },
         {
           "name": "collect",
-          "line": 114,
+          "line": 124,
           "kind": "FunctionDef"
         },
         {
           "name": "read_windows",
-          "line": 167,
+          "line": 179,
           "kind": "FunctionDef"
         },
         {
           "name": "series",
-          "line": 194,
+          "line": 222,
           "kind": "FunctionDef"
         },
         {
           "name": "daily_rows",
-          "line": 209,
+          "line": 240,
           "kind": "FunctionDef"
         },
         {
           "name": "start_worker",
-          "line": 223,
+          "line": 254,
           "kind": "FunctionDef"
         },
         {
           "name": "run",
-          "line": 227,
+          "line": 258,
           "kind": "FunctionDef"
         }
       ]
     },
     {
       "file": "services/user_portal_service.py",
-      "sha256": "0f1fdea988d70e1facdebf973348f38f0e9b3551afcb814e1c267f6af9cfb53a",
+      "sha256": "3cf18b587547aa0923f4d8c0e4329669321c62642063a7085d536eb921d273b4",
       "imports": [
         "core.coa",
         "core.config",
@@ -8394,6 +8700,7 @@
         "core.time_service",
         "database.db",
         "services.bot_notifications_service",
+        "services.invoice_cost_service",
         "services.loyalty_rewards_service",
         "services.quick_action_service",
         "services.quota_service",
@@ -8475,22 +8782,22 @@
         },
         {
           "name": "get_user_sessions_history",
-          "line": 1538,
+          "line": 1540,
           "kind": "FunctionDef"
         },
         {
           "name": "ensure_initial_package",
-          "line": 1544,
+          "line": 1546,
           "kind": "FunctionDef"
         },
         {
           "name": "register_portal_subscriber",
-          "line": 1600,
+          "line": 1602,
           "kind": "FunctionDef"
         },
         {
           "name": "change_portal_password",
-          "line": 1692,
+          "line": 1694,
           "kind": "FunctionDef"
         }
       ]
@@ -10359,7 +10666,7 @@
     },
     {
       "file": "web/routes/subscribers.py",
-      "sha256": "ce293a653986a291b708feaa885d053bd3049231789b3819169519a9b876198f",
+      "sha256": "d4957b9fbf5890d8f8681eae9c14c66cb777168183ced3444d7801a4d26cd677",
       "imports": [
         "core.config",
         "core.mikrotik_api",
@@ -10375,6 +10682,7 @@
         "services.backup_service",
         "services.card_design_service",
         "services.import_service",
+        "services.invoice_cost_service",
         "services.l2tp_service",
         "services.license_guard_service",
         "services.list_sort_service",
@@ -10472,24 +10780,24 @@
         },
         {
           "name": "pay_invoice_action",
-          "line": 445,
+          "line": 447,
           "kind": "FunctionDef"
         },
         {
           "name": "save_invoice_design_action",
-          "line": 467,
+          "line": 469,
           "kind": "FunctionDef"
         },
         {
           "name": "subscriber_sessions_pdf",
-          "line": 494,
+          "line": 496,
           "kind": "FunctionDef"
         }
       ]
     },
     {
       "file": "web/routes/system.py",
-      "sha256": "15a8eca61acc9707c446539143517621d4b38431c3e3c2b9fbfa45d41b45558d",
+      "sha256": "eecd853d27727969e2f293f14093dcbb919caa3f83847d46780153decb0d7cd3",
       "imports": [
         "core.config",
         "core.license_feature_policy",
@@ -10646,432 +10954,432 @@
         },
         {
           "name": "append",
-          "line": 369,
+          "line": 375,
           "kind": "FunctionDef"
         },
         {
           "name": "settings",
-          "line": 395,
+          "line": 401,
           "kind": "FunctionDef"
         },
         {
           "name": "update_settings_action",
-          "line": 404,
+          "line": 410,
           "kind": "FunctionDef"
         },
         {
           "name": "api_time_status",
-          "line": 424,
+          "line": 430,
           "kind": "FunctionDef"
         },
         {
           "name": "api_time_sync",
-          "line": 431,
+          "line": 437,
           "kind": "FunctionDef"
         },
         {
           "name": "system_services_page",
-          "line": 442,
+          "line": 448,
           "kind": "FunctionDef"
         },
         {
           "name": "api_system_services_status",
-          "line": 449,
+          "line": 455,
           "kind": "FunctionDef"
         },
         {
           "name": "api_system_services_action",
-          "line": 456,
+          "line": 462,
           "kind": "FunctionDef"
         },
         {
           "name": "api_watchdog_manual_check",
-          "line": 468,
+          "line": 474,
           "kind": "FunctionDef"
         },
         {
           "name": "api_resolve_system_alert",
-          "line": 476,
+          "line": 482,
           "kind": "FunctionDef"
         },
         {
           "name": "api_clear_resolved_alerts",
-          "line": 487,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "_autoheal_input_guard",
           "line": 493,
           "kind": "FunctionDef"
         },
         {
+          "name": "_autoheal_input_guard",
+          "line": 499,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "wrapped",
-          "line": 496,
+          "line": 502,
           "kind": "FunctionDef"
         },
         {
           "name": "autoheal_page",
-          "line": 507,
+          "line": 513,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_status",
-          "line": 518,
+          "line": 524,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_diagnostic",
-          "line": 529,
+          "line": 535,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_probe_ports",
-          "line": 541,
+          "line": 547,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_restart",
-          "line": 552,
+          "line": 558,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_logs",
-          "line": 567,
+          "line": 573,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_purge_zombies",
-          "line": 580,
+          "line": 586,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_save_settings",
-          "line": 595,
+          "line": 601,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_resolve_alert",
-          "line": 610,
+          "line": 616,
           "kind": "FunctionDef"
         },
         {
           "name": "api_autoheal_clear_resolved_alerts",
-          "line": 623,
+          "line": 629,
           "kind": "FunctionDef"
         },
         {
           "name": "database_maintenance_page",
-          "line": 631,
+          "line": 637,
           "kind": "FunctionDef"
         },
         {
           "name": "api_maintenance_stats",
-          "line": 639,
+          "line": 645,
           "kind": "FunctionDef"
         },
         {
           "name": "api_run_database_audit",
-          "line": 647,
+          "line": 653,
           "kind": "FunctionDef"
         },
         {
           "name": "api_fix_audit_issue",
-          "line": 655,
+          "line": 661,
           "kind": "FunctionDef"
         },
         {
           "name": "api_fix_all_audit_issues",
-          "line": 670,
+          "line": 676,
           "kind": "FunctionDef"
         },
         {
           "name": "api_clean_expired_vouchers",
-          "line": 679,
+          "line": 685,
           "kind": "FunctionDef"
         },
         {
           "name": "api_cleanup_job_status",
-          "line": 695,
+          "line": 701,
           "kind": "FunctionDef"
         },
         {
           "name": "api_cancel_cleanup_job",
-          "line": 706,
+          "line": 712,
           "kind": "FunctionDef"
         },
         {
           "name": "api_table_sizes",
-          "line": 718,
+          "line": 724,
           "kind": "FunctionDef"
         },
         {
           "name": "api_prune_historical_logs",
-          "line": 726,
+          "line": 732,
           "kind": "FunctionDef"
         },
         {
           "name": "api_maintenance_archive_sessions",
-          "line": 740,
+          "line": 746,
           "kind": "FunctionDef"
         },
         {
           "name": "api_archive_plan",
-          "line": 753,
+          "line": 759,
           "kind": "FunctionDef"
         },
         {
           "name": "api_archive_job_status",
-          "line": 766,
+          "line": 772,
           "kind": "FunctionDef"
         },
         {
           "name": "api_cancel_archive_job",
-          "line": 776,
+          "line": 782,
           "kind": "FunctionDef"
         },
         {
           "name": "api_optimize_tables",
-          "line": 788,
+          "line": 794,
           "kind": "FunctionDef"
         },
         {
           "name": "api_factory_reset_database",
-          "line": 802,
+          "line": 808,
           "kind": "FunctionDef"
         },
         {
           "name": "flag",
-          "line": 806,
+          "line": 812,
           "kind": "FunctionDef"
         },
         {
           "name": "api_factory_reset_cancel",
-          "line": 822,
+          "line": 828,
           "kind": "FunctionDef"
         },
         {
           "name": "api_factory_reset_status",
-          "line": 835,
+          "line": 841,
           "kind": "FunctionDef"
         },
         {
           "name": "notifications_center_page",
-          "line": 845,
+          "line": 851,
           "kind": "FunctionDef"
         },
         {
           "name": "api_notifications_settings_save",
-          "line": 852,
+          "line": 858,
           "kind": "FunctionDef"
         },
         {
           "name": "api_notifications_verify_bot",
-          "line": 872,
+          "line": 878,
           "kind": "FunctionDef"
         },
         {
           "name": "api_notifications_test_send",
-          "line": 887,
+          "line": 893,
           "kind": "FunctionDef"
         },
         {
           "name": "loyalty_rewards_page",
-          "line": 898,
+          "line": 904,
           "kind": "FunctionDef"
         },
         {
           "name": "api_loyalty_reward_get",
-          "line": 905,
+          "line": 911,
           "kind": "FunctionDef"
         },
         {
           "name": "api_loyalty_reward_add",
-          "line": 914,
+          "line": 920,
           "kind": "FunctionDef"
         },
         {
           "name": "api_loyalty_reward_edit",
-          "line": 929,
+          "line": 935,
           "kind": "FunctionDef"
         },
         {
           "name": "api_loyalty_reward_delete",
-          "line": 945,
+          "line": 951,
           "kind": "FunctionDef"
         },
         {
           "name": "api_loyalty_reward_toggle",
-          "line": 953,
+          "line": 959,
           "kind": "FunctionDef"
         },
         {
           "name": "api_loyalty_award_points",
-          "line": 962,
+          "line": 968,
           "kind": "FunctionDef"
         },
         {
           "name": "api_loyalty_redeem_reward",
-          "line": 972,
+          "line": 978,
           "kind": "FunctionDef"
         },
         {
           "name": "automation_rules_page",
-          "line": 983,
+          "line": 989,
           "kind": "FunctionDef"
         },
         {
           "name": "api_automation_toggle",
-          "line": 992,
+          "line": 998,
           "kind": "FunctionDef"
         },
         {
           "name": "api_automation_run",
-          "line": 1003,
+          "line": 1009,
           "kind": "FunctionDef"
         },
         {
           "name": "api_automation_tasks",
-          "line": 1014,
+          "line": 1020,
           "kind": "FunctionDef"
         },
         {
           "name": "api_automation_notices",
-          "line": 1049,
+          "line": 1055,
           "kind": "FunctionDef"
         },
         {
           "name": "database_migration_studio",
-          "line": 1065,
+          "line": 1068,
           "kind": "FunctionDef"
         },
         {
           "name": "api_migration_analyze",
-          "line": 1071,
+          "line": 1074,
           "kind": "FunctionDef"
         },
         {
           "name": "api_migration_execute",
-          "line": 1098,
+          "line": 1101,
           "kind": "FunctionDef"
         },
         {
           "name": "api_migration_progress",
-          "line": 1121,
+          "line": 1124,
           "kind": "FunctionDef"
         },
         {
           "name": "api_migration_cancel",
-          "line": 1128,
+          "line": 1131,
           "kind": "FunctionDef"
         },
         {
           "name": "backups_page",
-          "line": 1136,
+          "line": 1139,
           "kind": "FunctionDef"
         },
         {
           "name": "api_backup_settings",
-          "line": 1153,
+          "line": 1156,
           "kind": "FunctionDef"
         },
         {
           "name": "api_backup_health",
-          "line": 1202,
+          "line": 1205,
           "kind": "FunctionDef"
         },
         {
           "name": "api_backup_scheduler_action",
-          "line": 1210,
+          "line": 1213,
           "kind": "FunctionDef"
         },
         {
           "name": "api_create_backup",
-          "line": 1230,
+          "line": 1233,
           "kind": "FunctionDef"
         },
         {
           "name": "api_upload_backup",
-          "line": 1241,
+          "line": 1244,
           "kind": "FunctionDef"
         },
         {
           "name": "api_restore_backup",
-          "line": 1255,
+          "line": 1258,
           "kind": "FunctionDef"
         },
         {
           "name": "api_delete_backup",
-          "line": 1270,
+          "line": 1273,
           "kind": "FunctionDef"
         },
         {
           "name": "api_send_backup_telegram",
-          "line": 1285,
+          "line": 1288,
           "kind": "FunctionDef"
         },
         {
           "name": "download_backup_file_route",
-          "line": 1302,
+          "line": 1305,
           "kind": "FunctionDef"
         },
         {
           "name": "download_backup",
-          "line": 1312,
+          "line": 1315,
           "kind": "FunctionDef"
         },
         {
           "name": "import_data_page",
-          "line": 1323,
+          "line": 1326,
           "kind": "FunctionDef"
         },
         {
           "name": "download_sample_template",
-          "line": 1339,
+          "line": 1342,
           "kind": "FunctionDef"
         },
         {
           "name": "process_import_action",
-          "line": 1359,
+          "line": 1362,
           "kind": "FunctionDef"
         },
         {
           "name": "license_status_page",
-          "line": 1430,
+          "line": 1433,
           "kind": "FunctionDef"
         },
         {
           "name": "activate_license_action",
-          "line": 1444,
+          "line": 1447,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_license_heartbeat_action",
-          "line": 1476,
+          "line": 1479,
           "kind": "FunctionDef"
         },
         {
           "name": "system_update_page",
-          "line": 1484,
+          "line": 1487,
           "kind": "FunctionDef"
         },
         {
           "name": "api_system_update_check",
-          "line": 1499,
+          "line": 1502,
           "kind": "FunctionDef"
         },
         {
           "name": "api_system_update_apply",
-          "line": 1508,
+          "line": 1511,
           "kind": "FunctionDef"
         },
         {
           "name": "api_system_update_progress",
-          "line": 1537,
+          "line": 1540,
           "kind": "FunctionDef"
         },
         {
           "name": "cancel_export_request",
-          "line": 1544,
+          "line": 1547,
           "kind": "FunctionDef"
         }
       ]
@@ -13105,7 +13413,7 @@
       "endpoint": "pay_invoice_action",
       "handler": "pay_invoice_action",
       "file": "web/routes/subscribers.py",
-      "line": 445
+      "line": 447
     },
     {
       "rule": "/invoices/design",
@@ -13116,7 +13424,7 @@
       "endpoint": "save_invoice_design_action",
       "handler": "save_invoice_design_action",
       "file": "web/routes/subscribers.py",
-      "line": 467
+      "line": 469
     },
     {
       "rule": "/subscribers/<int:sub_id>/sessions.pdf",
@@ -13127,7 +13435,7 @@
       "endpoint": "subscriber_sessions_pdf",
       "handler": "subscriber_sessions_pdf",
       "file": "web/routes/subscribers.py",
-      "line": 494
+      "line": 496
     },
     {
       "rule": "/api/actions/delete",
@@ -13337,7 +13645,7 @@
       "endpoint": "settings",
       "handler": "settings",
       "file": "web/routes/system.py",
-      "line": 395
+      "line": 401
     },
     {
       "rule": "/settings/update",
@@ -13348,7 +13656,7 @@
       "endpoint": "update_settings_action",
       "handler": "update_settings_action",
       "file": "web/routes/system.py",
-      "line": 404
+      "line": 410
     },
     {
       "rule": "/api/time/status",
@@ -13359,7 +13667,7 @@
       "endpoint": "api_time_status",
       "handler": "api_time_status",
       "file": "web/routes/system.py",
-      "line": 424
+      "line": 430
     },
     {
       "rule": "/api/time/sync",
@@ -13370,7 +13678,7 @@
       "endpoint": "api_time_sync",
       "handler": "api_time_sync",
       "file": "web/routes/system.py",
-      "line": 431
+      "line": 437
     },
     {
       "rule": "/system-services",
@@ -13381,7 +13689,7 @@
       "endpoint": "system_services_page",
       "handler": "system_services_page",
       "file": "web/routes/system.py",
-      "line": 442
+      "line": 448
     },
     {
       "rule": "/tools/system-services",
@@ -13392,7 +13700,7 @@
       "endpoint": "system_services_page",
       "handler": "system_services_page",
       "file": "web/routes/system.py",
-      "line": 442
+      "line": 448
     },
     {
       "rule": "/api/system-services/status",
@@ -13403,7 +13711,7 @@
       "endpoint": "api_system_services_status",
       "handler": "api_system_services_status",
       "file": "web/routes/system.py",
-      "line": 449
+      "line": 455
     },
     {
       "rule": "/api/system-services/action",
@@ -13414,7 +13722,7 @@
       "endpoint": "api_system_services_action",
       "handler": "api_system_services_action",
       "file": "web/routes/system.py",
-      "line": 456
+      "line": 462
     },
     {
       "rule": "/api/system-services/watchdog/check",
@@ -13425,7 +13733,7 @@
       "endpoint": "api_watchdog_manual_check",
       "handler": "api_watchdog_manual_check",
       "file": "web/routes/system.py",
-      "line": 468
+      "line": 474
     },
     {
       "rule": "/api/system-services/alerts/resolve",
@@ -13436,7 +13744,7 @@
       "endpoint": "api_resolve_system_alert",
       "handler": "api_resolve_system_alert",
       "file": "web/routes/system.py",
-      "line": 476
+      "line": 482
     },
     {
       "rule": "/api/system-services/alerts/clear",
@@ -13447,7 +13755,7 @@
       "endpoint": "api_clear_resolved_alerts",
       "handler": "api_clear_resolved_alerts",
       "file": "web/routes/system.py",
-      "line": 487
+      "line": 493
     },
     {
       "rule": "/tools/autoheal",
@@ -13458,7 +13766,7 @@
       "endpoint": "autoheal_page",
       "handler": "autoheal_page",
       "file": "web/routes/system.py",
-      "line": 507
+      "line": 513
     },
     {
       "rule": "/api/tools/autoheal/status",
@@ -13469,7 +13777,7 @@
       "endpoint": "api_autoheal_status",
       "handler": "api_autoheal_status",
       "file": "web/routes/system.py",
-      "line": 518
+      "line": 524
     },
     {
       "rule": "/api/tools/autoheal/diagnostic",
@@ -13480,7 +13788,7 @@
       "endpoint": "api_autoheal_diagnostic",
       "handler": "api_autoheal_diagnostic",
       "file": "web/routes/system.py",
-      "line": 529
+      "line": 535
     },
     {
       "rule": "/api/tools/autoheal/probe-ports",
@@ -13491,7 +13799,7 @@
       "endpoint": "api_autoheal_probe_ports",
       "handler": "api_autoheal_probe_ports",
       "file": "web/routes/system.py",
-      "line": 541
+      "line": 547
     },
     {
       "rule": "/api/tools/autoheal/restart",
@@ -13502,7 +13810,7 @@
       "endpoint": "api_autoheal_restart",
       "handler": "api_autoheal_restart",
       "file": "web/routes/system.py",
-      "line": 552
+      "line": 558
     },
     {
       "rule": "/api/tools/autoheal/logs",
@@ -13513,7 +13821,7 @@
       "endpoint": "api_autoheal_logs",
       "handler": "api_autoheal_logs",
       "file": "web/routes/system.py",
-      "line": 567
+      "line": 573
     },
     {
       "rule": "/api/tools/autoheal/purge-zombies",
@@ -13524,7 +13832,7 @@
       "endpoint": "api_autoheal_purge_zombies",
       "handler": "api_autoheal_purge_zombies",
       "file": "web/routes/system.py",
-      "line": 580
+      "line": 586
     },
     {
       "rule": "/api/tools/autoheal/save-settings",
@@ -13535,7 +13843,7 @@
       "endpoint": "api_autoheal_save_settings",
       "handler": "api_autoheal_save_settings",
       "file": "web/routes/system.py",
-      "line": 595
+      "line": 601
     },
     {
       "rule": "/api/tools/autoheal/alerts/resolve",
@@ -13546,7 +13854,7 @@
       "endpoint": "api_autoheal_resolve_alert",
       "handler": "api_autoheal_resolve_alert",
       "file": "web/routes/system.py",
-      "line": 610
+      "line": 616
     },
     {
       "rule": "/api/tools/autoheal/alerts/clear-resolved",
@@ -13557,7 +13865,7 @@
       "endpoint": "api_autoheal_clear_resolved_alerts",
       "handler": "api_autoheal_clear_resolved_alerts",
       "file": "web/routes/system.py",
-      "line": 623
+      "line": 629
     },
     {
       "rule": "/tools/database-maintenance",
@@ -13568,7 +13876,7 @@
       "endpoint": "database_maintenance_page",
       "handler": "database_maintenance_page",
       "file": "web/routes/system.py",
-      "line": 631
+      "line": 637
     },
     {
       "rule": "/api/tools/database-maintenance/stats",
@@ -13579,7 +13887,7 @@
       "endpoint": "api_maintenance_stats",
       "handler": "api_maintenance_stats",
       "file": "web/routes/system.py",
-      "line": 639
+      "line": 645
     },
     {
       "rule": "/api/tools/database-maintenance/audit",
@@ -13590,7 +13898,7 @@
       "endpoint": "api_run_database_audit",
       "handler": "api_run_database_audit",
       "file": "web/routes/system.py",
-      "line": 647
+      "line": 653
     },
     {
       "rule": "/api/tools/database-maintenance/fix",
@@ -13601,7 +13909,7 @@
       "endpoint": "api_fix_audit_issue",
       "handler": "api_fix_audit_issue",
       "file": "web/routes/system.py",
-      "line": 655
+      "line": 661
     },
     {
       "rule": "/api/tools/database-maintenance/fix-all",
@@ -13612,7 +13920,7 @@
       "endpoint": "api_fix_all_audit_issues",
       "handler": "api_fix_all_audit_issues",
       "file": "web/routes/system.py",
-      "line": 670
+      "line": 676
     },
     {
       "rule": "/api/tools/database-maintenance/clean-expired",
@@ -13623,7 +13931,7 @@
       "endpoint": "api_clean_expired_vouchers",
       "handler": "api_clean_expired_vouchers",
       "file": "web/routes/system.py",
-      "line": 679
+      "line": 685
     },
     {
       "rule": "/api/tools/database-maintenance/clean-expired/jobs/latest",
@@ -13634,7 +13942,7 @@
       "endpoint": "api_latest_cleanup_job",
       "handler": "api_cleanup_job_status",
       "file": "web/routes/system.py",
-      "line": 695
+      "line": 701
     },
     {
       "rule": "/api/tools/database-maintenance/clean-expired/jobs/<job_id>",
@@ -13645,7 +13953,7 @@
       "endpoint": "api_cleanup_job_status",
       "handler": "api_cleanup_job_status",
       "file": "web/routes/system.py",
-      "line": 695
+      "line": 701
     },
     {
       "rule": "/api/tools/database-maintenance/clean-expired/jobs/<job_id>/cancel",
@@ -13656,7 +13964,7 @@
       "endpoint": "api_cancel_cleanup_job",
       "handler": "api_cancel_cleanup_job",
       "file": "web/routes/system.py",
-      "line": 706
+      "line": 712
     },
     {
       "rule": "/api/tools/database-maintenance/table-sizes",
@@ -13667,7 +13975,7 @@
       "endpoint": "api_table_sizes",
       "handler": "api_table_sizes",
       "file": "web/routes/system.py",
-      "line": 718
+      "line": 724
     },
     {
       "rule": "/api/tools/database-maintenance/prune-logs",
@@ -13678,7 +13986,7 @@
       "endpoint": "api_prune_historical_logs",
       "handler": "api_prune_historical_logs",
       "file": "web/routes/system.py",
-      "line": 726
+      "line": 732
     },
     {
       "rule": "/api/tools/database-maintenance/archive",
@@ -13689,7 +13997,7 @@
       "endpoint": "api_maintenance_archive_sessions",
       "handler": "api_maintenance_archive_sessions",
       "file": "web/routes/system.py",
-      "line": 740
+      "line": 746
     },
     {
       "rule": "/api/tools/database-maintenance/archive/plan",
@@ -13700,7 +14008,7 @@
       "endpoint": "api_archive_plan",
       "handler": "api_archive_plan",
       "file": "web/routes/system.py",
-      "line": 753
+      "line": 759
     },
     {
       "rule": "/api/tools/database-maintenance/archive/jobs/latest",
@@ -13711,7 +14019,7 @@
       "endpoint": "api_latest_archive_job",
       "handler": "api_archive_job_status",
       "file": "web/routes/system.py",
-      "line": 766
+      "line": 772
     },
     {
       "rule": "/api/tools/database-maintenance/archive/jobs/<job_id>",
@@ -13722,7 +14030,7 @@
       "endpoint": "api_archive_job_status",
       "handler": "api_archive_job_status",
       "file": "web/routes/system.py",
-      "line": 766
+      "line": 772
     },
     {
       "rule": "/api/tools/database-maintenance/archive/jobs/<job_id>/cancel",
@@ -13733,7 +14041,7 @@
       "endpoint": "api_cancel_archive_job",
       "handler": "api_cancel_archive_job",
       "file": "web/routes/system.py",
-      "line": 776
+      "line": 782
     },
     {
       "rule": "/api/tools/database-maintenance/optimize-tables",
@@ -13744,7 +14052,7 @@
       "endpoint": "api_optimize_tables",
       "handler": "api_optimize_tables",
       "file": "web/routes/system.py",
-      "line": 788
+      "line": 794
     },
     {
       "rule": "/api/tools/database-maintenance/factory-reset",
@@ -13755,7 +14063,7 @@
       "endpoint": "api_factory_reset_database",
       "handler": "api_factory_reset_database",
       "file": "web/routes/system.py",
-      "line": 802
+      "line": 808
     },
     {
       "rule": "/api/tools/database-maintenance/factory-reset/cancel",
@@ -13766,7 +14074,7 @@
       "endpoint": "api_factory_reset_cancel",
       "handler": "api_factory_reset_cancel",
       "file": "web/routes/system.py",
-      "line": 822
+      "line": 828
     },
     {
       "rule": "/api/tools/database-maintenance/factory-reset/status",
@@ -13777,7 +14085,7 @@
       "endpoint": "api_factory_reset_status",
       "handler": "api_factory_reset_status",
       "file": "web/routes/system.py",
-      "line": 835
+      "line": 841
     },
     {
       "rule": "/notifications",
@@ -13788,7 +14096,7 @@
       "endpoint": "notifications_center_page",
       "handler": "notifications_center_page",
       "file": "web/routes/system.py",
-      "line": 845
+      "line": 851
     },
     {
       "rule": "/api/notifications/settings/save",
@@ -13799,7 +14107,7 @@
       "endpoint": "api_notifications_settings_save",
       "handler": "api_notifications_settings_save",
       "file": "web/routes/system.py",
-      "line": 852
+      "line": 858
     },
     {
       "rule": "/api/notifications/verify-bot",
@@ -13810,7 +14118,7 @@
       "endpoint": "api_notifications_verify_bot",
       "handler": "api_notifications_verify_bot",
       "file": "web/routes/system.py",
-      "line": 872
+      "line": 878
     },
     {
       "rule": "/api/notifications/test-send",
@@ -13821,7 +14129,7 @@
       "endpoint": "api_notifications_test_send",
       "handler": "api_notifications_test_send",
       "file": "web/routes/system.py",
-      "line": 887
+      "line": 893
     },
     {
       "rule": "/loyalty-rewards",
@@ -13832,7 +14140,7 @@
       "endpoint": "loyalty_rewards_page",
       "handler": "loyalty_rewards_page",
       "file": "web/routes/system.py",
-      "line": 898
+      "line": 904
     },
     {
       "rule": "/loyalty",
@@ -13843,7 +14151,7 @@
       "endpoint": "loyalty_rewards_short",
       "handler": "loyalty_rewards_page",
       "file": "web/routes/system.py",
-      "line": 898
+      "line": 904
     },
     {
       "rule": "/api/loyalty-rewards/reward/<int:reward_id>",
@@ -13854,7 +14162,7 @@
       "endpoint": "api_loyalty_reward_get",
       "handler": "api_loyalty_reward_get",
       "file": "web/routes/system.py",
-      "line": 905
+      "line": 911
     },
     {
       "rule": "/api/loyalty-rewards/reward/add",
@@ -13865,7 +14173,7 @@
       "endpoint": "api_loyalty_reward_add",
       "handler": "api_loyalty_reward_add",
       "file": "web/routes/system.py",
-      "line": 914
+      "line": 920
     },
     {
       "rule": "/api/loyalty-rewards/reward/edit",
@@ -13876,7 +14184,7 @@
       "endpoint": "api_loyalty_reward_edit",
       "handler": "api_loyalty_reward_edit",
       "file": "web/routes/system.py",
-      "line": 929
+      "line": 935
     },
     {
       "rule": "/api/loyalty-rewards/reward/delete",
@@ -13887,7 +14195,7 @@
       "endpoint": "api_loyalty_reward_delete",
       "handler": "api_loyalty_reward_delete",
       "file": "web/routes/system.py",
-      "line": 945
+      "line": 951
     },
     {
       "rule": "/api/loyalty-rewards/reward/toggle",
@@ -13898,7 +14206,7 @@
       "endpoint": "api_loyalty_reward_toggle",
       "handler": "api_loyalty_reward_toggle",
       "file": "web/routes/system.py",
-      "line": 953
+      "line": 959
     },
     {
       "rule": "/api/loyalty-rewards/award",
@@ -13909,7 +14217,7 @@
       "endpoint": "api_loyalty_award_points",
       "handler": "api_loyalty_award_points",
       "file": "web/routes/system.py",
-      "line": 962
+      "line": 968
     },
     {
       "rule": "/api/loyalty-rewards/redeem",
@@ -13920,7 +14228,7 @@
       "endpoint": "api_loyalty_redeem_reward",
       "handler": "api_loyalty_redeem_reward",
       "file": "web/routes/system.py",
-      "line": 972
+      "line": 978
     },
     {
       "rule": "/automation-rules",
@@ -13931,7 +14239,7 @@
       "endpoint": "automation_rules_page",
       "handler": "automation_rules_page",
       "file": "web/routes/system.py",
-      "line": 983
+      "line": 989
     },
     {
       "rule": "/api/automation-rules/toggle",
@@ -13942,7 +14250,7 @@
       "endpoint": "api_automation_toggle",
       "handler": "api_automation_toggle",
       "file": "web/routes/system.py",
-      "line": 992
+      "line": 998
     },
     {
       "rule": "/api/automation-rules/run",
@@ -13953,7 +14261,7 @@
       "endpoint": "api_automation_run",
       "handler": "api_automation_run",
       "file": "web/routes/system.py",
-      "line": 1003
+      "line": 1009
     },
     {
       "rule": "/api/automation-tasks",
@@ -13965,7 +14273,7 @@
       "endpoint": "api_automation_tasks",
       "handler": "api_automation_tasks",
       "file": "web/routes/system.py",
-      "line": 1014
+      "line": 1020
     },
     {
       "rule": "/api/automation-tasks/<action>",
@@ -13976,7 +14284,7 @@
       "endpoint": "api_automation_task_action",
       "handler": "api_automation_tasks",
       "file": "web/routes/system.py",
-      "line": 1014
+      "line": 1020
     },
     {
       "rule": "/api/automation-notices",
@@ -13987,7 +14295,7 @@
       "endpoint": "api_automation_notices",
       "handler": "api_automation_notices",
       "file": "web/routes/system.py",
-      "line": 1049
+      "line": 1055
     },
     {
       "rule": "/tools/database-migration",
@@ -13998,7 +14306,7 @@
       "endpoint": "database_migration_studio",
       "handler": "database_migration_studio",
       "file": "web/routes/system.py",
-      "line": 1065
+      "line": 1068
     },
     {
       "rule": "/api/tools/database-migration/analyze",
@@ -14009,7 +14317,7 @@
       "endpoint": "api_migration_analyze",
       "handler": "api_migration_analyze",
       "file": "web/routes/system.py",
-      "line": 1071
+      "line": 1074
     },
     {
       "rule": "/api/tools/database-migration/execute",
@@ -14020,7 +14328,7 @@
       "endpoint": "api_migration_execute",
       "handler": "api_migration_execute",
       "file": "web/routes/system.py",
-      "line": 1098
+      "line": 1101
     },
     {
       "rule": "/api/tools/database-migration/progress",
@@ -14031,7 +14339,7 @@
       "endpoint": "api_migration_progress",
       "handler": "api_migration_progress",
       "file": "web/routes/system.py",
-      "line": 1121
+      "line": 1124
     },
     {
       "rule": "/api/tools/database-migration/cancel",
@@ -14042,7 +14350,7 @@
       "endpoint": "api_migration_cancel",
       "handler": "api_migration_cancel",
       "file": "web/routes/system.py",
-      "line": 1128
+      "line": 1131
     },
     {
       "rule": "/backups",
@@ -14053,7 +14361,7 @@
       "endpoint": "backups_page",
       "handler": "backups_page",
       "file": "web/routes/system.py",
-      "line": 1136
+      "line": 1139
     },
     {
       "rule": "/tools/backups",
@@ -14064,7 +14372,7 @@
       "endpoint": "tools_backups_short",
       "handler": "backups_page",
       "file": "web/routes/system.py",
-      "line": 1136
+      "line": 1139
     },
     {
       "rule": "/api/backup/settings",
@@ -14076,7 +14384,7 @@
       "endpoint": "api_backup_settings",
       "handler": "api_backup_settings",
       "file": "web/routes/system.py",
-      "line": 1153
+      "line": 1156
     },
     {
       "rule": "/api/backup/health",
@@ -14087,7 +14395,7 @@
       "endpoint": "api_backup_health",
       "handler": "api_backup_health",
       "file": "web/routes/system.py",
-      "line": 1202
+      "line": 1205
     },
     {
       "rule": "/api/backup/scheduler/action",
@@ -14098,7 +14406,7 @@
       "endpoint": "api_backup_scheduler_action",
       "handler": "api_backup_scheduler_action",
       "file": "web/routes/system.py",
-      "line": 1210
+      "line": 1213
     },
     {
       "rule": "/api/backups/create",
@@ -14109,7 +14417,7 @@
       "endpoint": "api_create_backup",
       "handler": "api_create_backup",
       "file": "web/routes/system.py",
-      "line": 1230
+      "line": 1233
     },
     {
       "rule": "/api/backups/upload",
@@ -14120,7 +14428,7 @@
       "endpoint": "api_upload_backup",
       "handler": "api_upload_backup",
       "file": "web/routes/system.py",
-      "line": 1241
+      "line": 1244
     },
     {
       "rule": "/api/backups/restore",
@@ -14131,7 +14439,7 @@
       "endpoint": "api_restore_backup",
       "handler": "api_restore_backup",
       "file": "web/routes/system.py",
-      "line": 1255
+      "line": 1258
     },
     {
       "rule": "/api/backups/delete",
@@ -14142,7 +14450,7 @@
       "endpoint": "api_delete_backup",
       "handler": "api_delete_backup",
       "file": "web/routes/system.py",
-      "line": 1270
+      "line": 1273
     },
     {
       "rule": "/api/backups/send-telegram",
@@ -14153,7 +14461,7 @@
       "endpoint": "api_send_backup_telegram",
       "handler": "api_send_backup_telegram",
       "file": "web/routes/system.py",
-      "line": 1285
+      "line": 1288
     },
     {
       "rule": "/backups/download/<path:filename>",
@@ -14164,7 +14472,7 @@
       "endpoint": "download_backup_file_route",
       "handler": "download_backup_file_route",
       "file": "web/routes/system.py",
-      "line": 1302
+      "line": 1305
     },
     {
       "rule": "/settings/backup",
@@ -14175,7 +14483,7 @@
       "endpoint": "download_backup",
       "handler": "download_backup",
       "file": "web/routes/system.py",
-      "line": 1312
+      "line": 1315
     },
     {
       "rule": "/tools/import",
@@ -14186,7 +14494,7 @@
       "endpoint": "import_data_page",
       "handler": "import_data_page",
       "file": "web/routes/system.py",
-      "line": 1323
+      "line": 1326
     },
     {
       "rule": "/tools/import-data",
@@ -14197,7 +14505,7 @@
       "endpoint": "import_data_page",
       "handler": "import_data_page",
       "file": "web/routes/system.py",
-      "line": 1323
+      "line": 1326
     },
     {
       "rule": "/import-data",
@@ -14208,7 +14516,7 @@
       "endpoint": "import_data_page",
       "handler": "import_data_page",
       "file": "web/routes/system.py",
-      "line": 1323
+      "line": 1326
     },
     {
       "rule": "/tools/import/sample",
@@ -14219,7 +14527,7 @@
       "endpoint": "download_sample_template",
       "handler": "download_sample_template",
       "file": "web/routes/system.py",
-      "line": 1339
+      "line": 1342
     },
     {
       "rule": "/tools/import/process",
@@ -14230,7 +14538,7 @@
       "endpoint": "process_import_action",
       "handler": "process_import_action",
       "file": "web/routes/system.py",
-      "line": 1359
+      "line": 1362
     },
     {
       "rule": "/settings/license",
@@ -14241,7 +14549,7 @@
       "endpoint": "license_status_page",
       "handler": "license_status_page",
       "file": "web/routes/system.py",
-      "line": 1430
+      "line": 1433
     },
     {
       "rule": "/license",
@@ -14252,7 +14560,7 @@
       "endpoint": "license_short",
       "handler": "license_status_page",
       "file": "web/routes/system.py",
-      "line": 1430
+      "line": 1433
     },
     {
       "rule": "/settings/license-management",
@@ -14263,7 +14571,7 @@
       "endpoint": "license_management",
       "handler": "license_status_page",
       "file": "web/routes/system.py",
-      "line": 1430
+      "line": 1433
     },
     {
       "rule": "/settings/license/manage",
@@ -14274,7 +14582,7 @@
       "endpoint": "license_status",
       "handler": "license_status_page",
       "file": "web/routes/system.py",
-      "line": 1430
+      "line": 1433
     },
     {
       "rule": "/settings/license/activate",
@@ -14285,7 +14593,7 @@
       "endpoint": "activate_license_action",
       "handler": "activate_license_action",
       "file": "web/routes/system.py",
-      "line": 1444
+      "line": 1447
     },
     {
       "rule": "/settings/license/sync-heartbeat",
@@ -14296,7 +14604,7 @@
       "endpoint": "sync_license_heartbeat_action",
       "handler": "sync_license_heartbeat_action",
       "file": "web/routes/system.py",
-      "line": 1476
+      "line": 1479
     },
     {
       "rule": "/tools/system-update",
@@ -14307,7 +14615,7 @@
       "endpoint": "system_update_page",
       "handler": "system_update_page",
       "file": "web/routes/system.py",
-      "line": 1484
+      "line": 1487
     },
     {
       "rule": "/api/tools/system-update/check",
@@ -14318,7 +14626,7 @@
       "endpoint": "api_system_update_check",
       "handler": "api_system_update_check",
       "file": "web/routes/system.py",
-      "line": 1499
+      "line": 1502
     },
     {
       "rule": "/api/tools/system-update/apply",
@@ -14329,7 +14637,7 @@
       "endpoint": "api_system_update_apply",
       "handler": "api_system_update_apply",
       "file": "web/routes/system.py",
-      "line": 1508
+      "line": 1511
     },
     {
       "rule": "/api/tools/system-update/progress",
@@ -14340,7 +14648,7 @@
       "endpoint": "api_system_update_progress",
       "handler": "api_system_update_progress",
       "file": "web/routes/system.py",
-      "line": 1537
+      "line": 1540
     },
     {
       "rule": "/api/exports/<token>/cancel",
@@ -14351,7 +14659,7 @@
       "endpoint": "cancel_export",
       "handler": "cancel_export_request",
       "file": "web/routes/system.py",
-      "line": 1544
+      "line": 1547
     },
     {
       "rule": "/api/vouchers/<int:account_id>/mac-policy",

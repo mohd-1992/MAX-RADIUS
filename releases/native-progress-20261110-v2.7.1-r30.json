@@ -1,0 +1,27 @@
+{
+  "version": "2.7.1",
+  "tag": "mohd777/max-radius-web:2.7.1-native-progress-20261110-r30",
+  "image": "mohd777/max-radius-web@sha256:808eac47daaf59802da7e4da8918364c7a683d949abccc87fa00f90394a9869e",
+  "scope": "m.max-r.cc",
+  "changes": [
+    "Native update progress from completed operations",
+    "Runtime checklist and percentage"
+  ],
+  "runtime_delta": {
+    "changed_runtime_files": [
+      "web/_embedded_templates.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "added": [],
+    "removed": [],
+    "template_source_sha256": "60b18e0a5aec328f0cbfd6d856e4ad0f0ab1df74744f7886e96ee0437764716a"
+  },
+  "tests": {
+    "engine_cases": 51,
+    "compiled_browser_cases": 7
+  },
+  "deployment": {
+    "status": "completed",
+    "job": "4e3f2c60e4d09bb6b6ecd336db501e81",
+    "web": "244665454f24f7fae402a3fe1b7346e137fed7db247f2247e42e9d0f389ba705"
+  }
+}

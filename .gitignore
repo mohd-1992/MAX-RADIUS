@@ -337,3 +337,26 @@ tests/fixtures/*
 
 # Verified immutable runtime installer bundle for 2.7.1.
 !/releases/runtime-20261108-v2.7.1-r25.tar.gz
+
+# Explicit isolated acceptance for the four 2.7.1 feedback fixes.
+!tests/run_automation_feedback_lab.py
+!tests/test_automation_feedback_ui.py
+
+# Fresh-lease admission before a scoped update.
+!tests/test_update_lease_admission_271.py
+
+# Verified scoped engine regression contracts.
+!tests/test_update_engine271.py
+
+# Synthetic reports repair fixtures and browser acceptance.
+!tests/run_reports_repair_lab.py
+!tests/test_reports_repair_ui.py
+
+# Scoped metrics and native update progress acceptance.
+!tests/test_scoped_cpu_metrics.py
+!tests/test_native_resource_metrics.py
+!tests/test_scoped_cpu_ui.py
+!tests/test_native_update_progress_ui.py
+
+# Verified immutable 2.7.1 reports installer bundle.
+!/releases/runtime-20261111-v2.7.1-reports-r33.tar.gz

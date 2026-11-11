@@ -36,17 +36,19 @@ def sales_series(query, owner=None, now=None, timezone='Asia/Aden'):
     start, end = date_bounds('custom',windows[0][1].isoformat(),today.isoformat(),timezone=timezone)
     scope = '' if owner is None else " AND e.event_kind='voucher' AND e.reseller_id=%s"
     params = values+(start,end)+(() if owner is None else (int(owner),))
-    rows = query(f'''SELECT {bucket} AS bucket,e.event_kind,SUM(e.price) AS total
+    rows = query(f'''SELECT {bucket} AS bucket,e.event_kind,SUM(e.price) AS total,SUM(e.price IS NULL) unknown_amounts
         FROM {LEDGER} WHERE e.event_at>=%s AND e.event_at<%s{scope}
         GROUP BY bucket,e.event_kind''', params)
     indexed = {(r['bucket'],r['event_kind']):r['total'] for r in rows}
     labels, vouchers, invoices = [], [], []
     for label, first, last in windows:
         labels.append(ARABIC_MONTHS[first.month-1]+(f' {first.year}' if first.year!=today.year else ''))
-        vouchers.append(float(indexed.get((label,'voucher'),0)))
-        invoices.append(float(indexed.get((label,'invoice'),0)))
-    return dict(labels=labels,voucher_sales=vouchers,package_sales=invoices,
-                sales=[round(v+i,2) for v,i in zip(vouchers,invoices)])
+        voucher=indexed.get((label,'voucher'),0)
+        invoice=indexed.get((label,'invoice'),0)
+        vouchers.append(None if voucher is None else float(voucher))
+        invoices.append(None if invoice is None else float(invoice))
+    return dict(labels=labels,voucher_sales=vouchers,package_sales=invoices,unknown_amounts=sum(int(r.get('unknown_amounts') or 0) for r in rows),
+                sales=[None if v is None or i is None else round(v+i,2) for v,i in zip(vouchers,invoices)])
 
 
 def read_series(reader, **kwargs):
@@ -74,7 +76,7 @@ def daily_traffic_metrics(owner=None, now=None, timezone=None):
         total = None if down is None or up is None else int(down)+int(up)
         show = lambda value: format_bytes(value) if value is not None else 'غير متاح'
         return dict(traffic_in_str=show(up),traffic_out_str=show(down),traffic_total_str=show(total),
-                    traffic_status_text='',traffic_day=today)
+                    traffic_status_text='قراءة جزئية' if row.get('unknown_download') or row.get('unknown_upload') else '',traffic_day=today)
     except Exception:
         return dict(traffic_in_str='غير متاح',traffic_out_str='غير متاح',traffic_total_str='غير متاح',
                     traffic_status_text='تعذر تحديث الاستهلاك',traffic_day=today)

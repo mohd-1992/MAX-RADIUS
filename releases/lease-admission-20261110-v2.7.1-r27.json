@@ -1,0 +1,27 @@
+{
+  "version": "2.7.1",
+  "purpose": "scoped-update-helper-only",
+  "base_digest": "sha256:aea59466d4ac388ed2a3b9dc14ff91b53acb1a985dbbf7a19976c657bbc88829",
+  "image_digest": "sha256:e02e159a2afb5599e08d5e2f4607ea64f524775b871aa895fd485bae8b32f703",
+  "tag": "mohd777/max-radius-web:2.7.1-lease-admission-20261110-r27",
+  "prepared_target": "max1.max-net.net",
+  "changed_modules": [
+    "services.system_update_safety",
+    "services.system_update_executor"
+  ],
+  "minimum_observed_lease_seconds": 85,
+  "recovery_reserve_seconds": 35,
+  "expiry_margin_seconds": 10,
+  "source_tests": 87,
+  "compiled_tests": 87,
+  "source_sha256": {
+    "compile_runtime.py": "79a6d14f56a9342be680f9eeba74ac379271e083d48beabe763df29f0adfca19",
+    "Dockerfile": "fc24dd35567a994430d69f9f7748cbc0787ccf199f29f2b49eea92eb85382a15",
+    "seal_runtime.py": "f9513bf741c47ae9a19c692803c970ef9786ac2ec14f709728d07da2348e3c80",
+    "runtime/services/system_update_executor.py": "9d0cb6573a76485f3bb8dc50339340e4c84f7bbf04cbd2fbb592f260c437a7ec",
+    "runtime/services/system_update_safety.py": "0a8c84b75bdd061b6dd078f9e994fe75725cb083878e27b928ba944d92cbe01a"
+  },
+  "application_image_changed": false,
+  "announcement_changed": false,
+  "install_started": false
+}

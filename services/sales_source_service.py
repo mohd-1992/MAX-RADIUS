@@ -3,7 +3,7 @@ import hashlib
 import ipaddress
 import json
 
-RESOLUTION_VERSION = 2
+RESOLUTION_VERSION = 3
 SOURCE_FIELDS = ('server_key','nas_address','nas_label','service_type','server_name',
                  'server_interface','evidence_uid','attribution','service_attribution',
                  'resolution_status','resolution_reason')
@@ -119,11 +119,12 @@ def record_sale_source(conn, event_kind, event_id, username):
             cur.execute(adapt_query('''SELECT p.service_type FROM wisp_voucher_sales s
                 JOIN wisp_vouchers v ON v.id=s.voucher_id LEFT JOIN wisp_packages p ON p.id=v.package_id WHERE s.id=?''', conn), (event_id,))
         else:
-            cur.execute(adapt_query('''SELECT s.service_type FROM wisp_invoices i
-                JOIN wisp_subscribers s ON s.id=i.subscriber_id WHERE i.id=?''', conn), (event_id,))
+            cur.execute(adapt_query('''SELECT i.package_service_type AS service_type FROM wisp_invoices i
+                WHERE i.id=?''', conn), (event_id,))
         account = cur.fetchone() or {}
-        kind = account.get('service_type') or ''
-        kind_source='operation_snapshot' if kind in ('hotspot','pppoe') else ''
+        package_kind=account.get('service_type') or ''
+        package_kind=package_kind if package_kind in ('hotspot','pppoe','both') else ''
+        kind='';kind_source=''
         conflicting=False
         from services.online_policy_service import local
         snapshot = getattr(local, 'snapshot', None)
@@ -140,11 +141,16 @@ def record_sale_source(conn, event_kind, event_id, username):
             elif len(kinds)>1:
                 kind='';kind_source='';conflicting=True
             candidates = [item['row'] for item in verified]
+            from services.session_service_evidence import record_evidence
+            for item in verified:record_evidence(conn,item['row'],item['kind'],item['row'].get('acctupdatetime') or item['row']['acctstarttime'])
             point = source_from_rows(candidates, kind, 'verified_preoperation_session')
         else:
-            cur.execute(adapt_query('''SELECT nasipaddress,calledstationid,nasportid,acctuniqueid,acctterminatecause,framedprotocol,servicetype
-                FROM radacct_owned WHERE username=? AND acctstoptime IS NULL
-                AND acctstarttime<=NOW() AND COALESCE(acctupdatetime,acctstarttime)>=NOW()-INTERVAL 3 MINUTE''', conn), (username,))
+            from services.session_service_evidence import evidence_join,protocol_fields
+            proven=protocol_fields('a')
+            cur.execute(adapt_query(f'''SELECT a.nasipaddress,a.calledstationid,a.nasportid,a.acctuniqueid,a.acctterminatecause,
+                {proven['framedprotocol']} framedprotocol,{proven['servicetype']} servicetype
+                FROM radacct_owned a {evidence_join('a')} WHERE a.username=? AND a.acctstoptime IS NULL
+                AND a.acctstarttime<=NOW() AND COALESCE(a.acctupdatetime,a.acctstarttime)>=NOW()-INTERVAL 3 MINUTE''', conn), (username,))
             candidates=list(cur.fetchall())
             kinds={packet_service(row) for row in candidates}-{''}
             if 'conflict' in kinds or len(kinds)>1:
@@ -159,8 +165,8 @@ def record_sale_source(conn, event_kind, event_id, username):
         point['resolution_reason']='conflicting_service_evidence' if conflicting else ''
         columns = ('server_key','nas_address','nas_label','service_type','server_name','server_interface','evidence_uid','attribution','service_attribution','resolution_status','resolution_reason')
         cur.execute(adapt_query('''INSERT INTO wisp_sale_sources
-            (event_kind,event_id,server_key,nas_address,nas_label,service_type,server_name,server_interface,evidence_uid,attribution,service_attribution,resolution_status,resolution_reason)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE event_id=event_id''', conn), (event_kind, event_id, *(point[k] for k in columns)))
+            (event_kind,event_id,server_key,nas_address,nas_label,service_type,server_name,server_interface,evidence_uid,attribution,service_attribution,resolution_status,resolution_reason,package_service_type)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE event_id=event_id''', conn), (event_kind, event_id, *(point[k] for k in columns),package_kind))
 
 
 def backfill_sale_sources(conn):
@@ -190,10 +196,13 @@ def backfill_sale_sources(conn):
                 with conn.cursor() as cur:
                     if event.get('event_at') and event.get('username'):
                         for table in ('radacct_owned', 'radacct_archive_owned', 'wisp_imported_session_history_owned', 'wisp_traffic_history_owned'):
-                            cur.execute(adapt_query(f"""SELECT nasipaddress,calledstationid,nasportid,acctuniqueid,
-                                acctterminatecause,framedprotocol,servicetype FROM {table}
-                                WHERE username=? AND acctstarttime<=?
-                                AND COALESCE(acctstoptime,acctupdatetime)>=?""", conn),
+                            from services.session_service_evidence import evidence_join,protocol_fields
+                            proven=protocol_fields('a')
+                            cur.execute(adapt_query(f"""SELECT a.nasipaddress,a.calledstationid,a.nasportid,a.acctuniqueid,
+                                a.acctterminatecause,{proven['framedprotocol']} framedprotocol,{proven['servicetype']} servicetype
+                                FROM {table} a {evidence_join('a')}
+                                WHERE a.username=? AND a.acctstarttime<=?
+                                AND COALESCE(a.acctstoptime,a.acctupdatetime)>=?""", conn),
                                 (event['username'], event['event_at'], event['event_at']))
                             candidates.extend(cur.fetchall())
                     kinds = {('pppoe' if str(r.get('framedprotocol') or '').lower()=='ppp'
@@ -255,12 +264,15 @@ def enrich_sale_sources(conn, limit=250, retry_seconds=3600):
                     if names or event['account_id']:
                         placeholders=','.join(['%s']*len(names)) or 'NULL'
                         for table in ('radacct','radacct_archive','wisp_imported_session_history','wisp_traffic_history'):
-                            cur.execute(f'''SELECT nasipaddress,calledstationid,nasportid,acctuniqueid,
-                                acctterminatecause,framedprotocol,servicetype FROM {table}
-                                WHERE (account_{owner}_id=%s OR (account_{owner}_id IS NULL
-                                  AND username IN ({placeholders})))
-                                  AND account_{other}_id IS NULL
-                                  AND acctstarttime<=%s AND COALESCE(acctstoptime,acctupdatetime)>= %s''',
+                            from services.session_service_evidence import evidence_join,protocol_fields
+                            proven=protocol_fields('a')
+                            cur.execute(f'''SELECT a.nasipaddress,a.calledstationid,a.nasportid,a.acctuniqueid,
+                                a.acctterminatecause,{proven['framedprotocol']} framedprotocol,{proven['servicetype']} servicetype
+                                FROM {table} a {evidence_join('a',original='a.username')}
+                                WHERE (a.account_{owner}_id=%s OR (a.account_{owner}_id IS NULL
+                                  AND a.username IN ({placeholders})))
+                                  AND a.account_{other}_id IS NULL
+                                  AND a.acctstarttime<=%s AND COALESCE(a.acctstoptime,a.acctupdatetime)>= %s''',
                                 (event['account_id'],*sorted(names),event['event_at'],event['event_at']))
                             rows.extend(cur.fetchall())
                 hint=event['hint_kind'] if event['package_name']==event['current_package'] else ''
@@ -326,8 +338,8 @@ def start_sales_source_enrichment_worker():
                     if not reset_idle:
                         wait.wait(60)
                         continue
-                    with get_connection() as conn:result=enrich_sale_sources(conn)
-                wait.wait(.1 if result['scanned']==250 else 60)
+                    with get_connection() as conn:result=enrich_sale_sources(conn,limit=25)
+                wait.wait(.1 if result['scanned']==25 else 60)
             except Exception:
                 logging.getLogger(__name__).warning('Sale source enrichment deferred; financial operations are unchanged.')
                 wait.wait(60)

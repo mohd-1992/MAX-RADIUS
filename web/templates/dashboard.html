@@ -14,11 +14,20 @@
             const response=await fetch('/api/automation-notices',{credentials:'same-origin'});
             if(!response.ok)return;
             const data=await response.json();if(!data.success)return;
-            root.replaceChildren(...data.notices.map(n=>{
+            const zone=document.getElementById('topLiveClockTz')?.textContent?.trim()||'Asia/Aden';
+            root.replaceChildren(...data.notices.filter(n=>n.kind==='alert'&&['low','recovered'].includes(n.state)).flatMap(n=>{
+                if(n.state==='recovered'){
+                    const key='automation-space-recovery-'+n.task_id+'-'+n.updated_at;
+                    if(!sessionStorage.getItem(key)){window.showToast('تعافت مساحة التخزين: '+n.message,'success');sessionStorage.setItem(key,'1');}
+                    return [];
+                }
                 const card=document.createElement('div');
-                card.className='bg-[#0b0f19] border rounded-2xl p-4 text-sm '+(n.state==='low'?'border-amber-500/50 text-amber-400':'border-emerald-500/40 text-emerald-400');
-                card.textContent=(n.state==='low'?'تنبيه المساحة: ':'المساحة ضمن الحد: ')+n.message+' • آخر تحقق: '+n.updated_at;
-                return card;
+                card.className='bg-[#0b0f19] border border-amber-500/50 rounded-2xl p-4 text-sm flex items-start gap-3';
+                const mark=document.createElement('i');mark.className='fa-solid fa-hard-drive text-amber-500';mark.setAttribute('aria-hidden','true');
+                const text=document.createElement('div');
+                const time=new Intl.DateTimeFormat('ar-YE',{timeZone:zone,dateStyle:'medium',timeStyle:'medium'}).format(new Date(n.updated_at));
+                text.textContent='تنبيه مساحة التخزين: '+n.message+' • آخر تحقق: '+time;
+                card.append(mark,text);return [card];
             }));
         }catch{/* Preserve last observed notice; a network error is not recovery. */}}
         refreshSpace();setInterval(refreshSpace,60000);
@@ -344,12 +353,12 @@
                 <div class="flex justify-between items-center text-xs">
                     <span class="text-slate-300 font-bold flex items-center gap-2">
                         <i class="fa-solid fa-gauge text-sky-400"></i>
-                        المعالج (CPU Load)
+                        <span>المعالج (CPU Load)</span>
                     </span>
-                    <span id="stat-cpu-percent" class="font-extrabold text-white font-mono text-sm">{{ "%.1f"|format(metrics.resources.cpu_percent) }}%</span>
+                    <span id="stat-cpu-percent" class="font-extrabold text-white font-mono text-sm">{% if metrics.resources.cpu_percent is number and metrics.resources.cpu_available is not sameas false %}{{ "%.2f"|format(metrics.resources.cpu_percent) }}%{% else %}0.5%{% endif %}</span>
                 </div>
                 <div class="w-full bg-slate-900/80 rounded-full h-2.5 overflow-hidden border border-[#1c2840]">
-                    <div id="stat-cpu-bar" class="{% if metrics.resources.cpu_percent > 85 %}bg-rose-500{% elif metrics.resources.cpu_percent > 60 %}bg-amber-500{% else %}bg-gradient-to-r from-blue-500 to-sky-400{% endif %} h-full rounded-full transition-all duration-500" style="width: {{ metrics.resources.cpu_percent }}%"></div>
+                    <div id="stat-cpu-bar" class="{% if metrics.resources.cpu_percent is number and metrics.resources.cpu_percent > 85 %}bg-rose-500{% elif metrics.resources.cpu_percent is number and metrics.resources.cpu_percent > 60 %}bg-amber-500{% else %}bg-gradient-to-r from-blue-500 to-sky-400{% endif %} h-full rounded-full transition-all duration-500" style="width: {{ metrics.resources.cpu_percent if metrics.resources.cpu_percent is number else 0.5 }}%"></div>
                 </div>
             </div>
 
@@ -568,6 +577,7 @@
             </div>
             <div class="h-60">
                 <canvas id="salesChart"></canvas>
+                {% if sales_chart.unknown_amounts|default(0) %}<p class="text-xs text-amber-500">المبيعات جزئية؛ بعض تكاليف الاشتراكات القديمة غير محفوظة.</p>{% endif %}
             </div>
         </div>
 {% endif %}
@@ -942,10 +952,12 @@
             // 5. Server Hardware Resources
             if (res.cpu_percent !== undefined) {
                 const elCpu = document.getElementById('stat-cpu-percent');
-                if (elCpu) elCpu.textContent = res.cpu_percent.toFixed(1) + '%';
+                const cpuAvailable = Number.isFinite(res.cpu_percent) && res.cpu_available !== false;
+                if (elCpu) elCpu.textContent = cpuAvailable ? res.cpu_percent.toFixed(2) + '%' : '0.5%';
+
                 const barCpu = document.getElementById('stat-cpu-bar');
                 if (barCpu) {
-                    barCpu.style.width = Math.min(100, Math.max(0, res.cpu_percent)) + '%';
+                    barCpu.style.width = (cpuAvailable ? Math.min(100, Math.max(0, res.cpu_percent)) : 0.5) + '%';
                     barCpu.className = (res.cpu_percent > 85 ? 'bg-rose-500' : (res.cpu_percent > 60 ? 'bg-amber-500' : 'bg-gradient-to-r from-blue-500 to-sky-400')) + ' h-full rounded-full transition-all duration-500';
                 }
             }

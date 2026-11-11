@@ -1,0 +1,53 @@
+{
+  "version": "2.7.1",
+  "scope": [
+    "max1.max-r.cc",
+    "m.max-r.cc"
+  ],
+  "status": "deployed",
+  "metrics": {
+    "source": "deploy/hosted-max/native_tenant_resource_proxy.py",
+    "source_sha256": "3f7e04f2349ce7b3852671ced0778856b3802a8f803babf360cafec981a3efb6",
+    "roles": [
+      "web",
+      "core"
+    ],
+    "shared_database_excluded": true,
+    "cpu_basis": "host_capacity",
+    "unavailable_display": 0.5,
+    "real_zero_preserved": true,
+    "stale_socket_recovery": true
+  },
+  "images": {
+    "max1": "mohd777/max-radius-web@sha256:ac314a336b4f84e63cbf98d1cf141625feaa2e76aefbb44a192735799899a1b0",
+    "m": "sha256:2c76d485acd840b87edc12cc01d4b273b5143c7b4fbd1300c5ec3cfbdebdc87b"
+  },
+  "m_image_distribution": "Offline OCI delta, exact image ID; no Registry push or public tag replacement",
+  "m_native_progress_template_preserved": true,
+  "tests": {
+    "source_linux": 14,
+    "compiled_reader_per_image": 5,
+    "live_metric_service_recovery": 2
+  },
+  "deployment": {
+    "max1.max-r.cc": {
+      "web": "b7fd28dda645bb5a6890ceacf700512ff1d2b51c7526850941b2a955fd7587ea",
+      "web_started_utc": "2026-11-10T17:07:50.231090764Z",
+      "request": "a37e50b117144404b0d93cfcf031e688",
+      "journal": "6ece4d60f41afc55da4c518b",
+      "baseline_accounting_preserved": 300,
+      "backup_verified": true,
+      "database_restored": false
+    },
+    "m.max-r.cc": {
+      "web": "f3457d8cbdcb351d9fa73f260ae8d25481fd5fe5d064742d9a04bc604a4829cb",
+      "web_started_utc": "2026-11-10T17:19:38.117998865Z",
+      "request": "6f474f06c09643b6a0a4f610d80a509e",
+      "journal": "dc112e91d45ed55fcd186a86",
+      "baseline_accounting_preserved": 300,
+      "backup_verified": true,
+      "database_restored": false
+    }
+  },
+  "future_creation_defaults_changed": false
+}

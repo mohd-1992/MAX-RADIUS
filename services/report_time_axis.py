@@ -41,7 +41,7 @@ def axis(selected, now=None, timezone='Asia/Aden', extent=(None, None)):
             raise ValueError('اختر فترة أقصر لعرض الرسم البياني.')
         following = ((current.replace(day=28)+dt.timedelta(days=4)).replace(day=1) if mode == 'month' else current+dt.timedelta(hours=1) if mode == 'hour' else current+dt.timedelta(days=1))
         label = current.strftime('%H:00') if mode == 'hour' else month_label(current.strftime('%Y-%m')) if mode == 'month' else current.strftime('%Y-%m-%d')
-        windows.append((label, current, following))
+        windows.append((label, max(current, first), min(following, last)))
         current = following
     return mode, windows, now
 
@@ -63,10 +63,12 @@ def sales_series(query, source, where, params, selected, now=None, timezone='Asi
         clauses.append(f'WHEN e.event_at>=%s AND e.event_at<%s THEN {index}')
         boundaries.extend((start.astimezone(STORAGE).replace(tzinfo=None),end.astimezone(STORAGE).replace(tzinfo=None)))
     bucket='CASE '+' '.join(clauses)+' END'
-    rows=query(f'SELECT {bucket} bucket,SUM(e.price) amount FROM {source} WHERE {where} AND e.event_at IS NOT NULL GROUP BY bucket',tuple(boundaries)+params)
+    rows=query(f'SELECT {bucket} bucket,SUM(e.price) amount,SUM(e.price IS NULL) unknown_amounts FROM {source} WHERE {where} AND e.event_at IS NOT NULL GROUP BY bucket',tuple(boundaries)+params)
     values = [0.0 if start <= clock else None for _, start, end in windows]
+    coverage=[0 for _ in windows]
     for row in rows:
         index = row['bucket']
         if index is not None:
-            values[index] = (values[index] or 0) + float(row['amount'])
-    return dict(labels=[w[0] for w in windows], sales=values, granularity=mode)
+            values[index] = None if row['amount'] is None else (values[index] or 0) + float(row['amount'])
+            coverage[index]=int(row.get('unknown_amounts') or 0)
+    return dict(labels=[w[0] for w in windows], sales=values,unknown_amounts=coverage,granularity=mode)

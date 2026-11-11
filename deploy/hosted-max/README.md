@@ -1,3 +1,7 @@
+## قناة CPU Native مقيدة — 10 نوفمبر 2026
+
+`native_tenant_resource_proxy.py` قارئمستقللـWeb/CoreويستبعدDBالمشتركة،مطبقعلىmوmax1.Rفقط. يثبتbindingوالملكيةوالصورةويحافظعلىfallback0.5،معتعافيsocketالقديمةورفضاستبدالالحية. [القبولوالإعداداتوالحدود](../../docs/NATIVE_CPU_METRICS_FIX_20261110.md). ليسمثبتًاافتراضيًاللإنشاءالجديد؛لاتنشرهتلقائيًاعلىمستأجرآخر.
+
 # تكامل التحكم المستضاف المحدود
 
 هذه مكونات تكامل مع اللوحة المركزية، وليست كاملsaas-manager-next أوDocker socket عامة. factory_fleet_proxy.py وreset-controller.conf يمثلان المتحكم الخاص التاريخي لماكس. مسار التشغيل والـoverride الفعليان يُؤخذان منsystemd على الهدف، وتفاصيلهما في المرجع المحلي الخاص المذكور في [ENVIRONMENTS](../../docs/ENVIRONMENTS.md).

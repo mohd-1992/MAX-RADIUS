@@ -40,6 +40,7 @@ def ensure_epoch(conn):
         epoch=uuid.uuid4().hex
         cur.execute('DELETE FROM wisp_traffic_checkpoints')
         cur.execute('DELETE FROM wisp_traffic_rollups')
+        cur.execute('DELETE FROM wisp_traffic_intervals')
         cur.execute('''INSERT INTO wisp_traffic_rollup_state(id,epoch,cursor_id,cycle_rows,last_cycle_rows,last_completed_at,started_at)
             VALUES(1,%s,0,0,0,NULL,%s) ON DUPLICATE KEY UPDATE epoch=VALUES(epoch),cursor_id=0,cycle_rows=0,last_cycle_rows=0,last_completed_at=NULL,started_at=VALUES(started_at)''',(epoch,dt.datetime.now(dt.timezone(dt.timedelta(hours=3))).replace(tzinfo=None)))
         cur.execute('''INSERT INTO wisp_system_settings(`key`,`value`,description) VALUES(%s,%s,'Report history generation')
@@ -48,8 +49,9 @@ def ensure_epoch(conn):
 
 
 def install_traffic_samples_schema(conn):
+    from database.reporting_schema import INTERVAL_SQL
     with conn.cursor() as cur:
-        for ddl in (CHECKPOINT_SQL,ROLLUP_SQL,STATE_SQL):cur.execute(ddl)
+        for ddl in (INTERVAL_SQL,CHECKPOINT_SQL,ROLLUP_SQL,STATE_SQL):cur.execute(ddl)
     with conn.cursor() as cur:
         cur.execute('ALTER TABLE wisp_traffic_rollup_state ADD COLUMN IF NOT EXISTS started_at DATETIME NULL')
         cur.execute('UPDATE wisp_traffic_rollup_state SET started_at=%s WHERE started_at IS NULL',(dt.datetime.now(dt.timezone(dt.timedelta(hours=3))).replace(tzinfo=None),))

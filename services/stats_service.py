@@ -7,16 +7,18 @@ import time
 import http.client
 import socket
 import json
+import math
 from database.db import query_all, query_one
 from core.rate_limit import format_bytes
 
 
 class UnixHTTPConnection(http.client.HTTPConnection):
     def __init__(self, path):
-        super().__init__('localhost')
+        super().__init__('localhost', timeout=5)
         self.path = path
     def connect(self):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
         self.sock.connect(self.path)
 
 
@@ -48,6 +50,7 @@ _LIVE_METRICS_CACHE = {
     'traffic_status_text': 'تعذر تحديث الاستهلاك',
     'resources': {
         'cpu_percent': 0.5,
+        'cpu_available': False,
         'ram_percent': 1.0,
         'ram_used_gb': 0.0,
         'ram_total_gb': 8.0,
@@ -119,18 +122,41 @@ def _fetch_single_container_stats(cname):
     return None
 
 
+def _fetch_scoped_cpu(path,tenant):
+    connection=None
+    try:
+        if not tenant or not path.startswith('/') or '..' in path.split('/'):raise ValueError('Invalid metrics binding')
+        connection=UnixHTTPConnection(path);connection.timeout=5
+        connection.request('GET','/_max_metrics/v1/resources')
+        response=connection.getresponse();raw=response.read(65537)
+        if response.status!=200 or len(raw)>65536:raise ValueError('Metric unavailable')
+        value=json.loads(raw);cpu=value.get('cpu_percent');stamp=value.get('sampled_at')
+        if (value.get('schema')!=1 or value.get('tenant')!=tenant or value.get('cpu_basis')!='host_capacity'
+                or value.get('cpu_available') is not True or isinstance(cpu,bool) or not isinstance(cpu,(float,int))
+                or not math.isfinite(cpu) or not 0<=cpu<=100 or not isinstance(stamp,(float,int)) or not 0<=time.time()-stamp<=15):
+            raise ValueError('Metric scope or sample differs')
+        return {'cpu_percent':float(cpu),'cpu_available':True}
+    except Exception:return {'cpu_percent':0.5,'cpu_available':False}
+    finally:
+        if connection:
+            try:connection.close()
+            except Exception:pass
+
+
 def _collect_server_resources_internal():
     cpu_percent = 0.0
     ram_percent = 0.0
     ram_used_gb = 0.0
     ram_total_gb = 8.0
     containers_info = {}
+    scoped_socket=os.environ.get('MAX_RESOURCE_METRICS_SOCKET')
+    cpu_available=False
 
     target_containers = ['max_radius_core', 'max_radius_db', 'max_radius_web']
 
     # 1. Direct Docker Socket Query for exact container metrics via parallel threads
     try:
-        if os.path.exists('/var/run/docker.sock'):
+        if not scoped_socket and os.path.exists('/var/run/docker.sock'):
             total_container_cpu = 0.0
             total_container_mem_bytes = 0
             container_mem_limit = 0
@@ -152,6 +178,7 @@ def _collect_server_resources_internal():
                         container_mem_limit = r['limit_bytes']
 
             cpu_percent = round(total_container_cpu, 1)
+            cpu_available=bool(containers_info)
             ram_used_gb = round(total_container_mem_bytes / (1024 ** 3), 2)
             ram_total_gb = round(container_mem_limit / (1024 ** 3), 1) if container_mem_limit > 0 else 8.0
             ram_percent = round((ram_used_gb / ram_total_gb) * 100.0, 1) if ram_total_gb > 0 else 0.0
@@ -189,8 +216,14 @@ def _collect_server_resources_internal():
         disk_total_gb = 100.0
         disk_used_gb = 25.0
 
+    if scoped_socket:
+        cpu_reading=_fetch_scoped_cpu(scoped_socket,os.environ.get('MAX_RESOURCE_METRICS_TENANT',''))
+        cpu_available=cpu_reading['cpu_available']
+        cpu_percent=cpu_reading['cpu_percent']
     return {
-        'cpu_percent': max(0.5, cpu_percent),
+        'cpu_percent': cpu_percent if cpu_available else 0.5,
+        'cpu_available': cpu_available,
+        'cpu_scope_label': 'خدمات الدومين من سعة معالج الخادم' if scoped_socket else 'استهلاك خدمات النظام',
         'ram_percent': max(1.0, ram_percent),
         'ram_used_gb': ram_used_gb,
         'ram_total_gb': ram_total_gb,
@@ -372,6 +405,7 @@ def get_server_resources():
     with _LIVE_LOCK:
         return _LIVE_METRICS_CACHE.get('resources', {
             'cpu_percent': 0.5,
+            'cpu_available': False,
             'ram_percent': 1.0,
             'ram_used_gb': 0.0,
             'ram_total_gb': 8.0,

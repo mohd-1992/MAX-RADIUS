@@ -522,6 +522,8 @@ def action_renew_package(entity_type, entity_id, admin_username='admin'):
                 VALUES (?, ?, ?, ?, 'paid', ?, 'تجديد باقة يدوي من لوحة التحكم', ?)
             """, conn)
             cursor.execute(ins_inv, (inv_num, entity['id'], entity.get('full_name') or username, pkg['price'], pkg['name'], db_now_str))
+            from services.invoice_cost_service import record_invoice_cost
+            record_invoice_cost(conn,cursor.lastrowid,pkg)
             from services.sales_source_service import record_sale_source
             record_sale_source(conn, 'invoice', cursor.lastrowid, username)
         else:
@@ -778,6 +780,8 @@ def action_change_package(entity_type, entity_id, new_package_id, enable_rollove
                 VALUES (?, ?, ?, ?, 'paid', ?, 'تغيير باقة وترقية من لوحة التحكم', ?)
             """, conn)
             cursor.execute(ins_inv, (inv_num, entity['id'], entity.get('full_name') or username, new_pkg['price'], new_pkg['name'], db_now_str))
+            from services.invoice_cost_service import record_invoice_cost
+            record_invoice_cost(conn,cursor.lastrowid,new_pkg)
             from services.sales_source_service import record_sale_source
             record_sale_source(conn, 'invoice', cursor.lastrowid, username)
         else:

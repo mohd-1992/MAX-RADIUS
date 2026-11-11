@@ -42,12 +42,19 @@ class ReportAxes(unittest.TestCase):
         self.assertEqual(data['sales'][1],300)
         self.assertIsNone(data['sales'][23])
 
+    def test_missing_invoice_cost_is_not_a_zero_sale_on_dashboard(self):
+        from services.dashboard_reporting_service import sales_series as dashboard_sales
+        def query(*args):return [dict(bucket='2026-10',event_kind='invoice',total=None,unknown_amounts=1)]
+        result=dashboard_sales(query,now=NOW)
+        self.assertIsNone(result['package_sales'][-1]);self.assertIsNone(result['sales'][-1])
+        self.assertEqual(result['unknown_amounts'],1);self.assertEqual(result['voucher_sales'][-1],0)
+
     def test_counter_reset_gap_and_direction_independence(self):
         from services.traffic_sample_service import delta
         self.assertEqual(delta(dict(download=100,upload=10),dict(download=150,upload=20),60),(50,10,0))
         self.assertEqual(delta(dict(download=100,upload=10),dict(download=50,upload=20),60),(None,10,1))
         self.assertEqual(delta(dict(download=100,upload=None),dict(download=150,upload=20),60),(50,None,1))
-        self.assertEqual(delta(dict(download=100,upload=10),dict(download=150,upload=20),600),(None,None,1))
+        self.assertEqual(delta(dict(download=100,upload=10),dict(download=150,upload=20),600),(50,10,0))
 
     def test_open_custom_start_extends_through_today(self):
         mode,windows,_=axis(dict(period='custom',date_from='2026-10-20'),NOW)

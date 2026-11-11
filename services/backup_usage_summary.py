@@ -23,13 +23,13 @@ COLS = ('summary_key','voucher_id','username','reseller_id','cycle_start','first
         'input_bytes','output_bytes','uptime_seconds','session_count')
 TARGETS = DETAIL_TABLES + ('wisp_vouchers','wisp_subscribers','wisp_session_baselines',
                            'wisp_session_reservations',TABLE,'wisp_account_usage_seals',
-                           'wisp_nas_session_seals','wisp_traffic_checkpoints')
+                           'wisp_nas_session_seals','wisp_traffic_checkpoints','wisp_session_service_evidence')
 SUMMARY_COLUMNS = frozenset(('id','username','status','last_renewed_at','first_used_at',
     'created_at','reseller_id','radacctid','acctuniqueid','account_subscriber_id',
     'account_voucher_id','account_read_username','account_username','acctstarttime',
     'acctstoptime','acctterminatecause','acctsessionid','acctinputoctets',
     'acctoutputoctets','acctsessiontime','expires_at','nasipaddress','calledstationid',
-    'nasportid','framedprotocol','servicetype'))
+    'nasportid','framedprotocol','servicetype','original_username','service_type'))
 
 
 def literal(value):
@@ -73,6 +73,7 @@ def summarize_dump(stream, snapshot_at, work_parent=None):
                 CREATE TABLE baseline(id INTEGER PRIMARY KEY);
                 CREATE TABLE selected(rid INTEGER PRIMARY KEY,vid INTEGER,uid BLOB,up INTEGER,down INTEGER,seconds INTEGER);
                 CREATE TABLE sealed(uid BLOB PRIMARY KEY);
+                CREATE TABLE evidence(uid BLOB,nas BLOB,sid BLOB,start BLOB,name BLOB,kind BLOB,PRIMARY KEY(uid,nas,sid,start,name));
                 CREATE TABLE seen(vid INTEGER,sid BLOB,PRIMARY KEY(vid,sid));
                 CREATE TABLE uid_seen(uid BLOB PRIMARY KEY,vid INTEGER);
                 CREATE TABLE groups(k TEXT PRIMARY KEY,vid INTEGER,name BLOB,reseller INTEGER,cycle BLOB,
@@ -84,9 +85,11 @@ def summarize_dump(stream, snapshot_at, work_parent=None):
                 from services.backup_compaction import CREATE
                 m=CREATE.match(raw)
                 if m:schemas.add(m[1].decode())
-                if table not in ('wisp_vouchers','wisp_session_baselines','wisp_nas_session_seals','wisp_account_usage_seals'):continue
+                if table not in ('wisp_vouchers','wisp_session_baselines','wisp_nas_session_seals','wisp_account_usage_seals','wisp_session_service_evidence'):continue
                 for _,r in _rows(raw,cols,SUMMARY_COLUMNS):
-                    if table=='wisp_account_usage_seals':
+                    if table=='wisp_session_service_evidence':
+                        db.execute('INSERT OR REPLACE INTO evidence VALUES(?,?,?,?,?,?)',(r.get('acctuniqueid'),r.get('nasipaddress'),r.get('acctsessionid'),r.get('acctstarttime'),r.get('original_username'),r.get('service_type')))
+                    elif table=='wisp_account_usage_seals':
                         db.execute('INSERT OR IGNORE INTO sealed VALUES(?)',(r['acctuniqueid'],))
                     elif table in ('wisp_session_baselines','wisp_nas_session_seals'):
                         db.execute('INSERT OR IGNORE INTO baseline VALUES(?)',(_integer(r['radacctid']),))
@@ -138,10 +141,13 @@ def summarize_dump(stream, snapshot_at, work_parent=None):
                     if bad:db.execute('UPDATE card SET blocked=1 WHERE id=?',(vid,))
                     if not bad and table=='radacct':
                         vid,name,cycle,reseller,_=card
+                        proof=db.execute('SELECT kind FROM evidence WHERE uid=? AND nas=? AND sid=? AND start=? AND name=?',tuple(r.get(k) for k in ('acctuniqueid','nasipaddress','acctsessionid','acctstarttime','username'))).fetchone()
+                        if proof and proof[0]==b'hotspot' and not r.get('servicetype') and (r.get('framedprotocol') or b'').lower()!=b'ppp':r['servicetype']=b'Login-User'
+                        if proof and proof[0]==b'pppoe' and not r.get('framedprotocol') and (r.get('servicetype') or b'').lower() not in (b'login-user',b'login'):r['framedprotocol']=b'PPP'
                         start=r['acctstarttime'];scope='current' if not cycle or start>=cycle else 'previous'
                         dims=tuple(r.get(n) or b'' for n in ('nasipaddress','calledstationid','nasportid','framedprotocol','servicetype'))
                         visible=int(r.get('acctterminatecause')!=b'Consolidated-Historical-Import')
-                        key=hashlib.sha256(json.dumps([visible,vid,cycle.decode() if cycle else None,scope,start[:10].decode(),
+                        key=hashlib.sha256(json.dumps([visible,vid,cycle.decode() if cycle else None,scope,start.decode(),
                             *[v.decode('utf8') for v in dims]],ensure_ascii=False).encode()).hexdigest()
                         values=(key,vid,name,reseller,cycle,start,start,*dims,visible,int(r['acctinputoctets']),int(r['acctoutputoctets']),int(r['acctsessiontime']),1)
                         db.execute('''INSERT INTO groups VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(k) DO UPDATE SET

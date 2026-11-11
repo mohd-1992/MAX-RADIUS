@@ -336,11 +336,17 @@ def export_sales():
     def records():
         for index,row in enumerate(data['recent_sales'],1):
             yield [index,row['operation'],row['username'],row['serial_number'],row['batch_name'],row['package_name'],
-                row['price'],row['isp_share'],row['reseller_margin'],row['reseller_name'],row['nas_label'] or 'غير محدد',
+                row['price'] if row['price'] is not None else 'غير متاح',row['isp_share'] if row['isp_share'] is not None else 'غير متاح',row['reseller_margin'],row['reseller_name'],row['nas_label'] or 'غير محدد',
                 row['server_label'],str(row['activated_at'] or 'تاريخ غير محدد'),row['service_type'] or 'غير محدد',
-                row['source_status_label'],row['source_reason_label']]
+                row['source_status_label'],row['source_reason_label']+(' تكلفة العملية غير محفوظة.' if row['price'] is None else '')]
     totals = ['الإجمالي','','','','','',data['gross_sales'],data['net_isp_revenue'],data['total_reseller_commissions'],'','','','']
     totals.extend(['']*(len(headers)-len(totals)))
+    unknown=int(data.get('unknown_amount_count') or 0)
+    if unknown:
+        totals[0]='الإجمالي المعلوم (جزئي)'
+        totals[-1]=f'تكلفة {unknown} عملية غير محفوظة.'
+        if unknown==data['total_items_count']:totals[6]=totals[7]='غير متاح'
+    if data.get('record_kind')=='invoice':headers[6]='تكلفة الاشتراك المحفوظة'
     format_name = request.args.get('format','excel').strip().lower()
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')
     from services.heavy_operation_service import temporary_output
@@ -1050,12 +1056,9 @@ def api_automation_notices():
     from core.ownership import is_global_admin
     if not is_global_admin(get_current_manager()):
         return jsonify(success=False), 403
-    from services.automation_task_service import ensure_tables
+    from services.automation_task_service import ensure_tables, task_notices
     ensure_tables()
-    notices = query_all("""SELECT n.task_id,n.state,n.message,n.updated_at FROM wisp_automation_notices n
-        JOIN wisp_automation_tasks t ON t.id=n.task_id
-        WHERE t.deleted_at IS NULL AND t.enabled=1 AND (n.state='low' OR n.updated_at>UTC_TIMESTAMP()-INTERVAL 1 DAY)
-        ORDER BY n.updated_at DESC LIMIT 20""")
+    notices = task_notices(disk=True)
     return jsonify(success=True, notices=notices)
 
 

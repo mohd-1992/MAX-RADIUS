@@ -15,7 +15,7 @@ class NetworkTraffic(unittest.TestCase):
     def test_scope_dates_and_archival_identity(self):
         start=dt.datetime(2026,10,26);end=dt.datetime(2026,10,27)
         sql,params=sessions_sql(7,start,end)
-        self.assertEqual(params,(7,7,start,end)*3+(7,start,end)*2)
+        self.assertEqual(params,(7,7,start,end)*3+(7,start,end)+(start,end,7,start,end))
         self.assertEqual(sql.count('acctstarttime>=%s'),4)
         self.assertEqual(sql.count('acctstarttime<%s'),4)
         self.assertIn('radacct_archive_owned',sql)
@@ -50,6 +50,8 @@ class NetworkTraffic(unittest.TestCase):
         self.assertEqual(result['total'],10)
         self.assertEqual(result['unknown_download'],1)
         self.assertEqual(sum_rows([])['total'],0)
+        ambiguous=sum_rows([dict(sessions=0,unknown_sessions=2,download=None,upload=None,unknown_download=1,unknown_upload=1)])
+        self.assertIsNone(ambiguous['total'])
 
     def test_recorded_name_survives_missing_service_without_guessing_protocol(self):
         a=point_info(dict(nas_address='192.0.2.10',service_type='',server_name='HS-A',server_interface='ether1'),{})

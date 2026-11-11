@@ -401,7 +401,7 @@ def create_invoice_action():
     try:
         sub_id = int(request.form['subscriber_id'])
         sub = query_one('''
-            SELECT s.full_name, s.username, p.name as package_name
+            SELECT s.full_name, s.username, p.name as package_name,p.cost,p.service_type
             FROM wisp_subscribers s
             JOIN wisp_packages p ON s.package_id = p.id
             WHERE s.id = ?
@@ -432,6 +432,8 @@ def create_invoice_action():
                     VALUES (?,?,?,?,?,?,?,?,CASE WHEN ?='paid' THEN CURRENT_TIMESTAMP ELSE NULL END)""", conn),
                     (inv_num,sub_id,sub_name,pkg_name,amount,status,due_date,notes,status))
                 ident = cur.lastrowid
+            from services.invoice_cost_service import record_invoice_cost
+            record_invoice_cost(conn,ident,sub)
             if status == 'paid' and sub:
                 record_sale_source(conn,'invoice',ident,sub['username'])
         flash(f'تم إصدار الفاتورة {inv_num} بنجاح.', 'success')

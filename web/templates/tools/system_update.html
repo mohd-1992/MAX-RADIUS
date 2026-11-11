@@ -386,7 +386,7 @@ function startPollingProgress() {
                 document.getElementById('progressLiveLabel').innerText = 'جار إعادة الاتصال بمحرك التحديث؛ انتظر دون تكرار الطلب';
                 return;
             }
-            const pct = data.percent || 0;
+            const pct = Math.max(0, Math.min(100, Number(data.percent) || 0));
             const stage = data.stage || 'جاري التحديث...';
 
             document.getElementById('progressBarFill').style.width = pct + '%';
@@ -395,7 +395,7 @@ function startPollingProgress() {
             document.getElementById('progressLiveLabel').innerText = stage;
 
             // Highlight checklist steps
-            updateChecklistUI(pct);
+            updateChecklistUI(pct, data.steps);
 
             if (data.status === 'completed') {
                 clearInterval(g_updatePollTimer);
@@ -424,7 +424,26 @@ function startPollingProgress() {
     }, 600);
 }
 
-function updateChecklistUI(pct) {
+function updateChecklistUI(pct, steps) {
+    if (Array.isArray(steps) && steps.length) {
+        const original = document.getElementById('stepCheck-1');
+        const box = document.getElementById('nativeProgressChecklist') || (original && original.parentElement);
+        if (!box) return;
+        box.id = 'nativeProgressChecklist';
+        box.style.maxHeight = '14rem';
+        box.style.overflowY = 'auto';
+        box.replaceChildren();
+        for (const step of steps) {
+            const row = document.createElement('div');
+            const icon = document.createElement('i');
+            const label = document.createElement('span');
+            row.className = 'flex items-start gap-2 ' + (step.state === 'done' ? 'text-emerald-400' : step.state === 'active' ? 'text-purple-400 font-bold' : 'text-slate-500');
+            icon.className = step.state === 'done' ? 'fa-solid fa-check text-[10px] mt-1' : step.state === 'active' ? 'fa-solid fa-circle-notch fa-spin text-[10px] mt-1' : 'fa-regular fa-circle text-[10px] mt-1';
+            label.textContent = step.label;
+            row.append(icon, label); box.append(row);
+        }
+        return;
+    }
     const markDone = (idx) => {
         const el = document.getElementById(`stepCheck-${idx}`);
         if (el) {
@@ -444,7 +463,7 @@ function updateChecklistUI(pct) {
     if (pct >= 25) { markDone(1); markDone(2); } else if (pct > 10) markActive(2);
     if (pct >= 50) { markDone(2); markDone(3); } else if (pct > 25) markActive(3);
     if (pct >= 75) { markDone(3); markDone(4); } else if (pct > 50) markActive(4);
-    if (pct >= 90) { markDone(4); markDone(5); } else if (pct > 75) markActive(5);
+    if (pct > 75 && pct < 100) { markDone(4); markActive(5); }
     if (pct >= 100) markDone(5);
 }
 

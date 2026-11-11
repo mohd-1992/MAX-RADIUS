@@ -28,3 +28,20 @@
 @media(prefers-reduced-motion:reduce){.automation-preview :is(.page-heading,.metric,.workspace,.task-card,.catalog-card,.setting-card,.agenda,.detail-cell){transition:none;}}
 
 /* Card colors, shadows and hover are owned by the original system utilities. */
+
+/* Execution details stay readable inside the table's own horizontal scroller. */
+.automation-preview .table-wrap{overflow-x:auto;max-width:100%}
+.automation-preview th:last-child,.automation-preview td:last-child{min-width:100px;width:100px;overflow:visible}
+.automation-preview td .text-button{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;min-width:82px;line-height:1.8;overflow:visible;text-overflow:clip}
+.automation-preview .date-item{gap:14px;align-items:flex-start}
+.automation-preview .date-item span,.automation-preview .date-item strong{min-width:0;overflow-wrap:anywhere;white-space:normal}
+
+/* Keep the history action visible while long results wrap within their column. */
+.automation-preview .workspace,.automation-preview .panel{min-width:0}
+.automation-preview .automation-history-table{table-layout:fixed;min-width:840px;white-space:normal}
+.automation-preview .history-name{width:20%}.automation-preview .history-state{width:100px}.automation-preview .history-date{width:170px}.automation-preview .history-duration{width:110px}.automation-preview .history-action{width:112px}
+.automation-preview .automation-history-table td{overflow-wrap:anywhere;vertical-align:middle}
+.automation-preview .automation-history-table th:last-child,.automation-preview .automation-history-table td:last-child{position:sticky;inset-inline-end:0;width:112px;min-width:112px;background:var(--surface);z-index:1;box-shadow:2px 0 0 var(--line);white-space:nowrap}
+.automation-preview .automation-history-table th:last-child{background:var(--subtle);z-index:2}
+.automation-preview .automation-history-table .text-button{width:max-content;min-width:84px;min-height:36px;padding:6px 4px;line-height:1.8}
+.automation-preview .automation-history-table .text-button span{display:inline-block;white-space:nowrap;overflow:visible}

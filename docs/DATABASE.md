@@ -1,3 +1,7 @@
+## بيانات التقارير الإضافية — 10 نوفمبر 2026، محلية
+
+[التنفيذ والاختبارات](REPORTS_FIX_LOCAL_20261110.md): `database/reporting_schema.py` يضيف تكلفة ثابتة مستقلة للفاتورة (`report_cost`, `cost_source`, `package_service_type`) دون تغيير `amount`، وجدولي `wisp_traffic_intervals` للفروق الزمنية غير القابلة للتوزيع بدقة و`wisp_session_service_evidence` لهوية النوع المتحققة. لا backfill مالي بالتكلفة الحالية، والصفر قيمة معروفة. مهاجرة قابلة للتكرار، ومجموعة checkpoint/rollup/state/intervals تُستعاد كاملة أو يبدأ جيل جديد. دليل النوع لا يكتب radacct، وتلخيص الاستخدام الجديد يحفظ لحظة البداية الدقيقة؛ مجموع الحصة لا يتغير. لا schema حي أو استعادة عميل في هذه الجولة.
+
 ## 7 نوفمبر 2026 — مرشح Web 2.7.1 المحلي
 
 الأتمتة تضيف خمسة جداول InnoDB بالبادئة `wisp_automation_`: tasks وruns وnotices وpolicy وdeliveries. المواعيد UTC، وslot_key فريد، وأقفال SHA2 مرتبطة باسم DB. الاستعادة تعطل الجدولة ولا تعيد العمليات غير المؤكدة. لا تغيير للمحاسبة أو التريغرات المالية أو صورة DB. [التقرير](RELEASE_271_LOCAL_ACCEPTANCE_20261107.md).

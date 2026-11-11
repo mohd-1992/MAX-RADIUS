@@ -179,7 +179,32 @@ def overview():
         r['result'] = json.loads(r['result'])
         r['created_at'] = utc_stamp(r['created_at'])
         r['updated_at'] = utc_stamp(r['updated_at'])
-    return dict(tasks=tasks, runs=runs, policy=policy(), notices=query_all('SELECT * FROM wisp_automation_notices'), packages=query_all('SELECT id,name FROM wisp_packages ORDER BY id'), batches=query_all('SELECT id,name FROM wisp_voucher_batches ORDER BY id DESC LIMIT 1000'), legacy=query_all('SELECT id,rule_name,is_active,schedule_enabled FROM wisp_automation_rules ORDER BY id'))
+    return dict(tasks=tasks, runs=runs, policy=policy(), notices=task_notices(), packages=query_all('SELECT id,name FROM wisp_packages ORDER BY id'), batches=query_all('SELECT id,name FROM wisp_voucher_batches ORDER BY id DESC LIMIT 1000'))
+
+
+def task_notices(disk=False):
+    """Reconcile old review notices without editing any task or running work."""
+    execute_write('''DELETE n FROM wisp_automation_notices n LEFT JOIN wisp_automation_tasks t ON t.id=n.task_id
+        WHERE t.id IS NULL OR t.deleted_at IS NOT NULL OR (n.state='review' AND t.enabled=1)''')
+    rows = query_all('''SELECT n.*,t.name,t.kind,t.enabled,t.definition FROM wisp_automation_notices n
+        JOIN wisp_automation_tasks t ON t.id=n.task_id WHERE t.deleted_at IS NULL''')
+    result = []
+    for row in rows:
+        if row['kind'] == 'alert' and row['state'] not in ('low', 'recovered'):
+            continue
+        if row['state'] == 'review':
+            from services.automation_defaults_service import equivalent_action
+            value = json.loads(row['definition'])
+            peers = query_all('SELECT definition FROM wisp_automation_tasks WHERE id<>? AND enabled=1 AND deleted_at IS NULL', (row['task_id'],))
+            if not any(equivalent_action(value, json.loads(p['definition'])) for p in peers):
+                execute_write("DELETE FROM wisp_automation_notices WHERE task_id=? AND state='review'", (row['task_id'],))
+                continue
+        is_disk = row['kind'] == 'alert' and row['state'] in ('low', 'recovered')
+        if disk != is_disk or (is_disk and not row['enabled']):
+            continue
+        result.append(dict(task_id=row['task_id'], name=row['name'], kind=row['kind'],
+                           state=row['state'], message=row['message'], updated_at=utc_stamp(row['updated_at'])))
+    return result
 
 
 def policy():
@@ -231,17 +256,37 @@ def save(data):
         else:
             execute_write('INSERT INTO wisp_automation_tasks(id,name,kind,enabled,definition,next_at,created_at) VALUES(?,?,?,?,?,?,UTC_TIMESTAMP())',
                           (task_id, value['name'], value['kind'], value['enabled'], dump(value), next_at))
+        execute_write("DELETE FROM wisp_automation_notices WHERE task_id=? AND state='review'", (task_id,))
         return _public(query_one('SELECT * FROM wisp_automation_tasks WHERE id=?', (task_id,)))
 
 
 def remove(task_id, revision):
+    ensure_tables()
     with task_lock('config') as acquired:
         if not acquired:
             raise ValueError('توجد عملية تعديل مهام جارية')
         if query_one("SELECT id FROM wisp_automation_runs WHERE task_id=? AND state IN ('queued','running')", (task_id,)):
             raise ValueError('ألغِ التشغيل قبل حذف المهمة')
-        if execute_update('UPDATE wisp_automation_tasks SET enabled=0,deleted_at=UTC_TIMESTAMP(),next_at=NULL,revision=revision+1 WHERE id=? AND revision=? AND deleted_at IS NULL', (task_id, int(revision))) != 1:
-            raise ValueError('تغيرت المهمة؛ حدّث الصفحة')
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute('SELECT definition FROM wisp_automation_policy WHERE id=1 FOR UPDATE')
+                stored = json.loads(cur.fetchone()['definition'])
+                cur.execute('DELETE FROM wisp_automation_tasks WHERE id=%s AND revision=%s AND deleted_at IS NULL', (task_id, int(revision)))
+                if cur.rowcount != 1:
+                    raise ValueError('تغيرت المهمة؛ حدّث الصفحة')
+                from services.automation_defaults_service import default_definitions
+                default_ids = {d['id'] for d in default_definitions(dt.datetime.now(dt.timezone.utc))}
+                if task_id in default_ids:
+                    stored['removed_default_ids'] = sorted(set(stored.get('removed_default_ids', [])) | {task_id})
+                    cur.execute('UPDATE wisp_automation_policy SET definition=%s WHERE id=1', (dump(stored),))
+                cur.execute('DELETE FROM wisp_automation_notices WHERE task_id=%s', (task_id,))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
 
 def submit(task_id, request_id=None, scheduled=False):

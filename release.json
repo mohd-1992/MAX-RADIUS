@@ -1,13 +1,13 @@
 {
   "format": 1,
-  "release": "20261108-v2.7.1-r25",
+  "release": "20261111-v2.7.1-reports-r33",
   "version": "2.7.1",
   "platform": "linux/amd64",
   "channel": "manual-install",
   "automatic_distribution": false,
   "client_updater_compatible": false,
   "images": {
-    "web": "mohd777/max-radius-web@sha256:d1877af154ad20b3393f1239f9f79e1d3cd42c5dea0706b31daf422124b289a1",
+    "web": "mohd777/max-radius-web@sha256:87e4983c1de4ba973287449c44f1c91cd6125aed04eac7697c1013688b3600a2",
     "core": "mohd777/max-radius-core@sha256:6e71f1e291a90d8c45df79a3f88c5886193bb774054ec3d7e30e72d470b928af",
     "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
     "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
@@ -17,10 +17,10 @@
     "clock_guard": "v1"
   },
   "bundle": {
-    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261108-v2.7.1-r25.tar.gz",
-    "sha256": "7d40bcba084fbe7c462dd18b90a53a60ab6e0fd670771bc24cca7f999389294f"
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261111-v2.7.1-reports-r33.tar.gz",
+    "sha256": "e02a1109e9f70107762678291f464f56c5c9e71c97d0d7db63c5fa12c8e8f6ed"
   },
-  "source_manifest": "releases/source-20261108-v2.7.1-r25.json",
+  "source_manifest": "releases/source-20261111-v2.7.1-reports-r33.json",
   "image_tags": {
     "web": "mohd777/max-radius-web:2.7.1",
     "core": "mohd777/max-radius-core:2.7.1",
@@ -29,10 +29,10 @@
     "autoheal": "mohd777/max-radius-autoheal:2.7.1"
   },
   "previous_web_tag_updated": "mohd777/max-radius-web:2.7.1-update-safety-20261107-r7",
-  "registry_manifest": "releases/2.7.1/registry.json",
-  "release_notes": "docs/RELEASE_271_PUBLISHED_20261108.md",
+  "registry_manifest": "releases/2.7.1/registry-20261111-r33.json",
+  "release_notes": "docs/RELEASE_271_REPORTS_PUBLISHED_20261111.md",
   "weekly_enhancements_included": true,
-  "component_policy": "Web r25 is changed; Core, MariaDB, L2TP and Autoheal are unchanged binary release aliases. Database and Autoheal official pinned references remain installer inputs; equivalent versioned mirrors are recorded separately. Versioned database and Autoheal mirrors contain the exact approved linux/amd64 platform manifest only.",
+  "component_policy": "Web r33 consolidates reporting, automation, update progress and scoped CPU fixes. Core, MariaDB, L2TP and Autoheal remain pinned to their previously accepted binaries. The runtime SQL bundle adds reporting metadata without repricing invoices or rewriting accounting counters.",
   "deployment_limits": [
     "Manual installer only; does not distribute an update to existing customers.",
     "Hosted tenant updates require target wrapper, mounts, binding, controller protocol and lease preflight.",

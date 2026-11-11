@@ -30,7 +30,7 @@
 <a href="{{ url_for('sales_reports', **args) }}#sales-tables" data-sort-reset="{{ table }}" class="sales-sort-reset sales-text-muted text-xs text-slate-400">الترتيب الافتراضي</a>
 {%- endmacro %}
 {% macro table_money(value) -%}
-{% if value is none or value == 'غير محدد' %}<span class="sales-text-muted">—</span>{% else %}<span class="sales-money"><bdi dir="ltr">{{ value }}</bdi><small dir="rtl">{{ currency_symbol }}</small></span>{% endif %}
+{% if value is none or value == 'غير محدد' %}<span class="sales-text-muted">غير متاح</span>{% else %}<span class="sales-money"><bdi dir="ltr">{{ value }}</bdi><small dir="rtl">{{ currency_symbol }}</small></span>{% endif %}
 {%- endmacro %}
 {% include 'components/sales_styles.html' %}
 
@@ -70,15 +70,17 @@
     </div>
 
     <div class="flex gap-3 flex-wrap" aria-label="نوع السجل المالي">
-        <a aria-current="{{ 'page' if record_kind=='voucher' else 'false' }}" href="{{ url_for('sales_reports', table_view=table_view, record_kind='voucher', period=period, date_from=custom_date_from, date_to=custom_date_to, **sort_query) }}"
+        <a aria-current="{{ 'page' if record_kind=='voucher' else 'false' }}" href="{{ url_for('sales_reports', record_kind='voucher', **(ledger_navigation|default({'table_view':table_view,'period':period,'date_from':custom_date_from,'date_to':custom_date_to}))) }}"
            class="sales-page-btn px-4 py-2 rounded-xl border font-bold text-sm {% if record_kind=='voucher' %}bg-emerald-600 text-white border-emerald-500{% else %}bg-[#11192b] text-slate-300 border-[#1c2840]{% endif %}">مبيعات الكروت</a>
-        <a aria-current="{{ 'page' if record_kind=='invoice' else 'false' }}" href="{{ url_for('sales_reports', table_view=table_view, record_kind='invoice', period=period, date_from=custom_date_from, date_to=custom_date_to, **sort_query) }}"
+        <a aria-current="{{ 'page' if record_kind=='invoice' else 'false' }}" href="{{ url_for('sales_reports', record_kind='invoice', **(ledger_navigation|default({'table_view':table_view,'period':period,'date_from':custom_date_from,'date_to':custom_date_to}))) }}"
            class="sales-page-btn px-4 py-2 rounded-xl border font-bold text-sm {% if record_kind=='invoice' %}bg-emerald-600 text-white border-emerald-500{% else %}bg-[#11192b] text-slate-300 border-[#1c2840]{% endif %}">اشتراكات المشتركين</a>
     </div>
     <p class="sales-text-muted text-xs text-slate-400">{% if record_kind=='invoice' %}فواتير المشتركين المدفوعة، دون إيداع رصيد المحفظة أو سحبه.{% else %}عمليات بيع وتفعيل وتجديد الكروت المسجلة.{% endif %} إجماليات العرضين مستقلة ولا تُجمع معًا. الفترة بحسب {{ filter_timezone }}.</p>
     {% if filter_error %}<p role="alert" class="text-red-500 font-bold">{{ filter_error }}</p>{% endif %}
     {% if unknown_date_count %}<p class="sales-text-muted text-xs text-slate-400">يوجد {{ unknown_date_count }} سجلًا دون تاريخ عملية مثبت؛ تظهر مع كامل المدة ولا تدخل فلاتر الأيام.</p>{% endif %}
     {% if unknown_cost_count %}<p class="text-amber-500 text-sm">تكلفة الموزع غير مسجلة في {{ unknown_cost_count }} عملية؛ إجمالي الدخل يشملها، وحصة الشبكة والعمولة تعرضان المبالغ المعلومة فقط.</p>{% endif %}
+    {% if unknown_amount_count|default(0) %}<p role="status" class="text-amber-500 text-sm">تكلفة {{ unknown_amount_count }} عملية غير محفوظة؛ الإجماليات تعرض التكلفة المعلومة فقط. المبالغ الأصلية للفواتير محفوظة.</p>{% endif %}
+    {% if traffic_chart and traffic_chart.unknown_counters %}<p role="status" class="text-amber-500 text-sm">رسم الاستهلاك جزئي؛ توجد فترات غير متاحة بدقة. القيم المعروضة هي الاستهلاك المعلوم فقط.</p>{% endif %}
     <!-- Advanced Filtering Panel -->
     <div class="sales-panel bg-[#0b0f19] border border-[#1c2840] rounded-2xl p-5 shadow-sm space-y-4">
         <form method="GET" action="{{ url_for('sales_reports') }}" id="salesFilterForm" class="space-y-4">
@@ -195,13 +197,13 @@
         <div class="sales-stat-card bg-[#0b0f19] border border-[#1c2840] p-5 rounded-2xl shadow-sm relative overflow-hidden">
             <div class="absolute top-0 right-0 w-1.5 h-full bg-sky-500"></div>
             <div class="flex items-center justify-between text-slate-400 mb-2">
-                <span class="sales-text-muted text-xs font-bold">{{ 'إجمالي مبيعات الكروت' if record_kind=='voucher' else 'إجمالي اشتراكات المشتركين' }}</span>
+                <span class="sales-text-muted text-xs font-bold">{{ 'إجمالي مبيعات الكروت' if record_kind=='voucher' else 'إجمالي تكلفة اشتراكات المشتركين' }}</span>
                 <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center text-sm">
                     <i class="fa-solid fa-receipt"></i>
                 </div>
             </div>
             <div class="sales-text-dark text-2xl font-black text-white font-mono tracking-tight">
-                {{ "{:,.2f}".format(gross_sales) }} <span class="text-xs font-bold text-sky-400">{{ currency_symbol }}</span>
+                {% if total_items_count and unknown_amount_count|default(0)==total_items_count %}غير متاح{% else %}{{ "{:,.2f}".format(gross_sales) }} <span class="text-xs font-bold text-sky-400">{{ currency_symbol }}</span>{% if unknown_amount_count|default(0) %}<small class="text-amber-500">جزئي</small>{% endif %}{% endif %}
             </div>
             <div class="sales-text-muted text-[11px] text-slate-400 mt-2 flex items-center gap-1.5">
                 <span class="sales-text-dark font-bold text-slate-300">{{ total_items_count }}</span> عملية بيع وتفعيل مسجلة
@@ -218,7 +220,7 @@
                 </div>
             </div>
             <div class="sales-isp-val text-2xl font-black text-emerald-400 font-mono tracking-tight">
-                {{ "{:,.2f}".format(net_isp_revenue) }} <span class="text-xs font-bold text-emerald-300">{{ currency_symbol }}</span>
+                {% if total_items_count and unknown_amount_count|default(0)==total_items_count %}غير متاح{% else %}{{ "{:,.2f}".format(net_isp_revenue) }} <span class="text-xs font-bold text-emerald-300">{{ currency_symbol }}</span>{% endif %}
             </div>
             <div class="text-[11px] text-emerald-400/80 mt-2 flex items-center justify-between">
                 <span>حصة الشبكة: <strong>{{ isp_share_pct }}%</strong></span>
@@ -316,9 +318,9 @@
             </tr></thead><tbody class="divide-y divide-[#1c2840]">
             {% for point in server_breakdown %}<tr class="sales-table-tr hover:bg-[#11192b] transition text-white">
                 <td class="p-4 sales-text-dark">{{ point.nas_label or point.nas_address or '—' }}</td>
-                <td class="p-4 sales-point-cell sales-text-dark">{{ point.server_label if point.server_key != 'unknown' else '—' }}</td><td class="p-4 sales-text-dark">{{ point.sold_count }}</td>
-                <td class="sales-amount p-4 sales-text-dark">{{ table_money('{:,.2f}'.format(point.total_gross_revenue)) }}</td>
-                <td class="sales-amount p-4 text-emerald-400 font-bold">{{ table_money('{:,.2f}'.format(point.total_isp_revenue)) }}</td>
+                <td class="p-4 sales-point-cell sales-text-dark">{{ point.server_label if point.server_key != 'unknown' else 'غير موثق' }}</td><td class="p-4 sales-text-dark">{{ point.sold_count }}</td>
+                <td class="sales-amount p-4 sales-text-dark">{{ table_money(none if point.unknown_amount_count==point.sold_count and point.sold_count else '{:,.2f}'.format(point.total_gross_revenue)) }}</td>
+                <td class="sales-amount p-4 text-emerald-400 font-bold">{{ table_money(none if point.unknown_amount_count==point.sold_count and point.sold_count else '{:,.2f}'.format(point.total_isp_revenue)) }}</td>
                 <td class="sales-amount p-4 text-amber-400 font-bold">{{ table_money('{:,.2f}'.format(point.total_reseller_profit)) }}</td>
             </tr>{% else %}<tr><td colspan="6" class="p-5 text-center sales-text-muted text-slate-400">لا توجد عمليات مطابقة.</td></tr>{% endfor %}
             </tbody></table></div>
@@ -338,7 +340,7 @@
                     <tr>
                         {{ sort_header('package', 'name', 'الباقة', 'py-3 px-5 sales-package-cell') }}
                         {{ sort_header('package', 'service', 'نوع الخدمة', 'py-3 px-5') }}
-                        {{ sort_header('package', 'price', 'سعر البيع', 'sales-amount py-3 px-5') }}
+                        {{ sort_header('package', 'price', 'سعر البيع' if record_kind=='voucher' else 'تكلفة الاشتراك', 'sales-amount py-3 px-5') }}
                         {{ sort_header('package', 'share', 'حصة الشبكة', 'sales-amount py-3 px-5') }}
                         {{ sort_header('package', 'count', 'العدد', 'py-3 px-5') }}
                         {{ sort_header('package', 'gross', 'إجمالي المبيعات', 'sales-amount py-3 px-5') }}
@@ -352,16 +354,16 @@
                         <td class="py-3.5 px-5 sales-package-cell font-bold sales-text-dark text-white">{{ p.name }}</td>
                         <td class="py-3.5 px-5">
                             {% for kind in p.service_types %}
-                            <span class="px-2 py-0.5 rounded-lg text-[11px] font-bold {% if kind == 'pppoe' %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% endif %}">
-                                {{ 'PPPoE' if kind == 'pppoe' else 'Hotspot' if kind == 'hotspot' else '—' }}
+                            <span class="px-2 py-0.5 rounded-lg text-[11px] font-bold {% if kind == 'pppoe' %}bg-purple-500/20 text-purple-300 border border-purple-500/30{% elif kind == 'hotspot' %}bg-amber-500/20 text-amber-300 border border-amber-500/30{% else %}sales-text-muted bg-slate-500/10 border border-slate-500/20{% endif %}">
+                                {{ 'PPPoE' if kind == 'pppoe' else 'Hotspot' if kind == 'hotspot' else 'Hotspot / PPPoE (الباقة)' if kind=='package:both' else 'Hotspot (الباقة)' if kind=='package:hotspot' else 'PPPoE (الباقة)' if kind=='package:pppoe' else 'غير موثق' }}
                             </span>
                             {% endfor %}
                         </td>
                         <td class="sales-amount py-3.5 px-5 font-mono sales-text-muted text-slate-300">{{ table_money(p.price) }}</td>
                         <td class="sales-amount py-3.5 px-5 font-mono sales-text-muted text-slate-300">{{ table_money(p.isp_unit_price) }}</td>
                         <td class="py-3.5 px-5 font-bold sales-text-dark text-slate-200 font-mono">{{ p.sold_count }}</td>
-                        <td class="sales-amount py-3.5 px-5 font-black sales-text-dark text-white font-mono">{{ table_money(p.total_gross_revenue) }}</td>
-                        <td class="sales-amount py-3.5 px-5 font-black text-emerald-400 font-mono">{{ table_money(p.total_isp_revenue) }}</td>
+                        <td class="sales-amount py-3.5 px-5 font-black sales-text-dark text-white font-mono">{{ table_money(none if p.unknown_amount_count==p.sold_count and p.sold_count else p.total_gross_revenue) }}</td>
+                        <td class="sales-amount py-3.5 px-5 font-black text-emerald-400 font-mono">{{ table_money(none if p.unknown_amount_count==p.sold_count and p.sold_count else p.total_isp_revenue) }}</td>
                         <td class="sales-amount py-3.5 px-5 font-black text-amber-400 font-mono">{{ table_money(p.total_reseller_profit) }}</td>
                     </tr>
                     {% endfor %}
@@ -394,7 +396,7 @@
                         {{ sort_header('log', 'username', 'الكرت / المستخدم', 'py-3 px-4') }}
                         {{ sort_header('log', 'batch', 'الحزمة / الدفعة', 'py-3 px-4') }}
                         {{ sort_header('log', 'package', 'الباقة', 'py-3 px-4 sales-package-cell') }}
-                        {{ sort_header('log', 'price', 'سعر البيع', 'sales-amount py-3 px-4') }}
+                        {{ sort_header('log', 'price', 'سعر البيع' if record_kind=='voucher' else 'تكلفة الاشتراك', 'sales-amount py-3 px-4') }}
                         {{ sort_header('log', 'share', 'حصة الشبكة', 'sales-amount py-3 px-4 text-emerald-400') }}
                         {{ sort_header('log', 'commission', 'عمولة الموزع', 'sales-amount py-3 px-4 text-amber-400') }}
                         {{ sort_header('log', 'reseller', 'الموزع', 'py-3 px-4 sales-reseller-cell') }}
@@ -418,7 +420,7 @@
                             </span>
                         </td>
                         <td class="py-3 px-4 sales-package-cell text-xs font-bold text-sky-400">{{ s.package_name }}</td>
-                        <td class="sales-amount py-3 px-4 font-mono font-bold sales-text-dark text-white">{{ table_money("{:,.2f}".format(s.price)) }}</td>
+                        <td class="sales-amount py-3 px-4 font-mono font-bold sales-text-dark text-white">{{ table_money("{:,.2f}".format(s.price) if s.price is not none else none) }}</td>
                         <td class="sales-amount py-3 px-4 font-mono font-bold text-emerald-400">
                             {% if s.isp_share is not none %}{{ table_money("{:,.2f}".format(s.isp_share)) }}{% else %}—{% endif %}
                         </td>
@@ -442,8 +444,9 @@
                             {% endif %}
                         </td>
                         <td class="py-3 px-4 sales-point-cell text-xs sales-text-dark text-white">
-                            <div>{{ s.server_label if s.server_key != 'unknown' else '—' }}
+                            <div>{{ s.server_label if s.server_key != 'unknown' else 'غير موثق' }}
                                 {% if s.server_key=='unknown' and s.service_type %}<span class="sales-text-muted text-slate-400"> · {{ 'PPPoE' if s.service_type=='pppoe' else 'Hotspot' }}</span>{% endif %}
+                                {% if not s.service_type and s.package_service_type=='both' %}<span class="sales-text-muted"> · الباقة تدعم Hotspot / PPPoE؛ نوع الاتصال غير موثق</span>{% endif %}
                                 {% if s.resolution_status == 'ambiguous' %}<span class="text-amber-500" title="{{ s.source_reason_label }}"> · {{ s.source_status_label }}</span>{% endif %}
                             </div><div class="sales-text-muted text-slate-400">{{ s.nas_label or s.nas_address }}</div>
                         </td>

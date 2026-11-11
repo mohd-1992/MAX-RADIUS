@@ -1,0 +1,67 @@
+{
+  "version": "2.7.1",
+  "change": "Remove unrequested CPU caption and tooltip only",
+  "images": {
+    "shared": {
+      "tag": "max-radius-web:2.7.1-cpu-label-removed-shared-20261110-r1",
+      "id": "sha256:52b4481427b2f448caf811e75f1d441eb2c8c05c94febed97b8f7f97f0654f12"
+    },
+    "m": {
+      "tag": "max-radius-web:2.7.1-cpu-label-removed-m-20261110-r1",
+      "id": "sha256:0ad78169ab6c17c1da5be564e6ccbc4e3b415ff8240f611741a02b88beaaf326"
+    }
+  },
+  "acceptance": {
+    "net": {
+      "at_utc": "2026-11-10T17:32:30.768269+00:00",
+      "target": "net",
+      "results": {
+        "max1": {
+          "image": "sha256:52b4481427b2f448caf811e75f1d441eb2c8c05c94febed97b8f7f97f0654f12",
+          "web": "6c4f84946d497aa83d46d4322a6146396d83da45ac3890919f33fb758295eefa",
+          "version": "2.7.1",
+          "caption_absent": true,
+          "cpu_available": true,
+          "cpu_percent": 0.56,
+          "accounting_preserved": 300
+        }
+      },
+      "untouched_containers": 115,
+      "existing_units_unchanged": true,
+      "database_restored": false,
+      "template_only": true
+    },
+    "native": {
+      "at_utc": "2026-11-10T17:33:55.184333+00:00",
+      "target": "native",
+      "results": {
+        "max1": {
+          "image": "sha256:52b4481427b2f448caf811e75f1d441eb2c8c05c94febed97b8f7f97f0654f12",
+          "web": "c787734951a735d16c022e2d3748d4cf16731afb7777f939e803f96d0aec4f55",
+          "version": "2.7.1",
+          "caption_absent": true,
+          "cpu_available": true,
+          "cpu_percent": 4.52,
+          "accounting_preserved": 300
+        },
+        "m": {
+          "image": "sha256:0ad78169ab6c17c1da5be564e6ccbc4e3b415ff8240f611741a02b88beaaf326",
+          "web": "cfd91bdbfc8442ffe58a7060ad7e890588e9694b99102c191d6e3e15a01aa769",
+          "version": "2.7.1",
+          "caption_absent": true,
+          "cpu_available": true,
+          "cpu_percent": 10.62,
+          "accounting_preserved": 300
+        }
+      },
+      "untouched_containers": 25,
+      "existing_units_unchanged": true,
+      "database_restored": false,
+      "template_only": true
+    }
+  },
+  "other_templates_including_update_progress_unchanged": true,
+  "cpu_reader_unchanged": true,
+  "registry_push": false,
+  "creation_defaults_changed": false
+}

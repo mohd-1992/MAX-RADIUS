@@ -422,6 +422,8 @@ def install_accounting_triggers(conn):
     install_traffic_history_schema(conn)
     from database.usage_summary_schema import install_usage_summary_schema
     install_usage_summary_schema(conn)
+    from database.reporting_schema import install_reporting_schema
+    install_reporting_schema(conn)
     from database.traffic_samples_schema import install_traffic_samples_schema
     install_traffic_samples_schema(conn)
     install_capacity_schema(conn)

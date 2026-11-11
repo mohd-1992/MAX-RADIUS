@@ -37,6 +37,17 @@ def run(raw):
 
 
 class SummaryTests(unittest.TestCase):
+    def test_exact_start_times_remain_separate(self):
+        receipt,_,_=run(snapshot([row(1),row(2,acctstarttime='2026-11-01 14:00:00',acctstoptime='2026-11-01 15:00:00')]))
+        self.assertEqual(receipt['summary_rows'],2)
+    def test_verified_service_evidence_survives_summary(self):
+        evidence=table('wisp_session_service_evidence',('acctuniqueid','nasipaddress','acctsessionid','acctstarttime','original_username','service_type'),
+            ((format(1,'032x'),'192.0.2.1','s1','2026-11-01 12:00:00','old','hotspot'),))
+        receipt,out,_=run(snapshot([row(1)])+evidence)
+        self.assertEqual(receipt['summarized_sessions'],1);self.assertIn(b"'Login-User'",out)
+        wrong=evidence.replace(b"'s1'",b"'other'")
+        _,out,_=run(snapshot([row(1)])+wrong)
+        self.assertNotIn(b"'Login-User'",out)
     def test_closed_expired_rename_ownership_and_money(self):
         original=snapshot([row(1),row(2)])
         receipt,out,kept=run(original)

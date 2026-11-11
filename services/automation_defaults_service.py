@@ -5,7 +5,7 @@ import uuid
 from zoneinfo import ZoneInfo
 
 
-VERSION = 1
+VERSION = 2
 NAMESPACE = uuid.UUID('5377f6fc-15a2-46a2-ac65-66b831c61bf9')
 STOCK_RULES = {
     'ARCHIVE_OLD_SESSIONS': {'أرشفة الجلسات القديمة تلقائياً (> 90 يوم)'},
@@ -13,6 +13,27 @@ STOCK_RULES = {
                           'تنظيف كروت الشحن المنتهية منذ أكثر من 60 يوماً'},
     'SEND_DAILY_SALES_REPORT': {'توليد ملخص تقارير المبيعات اليومي'},
 }
+
+
+def equivalent_action(left, right):
+    """Default installation only: different ages/scopes are not duplicates.
+
+    Reuse an enabled equivalent custom action instead of adding another schedule.
+    This deliberately does not change validation of manually added tasks.
+    """
+    if left['kind'] != right['kind']:
+        return False
+    kind = left['kind']
+    fields = {'delete': ('age', 'batch', 'reason'), 'summary': ('age', 'batch'),
+              'report': ('period',), 'temp': ('age',), 'logs': ('age',)}.get(kind)
+    if fields is None:
+        return False
+    from services.automation_scope_service import normalize_scope
+    lp, rp = left['params'], right.get('params', {})
+    defaults = dict(age=90 if kind in ('summary', 'logs') else 7 if kind == 'temp' else 60,
+                    batch=5000 if kind == 'delete' else 500, reason='all', period='week')
+    return (normalize_scope(lp) == normalize_scope(rp) and
+            all(lp.get(k, defaults[k]) == rp.get(k, defaults[k]) for k in fields))
 
 
 def default_definitions(now, timezone='Asia/Aden'):
@@ -50,7 +71,7 @@ def install_defaults():
     now = dt.datetime.now(dt.timezone.utc)
     timezone = get_configured_timezone_name()
     definitions = default_definitions(now, timezone)
-    with task_lock('defaults-v271', timeout=5) as acquired:
+    with task_lock('config', timeout=5) as acquired:
         if not acquired:
             return False
         conn = get_connection()
@@ -58,6 +79,14 @@ def install_defaults():
             with conn.cursor() as cur:
                 cur.execute('SELECT definition FROM wisp_automation_policy WHERE id=1 FOR UPDATE')
                 settings = json.loads(cur.fetchone()['definition'])
+                # A small receipt prevents a permanently removed default returning.
+                removed = set(settings.get('removed_default_ids', []))
+                cur.execute('SELECT id FROM wisp_automation_tasks WHERE deleted_at IS NOT NULL')
+                removed.update(row['id'] for row in cur.fetchall() if row['id'] in {d['id'] for d in definitions})
+                cur.execute('''DELETE n FROM wisp_automation_notices n JOIN wisp_automation_tasks t
+                    ON t.id=n.task_id WHERE t.deleted_at IS NOT NULL''')
+                cur.execute("DELETE FROM wisp_automation_tasks WHERE deleted_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM wisp_automation_runs r WHERE r.task_id=wisp_automation_tasks.id AND r.state IN ('queued','running'))")
+                settings['removed_default_ids'] = sorted(removed)
                 # Reduce old idle definitions to the new server-side ceiling.
                 # An already recorded run is capped separately before execution.
                 cur.execute('''UPDATE wisp_automation_tasks t SET
@@ -66,10 +95,7 @@ def install_defaults():
                     AND CAST(JSON_UNQUOTE(JSON_EXTRACT(definition,'$.params.batch')) AS UNSIGNED)>5000
                     AND NOT EXISTS(SELECT 1 FROM wisp_automation_runs r
                         WHERE r.task_id=t.id AND r.state IN ('queued','running'))''')
-                if settings.get('restore_review_required') or settings.get('release_defaults', {}).get('version', 0) >= VERSION:
-                    conn.commit()
-                    return True
-                cur.execute("SELECT id,kind,definition FROM wisp_automation_tasks WHERE enabled=1 AND deleted_at IS NULL")
+                cur.execute("SELECT id,kind,enabled,definition FROM wisp_automation_tasks WHERE deleted_at IS NULL")
                 existing = cur.fetchall()
                 default_ids = {item['id'] for item in definitions}
                 cur.execute("SELECT 1 present FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='wisp_automation_rules'")
@@ -80,28 +106,37 @@ def install_defaults():
                     schedule_column = 'schedule_enabled' if cur.fetchone() else '0 AS schedule_enabled'
                     cur.execute('SELECT id,rule_name,action_type,is_active,' + schedule_column + ' FROM wisp_automation_rules FOR UPDATE')
                     legacy = cur.fetchall()
+                # Legacy definitions are retired; their independent execution log remains.
+                # Refuse retirement while an old worker owns a rule, rather than racing it.
+                from contextlib import ExitStack
+                from services.account_lifecycle_service import job_lock
+                locks = ExitStack()
                 paused, conflicts = [], []
                 for rule in legacy:
-                    if not (rule['is_active'] and rule['schedule_enabled']):
-                        continue
-                    if rule['action_type'] not in STOCK_RULES:
-                        continue
-                    if rule['rule_name'] in STOCK_RULES[rule['action_type']]:
-                        cur.execute('UPDATE wisp_automation_rules SET schedule_enabled=0 WHERE id=%s', (rule['id'],))
-                        paused.append(dict(id=rule['id'], schedule_enabled=1))
-                    else:
-                        conflicts.append(rule['action_type'])
-                kind_action = {'summary': 'ARCHIVE_OLD_SESSIONS', 'delete': 'CLEAN_EXPIRED_CARDS',
-                               'report': 'SEND_DAILY_SALES_REPORT'}
+                    if not locks.enter_context(job_lock('automation-rule-' + str(rule['id']))):
+                        raise ValueError('انتظر انتهاء القاعدة القديمة قبل ترقية الأتمتة')
+                if legacy:
+                    cur.execute('DELETE FROM wisp_automation_rules')
+                if settings.get('restore_review_required') or settings.get('release_defaults', {}).get('version', 0) >= VERSION:
+                    cur.execute('UPDATE wisp_automation_policy SET definition=%s WHERE id=1', (dump(settings),))
+                    conn.commit()
+                    return True
                 deferred = []
+                adopted = {}
+                prior = settings.get('release_defaults', {})
                 for item in definitions:
+                    if item['id'] in removed or any(row['id'] == item['id'] for row in existing):
+                        continue
+                    if item['id'] in prior.get('ids', []):
+                        # An earlier install already handled it; absence means removal.
+                        removed.add(item['id'])
+                        continue
                     value = validate(item['value'])
-                    duplicate = any(row['id'] not in default_ids and row['kind'] == value['kind']
-                        and (value['kind'] != 'report' or json.loads(row['definition']).get('params', {}).get('period', 'week') == value['params'].get('period', 'week'))
-                        for row in existing)
-                    if kind_action.get(value['kind']) in conflicts or duplicate:
-                        value['enabled'] = False
-                        deferred.append(item['key'])
+                    duplicate = next((row for row in existing if row['enabled'] and row['id'] not in default_ids
+                        and equivalent_action(value, json.loads(row['definition']))), None)
+                    if duplicate:
+                        adopted[item['key']] = duplicate['id']
+                        continue
                     dates = next_times(value['schedule'], after=now, count=1)
                     next_at = dates[0].replace(tzinfo=None) if dates and value['enabled'] else None
                     cur.execute('''INSERT IGNORE INTO wisp_automation_tasks
@@ -114,7 +149,8 @@ def install_defaults():
                             (item['id'], 'المهمة الافتراضية تنتظر مراجعة وجود مهمة مخصصة أو قاعدة قديمة مماثلة؛ لم تنشأ جدولة مكررة'))
                 settings['release_defaults'] = dict(version=VERSION, installed_at=now.isoformat(),
                     ids=[item['id'] for item in definitions], legacy_paused=paused,
-                    custom_legacy_conflicts=deferred)
+                    custom_legacy_conflicts=deferred, adopted=adopted, legacy_retired=len(legacy))
+                settings['removed_default_ids'] = sorted(removed)
                 cur.execute('UPDATE wisp_automation_policy SET definition=%s WHERE id=1', (dump(settings),))
             conn.commit()
             return True
@@ -123,3 +159,5 @@ def install_defaults():
             raise
         finally:
             conn.close()
+            if 'locks' in locals():
+                locks.close()

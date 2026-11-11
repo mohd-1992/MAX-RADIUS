@@ -44,7 +44,8 @@ class BundleContracts(unittest.TestCase):
         self.assertEqual(manifest['images']['web'], source['web_image'])
         self.assertEqual(manifest['images']['core'], source['core_image'])
         self.assertEqual(manifest['image_tags'], source['image_tags'])
-        registry = json.loads((ROOT/'releases'/manifest['image_tags']['core'].split(':')[-1]/'registry.json').read_text())
+        registry_path=manifest.get('registry_manifest','releases/'+manifest['image_tags']['core'].split(':')[-1]+'/registry.json')
+        registry = json.loads((ROOT/registry_path).read_text())
         for role in ('web', 'core'):
             self.assertEqual(manifest['images'][role], registry[role]['pinned_reference'])
         self.assertEqual(manifest['version'], source['version'])

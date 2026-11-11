@@ -33,6 +33,11 @@ class SafetyError(RuntimeError):
     pass
 
 
+# Leave at least 40 seconds for the forward transition, in addition to the
+# existing 35-second recovery reserve and 10-second expiry margin.
+MIN_SWITCH_LEASE = 85
+
+
 def contract_program(old, contracts, native=False):
     custom = any(m.get('Destination')=='/run/max-rollout-kit' for m in old.get('Mounts',[]))
     required_paths={'/run/max-rollout-kit/web-gate.sh','/run/max-rollout-kit/normal_launch.py'}
@@ -61,7 +66,7 @@ class Budget:
     def __init__(self, proof, clock=None):
         self.clock = clock or time.monotonic
         remaining = float(proof.get('lease_remaining', 0))
-        if not all(proof.get(k) for k in ('verified', 'http', 'license', 'lease')) or not 60 <= remaining <= 91:
+        if not all(proof.get(k) for k in ('verified', 'http', 'license', 'lease')) or not MIN_SWITCH_LEASE <= remaining <= 91:
             raise SafetyError('Insufficient verified lease budget; no switch allowed')
         self.forward = self.clock() + remaining - 45
         self.recovery = self.clock() + remaining - 10

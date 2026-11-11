@@ -138,11 +138,12 @@ def perform_action(value, progress, cancelled, task_id, run_id):
         from core.config import STORAGE_DIR
         usage = shutil.disk_usage(STORAGE_DIR)
         free_percent = usage.free * 100 / usage.total
-        state = 'low' if free_percent < p['threshold'] else 'normal'
+        state = 'low' if free_percent < p['threshold'] else 'recovered'
         message = f'المساحة المتاحة {free_percent:.1f}%؛ الحد المحدد {p["threshold"]}%'
         previous = query_one('SELECT state FROM wisp_automation_notices WHERE task_id=?', (task_id,))
-        changed = not previous or previous['state'] != state
-        execute_write('INSERT INTO wisp_automation_notices(task_id,state,message,updated_at) VALUES(?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE state=VALUES(state),message=VALUES(message),updated_at=VALUES(updated_at)', (task_id, state, message))
+        changed = state == 'low' and not previous or bool(previous and previous['state'] != state and previous['state'] in ('low', 'recovered'))
+        if state == 'low' or (previous and previous['state'] == 'low'):
+            execute_write('INSERT INTO wisp_automation_notices(task_id,state,message,updated_at) VALUES(?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE state=VALUES(state),message=VALUES(message),updated_at=VALUES(updated_at)', (task_id, state, message))
         return dict(success=True, free_bytes=usage.free, free_percent=free_percent, message=message, changed=changed)
     if kind == 'report':
         reference = {'reference': value['scheduled_for']} if value.get('scheduled_for') else {}

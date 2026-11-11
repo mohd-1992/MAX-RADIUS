@@ -937,6 +937,7 @@ def _restore_backup(filename, admin_username, temp_dir, license_state=None):
         restored_usage_summary = False
         restored_traffic_history = False
         restored_rollup_tables = set()
+        restored_service_evidence = False
         if sql_path:
             import re
             from services.sql_import_stream import schema_headers
@@ -946,8 +947,9 @@ def _restore_backup(filename, admin_username, temp_dir, license_state=None):
                     restored_voucher_metadata |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_voucher_names\b',line,re.I))
                     restored_mac_metadata |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_account_mac_policies\b',line,re.I))
                     restored_sale_metadata |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_sale_sources\b',line,re.I))
-                    rollup_match = re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(wisp_traffic_checkpoints|wisp_traffic_rollups|wisp_traffic_rollup_state)\b',line,re.I)
+                    rollup_match = re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(wisp_traffic_checkpoints|wisp_traffic_rollups|wisp_traffic_rollup_state|wisp_traffic_intervals)\b',line,re.I)
                     if rollup_match: restored_rollup_tables.add(rollup_match.group(1).lower())
+                    restored_service_evidence |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_session_service_evidence\b',line,re.I))
                     restored_usage_summary |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_account_usage_summary\b',line,re.I))
                     restored_traffic_history |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_traffic_history\b',line,re.I))
                     restored_sale_audit |= bool(re.search(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?`?wisp_sale_source_audit\b',line,re.I))
@@ -1001,7 +1003,7 @@ def _restore_backup(filename, admin_username, temp_dir, license_state=None):
                     if sql_path and not restored_traffic_history:
                         from database.traffic_history_schema import clear_legacy_traffic_history
                         clear_legacy_traffic_history(restored_db)
-                    if sql_path and len(restored_rollup_tables)!=3:
+                    if sql_path and len(restored_rollup_tables)!=4:
                         from database.traffic_samples_schema import install_traffic_samples_schema,clear_legacy_rollups
                         install_traffic_samples_schema(restored_db)
                         clear_legacy_rollups(restored_db)
@@ -1011,6 +1013,8 @@ def _restore_backup(filename, admin_username, temp_dir, license_state=None):
                     if sql_path and not restored_usage_summary:
                         clear_legacy_usage_summary(restored_db)
                     install_accounting_triggers(restored_db)
+                    if sql_path and not restored_service_evidence:
+                        with restored_db.cursor() as service_cursor:service_cursor.execute('DELETE FROM wisp_session_service_evidence')
         except Exception as e:
             schema_restore_error = str(e)
             print(f"[Schema Healer Restore Error]: {e}")

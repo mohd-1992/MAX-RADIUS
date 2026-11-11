@@ -78,7 +78,7 @@ def purge_details(conn, account, *, history_only=False, cutoff=None):
                        ','.join('?' for _ in batch)+') LIMIT 1',tuple(batch),'one'):
                     return dict(deferred=True,reason='renewal_baseline')
         # Fetch seals in bounded sets rather than one network round trip/session.
-        known_seals={}
+        known_seals={};known_evidence={}
         uids=list({r.get('acctuniqueid') for r in rows if r.get('acctuniqueid')})
         for offset in range(0,len(uids),250):
             chunk=uids[offset:offset+250]
@@ -90,7 +90,13 @@ def purge_details(conn, account, *, history_only=False, cutoff=None):
             found=sql(conn,'SELECT * FROM wisp_account_usage_seals WHERE acctuniqueid IN ('+
                       ','.join('?' for _ in chunk)+')',tuple(chunk),'all')
             known_seals.update((r['acctuniqueid'],r) for r in found)
+            evidence=sql(conn,'SELECT * FROM wisp_session_service_evidence WHERE acctuniqueid IN ('+','.join('?' for _ in chunk)+')',tuple(chunk),'all')
+            for item in evidence:
+                known_evidence[(item['acctuniqueid'],item['nasipaddress'],item['acctsessionid'],item['acctstarttime'],item['original_username'])]=item
         for row in rows:
+            from services.session_service_evidence import apply_evidence
+            proof=known_evidence.get((row.get('acctuniqueid'),row.get('nasipaddress'),row.get('acctsessionid'),row.get('acctstarttime'),row.get('username')))
+            row=apply_evidence(row,proof)
             reason=(row.get('acctterminatecause') or '').lower().encode()
             observed_only=not row.get('acctstoptime') or reason in UNCERTAIN
             if history_only and (observed_only or not cutoff or row['acctstoptime']>=cutoff):
@@ -130,7 +136,7 @@ def purge_details(conn, account, *, history_only=False, cutoff=None):
         scope_name='current' if not cycle or start>=cycle else 'previous'
         dims=tuple(r.get(k) or '' for k in ('nasipaddress','calledstationid','nasportid','framedprotocol','servicetype'))
         visible=int(r.get('acctterminatecause')!='Consolidated-Historical-Import')
-        digest=hashlib.sha256(json.dumps([visible,vid,str(cycle) if cycle else None,scope_name,str(start)[:10],*dims],ensure_ascii=False).encode()).hexdigest()
+        digest=hashlib.sha256(json.dumps([visible,vid,str(cycle) if cycle else None,scope_name,str(start),*dims],ensure_ascii=False).encode()).hexdigest()
         values=groups.setdefault(digest,[digest,vid,account['username'],account.get('reseller_id'),cycle,start,start,*dims,visible,0,0,0,0])
         values[5]=min(values[5],start);values[6]=max(values[6],start)
         for i,k in enumerate(('acctinputoctets','acctoutputoctets','acctsessiontime')):values[13+i]+=int(r[k])

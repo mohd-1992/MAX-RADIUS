@@ -1,0 +1,21 @@
+{
+  "version": "2.7.1",
+  "patch": "cpu-metrics-max1-20261110-r31",
+  "image": "mohd777/max-radius-web@sha256:ac314a336b4f84e63cbf98d1cf141625feaa2e76aefbb44a192735799899a1b0",
+  "scope": "max1.max-net.net",
+  "status": "deployed",
+  "cpu_basis": "host_capacity_of_tenant_owned_services",
+  "unavailable_display": 0.5,
+  "real_zero_preserved": true,
+  "tests": {
+    "source_cases": 9,
+    "compiled_reader_cases": 2,
+    "actual_proxy_compatibility_cases": 7,
+    "browser_cases": 4
+  },
+  "deployment": {
+    "web": "443fb14f7b27c5a9de079d73762a3006e924f950600d1b97ae1c064236515666",
+    "untouched_containers": 113,
+    "no_db_restore": true
+  }
+}

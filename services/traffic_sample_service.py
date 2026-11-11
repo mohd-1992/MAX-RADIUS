@@ -27,7 +27,7 @@ def counter(value):
 
 
 def delta(before,after,seconds,same_point=True):
-    if not same_point or not 0<=seconds<=MAX_INTERVAL_SECONDS:return None,None,1
+    if not same_point or seconds<0:return None,None,1
     differences=[];gaps=0
     for name in ('download','upload'):
         a,b=before.get(name),after.get(name)
@@ -73,9 +73,9 @@ def capture_rows(conn,rows,monitor_started_at=None):
                 inserted=bool(cur.rowcount)
             if inserted:
                 changed+=1
-                # A newly started short session has an accounting zero at Start.
+                # A newly started session has an accounting zero at Start.
                 # Do not backfill sessions predating this monitoring generation.
-                if monitor_started_at is None or row['acctstarttime']<monitor_started_at or not 0<=(observed-row['acctstarttime']).total_seconds()<=MAX_INTERVAL_SECONDS:
+                if monitor_started_at is None or row['acctstarttime']<monitor_started_at or observed<row['acctstarttime']:
                     continue
                 before=dict(observed_at=row['acctstarttime'],download=0,upload=0,owner_scope=owner,point_key=point['server_key'],closed_at=None)
             else:
@@ -91,10 +91,20 @@ def capture_rows(conn,rows,monitor_started_at=None):
             # Deleted accounts keep the captured history scope, never become public reseller data.
             if row.get('owner_account_exists') is False and owner==0:owner=before['owner_scope']
             seconds=(observed-before['observed_at']).total_seconds()
-            down,up,gaps=delta(before,after,seconds,before['point_key']==point['server_key'] and before['owner_scope']==owner)
+            down,up,gaps=delta(before,after,seconds)
             bucket=(observed-dt.timedelta(microseconds=1)).replace(second=0,microsecond=0)
             bucket=bucket.replace(minute=bucket.minute//15*15)
-            cur.execute('''INSERT INTO wisp_traffic_rollups
+            old_bucket=before['observed_at'].replace(minute=before['observed_at'].minute//15*15,second=0,microsecond=0)
+            moved=before['point_key']!=point['server_key'] or before['owner_scope']!=owner
+            delayed=seconds>MAX_INTERVAL_SECONDS and bucket!=old_bucket
+            if delayed or moved:
+                from services.traffic_interval_service import save_interval
+                destination=dict(point,server_name=row.get('calledstationid') or '',server_interface=(row.get('nasportid') or '') if point['service_type']=='pppoe' else '')
+                if moved:
+                    destination.update(server_key=hashlib.sha256(('unallocated:'+point['nas_address']).encode()).hexdigest(),service_type='',server_name='',server_label='غير محدد',server_interface='',point_known=False)
+                save_interval(cur,key,before,observed,destination,owner if before['owner_scope']==owner else -1,down,up,'point_change' if moved else 'delayed_sample')
+            else:
+                cur.execute('''INSERT INTO wisp_traffic_rollups
                 (bucket_at,owner_scope,point_key,nas_address,service_type,server_name,server_interface,point_known,
                  download_bytes,upload_bytes,download_known,upload_known,gaps,observations)
                 VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,1)
@@ -114,6 +124,8 @@ def capture_rows(conn,rows,monitor_started_at=None):
 def collect(conn,now=None,page_size=1000,max_pages=5):
     """Keyset cursor resumes overflow immediately; no permanently excluded tail."""
     from database.traffic_samples_schema import ensure_epoch
+    from services.session_service_evidence import evidence_join,protocol_fields
+    proven=protocol_fields('a')
     now=now or dt.datetime.now(STORAGE).replace(tzinfo=None)
     if now.tzinfo:now=now.astimezone(STORAGE).replace(tzinfo=None)
     with conn.cursor() as cur:
@@ -126,13 +138,13 @@ def collect(conn,now=None,page_size=1000,max_pages=5):
             with conn.cursor() as cur:
                 cur.execute('SELECT cursor_id,cycle_rows,started_at FROM wisp_traffic_rollup_state WHERE id=1 FOR UPDATE')
                 state=cur.fetchone()
-                cur.execute('''SELECT a.radacctid,a.acctuniqueid,a.username,a.acctsessionid,
+                cur.execute(f'''SELECT a.radacctid,a.acctuniqueid,a.username,a.acctsessionid,
                     a.nasipaddress,a.acctstarttime,a.acctstoptime,a.acctupdatetime,
-                    a.calledstationid,a.nasportid,a.framedprotocol,a.servicetype,
+                    a.calledstationid,a.nasportid,{proven['framedprotocol']} framedprotocol,{proven['servicetype']} servicetype,
                     a.acctinputoctets,a.acctoutputoctets,
                     COALESCE(v.reseller_id,v2.reseller_id) reseller_id,
                     (v.id IS NOT NULL OR v2.id IS NOT NULL) owner_account_exists
-                    FROM radacct a LEFT JOIN wisp_vouchers v ON v.id=a.account_voucher_id
+                    FROM radacct a {evidence_join('a',original='a.username')} LEFT JOIN wisp_vouchers v ON v.id=a.account_voucher_id
                     LEFT JOIN wisp_vouchers v2 ON a.account_voucher_id IS NULL
                         AND v2.username=COALESCE(a.account_username,a.username)
                         AND BINARY v2.username=BINARY COALESCE(a.account_username,a.username)
@@ -166,7 +178,7 @@ def collect(conn,now=None,page_size=1000,max_pages=5):
 
 def read_windows(query,windows,selected,owner=None):
     # Read-only validation also protects an already-running new Web after an old restore.
-    status=query('''SELECT s.epoch,k.`value` marker FROM wisp_traffic_rollup_state s
+    status=query('''SELECT s.epoch,s.started_at,k.`value` marker FROM wisp_traffic_rollup_state s
         LEFT JOIN wisp_system_settings k ON k.`key`='traffic_rollup_epoch' WHERE s.id=1''')
     if not status or status[0]['epoch']!=status[0]['marker']:raise RuntimeError('Traffic summaries require initialization after restore')
     cases=[];boundaries=[]
@@ -187,15 +199,34 @@ def read_windows(query,windows,selected,owner=None):
         SUM(CASE WHEN upload_known>0 THEN upload_bytes END) upload,
         SUM(gaps) gaps,SUM(observations) observations
         FROM wisp_traffic_rollups WHERE {' AND '.join(clauses)} GROUP BY bucket''',tuple(boundaries+params))
-    indexed={int(r['bucket']):r for r in rows if r['bucket'] is not None}
-    return [indexed.get(i,dict(download=None,upload=None,gaps=0,observations=0)) for i in range(len(windows))]
+    indexed={int(r['bucket']):dict(r) for r in rows if r['bucket'] is not None}
+    from services.traffic_interval_service import read_intervals,contribution
+    intervals=read_intervals(query,boundaries[0],boundaries[-1],selected,owner)
+    result=[]
+    for i,(_,first,last) in enumerate(windows):
+        start=first.astimezone(STORAGE).replace(tzinfo=None);end=last.astimezone(STORAGE).replace(tzinfo=None)
+        row=indexed.get(i,dict(download=None,upload=None,gaps=0,observations=0))
+        row['gaps']=int(row.get('gaps') or 0);row['observations']=int(row.get('observations') or 0)
+        for interval in intervals:
+            if interval['end_at']<=start or interval['start_at']>=end:continue
+            values=contribution(interval,start,end)
+            for field in ('download','upload'):
+                if values[field] is not None:row[field]=int(row.get(field) or 0)+int(values[field])
+            row['gaps']+=int(any(value is None for value in values.values()));row['observations']+=1
+        started=status[0].get('started_at')
+        if started and start<started:row['gaps']+=1
+        result.append(row)
+    return result
 
 
 def series(query,selected,owner=None,now=None,timezone='Asia/Aden'):
     extent=(None,None)
     if selected['period']=='all' or selected['period']=='custom' and not selected.get('date_from'):
-        sql='SELECT MIN(bucket_at) first_seen,MAX(bucket_at) last_seen FROM wisp_traffic_rollups'
-        edges=query(sql+(' WHERE owner_scope=%s' if owner is not None else ''),() if owner is None else (int(owner),))[0]
+        from services.traffic_interval_service import filters
+        clauses,params=filters(selected,owner);scope=' WHERE '+' AND '.join(clauses) if clauses else ''
+        edges=query('''SELECT MIN(first_seen) first_seen,MAX(last_seen) last_seen FROM (
+            SELECT MIN(bucket_at) first_seen,MAX(bucket_at) last_seen FROM wisp_traffic_rollups'''+scope+'''
+            UNION ALL SELECT MIN(start_at),MAX(end_at) FROM wisp_traffic_intervals'''+scope+') extents',tuple(params+params))[0]
         extent=(edges['first_seen'],edges['last_seen'])
     mode,windows,clock=axis(selected,now,timezone,extent)
     rows=read_windows(query,windows,selected,owner)
@@ -228,15 +259,24 @@ def start_worker():
         import logging
         from database.db import get_connection,is_import_maintenance_active
         from services.account_lifecycle_service import job_lock
-        wait=threading.Event();delay=5
+        import time
+        wait=threading.Event();delay=5;metadata_due=0
         while not wait.wait(delay):
             delay=60
             try:
                 if is_import_maintenance_active():continue
+                if time.monotonic()>=metadata_due:
+                    metadata_due=time.monotonic()+60
+                    try:
+                        from services.session_service_evidence import refresh
+                        refresh()
+                    except Exception:
+                        logging.getLogger(__name__).warning('Session service evidence unavailable; accounting is unchanged.')
                 with job_lock('factory-reset') as idle:
                     if idle:
                         with get_connection() as conn:result=collect(conn)
                         if result['pending'] and not result['locked']:delay=.1
+                    else:delay=1
             except Exception:
                 logging.getLogger(__name__).warning('Traffic rollup deferred; accounting is unchanged.')
     threading.Thread(target=run,name='traffic-rollups',daemon=True).start()

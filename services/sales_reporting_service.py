@@ -166,7 +166,7 @@ LEDGER = '''(SELECT 'voucher' AS event_kind,s.id,s.activated_at AS event_at,s.us
     FROM wisp_voucher_sales s
     UNION ALL
     SELECT 'invoice',i.id,i.paid_at,COALESCE(i.subscriber_name,i.invoice_number),i.invoice_number,'فواتير المشتركين',
-    COALESCE(i.package_name,''),i.amount,i.amount,NULL,'فاتورة مشترك مدفوعة'
+    COALESCE(i.package_name,''),i.report_cost,i.report_cost,NULL,'فاتورة مشترك مدفوعة'
     FROM wisp_invoices i WHERE i.status='paid'
       AND COALESCE(i.package_name,'') NOT IN ('إيداع رصيد محفظة','سحب/تصحيح رصيد محفظة')) e'''
 FROM = LEDGER+''' LEFT JOIN wisp_sale_sources x ON x.event_kind=e.event_kind AND x.event_id=e.id'''
@@ -182,11 +182,11 @@ def report_source(record_kind):
         raise ValueError('نوع السجل غير صالح.')
     voucher, invoice = LEDGER[1:-3].split('    UNION ALL\n', 1)
     # UNION takes column names from its first branch. When selecting invoices
-    # alone, retain those names explicitly (amount is used as both price/cost).
+    # alone, retain those names explicitly. Cost never rewrites the invoice amount.
     invoice = '''SELECT 'invoice' AS event_kind,i.id,i.paid_at AS event_at,
         COALESCE(i.subscriber_name,i.invoice_number) AS username,
         i.invoice_number AS serial_number,'فواتير المشتركين' AS batch_name,
-        COALESCE(i.package_name,'') AS package_name,i.amount AS price,i.amount AS cost,
+        COALESCE(i.package_name,'') AS package_name,i.report_cost AS price,i.report_cost AS cost,
         NULL AS reseller_id,'فاتورة مشترك مدفوعة' AS operation
         FROM wisp_invoices i WHERE i.status='paid'
         AND COALESCE(i.package_name,'') NOT IN ('إيداع رصيد محفظة','سحب/تصحيح رصيد محفظة')'''
@@ -204,6 +204,7 @@ COMMISSION = 'CASE WHEN e.reseller_id IS NOT NULL THEN e.price-e.cost ELSE 0 END
 MONEY_SQL = f'''COUNT(*) AS sold_count,COALESCE(SUM(e.price),0) AS total_gross_revenue,
     COALESCE(SUM({ISP}),0) AS total_isp_revenue,COALESCE(SUM({COMMISSION}),0) AS total_reseller_profit,
     SUM(CASE WHEN e.reseller_id IS NOT NULL AND e.cost IS NULL THEN 1 ELSE 0 END) AS unknown_cost_count,
+    COALESCE(SUM(e.price IS NULL),0) AS unknown_amount_count,
     COALESCE(SUM(x.resolution_status='inferred'),0) AS inferred_count,
     COALESCE(SUM(x.resolution_status='ambiguous'),0) AS ambiguous_count,
     COALESCE(SUM(COALESCE(x.service_type,'')=''),0) AS missing_service_count,
@@ -268,7 +269,7 @@ def sort_order(table, settings):
 def package_metrics(packages):
     """Package groups partition the filtered ledger; sum with exact Decimal types."""
     fields=('sold_count','total_gross_revenue','total_isp_revenue','total_reseller_profit',
-            'unknown_cost_count','inferred_count','ambiguous_count','missing_service_count',
+            'unknown_cost_count','unknown_amount_count','inferred_count','ambiguous_count','missing_service_count',
             'missing_server_count','unreviewed_count')
     if not packages:
         return {key:ZERO if key in ('total_gross_revenue','total_isp_revenue','total_reseller_profit') else None if key=='unknown_cost_count' else 0 for key in fields}
@@ -301,7 +302,7 @@ def report(args, export=False, now=None, timezone=None):
             packages=[]
             if not export:
                 packages = query(f'''SELECT * FROM (SELECT e.package_name AS name,
-                    COALESCE(GROUP_CONCAT(DISTINCT NULLIF(x.service_type,'') ORDER BY x.service_type SEPARATOR ','),'') AS service_type,
+                    COALESCE(GROUP_CONCAT(DISTINCT COALESCE(NULLIF(x.service_type,''),CASE WHEN x.package_service_type IN ('hotspot','pppoe','both') THEN CONCAT('package:',x.package_service_type) END) ORDER BY x.service_type SEPARATOR ','),'') AS service_type,
                     MIN(e.price) AS minimum_price,MAX(e.price) AS maximum_price,
                     MIN({ISP}) AS minimum_isp,MAX({ISP}) AS maximum_isp,{MONEY_SQL}
                     FROM {report_from} WHERE {where} GROUP BY e.package_name) package_groups
@@ -316,6 +317,7 @@ def report(args, export=False, now=None, timezone=None):
             records = query(f'''SELECT e.*,COALESCE(x.server_key,'unknown') AS server_key,
                 COALESCE(x.nas_address,'') AS nas_address,{NAS_LABEL} AS nas_label,
                 COALESCE(x.service_type,'') AS service_type,COALESCE(x.server_name,'') AS server_name,
+                COALESCE(x.package_service_type,'') AS package_service_type,
                 COALESCE(x.server_interface,'') AS server_interface,COALESCE(x.attribution,'unknown') AS attribution,
                 COALESCE(x.resolution_status,'unknown') AS resolution_status,
                 COALESCE(x.service_attribution,'') AS service_attribution,
@@ -334,7 +336,7 @@ def report(args, export=False, now=None, timezone=None):
                         THEN COALESCE(MAX(NULLIF(x.server_name,'')),'') ELSE '' END AS server_name,
                     MIN(COALESCE(x.server_interface,'')) AS server_interface,{MONEY_SQL}
                     FROM {report_from} WHERE {where}
-                    GROUP BY COALESCE(x.server_key,'unknown')) server_groups
+                    GROUP BY COALESCE(x.server_key,'unknown'),COALESCE(x.nas_address,''),COALESCE(x.service_type,'')) server_groups
                     ORDER BY {sort_order('server',table_sorts)}''',params)
                 from services.report_time_axis import sales_series
                 chart = sales_series(query,report_from,where,params,selected,now,timezone)
@@ -348,7 +350,7 @@ def report(args, export=False, now=None, timezone=None):
                     CASE WHEN COUNT(NULLIF(x.server_name,''))=COUNT(*) AND MIN(NULLIF(x.server_name,''))=MAX(NULLIF(x.server_name,''))
                         THEN COALESCE(MAX(NULLIF(x.server_name,'')),'') ELSE '' END AS server_name,
                     MIN(COALESCE(x.server_interface,'')) AS server_interface FROM {report_from} WHERE {scope}
-                    GROUP BY COALESCE(x.server_key,'unknown')''',scope_params)
+                    GROUP BY COALESCE(x.server_key,'unknown'),COALESCE(x.nas_address,''),COALESCE(x.service_type,'')''',scope_params)
                 nas_catalog = {}
                 if owner_id() is None:
                     # Catalog visibility is independent of financial activity. Do
@@ -357,7 +359,9 @@ def report(args, export=False, now=None, timezone=None):
                         if item['address']:
                             nas_catalog.setdefault(item['address'],item['label'])
                 from services.sales_source_service import source_from_rows
-                known = {r['server_key']:r for r in point_options}
+                def option_key(row):
+                    return (row['server_key'],row.get('nas_address',''),row.get('service_type',''))
+                known = {option_key(r):r for r in point_options}
                 if owner_id() is None:
                     # A server evidenced by an invoice is still a known server on
                     # the voucher tab (and vice versa); this never reattributes sales.
@@ -365,7 +369,7 @@ def report(args, export=False, now=None, timezone=None):
                         MIN(nas_label) AS nas_label,MIN(service_type) AS service_type,
                         MIN(server_name) AS server_name,MIN(server_interface) AS server_interface
                         FROM wisp_sale_sources WHERE server_key<>'unknown' GROUP BY server_key'''):
-                        known.setdefault(point['server_key'],point)
+                        known.setdefault(option_key(point),point)
                 packets = options_query('''SELECT DISTINCT nasipaddress,calledstationid,nasportid,framedprotocol,servicetype
                     FROM '''+accounting_rows_sql(owner_id())+" WHERE COALESCE(calledstationid,'')<>''")
                 for packet in packets:
@@ -382,7 +386,7 @@ def report(args, export=False, now=None, timezone=None):
                                 server_interface=packet['nasportid'] if kind=='pppoe' else '')
                     if point['server_key']!='unknown':
                         point['nas_label'] = nas_catalog.get(point['nas_address']) or point['nas_address']
-                        known.setdefault(point['server_key'],point)
+                        known.setdefault(option_key(point),point)
                 point_options = list(known.values())
                 traffic_chart = traffic_for_period(query,selected,owner_id(),now,timezone) if not export else None
                 resellers = options_query(f'''SELECT DISTINCT m.id,m.username,m.full_name,COALESCE(NULLIF(m.full_name,''),m.username) AS name
@@ -428,7 +432,8 @@ def report(args, export=False, now=None, timezone=None):
         nas_options=sorted(dict(nas_catalog,**{r['nas_address']:r['nas_label'] for r in point_options if r['nas_address'] and r['nas_address'] not in nas_catalog}).items()),
         traffic_chart=traffic_chart,
         sales_chart=chart,
-        unknown_date_count=int(undated),unknown_cost_count=int(metrics['unknown_cost_count'] or 0),filter_timezone=timezone)
+        unknown_date_count=int(undated),unknown_cost_count=int(metrics['unknown_cost_count'] or 0),
+        unknown_amount_count=int(metrics['unknown_amount_count'] or 0),filter_timezone=timezone)
     for key in ('inferred_count','ambiguous_count','missing_service_count','missing_server_count','unreviewed_count'):
         result[key]=int(metrics[key] or 0)
     # Every displayed sum must reconcile to the same filtered ledger, including
@@ -436,6 +441,8 @@ def report(args, export=False, now=None, timezone=None):
     for field in (() if export else ('sold_count','total_gross_revenue','total_isp_revenue','total_reseller_profit')):
         assert sum((r[field] for r in packages),0)==metrics[field]
         assert sum((r[field] for r in servers),0)==metrics[field]
+    from services.report_navigation_service import navigation
+    result.update(navigation(args))
     return result
 
 

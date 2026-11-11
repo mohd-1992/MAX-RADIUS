@@ -7,6 +7,7 @@ TABLE_SQL = '''CREATE TABLE IF NOT EXISTS wisp_sale_sources (
     server_name VARCHAR(128) NOT NULL DEFAULT '', server_interface VARCHAR(128) NOT NULL DEFAULT '',
     evidence_uid VARCHAR(64) NOT NULL DEFAULT '', attribution VARCHAR(40) NOT NULL DEFAULT 'unknown',
     service_attribution VARCHAR(40) NOT NULL DEFAULT '',
+    package_service_type VARCHAR(16) NOT NULL DEFAULT '',
     resolution_status VARCHAR(24) NOT NULL DEFAULT 'unknown',
     resolution_reason VARCHAR(128) NOT NULL DEFAULT '',
     resolution_version INT NOT NULL DEFAULT 0, reviewed_at DATETIME NULL,
@@ -36,12 +37,14 @@ def clear_legacy_sale_sources(conn):
 # NEW values. Never uses the account's latest later session.
 ACTIVATION_SOURCE_SQL = '''
         INSERT IGNORE INTO wisp_sale_sources
-            (event_kind,event_id,server_key,nas_address,nas_label,service_type,server_name,server_interface,evidence_uid,attribution)
+            (event_kind,event_id,server_key,nas_address,nas_label,service_type,server_name,server_interface,evidence_uid,attribution,package_service_type)
         SELECT 'voucher',s.id,'pending',COALESCE(NEW.nasipaddress,''),
             COALESCE((SELECT MIN(shortname) FROM nas WHERE nasname=NEW.nasipaddress COLLATE utf8mb4_unicode_ci),NEW.nasipaddress,''),
-            COALESCE(p.service_type,''),COALESCE(NEW.calledstationid,''),
-            CASE WHEN p.service_type='pppoe' THEN COALESCE(NEW.nasportid,'') ELSE '' END,
-            COALESCE(NEW.acctuniqueid,''),'accounting_start'
+            CASE WHEN LOWER(TRIM(COALESCE(NEW.framedprotocol,'')))='ppp' AND LOWER(TRIM(COALESCE(NEW.servicetype,''))) NOT IN ('login-user','login') THEN 'pppoe'
+                 WHEN LOWER(TRIM(COALESCE(NEW.servicetype,''))) IN ('login-user','login') AND LOWER(TRIM(COALESCE(NEW.framedprotocol,'')))<>'ppp' THEN 'hotspot' ELSE '' END,
+            COALESCE(NEW.calledstationid,''),
+            CASE WHEN LOWER(TRIM(COALESCE(NEW.framedprotocol,'')))='ppp' AND LOWER(TRIM(COALESCE(NEW.servicetype,''))) NOT IN ('login-user','login') THEN COALESCE(NEW.nasportid,'') ELSE '' END,
+            COALESCE(NEW.acctuniqueid,''),'accounting_start',COALESCE(p.service_type,'')
         FROM wisp_voucher_sales s JOIN wisp_packages p ON p.id=v_package_id
         WHERE s.first_activation_voucher_id=v_id;
 '''
@@ -62,6 +65,7 @@ def install_sales_source_schema(conn):
             cur.execute("SHOW COLUMNS FROM wisp_sale_sources")
             present={row['Field'] for row in cur.fetchall()}
             for name, definition in (
+                ('package_service_type',"VARCHAR(16) NOT NULL DEFAULT ''"),
                 ('service_attribution',"VARCHAR(40) NOT NULL DEFAULT ''"),
                 ('resolution_status',"VARCHAR(24) NOT NULL DEFAULT 'unknown'"),
                 ('resolution_reason',"VARCHAR(128) NOT NULL DEFAULT ''"),

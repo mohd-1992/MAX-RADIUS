@@ -50,17 +50,7 @@ def ensure_automation_tables():
             if not cur.fetchone():
                 cur.execute("ALTER TABLE wisp_automation_rules ADD COLUMN IF NOT EXISTS schedule_enabled TINYINT NOT NULL DEFAULT 0")
             cur.execute("UPDATE wisp_automation_rules SET rule_name='تنظيف الكروت المنتهية وصلاحيتها قبل 60 يوماً' WHERE action_type='CLEAN_EXPIRED_CARDS' AND rule_name='تنظيف كروت الشحن المنتهية منذ أكثر من 60 يوماً'")
-            # Populate default automation rules if empty
-            cur.execute("SELECT COUNT(*) as cnt FROM wisp_automation_rules")
-            if (cur.fetchone() or {}).get('cnt', 0) == 0:
-                cur.execute("""
-                    INSERT INTO wisp_automation_rules (rule_name, trigger_event, action_type, is_active)
-                    VALUES 
-                    ('أرشفة الجلسات القديمة تلقائياً (> 90 يوم)', 'DAILY_MIDNIGHT', 'ARCHIVE_OLD_SESSIONS', 1),
-                    ('تنظيف الكروت المنتهية وصلاحيتها قبل 60 يوماً', 'WEEKLY_SCHEDULE', 'CLEAN_EXPIRED_CARDS', 1),
-                    ('فحص ومزامنة جلسات الميكروتيك العالقة', 'EVERY_15_MINUTES', 'PURGE_ZOMBIE_SESSIONS', 1),
-                    ('توليد ملخص تقارير المبيعات اليومي', 'DAILY_23_59', 'SEND_DAILY_SALES_REPORT', 1)
-                """)
+            # Legacy definitions are retired by the versioned task installer. Never reseed.
             db.commit()
             from services.automation_task_service import ensure_tables
             ensure_tables()
@@ -117,63 +107,14 @@ def _toggle_rule_legacy(rule_id, is_active):
 
 @_license_guarded('automation_rules')
 def toggle_rule(rule_id, is_active):
-    if not str(rule_id).isdigit() or int(rule_id)<1:
-        return False,'القاعدة غير موجودة.'
-    from services.automation_task_service import ensure_tables, task_lock
-    from database.db import query_one
-    ensure_automation_tables();ensure_tables()
-    with task_lock('config') as acquired:
-        if not acquired:return False,'يوجد تعديل مهام جارٍ'
-        if is_active:
-            rule=query_one('SELECT action_type FROM wisp_automation_rules WHERE id=?',(rule_id,))
-            kind={'ARCHIVE_OLD_SESSIONS':'summary','CLEAN_EXPIRED_CARDS':'delete','SEND_DAILY_SALES_REPORT':'report'}.get((rule or {}).get('action_type'))
-            if kind and query_one('SELECT id FROM wisp_automation_tasks WHERE kind=? AND enabled=1 AND deleted_at IS NULL LIMIT 1',(kind,)):
-                return False,'مهمة بديلة من النوع نفسه مفعلة؛ أوقفها قبل تفعيل القاعدة السابقة'
-        return _toggle_rule_legacy(rule_id,is_active)
+    return False, 'القواعد السابقة أُلغيت؛ استخدم المهام الحالية.'
 
 
 @_license_guarded('automation_rules')
 def execute_rule_now(rule_id, scheduled=False, expected_last=None):
     if not str(rule_id).isdigit() or int(rule_id) < 1:
         return False, 'القاعدة غير موجودة.'
-    from services.factory_reset_service import factory_reset_active
-    if factory_reset_active():
-        return False, 'إعادة المصنع قيد التنفيذ.'
-    ensure_automation_tables()
-    import json
-    from services.account_lifecycle_service import job_lock
-    from database.db import query_one, execute_write
-    with job_lock(f'automation-rule-{int(rule_id)}') as acquired:
-        if not acquired:
-            return False, 'القاعدة قيد التنفيذ بالفعل.'
-        rule=query_one('SELECT * FROM wisp_automation_rules WHERE id=?',(rule_id,))
-        if not rule:return False, 'القاعدة غير موجودة.'
-        if scheduled and (not rule['is_active'] or not rule.get('schedule_enabled') or rule.get('last_run_at')!=expected_last):
-            return False, 'تغيرت حالة الجدولة؛ ألغيت المهمة.'
-        try:
-            params=json.loads(rule.get('parameters') or '{}')
-            if not isinstance(params,dict):raise ValueError('معلمات قاعدة غير صالحة')
-            action=rule['action_type'];affected=0
-            if action=='PURGE_ZOMBIE_SESSIONS':
-                from services.autoheal_service import purge_stale_zombie_sessions
-                ok,msg=purge_stale_zombie_sessions()
-            elif action=='ARCHIVE_OLD_SESSIONS':
-                from services.accounting_archiver_service import archive_old_sessions
-                ok,msg=archive_old_sessions(days_threshold=max(1,int(params.get('days',90))))
-            elif action=='CLEAN_EXPIRED_CARDS':
-                from services.db_maintenance_service import delete_expired_vouchers
-                res=delete_expired_vouchers(delete_type=params.get('delete_type','all'),min_age_days=max(60,int(params.get('days',60))))
-                affected=res['deleted_vouchers'];ok=bool(res['success'] and res.get('deletion_complete'));msg=res['message']
-            elif action=='SEND_DAILY_SALES_REPORT':
-                from services.bot_notifications_service import trigger_daily_sales_summary
-                ok,msg=trigger_daily_sales_summary()
-            else:
-                ok=False;msg='نوع قاعدة غير مدعوم؛ لم تنفذ العملية.'
-        except Exception as exc:
-            ok=False;msg=str(exc);affected=0
-        execute_write('UPDATE wisp_automation_rules SET last_run_at=NOW(),execution_count=execution_count+1 WHERE id=?',(rule_id,))
-        execute_write('INSERT INTO wisp_automation_logs (rule_id,rule_name,status,affected_count,details) VALUES (?,?,?,?,?)',(rule_id,rule['rule_name'],'success' if ok else 'failed',affected,str(msg)))
-        return bool(ok),str(msg)
+    return False, 'القواعد السابقة أُلغيت؛ استخدم المهام الحالية.'
 
 
 def run_due_rules():
@@ -185,14 +126,3 @@ def run_due_rules():
     ensure_automation_tables()
     from services.automation_task_service import tick
     tick()
-    now=get_system_now()
-    for rule in query_all('SELECT * FROM wisp_automation_rules WHERE is_active=1 AND schedule_enabled=1 ORDER BY id'):
-        event=rule['trigger_event'];last=rule.get('last_run_at')
-        timed_last=last.replace(tzinfo=get_db_storage_now().tzinfo).astimezone(now.tzinfo) if last else None
-        due=False
-        if event=='EVERY_15_MINUTES':due=last is None or (now-timed_last).total_seconds()>=900
-        elif event=='WEEKLY_SCHEDULE':due=last is None or (now-timed_last).total_seconds()>=604800
-        elif event in ('DAILY_MIDNIGHT','DAILY_23_59'):
-            due=(last is None or timed_last.date()<now.date()) and (event=='DAILY_MIDNIGHT' or (now.hour==23 and now.minute>=59))
-        if due:
-            execute_rule_now(rule['id'],scheduled=True,expected_last=last)

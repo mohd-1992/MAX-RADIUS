@@ -1,0 +1,34 @@
+{
+  "version": "2.7.1",
+  "build": "20261110-history-only-r29",
+  "image_digest": "sha256:a4312891aa7c06d1cfed0fc5c463632d6f35d14a16430e5f81feb24f4a81231e",
+  "tag": "mohd777/max-radius-web:2.7.1-history-only-20261110-r29",
+  "application_ui_base": "sha256:c1c7b17eafe3b83dee41795f786665d9cd7928bf297d8e3789e03c14b10c1dc6",
+  "ui_equivalent_to_full_browser_tested_r28": true,
+  "runtime_delta_from_r28": [
+    "services/system_update_executor.cpython-311-x86_64-linux-gnu.so"
+  ],
+  "source_inputs_sha256": {
+    "compile_runtime.py": "79a6d14f56a9342be680f9eeba74ac379271e083d48beabe763df29f0adfca19",
+    "Dockerfile": "e39b175c1884148ba94021b4d568c947686122766d81a8f54cf98b5c294a1dd8",
+    "seal_runtime.py": "f9513bf741c47ae9a19c692803c970ef9786ac2ec14f709728d07da2348e3c80",
+    "runtime/services/system_update_executor.py": "3f7c7f8416a6feb25864f95f1d833bef8fab233da7387e80c9dff4759cda8488"
+  },
+  "ui_inputs_sha256": {
+    "compile_runtime.py": "79a6d14f56a9342be680f9eeba74ac379271e083d48beabe763df29f0adfca19",
+    "Dockerfile": "02cecb096173c6f120eda07bc386f891fa777c032f25192b7e20da5a1f482fb3",
+    "seal_runtime.py": "f9513bf741c47ae9a19c692803c970ef9786ac2ec14f709728d07da2348e3c80",
+    "runtime/web/_embedded_templates.py": "3ead268693d07a0b640c30ce69cdaca9f56c36d7eb7317054d992c71452d69be",
+    "runtime/web/static/automation-tasks.css": "afe2ed6e4d3205840e5b2636a3d97ab7f3eb069fcdb44723533a469e54cd9704",
+    "runtime/web/static/automation-tasks.js": "88c86f21817c849df8ce9f63ca2d2b7c10b230f2b29fc15d4a1ee8693c137dac"
+  },
+  "browser_cases": 11,
+  "engine_source_cases": 88,
+  "engine_compiled_cases": 88,
+  "offered_target": "max1.max-net.net",
+  "offer_release_id": "0c9419bbb6872fbd3fa0bf4680b0729b",
+  "target_current_version": "2.7.0",
+  "installed": false,
+  "other_components_changed": false,
+  "installer_changed": false
+}

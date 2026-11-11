@@ -12,7 +12,7 @@ import urllib.parse
 
 from services.system_update_runtime import (Docker, UpdateError, candidate_spec, endpoints_for,
                                            inspect, restore, write_json)
-from services.system_update_safety import Budget, required, contract_program, PROBE as SAFE_PROBE
+from services.system_update_safety import Budget, SafetyError, MIN_SWITCH_LEASE, required, contract_program, PROBE as SAFE_PROBE
 
 PROBE = r'''import json,hashlib,pathlib,subprocess
 from core.config import APP_VERSION
@@ -63,6 +63,29 @@ def execute(api, ident, code, args=(), timeout=120):
     if api('GET', '/exec/'+value['Id']+'/json').get('ExitCode') != 0 or not isinstance(result, dict):
         raise UpdateError('Scoped runtime verification failed')
     return result
+
+
+def await_switch_lease(api, ident, plan, sleep=None, clock=None):
+    """Wait for the running Web's normal publisher; never publish/extend a lease.
+
+    All waiting precedes any stop, rename or replacement. A busy/unavailable
+    publisher therefore leaves the original service untouched.
+    """
+    sleep = sleep or time.sleep
+    clock = clock or time.monotonic
+    deadline = clock() + 40
+    while True:
+        proof = execute(api, ident, SAFE_PROBE, timeout=10)
+        if proof.get('version') != plan['previous_version'] or proof.get('publisher_key') != plan['publisher_key']:
+            raise UpdateError('Pre-switch runtime trust changed')
+        if not all(proof.get(k) for k in ('verified', 'http', 'license', 'lease')):
+            raise SafetyError('Current runtime did not verify; no switch allowed')
+        remaining = float(proof.get('lease_remaining', 0))
+        if MIN_SWITCH_LEASE <= remaining <= 91:
+            return proof
+        if remaining <= 0 or remaining > 91 or clock() >= deadline:
+            raise SafetyError('Fresh verified lease unavailable; original Web remains running')
+        sleep(min(2, max(0, deadline-clock())))
 
 
 def owned_snapshot(api, config):
@@ -201,6 +224,12 @@ def wait_ready(api, ident, role, plan, rollback=False, sleep=time.sleep, clock=t
                     result = execute(api, ident, SAFE_PROBE if strict else PROBE, timeout=10 if strict else 120)
                     expected = plan['previous_version'] if rollback else plan['version']
                     renewed = not strict or (result.get('http') and result.get('lease_deadline','') > plan.get('lease_before',''))
+                    plan['last_web_verification'] = dict(
+                        phase='rollback' if rollback else 'forward',
+                        **{k: bool(result.get(k)) for k in ('http', 'verified', 'license', 'lease')},
+                        version_matches=result.get('version') == expected,
+                        publisher_matches=result.get('publisher_key') == plan['publisher_key'],
+                        lease_renewed=bool(renewed))
                     if (renewed and all(result.get(k) for k in ('verified','license','lease')) and result['version'] == expected
                             and result['publisher_key'] == plan['publisher_key']):
                         contract=contract_program(plan['old']['web'],plan.get('runtime_contracts')) if strict else None
@@ -307,9 +336,7 @@ def run_job(folder, api=None, wait=None):
                 contract=contract_program(plan['old']['web'],plan.get('runtime_contracts'))
                 if contract and execute(api,plan['old']['web']['Id'],contract,timeout=5).get('verified') is not True:
                     raise UpdateError('Startup contract changed before switch')
-                proof = execute(api, plan['old']['web']['Id'], SAFE_PROBE, timeout=10)
-                if proof.get('version') != plan['previous_version'] or proof.get('publisher_key') != plan['publisher_key']:
-                    raise UpdateError('Pre-switch runtime trust changed')
+                proof = await_switch_lease(api, plan['old']['web']['Id'], plan)
                 budget = Budget(proof)
                 api = budget.api(raw_api)
                 plan['accounting'] = proof['rows']
@@ -355,7 +382,9 @@ def run_job(folder, api=None, wait=None):
                     persist_schema(plan,folder)
                 state.update(status='completed',percent=100,stage='اكتمل التحديث بعد التحقق من التشغيل والمحاسبة',completed_at=time.time())
         except Exception as exc:
-            write_json(folder/'failure.private.json',{'type':type(exc).__name__})
+            write_json(folder/'failure.private.json',{'type':type(exc).__name__,
+                'last_web_verification':plan.get('last_web_verification'),
+                'switch_attempted':bool(state.get('switch_attempted'))})
             if not state.get('switch_attempted'):
                 state.update(status='error',percent=0,stage='توقف التحديث قبل التبديل')
             else:

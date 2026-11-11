@@ -1493,6 +1493,8 @@ def renew_or_change_package(username, new_pkg_id):
                 (generate_invoice_number(sub['id']), sub['id'],
                  sub.get('full_name') or sub['username'], pkg_price, pkg['name'],
                  'شراء أو تجديد باقة من محفظة المشترك عبر البوابة', db_now_str))
+            from services.invoice_cost_service import record_invoice_cost
+            record_invoice_cost(conn,cursor.lastrowid,pkg)
             from services.sales_source_service import record_sale_source
             record_sale_source(conn, 'invoice', cursor.lastrowid, username)
 
