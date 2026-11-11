@@ -1,0 +1,18 @@
+{
+  "version": "2.7.1",
+  "patch": "legacy-invoices-20261111-r35",
+  "scope": "m.max-r.cc only; local immutable image transfer; no Registry or Git push",
+  "image_id": "sha256:9b4aac08a65b4f911357538f71c279aa85a1aa1d0aad29cb3fc863b44313ca6c",
+  "base_image_id": "sha256:89ce5cd11959ac2acda0c41aeff82bb71fe083c9685fd2fb3f113001dc02a951",
+  "changed_sources": {
+    "services/sales_reporting_service.py": "da2baf872e4695d210b663a2d74ca7275d95c06be3609158ffed2ac8f48e4532"
+  },
+  "changed_runtime_files": [
+    "services/sales_reporting_service.cpython-311-x86_64-linux-gnu.so"
+  ],
+  "unchanged_runtime_files": 253,
+  "templates_unchanged": 80,
+  "source_tests": 33,
+  "compiled_tests": 33,
+  "signature_verified": true
+}

@@ -160,23 +160,27 @@ def filters(args, owner=None, now=None, timezone='Asia/Aden'):
 
 # Record types are intentionally separate: a wallet funding sale and the later
 # invoice spending that wallet must never be added as independent network income.
+# Only pre-snapshot invoices retain their original reporting amount. A new
+# invoice explicitly marked unavailable must not fall back to its billed amount;
+# zero snapshots remain known costs. This is a read projection, never a backfill.
+INVOICE_REPORT_VALUE = "CASE WHEN i.report_cost IS NULL AND COALESCE(i.cost_source,'')='' THEN i.amount ELSE i.report_cost END"
 LEDGER = '''(SELECT 'voucher' AS event_kind,s.id,s.activated_at AS event_at,s.username,s.serial_number,s.batch_name,
     s.package_name,s.price,s.cost,s.reseller_id,
     CASE WHEN s.first_activation_voucher_id IS NOT NULL THEN 'تفعيل كرت' ELSE 'بيع / تجديد كرت' END AS operation
     FROM wisp_voucher_sales s
     UNION ALL
     SELECT 'invoice',i.id,i.paid_at,COALESCE(i.subscriber_name,i.invoice_number),i.invoice_number,'فواتير المشتركين',
-    COALESCE(i.package_name,''),i.report_cost,i.report_cost,NULL,'فاتورة مشترك مدفوعة'
+    COALESCE(i.package_name,''),{invoice_value},{invoice_value},NULL,'فاتورة مشترك مدفوعة'
     FROM wisp_invoices i WHERE i.status='paid'
-      AND COALESCE(i.package_name,'') NOT IN ('إيداع رصيد محفظة','سحب/تصحيح رصيد محفظة')) e'''
+      AND COALESCE(i.package_name,'') NOT IN ('إيداع رصيد محفظة','سحب/تصحيح رصيد محفظة')) e'''.format(invoice_value=INVOICE_REPORT_VALUE)
 FROM = LEDGER+''' LEFT JOIN wisp_sale_sources x ON x.event_kind=e.event_kind AND x.event_id=e.id'''
 
 
 def report_source(record_kind):
     """Choose the validated ledger branch before joining/filtering the report.
 
-    Keep LEDGER unchanged for the dashboard's combined income series. The page
-    already requires exactly one record kind; no monetary record is cached.
+    The page requires exactly one record kind; no monetary record is cached.
+    Dashboard cash income has its own original-amount projection.
     """
     if record_kind not in ('voucher','invoice'):
         raise ValueError('نوع السجل غير صالح.')
@@ -186,10 +190,10 @@ def report_source(record_kind):
     invoice = '''SELECT 'invoice' AS event_kind,i.id,i.paid_at AS event_at,
         COALESCE(i.subscriber_name,i.invoice_number) AS username,
         i.invoice_number AS serial_number,'فواتير المشتركين' AS batch_name,
-        COALESCE(i.package_name,'') AS package_name,i.report_cost AS price,i.report_cost AS cost,
+        COALESCE(i.package_name,'') AS package_name,{invoice_value} AS price,{invoice_value} AS cost,
         NULL AS reseller_id,'فاتورة مشترك مدفوعة' AS operation
         FROM wisp_invoices i WHERE i.status='paid'
-        AND COALESCE(i.package_name,'') NOT IN ('إيداع رصيد محفظة','سحب/تصحيح رصيد محفظة')'''
+        AND COALESCE(i.package_name,'') NOT IN ('إيداع رصيد محفظة','سحب/تصحيح رصيد محفظة')'''.format(invoice_value=INVOICE_REPORT_VALUE)
     branch = voucher if record_kind=='voucher' else invoice
     return '('+branch+') e LEFT JOIN wisp_sale_sources x ON x.event_kind=e.event_kind AND x.event_id=e.id'
 # Resolve display names only; historical NAS identity and source snapshots stay intact.

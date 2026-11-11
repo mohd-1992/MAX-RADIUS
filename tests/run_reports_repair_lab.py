@@ -97,19 +97,35 @@ def main():
             conn=connection();record_invoice_cost(conn,1,dict(cost=5000,service_type='both'));conn.commit();record_invoice_cost(conn,1,dict(cost=2000,service_type='hotspot'));conn.commit();conn.close()
             row=execute('SELECT amount,report_cost,package_service_type FROM wisp_invoices WHERE id=1',mode='one');self.assertEqual((row['amount'],row['report_cost'],row['package_service_type']),(6000,5000,'both'))
             data=sales.report({'record_kind':'invoice','period':'all'},export=True,now=NOW,timezone='Asia/Aden');self.assertEqual(data['gross_sales'],5000)
-        def test_old_cost_is_unknown_not_current_cost(self):
+        def test_old_invoice_uses_original_amount_not_current_cost(self):
             self.insert('wisp_invoices',dict(id=1,amount=6000,status='paid',package_name='fixture-package',paid_at=dt.datetime(2026,11,10),invoice_number='F1'))
-            data=sales.report({'record_kind':'invoice','period':'all'},export=True,now=NOW,timezone='Asia/Aden');self.assertEqual(data['unknown_amount_count'],1);self.assertIsNone(data['recent_sales'][0]['price'])
+            data=sales.report({'record_kind':'invoice','period':'all'},export=True,now=NOW,timezone='Asia/Aden');self.assertEqual(data['unknown_amount_count'],0);self.assertEqual(data['recent_sales'][0]['price'],6000)
         def test_zero_cost_is_recorded_not_missing(self):
             self.insert('wisp_invoices',dict(id=1,amount=6000,status='paid',package_name='fixture-package',paid_at=dt.datetime(2026,11,10),invoice_number='F1'))
             conn=connection();record_invoice_cost(conn,1,dict(cost=0,service_type='hotspot'));conn.commit();conn.close()
             data=sales.report({'record_kind':'invoice','period':'all'},export=True,now=NOW,timezone='Asia/Aden');self.assertEqual(data['gross_sales'],0);self.assertEqual(data['unknown_amount_count'],0);self.assertEqual(data['recent_sales'][0]['price'],0)
+        def test_mixed_old_and_new_invoice_values_are_read_only_and_consistent(self):
+            for id,amount,cost,source in [(1,6000,None,''),(2,9000,5000,'package_snapshot'),(3,1000,0,'package_snapshot'),(4,7000,None,'unavailable')]:
+                self.insert('wisp_invoices',dict(id=id,amount=amount,report_cost=cost,cost_source=source,status='paid',package_name='fixture-package',paid_at=dt.datetime(2026,11,10),invoice_number='F'+str(id)))
+            self.insert('wisp_invoices',dict(id=5,amount=800,status='unpaid',invoice_number='F5'))
+            self.insert('wisp_invoices',dict(id=6,amount=900,status='paid',package_name='إيداع رصيد محفظة',paid_at=dt.datetime(2026,11,10),invoice_number='F6'))
+            before=execute('SELECT * FROM wisp_invoices ORDER BY id')
+            execute('UPDATE wisp_packages SET cost=123 WHERE id=1',mode='count')
+            for export in (False,True):
+                data=sales.report(dict(record_kind='invoice',period='all'),export=export,now=NOW,timezone='Asia/Aden')
+                self.assertEqual((data['total_items_count'],data['gross_sales'],data['net_isp_revenue'],data['unknown_amount_count']),(4,11000,11000,1))
+                self.assertEqual({r['id']:r['price'] for r in data['recent_sales']},{1:6000,2:5000,3:0,4:None})
+                if not export:
+                    self.assertEqual(sum(v or 0 for v in data['sales_chart']['sales']),11000)
+                    self.assertEqual(sum(r['total_gross_revenue'] for r in data['server_breakdown']),11000)
+            self.assertEqual(execute('SELECT * FROM wisp_invoices ORDER BY id'),before)
         def test_report_presentation_fixtures(self):
             from tests.test_reports_repair_ui import render,check_navigation
             args=dict(record_kind='invoice',period='custom',date_from='2026-08-15',date_to='2026-11-05',nas='192.0.2.10',service_type='unknown',page='3')
             for id in (1,2):
                 self.insert('wisp_invoices',dict(id=id,amount=6000,status='paid',package_name='fixture-package',paid_at=dt.datetime(2026,11,1),invoice_number='F'+str(id)))
                 self.insert('wisp_sale_sources',dict(event_kind='invoice',event_id=id,nas_address='192.0.2.10',package_service_type='both'))
+            execute("UPDATE wisp_invoices SET cost_source='unavailable' WHERE id=1",mode='count')
             unknown=sales.report(args,now=NOW,timezone='Asia/Aden');html=render('sales_reports.html',unknown,args)
             self.assertIn('غير متاح',html);self.assertIn('Hotspot / PPPoE (الباقة)',html);check_navigation(html,args)
             conn=connection();record_invoice_cost(conn,2,dict(cost=5000,service_type='both'));conn.commit();conn.close()
@@ -147,7 +163,7 @@ def main():
             execute("INSERT INTO wisp_invoices(id,amount,status) VALUES(1,6000,'paid')",mode='count',conn=conn)
             record_invoice_cost(conn,1,dict(cost=5000,service_type='both'));conn.rollback();conn.close()
             self.assertEqual(execute('SELECT COUNT(*) n FROM wisp_invoices',mode='one')['n'],0)
-        def test_actual_csv_excel_export_cost_and_unknown_are_consistent(self):
+        def test_actual_csv_excel_export_legacy_amount_and_new_cost_are_consistent(self):
             import ast,csv,io,tempfile
             from unittest.mock import patch
             from flask import Flask,request,jsonify,send_file
@@ -161,9 +177,9 @@ def main():
             app=Flask('fixture-exports');app.add_url_rule('/export',view_func=ns['export_sales'])
             with patch.dict(sys.modules,{'services.heavy_operation_service':heavy}):
                 csv_response=app.test_client().get('/export?record_kind=invoice&period=all&format=csv');self.assertEqual(csv_response.status_code,200)
-                rows=list(csv.reader(io.StringIO(csv_response.data.decode('utf-8-sig'))));self.assertEqual(rows[0][6],'تكلفة الاشتراك المحفوظة');self.assertEqual({r[6] for r in rows[1:-1]},{'5000.00','غير متاح'});self.assertEqual(rows[-1][0],'الإجمالي')
+                rows=list(csv.reader(io.StringIO(csv_response.data.decode('utf-8-sig'))));self.assertEqual(rows[0][6],'تكلفة الاشتراك المحفوظة');self.assertEqual({r[6] for r in rows[1:-1]},{'5000.00','6000.00'});self.assertEqual(rows[-1][0],'الإجمالي')
                 xlsx=app.test_client().get('/export?record_kind=invoice&period=all&format=excel');self.assertEqual(xlsx.status_code,200)
-                book=load_workbook(io.BytesIO(xlsx.data),read_only=True,data_only=True);values=list(book.active.values);self.assertEqual({r[6] for r in values[1:-1]},{5000,'غير متاح'});self.assertEqual(values[-1][0],'الإجمالي');book.close()
+                book=load_workbook(io.BytesIO(xlsx.data),read_only=True,data_only=True);values=list(book.active.values);self.assertEqual({r[6] for r in values[1:-1]},{5000,6000});self.assertEqual(values[-1][0],'الإجمالي');book.close()
             self.assertEqual(execute('SELECT SUM(amount) n FROM wisp_invoices',mode='one')['n'],12000)
         def test_activation_trigger_uses_packet_not_package_capability(self):
             conn=connection();install_sales_source_schema(conn);install_sales_source_schema(conn)
@@ -209,7 +225,7 @@ def main():
             self.insert('wisp_invoices',dict(id=1,amount=6000,status='paid',package_name='fixture-package',paid_at=dt.datetime(2026,10,5),invoice_number='F1'))
             chart=sales_series(self.query,now=NOW);index=chart['labels'].index('أكتوبر')
             self.assertEqual((chart['sales'][index],chart['voucher_sales'][index],chart['package_sales'][index]),(6100,100,6000))
-            report=sales.report(dict(record_kind='invoice',period='all'),export=True,now=NOW,timezone='Asia/Aden');self.assertIsNone(report['recent_sales'][0]['price']);self.assertEqual(report['unknown_amount_count'],1)
+            report=sales.report(dict(record_kind='invoice',period='all'),export=True,now=NOW,timezone='Asia/Aden');self.assertEqual(report['recent_sales'][0]['price'],6000);self.assertEqual(report['unknown_amount_count'],0)
             self.assertEqual(execute('SELECT amount FROM wisp_invoices',mode='one')['amount'],6000)
         def point_rollup(self,kind='',value=100,owner=0,nas='192.0.2.10',name='HS',interface=''):
             point=network.point_info(dict(nas_address=nas,server_name=name,service_type=kind,server_interface=interface),{})

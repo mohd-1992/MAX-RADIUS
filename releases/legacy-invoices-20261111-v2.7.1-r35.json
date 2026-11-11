@@ -1,0 +1,40 @@
+{
+  "version": "2.7.1",
+  "release": "20261111-v2.7.1-legacy-invoices-r35",
+  "tag": "mohd777/max-radius-web:2.7.1-legacy-invoices-20261111-r35",
+  "image_digest": "sha256:9b4aac08a65b4f911357538f71c279aa85a1aa1d0aad29cb3fc863b44313ca6c",
+  "updated_tags": [
+    "mohd777/max-radius-web:2.7.1-legacy-invoices-20261111-r35",
+    "mohd777/max-radius-web:2.7.1",
+    "mohd777/max-radius-web:2.7.1-update-safety-20261107-r7"
+  ],
+  "previous_web_digest": "sha256:89ce5cd11959ac2acda0c41aeff82bb71fe083c9685fd2fb3f113001dc02a951",
+  "runtime_delta": {
+    "image": "sha256:9b4aac08a65b4f911357538f71c279aa85a1aa1d0aad29cb3fc863b44313ca6c",
+    "base": "sha256:89ce5cd11959ac2acda0c41aeff82bb71fe083c9685fd2fb3f113001dc02a951",
+    "changed_runtime_files": 1,
+    "runtime_paths": [
+      "services/sales_reporting_service.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "unchanged_runtime_files": 253,
+    "templates_exact": 80,
+    "protected_sources_or_private_files": [],
+    "signature_verified": true
+  },
+  "tests": {
+    "source_mariadb": 33,
+    "compiled_mariadb": 33
+  },
+  "runtime_contracts_checked_on_source_and_compiled": true,
+  "acceptance_report": "docs/M_R_LEGACY_INVOICE_AMOUNTS_R35_20261111.md",
+  "runtime_bundle": {
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261111-v2.7.1-legacy-invoices-r35.tar.gz",
+    "sha256": "e80828cf165de5e0ca0c8323198f9e5a9c8fb36cf02f3970b19dc188a81aa371"
+  },
+  "source_manifest": "releases/source-20261111-v2.7.1-legacy-invoices-r35.json",
+  "core_and_other_images_unchanged": true,
+  "production_domains_changed_this_publication": false,
+  "update_offers_changed": false,
+  "latest_changed": false,
+  "distribution_tests": 12
+}

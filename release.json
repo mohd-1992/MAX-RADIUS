@@ -1,13 +1,13 @@
 {
   "format": 1,
-  "release": "20261111-v2.7.1-point-october-r34",
+  "release": "20261111-v2.7.1-legacy-invoices-r35",
   "version": "2.7.1",
   "platform": "linux/amd64",
   "channel": "manual-install",
   "automatic_distribution": false,
   "client_updater_compatible": false,
   "images": {
-    "web": "mohd777/max-radius-web@sha256:89ce5cd11959ac2acda0c41aeff82bb71fe083c9685fd2fb3f113001dc02a951",
+    "web": "mohd777/max-radius-web@sha256:9b4aac08a65b4f911357538f71c279aa85a1aa1d0aad29cb3fc863b44313ca6c",
     "core": "mohd777/max-radius-core@sha256:6e71f1e291a90d8c45df79a3f88c5886193bb774054ec3d7e30e72d470b928af",
     "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
     "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
@@ -17,10 +17,10 @@
     "clock_guard": "v1"
   },
   "bundle": {
-    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261111-v2.7.1-point-october-r34.tar.gz",
-    "sha256": "7ba5ddfd1dfbe6a8838e628782be53523d083fff96a981f98868a3e2c7906be7"
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261111-v2.7.1-legacy-invoices-r35.tar.gz",
+    "sha256": "e80828cf165de5e0ca0c8323198f9e5a9c8fb36cf02f3970b19dc188a81aa371"
   },
-  "source_manifest": "releases/source-20261111-v2.7.1-point-october-r34.json",
+  "source_manifest": "releases/source-20261111-v2.7.1-legacy-invoices-r35.json",
   "image_tags": {
     "web": "mohd777/max-radius-web:2.7.1",
     "core": "mohd777/max-radius-core:2.7.1",
@@ -29,10 +29,10 @@
     "autoheal": "mohd777/max-radius-autoheal:2.7.1"
   },
   "previous_web_tag_updated": "mohd777/max-radius-web:2.7.1-update-safety-20261107-r7",
-  "registry_manifest": "releases/2.7.1/registry-20261111-r34.json",
-  "release_notes": "docs/RELEASE_271_POINT_OCTOBER_PUBLISHED_20261111.md",
+  "registry_manifest": "releases/2.7.1/registry-20261111-r35.json",
+  "release_notes": "docs/RELEASE_271_LEGACY_INVOICES_PUBLISHED_20261111.md",
   "weekly_enhancements_included": true,
-  "component_policy": "Web r34 includes the accepted r33 fixes plus Hotspot point classification, removal of partial-reading UI notices and restoration of recorded October cash sales in the dashboard. Financial history and quota counters are preserved. Core, MariaDB, L2TP and Autoheal remain pinned to their previously accepted binaries; the runtime SQL bundle is unchanged from r33.",
+  "component_policy": "Web r35 retains accepted r34 fixes and restores original invoice amounts only for historical invoices without cost snapshots. New subscriber sales use their recorded package cost, including zero; explicitly unavailable new costs remain unavailable. This is a read-only report projection; financial history, quota counters and all non-Web images remain unchanged. Runtime SQL is unchanged from r34.",
   "deployment_limits": [
     "Manual installer only; does not distribute an update to existing customers.",
     "Hosted tenant updates require target wrapper, mounts, binding, controller protocol and lease preflight.",

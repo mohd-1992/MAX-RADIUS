@@ -6867,7 +6867,7 @@
     },
     {
       "file": "services/sales_reporting_service.py",
-      "sha256": "7c93033c149c938c720a8bc06d2473d93ec621c169c4b225504e61d0b4af3ed3",
+      "sha256": "da2baf872e4695d210b663a2d74ca7275d95c06be3609158ffed2ac8f48e4532",
       "imports": [
         "core.ownership",
         "core.time_service",
@@ -6927,52 +6927,52 @@
         },
         {
           "name": "report_source",
-          "line": 175,
+          "line": 179,
           "kind": "FunctionDef"
         },
         {
           "name": "export_value",
-          "line": 215,
+          "line": 219,
           "kind": "FunctionDef"
         },
         {
           "name": "_label",
-          "line": 222,
+          "line": 226,
           "kind": "FunctionDef"
         },
         {
           "name": "sort_settings",
-          "line": 246,
+          "line": 250,
           "kind": "FunctionDef"
         },
         {
           "name": "sort_order",
-          "line": 257,
+          "line": 261,
           "kind": "FunctionDef"
         },
         {
           "name": "package_metrics",
-          "line": 269,
+          "line": 273,
           "kind": "FunctionDef"
         },
         {
           "name": "report",
-          "line": 279,
+          "line": 283,
           "kind": "FunctionDef"
         },
         {
           "name": "query",
-          "line": 297,
+          "line": 301,
           "kind": "FunctionDef"
         },
         {
           "name": "option_key",
-          "line": 362,
+          "line": 366,
           "kind": "FunctionDef"
         },
         {
           "name": "_range",
-          "line": 449,
+          "line": 453,
           "kind": "FunctionDef"
         }
       ]
