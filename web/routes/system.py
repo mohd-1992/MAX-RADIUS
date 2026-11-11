@@ -338,13 +338,11 @@ def export_sales():
             yield [index,row['operation'],row['username'],row['serial_number'],row['batch_name'],row['package_name'],
                 row['price'] if row['price'] is not None else 'غير متاح',row['isp_share'] if row['isp_share'] is not None else 'غير متاح',row['reseller_margin'],row['reseller_name'],row['nas_label'] or 'غير محدد',
                 row['server_label'],str(row['activated_at'] or 'تاريخ غير محدد'),row['service_type'] or 'غير محدد',
-                row['source_status_label'],row['source_reason_label']+(' تكلفة العملية غير محفوظة.' if row['price'] is None else '')]
+                row['source_status_label'],row['source_reason_label']]
     totals = ['الإجمالي','','','','','',data['gross_sales'],data['net_isp_revenue'],data['total_reseller_commissions'],'','','','']
     totals.extend(['']*(len(headers)-len(totals)))
     unknown=int(data.get('unknown_amount_count') or 0)
     if unknown:
-        totals[0]='الإجمالي المعلوم (جزئي)'
-        totals[-1]=f'تكلفة {unknown} عملية غير محفوظة.'
         if unknown==data['total_items_count']:totals[6]=totals[7]='غير متاح'
     if data.get('record_kind')=='invoice':headers[6]='تكلفة الاشتراك المحفوظة'
     format_name = request.args.get('format','excel').strip().lower()

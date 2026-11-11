@@ -82,9 +82,14 @@ def capture_rows(conn,rows,monitor_started_at=None):
                 cur.execute('SELECT * FROM wisp_traffic_checkpoints WHERE session_key=%s FOR UPDATE',(key,))
                 before=cur.fetchone()
             if observed<before['observed_at']:continue
+            if row.get('owner_account_exists') is False and owner==0:owner=before['owner_scope']
+            untyped=point_info(dict(nas_address=row.get('nasipaddress'),server_name=row.get('calledstationid') or ''),{})
+            refinement=(point['point_known'] and point['service_type']=='hotspot' and before['point_key']==untyped['server_key']
+                        and before['owner_scope']==owner)
             if observed==before['observed_at']:
                 advances=any(after[k] is not None and before[k] is not None and after[k]>before[k] for k in ('download','upload'))
                 if not advances:
+                    if refinement:cur.execute('UPDATE wisp_traffic_checkpoints SET point_key=%s WHERE session_key=%s',(point['server_key'],key));changed+=1
                     if row.get('acctstoptime') and not before['closed_at']:
                         cur.execute('UPDATE wisp_traffic_checkpoints SET closed_at=%s WHERE session_key=%s',(row['acctstoptime'],key))
                     continue
@@ -95,7 +100,7 @@ def capture_rows(conn,rows,monitor_started_at=None):
             bucket=(observed-dt.timedelta(microseconds=1)).replace(second=0,microsecond=0)
             bucket=bucket.replace(minute=bucket.minute//15*15)
             old_bucket=before['observed_at'].replace(minute=before['observed_at'].minute//15*15,second=0,microsecond=0)
-            moved=before['point_key']!=point['server_key'] or before['owner_scope']!=owner
+            moved=(before['point_key']!=point['server_key'] and not refinement) or before['owner_scope']!=owner
             delayed=seconds>MAX_INTERVAL_SECONDS and bucket!=old_bucket
             if delayed or moved:
                 from services.traffic_interval_service import save_interval
@@ -176,7 +181,7 @@ def collect(conn,now=None,page_size=1000,max_pages=5):
         with conn.cursor() as cur:cur.execute("SELECT RELEASE_LOCK(CONCAT(DATABASE(),':traffic-rollup'))")
 
 
-def read_windows(query,windows,selected,owner=None):
+def read_windows(query,windows,selected,owner=None,aliases=None):
     # Read-only validation also protects an already-running new Web after an old restore.
     status=query('''SELECT s.epoch,s.started_at,k.`value` marker FROM wisp_traffic_rollup_state s
         LEFT JOIN wisp_system_settings k ON k.`key`='traffic_rollup_epoch' WHERE s.id=1''')
@@ -186,13 +191,11 @@ def read_windows(query,windows,selected,owner=None):
         cases.append(f'WHEN bucket_at>=%s AND bucket_at<%s THEN {i}')
         boundaries.extend((start.astimezone(STORAGE).replace(tzinfo=None),end.astimezone(STORAGE).replace(tzinfo=None)))
     clauses=['bucket_at>=%s','bucket_at<%s'];params=[boundaries[0],boundaries[-1]]
-    if owner is not None:clauses.append('owner_scope=%s');params.append(int(owner))
-    for field,column in [('nas','nas_address'),('service_type','service_type')]:
-        value=selected.get(field,'')
-        if value not in ('','all'):clauses.append(column+'=%s');params.append('' if value=='unknown' else value)
-    server=selected.get('server','')
-    if server=='unknown':clauses.append('point_known=0')
-    elif server not in ('','all'):clauses.append('point_key=%s');params.append(server)
+    from services.traffic_interval_service import filters
+    if aliases is None:
+        from services.traffic_point_resolution_service import load_aliases
+        aliases=load_aliases(query,owner,selected.get('nas')) if any(selected.get(k) not in (None,'','all') for k in ('server','service_type')) else {}
+    scoped,values=filters(selected,owner,aliases=aliases);clauses+=scoped;params+=values
     sql='CASE '+' '.join(cases)+' END'
     rows=query(f'''SELECT {sql} bucket,
         SUM(CASE WHEN download_known>0 THEN download_bytes END) download,
@@ -201,7 +204,7 @@ def read_windows(query,windows,selected,owner=None):
         FROM wisp_traffic_rollups WHERE {' AND '.join(clauses)} GROUP BY bucket''',tuple(boundaries+params))
     indexed={int(r['bucket']):dict(r) for r in rows if r['bucket'] is not None}
     from services.traffic_interval_service import read_intervals,contribution
-    intervals=read_intervals(query,boundaries[0],boundaries[-1],selected,owner)
+    intervals=read_intervals(query,boundaries[0],boundaries[-1],selected,owner,aliases)
     result=[]
     for i,(_,first,last) in enumerate(windows):
         start=first.astimezone(STORAGE).replace(tzinfo=None);end=last.astimezone(STORAGE).replace(tzinfo=None)
@@ -220,16 +223,18 @@ def read_windows(query,windows,selected,owner=None):
 
 
 def series(query,selected,owner=None,now=None,timezone='Asia/Aden'):
+    from services.traffic_point_resolution_service import load_aliases
+    aliases=load_aliases(query,owner,selected.get('nas')) if any(selected.get(k) not in (None,'','all') for k in ('server','service_type')) else {}
     extent=(None,None)
     if selected['period']=='all' or selected['period']=='custom' and not selected.get('date_from'):
         from services.traffic_interval_service import filters
-        clauses,params=filters(selected,owner);scope=' WHERE '+' AND '.join(clauses) if clauses else ''
+        clauses,params=filters(selected,owner,aliases=aliases);scope=' WHERE '+' AND '.join(clauses) if clauses else ''
         edges=query('''SELECT MIN(first_seen) first_seen,MAX(last_seen) last_seen FROM (
             SELECT MIN(bucket_at) first_seen,MAX(bucket_at) last_seen FROM wisp_traffic_rollups'''+scope+'''
             UNION ALL SELECT MIN(start_at),MAX(end_at) FROM wisp_traffic_intervals'''+scope+') extents',tuple(params+params))[0]
         extent=(edges['first_seen'],edges['last_seen'])
     mode,windows,clock=axis(selected,now,timezone,extent)
-    rows=read_windows(query,windows,selected,owner)
+    rows=read_windows(query,windows,selected,owner,aliases)
     return dict(labels=[w[0] for w in windows],
         download=[None if r['download'] is None else int(r['download'])/1073741824 for r in rows],
         upload=[None if r['upload'] is None else int(r['upload'])/1073741824 for r in rows],

@@ -42,12 +42,14 @@ class ReportAxes(unittest.TestCase):
         self.assertEqual(data['sales'][1],300)
         self.assertIsNone(data['sales'][23])
 
-    def test_missing_invoice_cost_is_not_a_zero_sale_on_dashboard(self):
+    def test_unknown_component_does_not_hide_recorded_dashboard_sales(self):
         from services.dashboard_reporting_service import sales_series as dashboard_sales
-        def query(*args):return [dict(bucket='2026-10',event_kind='invoice',total=None,unknown_amounts=1)]
+        def query(sql,*args):
+            self.assertIn('i.amount,i.amount',sql);self.assertNotIn('i.report_cost',sql)
+            return [dict(bucket='2026-10',event_kind='invoice',total=None,unknown_amounts=1),dict(bucket='2026-10',event_kind='voucher',total=100,unknown_amounts=0)]
         result=dashboard_sales(query,now=NOW)
-        self.assertIsNone(result['package_sales'][-1]);self.assertIsNone(result['sales'][-1])
-        self.assertEqual(result['unknown_amounts'],1);self.assertEqual(result['voucher_sales'][-1],0)
+        self.assertIsNone(result['package_sales'][-1]);self.assertEqual(result['sales'][-1],100)
+        self.assertEqual(result['unknown_amounts'],1);self.assertEqual(result['voucher_sales'][-1],100)
 
     def test_counter_reset_gap_and_direction_independence(self):
         from services.traffic_sample_service import delta

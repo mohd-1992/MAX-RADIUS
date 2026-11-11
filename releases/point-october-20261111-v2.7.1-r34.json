@@ -1,0 +1,49 @@
+{
+  "version": "2.7.1",
+  "release": "20261111-v2.7.1-point-october-r34",
+  "tag": "mohd777/max-radius-web:2.7.1-point-october-20261111-r34",
+  "image_digest": "sha256:89ce5cd11959ac2acda0c41aeff82bb71fe083c9685fd2fb3f113001dc02a951",
+  "updated_tags": [
+    "mohd777/max-radius-web:2.7.1-point-october-20261111-r34",
+    "mohd777/max-radius-web:2.7.1",
+    "mohd777/max-radius-web:2.7.1-update-safety-20261107-r7"
+  ],
+  "previous_web_digest": "sha256:87e4983c1de4ba973287449c44f1c91cd6125aed04eac7697c1013688b3600a2",
+  "runtime_delta": {
+    "image": "sha256:89ce5cd11959ac2acda0c41aeff82bb71fe083c9685fd2fb3f113001dc02a951",
+    "base": "sha256:87e4983c1de4ba973287449c44f1c91cd6125aed04eac7697c1013688b3600a2",
+    "changed_runtime_files": 8,
+    "runtime_paths": [
+      "services/dashboard_reporting_service.cpython-311-x86_64-linux-gnu.so",
+      "services/measured_traffic_service.cpython-311-x86_64-linux-gnu.so",
+      "services/network_traffic_service.cpython-311-x86_64-linux-gnu.so",
+      "services/traffic_interval_service.cpython-311-x86_64-linux-gnu.so",
+      "services/traffic_point_resolution_service.cpython-311-x86_64-linux-gnu.so",
+      "services/traffic_sample_service.cpython-311-x86_64-linux-gnu.so",
+      "web/_embedded_templates.cpython-311-x86_64-linux-gnu.so",
+      "web/routes/system.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "unchanged_runtime_files": 246,
+    "templates_exact": 80,
+    "protected_sources_or_private_files": [],
+    "signature_verified": true
+  },
+  "tests": {
+    "report_mariadb": 32,
+    "related_unittest": 70,
+    "browser": 24
+  },
+  "acceptance_report": "docs/MAX1_R_271_POINT_AND_OCTOBER_R34_20261111.md",
+  "runtime_bundle": {
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261111-v2.7.1-point-october-r34.tar.gz",
+    "sha256": "7ba5ddfd1dfbe6a8838e628782be53523d083fff96a981f98868a3e2c7906be7"
+  },
+  "source_manifest": "releases/source-20261111-v2.7.1-point-october-r34.json",
+  "core_and_other_images_unchanged": true,
+  "production_domains_changed_this_publication": false,
+  "update_offers_changed": false,
+  "latest_changed": false,
+  "runtime_contracts_checked_on_source_and_compiled": true,
+  "browser_mode": "compiled",
+  "distribution_tests": 12
+}

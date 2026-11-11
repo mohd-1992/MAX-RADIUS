@@ -33,7 +33,7 @@ def render(template,data,args):
         return path+('?' + urlencode(values) if values else '')
     app.jinja_env.globals.update(csrf_token=lambda:'fixture',has_feature=lambda *a,**k:True,
         has_permission=lambda *a,**k:True,can_access_endpoint=lambda *a,**k:True,
-        is_reseller_scope=lambda:False,traffic_bytes=format_bytes,url_for=url_for)
+        is_reseller_scope=lambda:False,can_view_network_totals=lambda:True,traffic_bytes=format_bytes,url_for=url_for)
     common=dict(app_version='2.7.1',app_edition='Enterprise',system_title='MAX RADIUS',
         product_identity=dict(name='MAX RADIUS',website=''),current_manager=dict(id=1,username='fixture',full_name='اختبار التقارير',role_code='superadmin'),
         license_info=dict(valid=True,has_license=True,status='active',features={}),
@@ -72,7 +72,9 @@ def main():
     @app.get('/fixture/<name>')
     def page(name):return Response(html[name],mimetype='text/html')
     @app.get('/api/<path:name>')
-    def api(name):return dict(success=True,valid=True,count=0,port=3799,total_nas=0,online_nas=0,timezone='Asia/Aden',server_timestamp_ms=1794301200000)
+    def api(name):
+        if name=='dashboard/live-metrics':return dict(success=True,metrics=next(c['data']['metrics'] for c in cases if c['template']=='dashboard.html'))
+        return dict(success=True,valid=True,count=0,port=3799,total_nas=0,online_nas=0,notices=[],timezone='Asia/Aden',server_timestamp_ms=1794301200000)
     server=make_server('127.0.0.1',0,app,threaded=True);threading.Thread(target=server.serve_forever,daemon=True).start()
     results=[]
     with sync_playwright() as p:
@@ -85,17 +87,22 @@ def main():
                     origin='http://127.0.0.1:'+str(server.server_port)
                     page.route('**/*',lambda route:route.continue_() if route.request.url.startswith(origin) else route.abort())
                     page.add_init_script("localStorage.setItem('wisp_theme','"+('light' if light else 'dark')+"')")
-                    page.goto(origin+'/fixture/'+case['name']);page.wait_for_selector('table:visible');page.wait_for_timeout(700)
-                    assert page.locator('table').count()>0
+                    page.goto(origin+'/fixture/'+case['name']);page.wait_for_selector('#salesChart' if case['template']=='dashboard.html' else 'table:visible');page.wait_for_timeout(700)
+                    if case['template']=='dashboard.html':
+                        value=page.evaluate("()=>{const c=Chart.getChart(document.getElementById('salesChart'));return c.data.datasets[0].data[c.data.labels.indexOf('أكتوبر')];}")
+                        assert value==6100,value
+                    else:assert page.locator('table').count()>0
                     text=page.locator('body').inner_text()
                     if case['name'] in ('invoice-unknown','measured-partial'):assert 'غير متاح' in text
-                    if case['name']=='invoice-partial':assert 'الإجماليات تعرض التكلفة المعلومة فقط' in text
+                    assert 'جزئي' not in text and 'المعلومة فقط' not in text and 'غير متاحة بدقة' not in text
                     if case['template']=='sales_reports.html':
                         assert 'Hotspot / PPPoE (الباقة)' in page.locator('body').inner_text()
                         check_navigation(page.content(),case['args'])
                     if case['name']=='measured-partial':
-                        assert 'القراءة جزئية' in page.locator('body').inner_text()
                         assert 'جلسة دون Stop' not in page.locator('body').inner_text()
+                    if case['name']=='resolved-hotspot':
+                        assert page.locator('tbody tr').filter(has_text='Hotspot / HS').count()==1
+                        assert page.locator('select[name=server] option').filter(has_text='Hotspot / HS').count()==1
                     if case['template']=='network_traffic.html':
                         colors=page.evaluate("()=>['basis','nas'].map(name=>{const s=getComputedStyle(document.querySelector('select[name='+name+']'));return [s.backgroundColor,s.color];})")
                         assert colors[0]==colors[1],colors

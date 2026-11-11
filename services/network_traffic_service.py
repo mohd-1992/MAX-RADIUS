@@ -135,7 +135,7 @@ def point_info(row, catalog):
                   if name else 'unknown:'+nas+':'+kind)
         key=hashlib.sha256(identity.encode()).hexdigest()
     label=connection_point_label(name,kind,interface,separator=' / ')
-    return dict(server_key=key,nas_address=nas,nas_label=catalog.get(nas) or nas or 'غير محدد',
+    return dict(server_key=key,nas_address=nas,nas_label=catalog.get(nas) or nas or 'غير محدد',server_name=name,server_interface=interface,
                 service_type=kind,server_label=label,point_known=known)
 
 

@@ -6,9 +6,11 @@ from services.sales_reporting_service import date_bounds
 from services.report_time_axis import STORAGE
 
 
-def read_points(query,start,end,selected,owner):
+def read_points(query,start,end,selected,owner,aliases=None):
+    from services.traffic_point_resolution_service import load_aliases,merge_points
+    if aliases is None:aliases=load_aliases(query,owner,selected.get('nas'))
     clauses=['bucket_at>=%s','bucket_at<%s'];params=[start,end]
-    scoped,values=filters(selected,owner);clauses+=scoped;params+=values
+    scoped,values=filters(selected,owner,aliases=aliases);clauses+=scoped;params+=values
     rows=query('''SELECT point_key AS server_key,nas_address,service_type,server_name,server_interface,
         MIN(point_known) point_known,SUM(observations) sessions,SUM(gaps) gaps,
         SUM(CASE WHEN download_known>0 THEN download_bytes END) download,
@@ -18,7 +20,7 @@ def read_points(query,start,end,selected,owner):
         FROM wisp_traffic_rollups WHERE '''+' AND '.join(clauses)+'''
         GROUP BY point_key,nas_address,service_type,server_name,server_interface''',tuple(params))
     indexed={row['server_key']:dict(row) for row in rows}
-    for interval in read_intervals(query,start,end,selected,owner):
+    for interval in read_intervals(query,start,end,selected,owner,aliases):
         point=indexed.setdefault(interval['point_key'],dict(server_key=interval['point_key'],nas_address=interval['nas_address'],
             service_type=interval['service_type'],server_name=interval['server_name'],server_interface=interval['server_interface'],
             point_known=interval['point_known'],sessions=0,gaps=0,download=None,upload=None,unknown_download=0,unknown_upload=0,last_observed=None))
@@ -27,7 +29,7 @@ def read_points(query,start,end,selected,owner):
             if values[field] is None:point['unknown_'+field]=int(point['unknown_'+field] or 0)+1
             else:point[field]=int(point[field] or 0)+int(values[field])
         point['last_observed']=max(point.get('last_observed') or interval['end_at'],interval['end_at'])
-    return list(indexed.values())
+    return merge_points(indexed.values(),aliases)
 
 
 def report(selected,now,timezone,owner):
@@ -51,10 +53,13 @@ def report(selected,now,timezone,owner):
                     UNION ALL SELECT MIN(start_at),MAX(end_at) FROM wisp_traffic_intervals'''+scope+') measurement_extent',params+params)[0]
                 start=start or bounds['first_seen'] or clock.replace(hour=0,minute=0,second=0,microsecond=0).astimezone(STORAGE).replace(tzinfo=None)
                 end=end or max((bounds['last_seen'] or start)+dt.timedelta(microseconds=1),clock.astimezone(STORAGE).replace(tzinfo=None))
-                rows=read_points(query,start,end,selected,owner)
+                from services.traffic_point_resolution_service import load_aliases,resolve,normalize_selection
+                aliases=load_aliases(query,owner,selected.get('nas'));selected=normalize_selection(selected,aliases)
+                rows=read_points(query,start,end,selected,owner,aliases)
                 options=query('''SELECT DISTINCT point_key server_key,nas_address,service_type,server_name,server_interface,point_known
                     FROM wisp_traffic_rollups'''+scope+''' UNION SELECT DISTINCT point_key,nas_address,service_type,server_name,server_interface,point_known
                     FROM wisp_traffic_intervals'''+scope,params+params)
+                options=list({p['server_key']:p for p in (resolve(r,aliases) for r in options)}.values())
                 addresses={r['nas_address'] for r in options if r['nas_address']}
                 names={}
                 if addresses:

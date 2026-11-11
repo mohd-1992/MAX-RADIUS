@@ -360,3 +360,9 @@ tests/fixtures/*
 
 # Verified immutable 2.7.1 reports installer bundle.
 !/releases/runtime-20261111-v2.7.1-reports-r33.tar.gz
+
+# One point across classification refinement.
+!tests/test_traffic_point_resolution.py
+
+# Verified immutable 2.7.1 point-classification and dashboard installer bundle.
+!/releases/runtime-20261111-v2.7.1-point-october-r34.tar.gz

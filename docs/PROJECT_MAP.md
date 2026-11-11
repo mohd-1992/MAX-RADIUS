@@ -1,3 +1,15 @@
+## إصدار 2.7.1 / r34 والمثبت — 11 نوفمبر 2026
+
+[حالة النشر والأدلة](RELEASE_271_POINT_OCTOBER_PUBLISHED_20261111.md): release.json وبيان المصدر source-20261111-v2.7.1-point-october-r34 وRegistry r34 وحزمة المثبت محدثة للصورة 89ce5cd1 المقبولة. تتقدم على حالة عدم نشر الإصلاح في الفقرة التاريخية أدناه. لا تغيير لخدمات المضيف أو الإعلانات أو دومينات إضافية، ولا تكرار لمشغلات التطبيق المكتملة.
+
+## تصحيح هوية Hotspot ورسم أكتوبر — 11 نوفمبر 2026
+
+[السبب والتنفيذ والقبول](MAX1_R_271_POINT_AND_OCTOBER_R34_20261111.md): `traffic_point_resolution_service` يحل هوية Hotspot المثبتة ضمن NAS والاسم نفسيهما، مع منع تعارض PPP، ويمررها إلى measured/interval/sample للفلاتر والتجميع وتصحيح checkpoint. لا إعادة كتابة للأصل أو تخمين بروتوكول تاريخي. `dashboard_reporting_service` يقرأ مبالغ الفاتورة الأصلية للرسم، وتكلفتها تبقى في تقرير المشتركين. اختبارات resolution وreport_time_axis ومختبر التقارير والمتصفح تغطيها. r34 على max1.max-r.cc فقط؛ لم ينشر Registry أو Git البعيد.
+
+## متابعة هوية السيرفر بعد توثيق النوع — 11 نوفمبر 2026
+
+[الدليل بعدتحديثmax1.max-r.cc](MAX1_R_271_REPORTS_R33_DEPLOYED_20261111.md):12زوجًالنفسNASوالاسمبنوعفارغوHotspot. تتبع `network_traffic_service.point_info`/`sales_source_service.server_key` ثم `traffic_sample_service.capture_rows` و`measured_traffic_service.read_points`: النوعجزءمنالمفتاحوتغيرهينشئمجموعةأخرى. يلزمفصلتصحيحالدليلعنحركةالسيرفرمعحفظالبايتاتوعدمإسنادتاريخغيرمثبتبالتخمين. r33مثبتةوحدهاعلىmax1.R؛الجولةالأخيرةتشخيصقراءيفقطبعدالنشر،ولانشرإصلاحإضافي.
+
 ## إصدار التقارير المجمّع 2.7.1 / r33 — 11 نوفمبر 2026
 
 [النشر والمصدر والقبول](RELEASE_271_REPORTS_PUBLISHED_20261111.md): بيان المثبت `release.json` ولقطة المصدر `releases/source-20261111-v2.7.1-reports-r33.json` وRegistry مستقل لـr33. الوحدات الجديدة ضمن الصورة، ومنها `database/reporting_schema.py` في COPY. يقبل مختبر التقرير وواجهة التقرير `--compiled` للتحقق من so والقوالب المضمنة دون app factory. ملفات CPU/progress واختبار التوزيع محفوظة؛ لا تشغيل ذاتي لأدوات المضيف ولا تحديث دومين ضمن نشر الوسم.

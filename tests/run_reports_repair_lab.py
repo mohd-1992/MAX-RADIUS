@@ -120,16 +120,24 @@ def main():
                 save_interval(cur,'f'*64,dict(observed_at=dt.datetime(2026,11,9,23,58)),dt.datetime(2026,11,10,0,6),dict(server_key='a'*64,nas_address='192.0.2.10',service_type='',server_name='Fixture HS',server_interface='',point_known=False),0,100,20,'delayed_sample')
             conn.commit();conn.close()
             traffic=network.report({},now=NOW,timezone='Asia/Aden');traffic_html=render('network_traffic.html',traffic,{})
-            self.assertIn('القراءة جزئية',traffic_html);self.assertIn('غير موثق',traffic_html);self.assertNotIn('جلسة دون Stop',traffic_html)
+            self.assertNotIn('جزئي',traffic_html);self.assertIn('غير موثق',traffic_html);self.assertNotIn('جلسة دون Stop',traffic_html)
             self.assertIn('تعذرت قراءة استهلاك الشبكة',render('network_traffic.html',dict(traffic_unavailable=True),{}))
             self.insert('radacct',self.row());session_args=dict(basis='sessions');sessions=network.report(session_args,now=NOW,timezone='Asia/Aden')
             self.assertIn('جلسة دون Stop',render('network_traffic.html',sessions,session_args))
+            self.point_rollup();self.point_rollup('hotspot',50);resolved=network.report({},now=NOW,timezone='Asia/Aden')
+            self.assertEqual(sum(r['server_name']=='HS' for r in resolved['points']),1)
+            self.insert('wisp_voucher_sales',dict(id=10,voucher_id=1,username='fixture',price=100,cost=80,activated_at=dt.datetime(2026,10,12)))
+            self.insert('wisp_invoices',dict(id=10,amount=6000,status='paid',package_name='fixture-package',paid_at=dt.datetime(2026,10,5),invoice_number='F10'))
+            from services.dashboard_reporting_service import sales_series
+            resources=dict(cpu_percent=.5,cpu_available=False,ram_percent=1.,ram_used_gb=0.,ram_total_gb=8.,disk_percent=1.,disk_used_gb=1.,disk_total_gb=100.,containers={})
+            dashboard=dict(settings={},metrics=dict(resources=resources,voucher_summary={}),traffic_chart=dict(labels=[],download=[],upload=[]),sales_chart=sales_series(self.query,now=NOW),latest_operations=[],system_uptime='اختبار',internet_status={})
+            self.assertNotIn('جزئي',render('dashboard.html',dashboard,{}))
             if os.environ.get('REPORTS_FIXTURE_OUTPUT'):
                 def serial(value):
                     if isinstance(value,Decimal):return float(value)
                     if isinstance(value,(dt.date,dt.datetime)):return value.isoformat()
                     raise TypeError(type(value).__name__)
-                Path(os.environ['REPORTS_FIXTURE_OUTPUT']).write_text(json.dumps([dict(template='sales_reports.html',data=unknown,args=args,name='invoice-unknown'),dict(template='sales_reports.html',data=partial,args=args,name='invoice-partial'),dict(template='network_traffic.html',data=traffic,args={},name='measured-partial'),dict(template='network_traffic.html',data=sessions,args=session_args,name='sessions')],default=serial,ensure_ascii=False),encoding='utf8')
+                Path(os.environ['REPORTS_FIXTURE_OUTPUT']).write_text(json.dumps([dict(template='sales_reports.html',data=unknown,args=args,name='invoice-unknown'),dict(template='sales_reports.html',data=partial,args=args,name='invoice-partial'),dict(template='network_traffic.html',data=traffic,args={},name='measured-partial'),dict(template='network_traffic.html',data=sessions,args=session_args,name='sessions'),dict(template='network_traffic.html',data=resolved,args={},name='resolved-hotspot'),dict(template='dashboard.html',data=dashboard,args={},name='october-dashboard')],default=serial,ensure_ascii=False),encoding='utf8')
         def test_additive_migration_does_not_reprice_history(self):
             self.insert('wisp_invoices',dict(id=1,amount=6000,status='paid',package_name='fixture-package',invoice_number='F1'))
             conn=connection();install_reporting_schema(conn);install_reporting_schema(conn);conn.commit();conn.close()
@@ -153,9 +161,9 @@ def main():
             app=Flask('fixture-exports');app.add_url_rule('/export',view_func=ns['export_sales'])
             with patch.dict(sys.modules,{'services.heavy_operation_service':heavy}):
                 csv_response=app.test_client().get('/export?record_kind=invoice&period=all&format=csv');self.assertEqual(csv_response.status_code,200)
-                rows=list(csv.reader(io.StringIO(csv_response.data.decode('utf-8-sig'))));self.assertEqual(rows[0][6],'تكلفة الاشتراك المحفوظة');self.assertEqual({r[6] for r in rows[1:-1]},{'5000.00','غير متاح'});self.assertEqual(rows[-1][0],'الإجمالي المعلوم (جزئي)')
+                rows=list(csv.reader(io.StringIO(csv_response.data.decode('utf-8-sig'))));self.assertEqual(rows[0][6],'تكلفة الاشتراك المحفوظة');self.assertEqual({r[6] for r in rows[1:-1]},{'5000.00','غير متاح'});self.assertEqual(rows[-1][0],'الإجمالي')
                 xlsx=app.test_client().get('/export?record_kind=invoice&period=all&format=excel');self.assertEqual(xlsx.status_code,200)
-                book=load_workbook(io.BytesIO(xlsx.data),read_only=True,data_only=True);values=list(book.active.values);self.assertEqual({r[6] for r in values[1:-1]},{5000,'غير متاح'});self.assertIn('1',values[-1][-1]);book.close()
+                book=load_workbook(io.BytesIO(xlsx.data),read_only=True,data_only=True);values=list(book.active.values);self.assertEqual({r[6] for r in values[1:-1]},{5000,'غير متاح'});self.assertEqual(values[-1][0],'الإجمالي');book.close()
             self.assertEqual(execute('SELECT SUM(amount) n FROM wisp_invoices',mode='one')['n'],12000)
         def test_activation_trigger_uses_packet_not_package_capability(self):
             conn=connection();install_sales_source_schema(conn);install_sales_source_schema(conn)
@@ -195,6 +203,51 @@ def main():
             self.insert('wisp_traffic_rollups',dict(bucket_at=dt.datetime(2026,11,10,10),owner_scope=0,point_key='a'*64,nas_address='192.0.2.10',download_bytes=250,upload_bytes=50,download_known=1,upload_known=1,observations=1))
             data=network.report({},now=NOW,timezone='Asia/Aden');daily=samples.daily_rows(self.query,days=1,now=NOW)[0]
             self.assertEqual(data['selected']['basis'],'measured');self.assertEqual(data['totals']['total'],daily['download']+daily['upload']);self.assertEqual(data['totals']['total'],300)
+        def test_october_sales_survive_missing_historical_invoice_cost(self):
+            from services.dashboard_reporting_service import sales_series
+            self.insert('wisp_voucher_sales',dict(id=1,voucher_id=1,username='fixture',price=100,cost=80,activated_at=dt.datetime(2026,10,12)))
+            self.insert('wisp_invoices',dict(id=1,amount=6000,status='paid',package_name='fixture-package',paid_at=dt.datetime(2026,10,5),invoice_number='F1'))
+            chart=sales_series(self.query,now=NOW);index=chart['labels'].index('أكتوبر')
+            self.assertEqual((chart['sales'][index],chart['voucher_sales'][index],chart['package_sales'][index]),(6100,100,6000))
+            report=sales.report(dict(record_kind='invoice',period='all'),export=True,now=NOW,timezone='Asia/Aden');self.assertIsNone(report['recent_sales'][0]['price']);self.assertEqual(report['unknown_amount_count'],1)
+            self.assertEqual(execute('SELECT amount FROM wisp_invoices',mode='one')['amount'],6000)
+        def point_rollup(self,kind='',value=100,owner=0,nas='192.0.2.10',name='HS',interface=''):
+            point=network.point_info(dict(nas_address=nas,server_name=name,service_type=kind,server_interface=interface),{})
+            self.insert('wisp_traffic_rollups',dict(bucket_at=dt.datetime(2026,11,10,10),owner_scope=owner,point_key=point['server_key'],nas_address=point['nas_address'],service_type=kind,server_name=name,server_interface=interface,point_known=int(point['point_known']),download_bytes=value,upload_bytes=0,download_known=1,upload_known=1,observations=1))
+            return point
+        def test_refinement_merges_old_and_new_rows_and_filters(self):
+            old=self.point_rollup();known=self.point_rollup('hotspot',50)
+            for args in ({},{'service_type':'hotspot'},{'server':old['server_key']},{'server':known['server_key']}):
+                data=network.report(args,now=NOW,timezone='Asia/Aden');self.assertEqual(len(data['points']),1);self.assertEqual(data['totals']['download'],150);self.assertEqual(data['points'][0]['service_type'],'hotspot');self.assertEqual(len(data['server_options']),1)
+            self.assertEqual(len(network.report({'service_type':'unknown'},now=NOW,timezone='Asia/Aden')['points']),0)
+            chart=samples.series(self.query,dict(period='today',service_type='hotspot'),now=NOW);self.assertEqual(round(sum(v or 0 for v in chart['download'])*2**30),150)
+            self.assertEqual(execute("SELECT SUM(download_bytes) n FROM wisp_traffic_rollups WHERE service_type='hotspot'",mode='one')['n'],50)
+        def test_conflicting_point_namespaces_are_not_merged(self):
+            self.point_rollup();self.point_rollup('hotspot',50);self.point_rollup('pppoe',25,interface='bridge1')
+            data=network.report({},now=NOW,timezone='Asia/Aden');self.assertEqual(len(data['points']),3);self.assertEqual(data['totals']['download'],175)
+        def test_incomplete_ppp_namespace_blocks_hotspot_reclassification(self):
+            self.point_rollup();self.point_rollup('hotspot',50);self.point_rollup('pppoe',25)
+            data=network.report({},now=NOW,timezone='Asia/Aden');self.assertEqual(len(data['points']),3);self.assertEqual(data['totals']['download'],175)
+        def test_another_owner_cannot_supply_classification(self):
+            from unittest.mock import patch
+            self.point_rollup(owner=7);self.point_rollup('hotspot',50,owner=8)
+            with patch('core.ownership.owner_id',return_value=7):data=network.report({},now=NOW,timezone='Asia/Aden')
+            self.assertEqual(len(data['points']),1);self.assertEqual(data['points'][0]['service_type'],'');self.assertEqual(data['totals']['download'],100)
+        def test_known_interval_supplies_point_identity_without_adding_bytes_twice(self):
+            old=self.point_rollup();known=network.point_info(dict(nas_address=old['nas_address'],server_name='HS',service_type='hotspot'),{})
+            self.insert('wisp_traffic_intervals',dict(interval_key='f'*64,start_at=dt.datetime(2026,11,10,9),end_at=dt.datetime(2026,11,10,10),owner_scope=0,point_key=known['server_key'],nas_address=known['nas_address'],service_type='hotspot',server_name='HS',point_known=1,download=50,upload=0))
+            data=network.report({},now=NOW,timezone='Asia/Aden');self.assertEqual(len(data['points']),1);self.assertEqual(data['totals']['download'],150)
+        def test_metadata_only_refinement_creates_no_observation_or_move(self):
+            first=self.row(servicetype='',acctstoptime=None,acctupdatetime=dt.datetime(2026,11,10,10,1))
+            conn=connection();samples.capture_rows(conn,[first],dt.datetime(2026,1,1));known=dict(first,servicetype='Login-User');samples.capture_rows(conn,[known],dt.datetime(2026,1,1));samples.capture_rows(conn,[known],dt.datetime(2026,1,1));conn.commit();conn.close()
+            self.assertEqual(execute('SELECT SUM(observations) n FROM wisp_traffic_rollups',mode='one')['n'],1)
+            self.assertEqual(execute('SELECT COUNT(*) n FROM wisp_traffic_intervals',mode='one')['n'],0)
+            conn=connection();next_row=dict(known,acctoutputoctets=160,acctinputoctets=30,acctupdatetime=dt.datetime(2026,11,10,10,2));samples.capture_rows(conn,[next_row],dt.datetime(2026,1,1));conn.commit();conn.close()
+            data=network.report({},now=NOW,timezone='Asia/Aden');self.assertEqual(len(data['points']),1);self.assertEqual(data['totals']['total'],190);self.assertEqual(data['totals']['sessions'],2)
+        def test_real_server_move_remains_unallocated(self):
+            first=self.row(servicetype='',calledstationid='HS-A',acctstoptime=None,acctupdatetime=dt.datetime(2026,11,10,10,1))
+            conn=connection();samples.capture_rows(conn,[first],dt.datetime(2026,1,1));after=dict(first,servicetype='Login-User',calledstationid='HS-B',acctoutputoctets=160,acctupdatetime=dt.datetime(2026,11,10,10,2));samples.capture_rows(conn,[after],dt.datetime(2026,1,1));conn.commit();conn.close()
+            value=execute('SELECT reason,server_name,download FROM wisp_traffic_intervals',mode='one');self.assertEqual(value,dict(reason='point_change',server_name='',download=60))
         def test_named_session_mode_remains_available(self):
             self.insert('radacct',self.row(down=150,up=30))
             data=network.report({'basis':'sessions'},now=NOW,timezone='Asia/Aden');self.assertEqual(data['totals']['total'],180)
