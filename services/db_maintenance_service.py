@@ -438,7 +438,7 @@ def run_auto_maintenance_job(retention_days=90):
     return dict(result, duplicate_compaction=compact)
 
 
-def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000, min_age_days=0, progress_callback=None, cancel_callback=None, account_scope=None):
+def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50000, min_age_days=0, progress_callback=None, cancel_callback=None, account_scope=None, admission_timeout=0):
     from services.account_lifecycle_service import delete_account, job_lock, run_transaction, enqueue_deletion_disconnects
     result=dict(success=True,deleted_vouchers=0,deleted_radcheck=0,deleted_radusergroup=0,deleted_radreply=0,deleted_radacct=0,pending=0,skipped=0,processed=0,total=0,queue_failures=0,pending_reasons={})
     started=time.time()
@@ -454,8 +454,13 @@ def delete_expired_vouchers(delete_type='all', delete_acct=False, batch_limit=50
             progress_callback(dict(result))
             last_report=now
     try:
-        with job_lock('expired-card-delete') as acquired:
-            if not acquired:raise ValueError('الحذف أو إعادة المصنع قيد التنفيذ بالفعل.')
+        from services.maintenance_admission import maintenance_admission
+        with maintenance_admission(('factory-reset','expired-card-delete'), timeout=admission_timeout,
+                                   progress=progress_callback, cancelled=cancel_callback) as admission:
+            if not admission['acquired']:
+                if admission.get('cancelled') or admission_timeout:
+                    return dict(result, **{k:v for k,v in admission.items() if k!='acquired'})
+                raise ValueError('الحذف أو إعادة المصنع قيد التنفيذ بالفعل.')
             where="status='expired'";params=[]
             if account_scope is not None:
                 from services.automation_scope_service import predicate

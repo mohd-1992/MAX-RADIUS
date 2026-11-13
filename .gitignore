@@ -371,3 +371,8 @@ tests/fixtures/*
 !tests/test_reservation_release_index.py
 !tests/isolated_settlement_transport.py
 !/releases/runtime-20261113-v2.7.1-reservation-index-r36.tar.gz
+
+# Isolated maintenance admission and reviewed immutable runtime bundle.
+!tests/test_maintenance_admission.py
+!tests/run_maintenance_admission_lab.py
+!/releases/runtime-20261113-v2.7.1-maintenance-admission-r37.tar.gz

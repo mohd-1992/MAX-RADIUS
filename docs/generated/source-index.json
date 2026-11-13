@@ -2965,7 +2965,7 @@
     },
     {
       "file": "services/accounting_archiver_service.py",
-      "sha256": "b863a00b265af58f50d9537c6b8fe676808ea2b98f5125abd2d9d97a85772158",
+      "sha256": "0e04a5eb26127084927a52dc61c2c67770f2236395e12dd6910228550321780a",
       "imports": [
         "core.license_feature_policy",
         "database.db",
@@ -2974,6 +2974,7 @@
         "services.automation_scope_service",
         "services.db_maintenance_service",
         "services.expired_voucher_purge",
+        "services.maintenance_admission",
         "services.traffic_history_service"
       ],
       "definitions": [
@@ -3044,7 +3045,7 @@
         },
         {
           "name": "optimize_accounting_tables",
-          "line": 301,
+          "line": 305,
           "kind": "FunctionDef"
         }
       ]
@@ -3272,17 +3273,17 @@
     },
     {
       "file": "services/automation_task_actions.py",
-      "sha256": "35a872ea6ff75308ecbefd7b92f9552072ca44c7e64c1bdfd805718ffe2eb054",
+      "sha256": "141838322ca8b5f3af9f1e3d85040aa684b3be1241846d294e52008e5fed6dc9",
       "imports": [
         "core.config",
         "core.license_feature_policy",
         "database.db",
         "decimal",
         "pathlib",
-        "services.account_lifecycle_service",
         "services.accounting_archiver_service",
         "services.bot_notifications_service",
         "services.db_maintenance_service",
+        "services.maintenance_admission",
         "services.sales_reporting_service",
         "services.sales_summary_message",
         "zoneinfo"
@@ -3317,7 +3318,7 @@
     },
     {
       "file": "services/automation_task_service.py",
-      "sha256": "44b00c800b55f2cc1cb95bd8ccd4b8f4d85e40c324508c146c6e9cd865369b3f",
+      "sha256": "918fb588992303133b404e73d3de6bbe6aaf7c0c76047b54320fc35937288270",
       "imports": [
         "core.license_feature_policy",
         "database.db",
@@ -4452,7 +4453,7 @@
     },
     {
       "file": "services/db_maintenance_service.py",
-      "sha256": "e1b2f9b46686ad3e568b587c6121e193de48782aa6af95ce4e6c53cbfeee2386",
+      "sha256": "a3273eb8ef930d69b41c08aec839bad5d7fc1484be5efb56a95352bfbcaaff7f",
       "imports": [
         "core.mikrotik_api",
         "core.radius_sync",
@@ -4463,6 +4464,7 @@
         "services.autoheal_service",
         "services.automation_scope_service",
         "services.factory_reset_service",
+        "services.maintenance_admission",
         "services.nas_session_settlement",
         "services.traffic_history_service",
         "services.voucher_expiry_policy",
@@ -4526,62 +4528,62 @@
         },
         {
           "name": "operation",
-          "line": 479,
+          "line": 484,
           "kind": "FunctionDef"
         },
         {
           "name": "run_database_audit",
-          "line": 524,
+          "line": 529,
           "kind": "FunctionDef"
         },
         {
           "name": "fix_audit_issue",
-          "line": 700,
+          "line": 705,
           "kind": "FunctionDef"
         },
         {
           "name": "_inspect_stale_session",
-          "line": 710,
+          "line": 715,
           "kind": "FunctionDef"
         },
         {
           "name": "_fix_audit_issue_locked",
-          "line": 758,
+          "line": 763,
           "kind": "FunctionDef"
         },
         {
           "name": "operation",
-          "line": 767,
+          "line": 772,
           "kind": "FunctionDef"
         },
         {
           "name": "fix_all_audit_issues",
-          "line": 809,
+          "line": 814,
           "kind": "FunctionDef"
         },
         {
           "name": "_wipe_factory_database",
-          "line": 845,
+          "line": 850,
           "kind": "FunctionDef"
         },
         {
           "name": "wipe",
-          "line": 848,
+          "line": 853,
           "kind": "FunctionDef"
         },
         {
           "name": "visit",
-          "line": 854,
+          "line": 859,
           "kind": "FunctionDef"
         },
         {
           "name": "_reclaim_factory_space",
-          "line": 891,
+          "line": 896,
           "kind": "FunctionDef"
         },
         {
           "name": "factory_reset_database",
-          "line": 900,
+          "line": 905,
           "kind": "FunctionDef"
         }
       ]
@@ -5444,6 +5446,27 @@
         {
           "name": "redeem_reward",
           "line": 303,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "services/maintenance_admission.py",
+      "sha256": "79b78bd7c1c38ab7ee10a89e3dbbcd21a92a42ac407f2e76a4961f35d0433ad8",
+      "imports": [
+        "contextlib",
+        "database.db",
+        "services.account_lifecycle_service"
+      ],
+      "definitions": [
+        {
+          "name": "_describe_owners",
+          "line": 14,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "maintenance_admission",
+          "line": 34,
           "kind": "FunctionDef"
         }
       ]

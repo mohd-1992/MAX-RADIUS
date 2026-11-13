@@ -424,7 +424,7 @@ def worker(run_id):
                             if execute_update("UPDATE wisp_automation_runs SET state='running',updated_at=UTC_TIMESTAMP() WHERE id=? AND state='queued'", (run_id,)) != 1:
                                 return
                             result = perform(value, progress, cancelled, row['task_id'], run_id)
-                            state = 'cancelled' if result.get('cancelled') else 'success' if result.get('success') else 'partial' if result.get('processed') else 'failed'
+                            state = 'cancelled' if result.get('cancelled') else 'skipped' if result.get('deferred') else 'success' if result.get('success') else 'partial' if result.get('processed') else 'failed'
                             if result.get('success') and (result.get('partial') or result.get('pending')):
                                 state = 'partial'
                             finish(run_id, state, result)

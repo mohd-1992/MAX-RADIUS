@@ -1,13 +1,13 @@
 {
   "format": 1,
-  "release": "20261113-v2.7.1-reservation-index-r36",
+  "release": "20261113-v2.7.1-maintenance-admission-r37",
   "version": "2.7.1",
   "platform": "linux/amd64",
   "channel": "manual-install",
   "automatic_distribution": false,
   "client_updater_compatible": false,
   "images": {
-    "web": "mohd777/max-radius-web@sha256:e4984159c23786ebc59c2b410130fb951a751e1cc8d14405d713fcd46a53b173",
+    "web": "mohd777/max-radius-web@sha256:cfbb38203bc94a770242040e48a398f2a2c4594829a486b00303986ef795c30d",
     "core": "mohd777/max-radius-core@sha256:6e71f1e291a90d8c45df79a3f88c5886193bb774054ec3d7e30e72d470b928af",
     "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
     "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
@@ -17,10 +17,10 @@
     "clock_guard": "v1"
   },
   "bundle": {
-    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261113-v2.7.1-reservation-index-r36.tar.gz",
-    "sha256": "80606a194eb0bb761abd1e3c2df91aa1604f421fef30003a7ce7343f12181644"
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261113-v2.7.1-maintenance-admission-r37.tar.gz",
+    "sha256": "a4e95c7d654374aaa14e017c66eadf3436f6cc53e820c815026fafeed5c91dc5"
   },
-  "source_manifest": "releases/source-20261113-v2.7.1-reservation-index-r36.json",
+  "source_manifest": "releases/source-20261113-v2.7.1-maintenance-admission-r37.json",
   "image_tags": {
     "web": "mohd777/max-radius-web:2.7.1",
     "core": "mohd777/max-radius-core:2.7.1",
@@ -29,10 +29,10 @@
     "autoheal": "mohd777/max-radius-autoheal:2.7.1"
   },
   "previous_web_tag_updated": "mohd777/max-radius-web:2.7.1-update-safety-20261107-r7",
-  "registry_manifest": "releases/2.7.1/registry-20261113-r36.json",
-  "release_notes": "docs/RELEASE_271_RESERVATION_INDEX_PUBLISHED_20261113.md",
+  "registry_manifest": "releases/2.7.1/registry-20261113-r37.json",
+  "release_notes": "docs/RELEASE_271_MAINTENANCE_ADMISSION_PUBLISHED_20261113.md",
   "weekly_enhancements_included": true,
-  "component_policy": "Web r36 retains the accepted r35 runtime and adds the bounded online reservation release index across bootstrap, schema healer, capacity installer and license table initialization. Index-only migrations preserve license leases, financial data, quotas, RADIUS routines and triggers. The installer SQL includes the index for new databases. Non-Web images, existing tenant versions and update offers are unchanged.",
+  "component_policy": "Web r37 retains r36 including the reservation release index, and adds bounded maintenance lock admission for automation deletion and summary with cancellation, safe deferral and no replay after work begins. All non-Web images and existing task schedules remain unchanged. Only explicitly authorized 2.7.1 domains are switched; SHN receives a deferred Web-only offer.",
   "deployment_limits": [
     "Manual installer only; does not distribute an update to existing customers.",
     "Hosted tenant updates require target wrapper, mounts, binding, controller protocol and lease preflight.",

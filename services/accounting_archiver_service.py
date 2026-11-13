@@ -288,11 +288,15 @@ def _summarize_old_expired(days, progress_callback=None, cancel_callback=None, a
 
 @_license_guarded('accounting_archiver')
 def run_archive_maintenance(days=90, mode='archive', chunk_size=500,
-                            progress_callback=None, cancel_callback=None, account_scope=None, account_limit=50000):
-    from services.account_lifecycle_service import job_lock
+                            progress_callback=None, cancel_callback=None, account_scope=None, account_limit=50000,
+                            admission_timeout=0):
+    from services.maintenance_admission import maintenance_admission
     days=_validate_archive_options(days,mode)
-    with job_lock('accounting-archive') as own,job_lock('factory-reset') as factory,job_lock('expired-card-delete') as deletion:
-        if not (own and factory and deletion):
+    with maintenance_admission(('accounting-archive','factory-reset','expired-card-delete'), timeout=admission_timeout,
+                               progress=progress_callback, cancelled=cancel_callback) as admission:
+        if not admission['acquired']:
+            if admission.get('cancelled') or admission_timeout:
+                return {k:v for k,v in admission.items() if k!='acquired'}
             raise ValueError('توجد عملية صيانة أخرى؛ أعد المحاولة بعد اكتمالها.')
         if mode=='summary':return _summarize_old_expired(days,progress_callback,cancel_callback,account_scope,account_limit)
         return _archive_old_sessions_locked(days,chunk_size,progress_callback,cancel_callback,return_receipt=True)

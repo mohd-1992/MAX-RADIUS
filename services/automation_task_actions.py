@@ -109,18 +109,17 @@ def perform_action(value, progress, cancelled, task_id, run_id):
         return dict(success=False, cancelled=True, message='ألغيت المهمة قبل التنفيذ')
     if kind == 'summary':
         from services.accounting_archiver_service import run_archive_maintenance
-        result = run_archive_maintenance(days=p['age'], mode='summary', chunk_size=min(p['batch'], 1000), progress_callback=progress, cancel_callback=cancelled, account_scope=p, account_limit=p['batch'])
-        result['partial'] = (not result.get('complete') or bool(result.get('protected_cards'))) and not result.get('cancelled')
+        from services.maintenance_admission import AUTOMATION_WAIT_SECONDS
+        result = run_archive_maintenance(days=p['age'], mode='summary', chunk_size=min(p['batch'], 1000), progress_callback=progress, cancel_callback=cancelled, account_scope=p, account_limit=p['batch'], admission_timeout=AUTOMATION_WAIT_SECONDS)
+        result['partial'] = (not result.get('complete') or bool(result.get('protected_cards'))) and not result.get('cancelled') and not result.get('deferred')
         return result
     if kind == 'delete':
-        from services.account_lifecycle_service import job_lock
         from services.db_maintenance_service import delete_expired_vouchers
-        with job_lock('factory-reset') as acquired:
-            if not acquired:
-                raise ValueError('توجد عملية صيانة متعارضة')
-            result = delete_expired_vouchers(delete_type=p.get('reason', 'all'), delete_acct=False,
-                batch_limit=p['batch'], min_age_days=p['age'], progress_callback=progress, cancel_callback=cancelled, account_scope=p)
-        result['partial'] = not result.get('deletion_complete') and not result.get('cancelled')
+        from services.maintenance_admission import AUTOMATION_WAIT_SECONDS
+        result = delete_expired_vouchers(delete_type=p.get('reason', 'all'), delete_acct=False,
+            batch_limit=p['batch'], min_age_days=p['age'], progress_callback=progress, cancel_callback=cancelled, account_scope=p,
+            admission_timeout=AUTOMATION_WAIT_SECONDS)
+        result['partial'] = not result.get('deletion_complete') and not result.get('cancelled') and not result.get('deferred')
         return result
     if kind == 'audit':
         from services.db_maintenance_service import run_database_audit

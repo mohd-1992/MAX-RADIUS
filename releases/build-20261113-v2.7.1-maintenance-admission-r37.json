@@ -1,0 +1,15 @@
+{
+  "release": "20261113-v2.7.1-maintenance-admission-r37",
+  "base": "sha256:e4984159c23786ebc59c2b410130fb951a751e1cc8d14405d713fcd46a53b173",
+  "compiler": "sha256:6afe32f482d83b0b665688bdfef3e2d47c0825a054992bd9b9c011316833ce39",
+  "image": "sha256:cfbb38203bc94a770242040e48a398f2a2c4594829a486b00303986ef795c30d",
+  "changed": [
+    "services/accounting_archiver_service.py",
+    "services/automation_task_actions.py",
+    "services/automation_task_service.py",
+    "services/db_maintenance_service.py",
+    "services/maintenance_admission.py"
+  ],
+  "signature_verified": true,
+  "compiled_tests": 67
+}

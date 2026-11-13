@@ -1,0 +1,62 @@
+{
+  "version": "2.7.1",
+  "release": "20261113-v2.7.1-maintenance-admission-r37",
+  "tag": "mohd777/max-radius-web:2.7.1-maintenance-admission-20261113-r37",
+  "image_digest": "sha256:cfbb38203bc94a770242040e48a398f2a2c4594829a486b00303986ef795c30d",
+  "updated_tags": [
+    "mohd777/max-radius-web:2.7.1-maintenance-admission-20261113-r37",
+    "mohd777/max-radius-web:2.7.1",
+    "mohd777/max-radius-web:2.7.1-update-safety-20261107-r7"
+  ],
+  "previous_web_digest": "sha256:e4984159c23786ebc59c2b410130fb951a751e1cc8d14405d713fcd46a53b173",
+  "runtime_delta": {
+    "image": "sha256:cfbb38203bc94a770242040e48a398f2a2c4594829a486b00303986ef795c30d",
+    "base": "mohd777/max-radius-web:2.7.1-reservation-index-20261113-r36",
+    "changed_runtime_files": 5,
+    "runtime_paths": [
+      "services/accounting_archiver_service.cpython-311-x86_64-linux-gnu.so",
+      "services/automation_task_actions.cpython-311-x86_64-linux-gnu.so",
+      "services/automation_task_service.cpython-311-x86_64-linux-gnu.so",
+      "services/db_maintenance_service.cpython-311-x86_64-linux-gnu.so",
+      "services/maintenance_admission.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "unchanged_runtime_files": 251,
+    "templates_exact": 80,
+    "protected_sources_or_private_files": [],
+    "signature_verified": true
+  },
+  "tests": {
+    "compiled_admission": 8,
+    "compiled_feedback": 13,
+    "compiled_radius": 29,
+    "compiled_index": 17,
+    "source_unit_previously_accepted": 40
+  },
+  "runtime_contracts_checked_on_source_and_compiled": true,
+  "acceptance_report": "docs/RELEASE_271_MAINTENANCE_ADMISSION_PUBLISHED_20261113.md",
+  "runtime_bundle": {
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261113-v2.7.1-maintenance-admission-r37.tar.gz",
+    "sha256": "a4e95c7d654374aaa14e017c66eadf3436f6cc53e820c815026fafeed5c91dc5"
+  },
+  "source_manifest": "releases/source-20261113-v2.7.1-maintenance-admission-r37.json",
+  "core_and_other_images_unchanged": true,
+  "production_image_targets": [
+    "max1.max-net.net",
+    "max1.max-r.cc"
+  ],
+  "already_fixed_domain": "m.max-r.cc",
+  "production_versions_changed": false,
+  "update_offers_changed": true,
+  "update_offer_target": "shn.max-net.net",
+  "offer_install_started": false,
+  "latest_changed": false,
+  "update_offer_release": "d7b1bcf9b6e0c8e768da61ddda8b0ae7",
+  "update_offer_automatic_install": false,
+  "announcement_emoji": [
+    "📊",
+    "🧾",
+    "📈",
+    "⏳",
+    "🛡️"
+  ]
+}
