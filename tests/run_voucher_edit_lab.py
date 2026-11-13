@@ -69,6 +69,9 @@ def main():
             self.assertEqual(current(row),row);self.assertEqual(before,query_all('SELECT * FROM radacct WHERE username=%s',(row['username'],)))
         def test_02_rename_preserves_uid_counters_cycle_money_and_sales(self):
             row=card(usage=4*1048576);package(row,'ten',op=uuid.uuid4().hex)
+            # Respect the real same-second cycle barrier before a separate edit.
+            import time
+            time.sleep(1.05)
             row=current(row);old_sales=sales(row);physical=query_one('SELECT * FROM radacct WHERE username=%s',(row['username'],))
             result,_=change(row,username=row['username']+'_new');self.assertTrue(result['success']);new=current(row)
             for k in ('id','balance','first_used_at','last_renewed_at','expires_at','package_id','snap_volume_quota_mb','policy_frozen_at','extra_quota_mb'):
@@ -78,7 +81,7 @@ def main():
             for k in ('username','acctuniqueid','acctstarttime','acctstoptime','acctinputoctets','acctoutputoctets'):self.assertEqual(after[k],physical[k])
             self.assertEqual(after['account_voucher_id'],row['id'])
             self.assertEqual(get_accounting_totals(new['username'])['total_bytes'],4*1048576)
-            self.assertEqual(query_one('SELECT original_username FROM radacct_archive_owned WHERE username=%s AND radacctid=%s',(new['username'],original['radacctid']))['original_username'],row['username'])
+            self.assertEqual(get_subscriber_sessions(new['username'])[0]['original_username'],row['username'])
         def test_03_repeated_rename_and_return(self):
             row=card(usage=1048576);original=row['username']
             for name in (original+'_a',original+'_b',original):
@@ -114,7 +117,7 @@ def main():
             self.assertIsNone(query_one('SELECT operation_id FROM wisp_voucher_edit_receipts WHERE operation_id=%s',(body['operation_id'],)))
         def test_09_unsettled_identity_cannot_save(self):
             row=card();body=request(row,username=row['username']+'_new')
-            with patch('services.nas_session_settlement.freeze_and_disconnect',side_effect=SettlementPending('fixture pending')):
+            with patch('services.nas_session_settlement.disconnect_for_identity',side_effect=SettlementPending('fixture pending')):
                 with self.assertRaises(SettlementPending):edit.edit_voucher(row['id'],body,actor='fixture-admin')
             self.assertEqual(current(row),row)
         def test_10_profile_replay_actor_and_noop(self):
@@ -205,20 +208,23 @@ def main():
                 ok,msg=archive_old_sessions(days_threshold=90)
             self.assertTrue(ok,msg)
             self.assertIsNone(query_one('SELECT radacctid FROM radacct WHERE radacctid=%s',(original['radacctid'],)))
-            archived=query_one('SELECT * FROM radacct_archive WHERE radacctid=%s',(original['radacctid'],))
+            archived=query_one('SELECT * FROM wisp_traffic_history WHERE radacctid=%s AND acctuniqueid=%s',(original['radacctid'],original['acctuniqueid']))
             for key in ('username','acctuniqueid','acctinputoctets','acctoutputoctets','acctstarttime','acctstoptime'):
                 self.assertEqual(archived[key],original[key],key)
             self.assertEqual(archived['account_voucher_id'],row['id']);self.assertEqual(archived['account_username'],new['username'])
             self.assertEqual(get_accounting_totals(new['username'],new['last_renewed_at'])['total_bytes'],0)
             self.assertEqual(get_subscriber_sessions(new['username'])[0]['original_username'],row['username'])
 
-    result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Cases))
+    from isolated_settlement_transport import isolated_settlement_transport
+    with isolated_settlement_transport():
+        result=unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Cases))
     proof=dict(passed=result.wasSuccessful(),tests=result.testsRun,failures=len(result.failures),errors=len(result.errors),
-               matrix=matrix,mariadb_actual=True,docker_gate_actual=True,nas_actual=False)
+               matrix=matrix,mariadb_actual=True,docker_gate_actual=False,nas_actual=False)
     Path('/evidence/voucher-edit-proof.private.json').write_text(json.dumps(proof,indent=2))
     print(json.dumps(proof))
     if not result.wasSuccessful():raise SystemExit(1)
-    row=card(usage=4*1048576);old=row['username'];change(row,username=old+'_radius');new=current(row)
+    with isolated_settlement_transport():
+        row=card(usage=4*1048576);old=row['username'];change(row,username=old+'_radius');new=current(row)
     Path('/evidence/voucher-radius-case.private.json').write_text(json.dumps(dict(id=row['id'],old=old,new=new['username'],quota_bytes=10240*1048576,prior_bytes=4*1048576)))
 
 

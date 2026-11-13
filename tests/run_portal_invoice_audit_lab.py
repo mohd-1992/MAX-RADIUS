@@ -190,7 +190,9 @@ def main():
             self.assertIn('تاريخ الانتهاء', logs[0]['detail_lines'][0])
             self.assertNotIn('before', logs[0]['detail_lines'][0])
 
-    result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Cases))
+    from isolated_settlement_transport import isolated_settlement_transport
+    with isolated_settlement_transport():
+        result = unittest.TextTestRunner(verbosity=2).run(unittest.defaultTestLoader.loadTestsFromTestCase(Cases))
     proof = dict(passed=result.wasSuccessful(), tests=result.testsRun, failures=len(result.failures), errors=len(result.errors),
                  actual_mariadb=True, real_docker_binding=True, core_process_is_fixture=True, nas_tested=False,
                  source_under_test=True, existing_image_not_rebuilt=True)

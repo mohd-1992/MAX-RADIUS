@@ -142,6 +142,8 @@ END"""
 def install_capacity_schema(conn):
     from database.cycle_safety import install_cycle_safety
     install_cycle_safety(conn)
+    from database.reservation_indexes import ensure_reservation_release_index
+    ensure_reservation_release_index(conn)
     with conn.cursor() as cur:
         cur.execute(SCHEMA_SQL)
         cur.execute("INSERT IGNORE INTO wisp_license_runtime_state(id) VALUES(1)")

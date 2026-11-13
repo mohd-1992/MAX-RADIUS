@@ -144,7 +144,7 @@ def main():
 
         def test_11_unsettled_session_prevents_partial_profile(self):
             row=new_sub();body=request(row);body['username']=row['username']+'_new'
-            with patch('services.renewal_settlement_service.settled_account',boundary),patch('services.nas_session_settlement.freeze_and_disconnect',side_effect=SettlementPending('fixture pending')):
+            with patch('services.renewal_settlement_service.settled_account',boundary),patch('services.nas_session_settlement.disconnect_for_identity',side_effect=SettlementPending('fixture pending')):
                 with self.assertRaises(SettlementPending):edit.edit_subscriber(row['id'],body,can_change_expiry=True)
             self.assertEqual(query_one('SELECT username FROM wisp_subscribers WHERE id=%s',(row['id'],))['username'],row['username'])
 

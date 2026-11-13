@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS `wisp_session_reservations` (
 
 ALTER TABLE wisp_session_reservations ADD COLUMN IF NOT EXISTS radacctid BIGINT NULL;
 ALTER TABLE wisp_session_reservations ADD COLUMN IF NOT EXISTS nasportid VARCHAR(50) NOT NULL DEFAULT '';
+-- Bounded online release lookup; repeated script execution is harmless.
+SET @reservation_previous_lock_wait_timeout = @@SESSION.lock_wait_timeout;
+SET SESSION lock_wait_timeout = 2;
+ALTER TABLE wisp_session_reservations ADD INDEX IF NOT EXISTS idx_res_radacctid (radacctid), ALGORITHM=INPLACE, LOCK=NONE;
+SET SESSION lock_wait_timeout = @reservation_previous_lock_wait_timeout;
 
 
 

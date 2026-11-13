@@ -81,6 +81,7 @@ def ensure_license_tables():
             execute_write("""
             CREATE TABLE IF NOT EXISTS `wisp_session_reservations` (
                 `id` INT AUTO_INCREMENT PRIMARY KEY,
+                `radacctid` BIGINT NULL,
                 `session_key` VARCHAR(191) NOT NULL,
                 `username` VARCHAR(64) NOT NULL,
                 `nasipaddress` VARCHAR(45) NOT NULL,
@@ -88,10 +89,17 @@ def ensure_license_tables():
                 `reserved_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 `expires_at` DATETIME NOT NULL,
                 UNIQUE KEY `uk_session_key` (`session_key`),
+                INDEX `idx_res_radacctid` (`radacctid`),
                 INDEX `idx_res_expires` (`expires_at`),
                 INDEX `idx_res_nas` (`nasipaddress`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             """)
+            from database.reservation_indexes import ensure_reservation_release_index
+            conn = get_connection()
+            try:
+                ensure_reservation_release_index(conn)
+            finally:
+                conn.close()
             # Ensure max_active_sessions column in wisp_license_info
             try:
                 execute_write("ALTER TABLE `wisp_license_info` ADD COLUMN `max_active_sessions` INT DEFAULT 0 AFTER `max_subscribers`")

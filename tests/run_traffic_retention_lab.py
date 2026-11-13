@@ -50,13 +50,21 @@ def run(statement,params=(),fetch=None):
 
 
 class Retention(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # This lab also supports a freshly bootstrapped, empty fixture database.
+        if not run('SELECT MIN(id) AS id FROM wisp_packages',fetch='one')['id']:
+            run("INSERT INTO wisp_packages(name,service_type,price,cost,is_active) VALUES('retention-fixture','hotspot',25,7,1)")
+
     def setUp(self):
         self.prefix='retain_'+uuid.uuid4().hex[:10]
         self.pkg=run('SELECT MIN(id) AS id FROM wisp_packages',fetch='one')['id']
         self.batch=run('INSERT INTO wisp_voucher_batches(batch_number,name,package_id,card_count,reseller_id) VALUES(?,?,?,1,?)',
                        (self.prefix,self.prefix,self.pkg,99123))
+        # Full-history deletion of a suspended card; expired-card summary deletion
+        # has its own end-to-end case in test_reservation_release_index.py.
         self.card=run('''INSERT INTO wisp_vouchers(batch_id,package_id,reseller_id,serial_number,username,password,pin_code,status,last_renewed_at)
-            VALUES(?,?,99123,?,?,? ,?,'expired','2020-01-01')''',(self.batch,self.pkg,self.prefix,self.prefix,'synthetic',self.prefix))
+            VALUES(?,?,99123,?,?,? ,?,'suspended','2020-01-01')''',(self.batch,self.pkg,self.prefix,self.prefix,'synthetic',self.prefix))
         self.session=run('''INSERT INTO radacct(acctuniqueid,acctsessionid,username,nasipaddress,calledstationid,nasportid,
             acctstarttime,acctupdatetime,acctstoptime,acctinputoctets,acctoutputoctets,servicetype,acctterminatecause)
             VALUES(?,?,?,'192.0.2.51',?,'ether1','2001-01-02 01:00:00','2001-01-02 02:00:00','2001-01-02 02:00:00',50,100,'Login-User','User-Request')''',

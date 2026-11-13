@@ -143,6 +143,7 @@ REQUIRED_TABLES = {
     'wisp_session_reservations': """
         CREATE TABLE IF NOT EXISTS wisp_session_reservations (
             id INT AUTO_INCREMENT PRIMARY KEY,
+            radacctid BIGINT NULL,
             session_key VARCHAR(191) NOT NULL,
             username VARCHAR(64) NOT NULL,
             nasipaddress VARCHAR(45) NOT NULL,
@@ -150,6 +151,7 @@ REQUIRED_TABLES = {
             reserved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             expires_at DATETIME NOT NULL,
             UNIQUE KEY uk_session_key (session_key),
+            INDEX idx_res_radacctid (radacctid),
             INDEX idx_res_expires (expires_at),
             INDEX idx_res_nas (nasipaddress)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -514,6 +516,10 @@ def heal_database_schema(backfill=True, install_triggers=True):
             for table in ('wisp_vouchers', 'wisp_subscribers'):
                 _ensure_cycle_start_default(cur, table)
             conn.commit()
+
+        if is_mysql:
+            from database.reservation_indexes import ensure_reservation_release_index
+            ensure_reservation_release_index(conn)
 
         # 3. Backfill missing global sequence IDs
         try:

@@ -1,0 +1,55 @@
+{
+  "version": "2.7.1",
+  "release": "20261113-v2.7.1-reservation-index-r36",
+  "tag": "mohd777/max-radius-web:2.7.1-reservation-index-20261113-r36",
+  "image_digest": "sha256:e4984159c23786ebc59c2b410130fb951a751e1cc8d14405d713fcd46a53b173",
+  "updated_tags": [
+    "mohd777/max-radius-web:2.7.1-reservation-index-20261113-r36",
+    "mohd777/max-radius-web:2.7.1",
+    "mohd777/max-radius-web:2.7.1-update-safety-20261107-r7"
+  ],
+  "previous_web_digest": "sha256:9b4aac08a65b4f911357538f71c279aa85a1aa1d0aad29cb3fc863b44313ca6c",
+  "runtime_delta": {
+    "image": "sha256:e4984159c23786ebc59c2b410130fb951a751e1cc8d14405d713fcd46a53b173",
+    "base": "sha256:9b4aac08a65b4f911357538f71c279aa85a1aa1d0aad29cb3fc863b44313ca6c",
+    "changed_runtime_files": 6,
+    "runtime_paths": [
+      "database/license_capacity.cpython-311-x86_64-linux-gnu.so",
+      "database/migrations/20261005_active_sessions_licensing.sql",
+      "database/reservation_indexes.cpython-311-x86_64-linux-gnu.so",
+      "database/schema_healer.cpython-311-x86_64-linux-gnu.so",
+      "database/schema_mysql.sql",
+      "services/license_guard_service.cpython-311-x86_64-linux-gnu.so"
+    ],
+    "unchanged_runtime_files": 249,
+    "templates_exact": 80,
+    "protected_sources_or_private_files": [],
+    "signature_verified": true
+  },
+  "tests": {
+    "compiled_index": 17,
+    "compiled_radius_capacity": 29,
+    "compiled_reports": 33,
+    "source_previous_local": 270
+  },
+  "runtime_contracts_checked_on_source_and_compiled": true,
+  "acceptance_report": "docs/RELEASE_271_RESERVATION_INDEX_PUBLISHED_20261113.md",
+  "runtime_bundle": {
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261113-v2.7.1-reservation-index-r36.tar.gz",
+    "sha256": "80606a194eb0bb761abd1e3c2df91aa1604f421fef30003a7ce7343f12181644"
+  },
+  "source_manifest": "releases/source-20261113-v2.7.1-reservation-index-r36.json",
+  "core_and_other_images_unchanged": true,
+  "production_domains_index_only": [
+    "4k.max-net.net",
+    "as.max-net.net",
+    "m.max-net.net",
+    "max1.max-net.net",
+    "shn.max-net.net",
+    "m.max-r.cc",
+    "max1.max-r.cc"
+  ],
+  "production_versions_changed": false,
+  "update_offers_changed": false,
+  "latest_changed": false
+}

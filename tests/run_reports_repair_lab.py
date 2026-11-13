@@ -170,7 +170,7 @@ def main():
             from openpyxl import load_workbook
             for id in (1,2):self.insert('wisp_invoices',dict(id=id,amount=6000,status='paid',invoice_number='F'+str(id),package_name='fixture-package',paid_at=dt.datetime(2026,11,10)))
             conn=connection();record_invoice_cost(conn,2,dict(cost=5000,service_type='both'));conn.commit();conn.close()
-            source=Path('/workspace/web/routes/system.py');node=next(n for n in ast.parse(source.read_text(encoding='utf8')).body if isinstance(n,ast.FunctionDef) and n.name=='export_sales');node.decorator_list=[]
+            source=Path(__file__).resolve().parents[1]/'web/routes/system.py';node=next(n for n in ast.parse(source.read_text(encoding='utf8')).body if isinstance(n,ast.FunctionDef) and n.name=='export_sales');node.decorator_list=[]
             ns=dict(request=request,jsonify=jsonify,send_file=send_file,datetime=dt)
             exec(compile(ast.Module(body=[node],type_ignores=[]),str(source),'exec'),ns)
             heavy=types.ModuleType('services.heavy_operation_service');heavy.temporary_output=lambda:tempfile.SpooledTemporaryFile(max_size=1024*1024,mode='w+b')

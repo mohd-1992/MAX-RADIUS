@@ -97,7 +97,7 @@ def main():
             self.assertEqual(query_all('SELECT * FROM wisp_sale_sources ORDER BY event_kind,event_id'),before)
         def test_08_capture_immutable_and_transaction_rollback(self):
             ident=sale(19,0,None,'2026-10-25',None)
-            local.snapshot={'a':{'kind':'hotspot','row':{'username':stamp,'nasipaddress':'192.0.2.10','calledstationid':'HS-snapshot','acctuniqueid':'fixture-uid'}}}
+            local.snapshot={'a':{'kind':'hotspot','row':{'username':stamp,'nasipaddress':'192.0.2.10','calledstationid':'HS-snapshot','acctuniqueid':'fixture-uid','acctstarttime':now,'acctupdatetime':now}}}
             conn=get_connection()
             try:
                 record_sale_source(conn,'voucher',ident,stamp);conn.rollback()

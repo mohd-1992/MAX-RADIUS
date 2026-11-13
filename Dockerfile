@@ -19,7 +19,7 @@ COPY deploy/hosted-max/provision_update_controller.py ./services/system_update_p
 COPY web/ ./web/
 COPY database/db.py database/schema_healer.py database/schema_objects.py database/mysql_bootstrap.py database/schema_mysql.sql ./database/
 COPY database/freeradius_standard.sql database/wisp_extensions.sql database/seed_data.sql ./database/
-COPY database/license_capacity.py database/maintenance_jobs.py ./database/
+COPY database/license_capacity.py database/reservation_indexes.py database/maintenance_jobs.py ./database/
 COPY database/permission_catalog.py database/quick_card_schema.py database/first_use_policy.py ./database/
 COPY database/userman_import_schema.py database/subscriber_edit_schema.py database/account_mac_schema.py database/sales_source_schema.py ./database/
 COPY database/traffic_history_schema.py database/traffic_samples_schema.py ./database/

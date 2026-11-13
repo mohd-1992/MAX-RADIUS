@@ -1141,9 +1141,10 @@
     },
     {
       "file": "database/license_capacity.py",
-      "sha256": "926705faa5061cd2621ff1309ffd5208e232c024fb7dba9dadea77f7b5fd0919",
+      "sha256": "1f71189c5380ff8b1328dfac1db0f51900dff0c0ed3fb4a14d1167bec80a5bde",
       "imports": [
         "database.cycle_safety",
+        "database.reservation_indexes",
         "database.schema_objects"
       ],
       "definitions": [
@@ -1281,6 +1282,28 @@
       ]
     },
     {
+      "file": "database/reservation_indexes.py",
+      "sha256": "c204f61aa373b046ec7aeb3ca89998ddeab209dab730ca86730a19b646f3835a",
+      "imports": [],
+      "definitions": [
+        {
+          "name": "_rows",
+          "line": 11,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "_state",
+          "line": 17,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "ensure_reservation_release_index",
+          "line": 33,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
       "file": "database/sales_source_schema.py",
       "sha256": "b86cb95b65728bef749323d2a397f20ca5a4a59df7fe4bf9930eec968276a444",
       "imports": [
@@ -1302,7 +1325,7 @@
     },
     {
       "file": "database/schema_healer.py",
-      "sha256": "f2afed3bd2eb0df41dd8705d37e98de85f30499a7e0a865d3e9f6097ef6faccc",
+      "sha256": "30876be3e0c83367f89b12309e16dc7c7e66637feab78f5a78371555a9077f81",
       "imports": [
         "database.db",
         "database.first_use_policy",
@@ -1310,6 +1333,7 @@
         "database.loyalty_schema",
         "database.maintenance_jobs",
         "database.reporting_schema",
+        "database.reservation_indexes",
         "database.sales_source_schema",
         "database.schema_objects",
         "database.traffic_history_schema",
@@ -1320,17 +1344,17 @@
       "definitions": [
         {
           "name": "install_accounting_triggers",
-          "line": 412,
+          "line": 414,
           "kind": "FunctionDef"
         },
         {
           "name": "_ensure_cycle_start_default",
-          "line": 445,
+          "line": 447,
           "kind": "FunctionDef"
         },
         {
           "name": "heal_database_schema",
-          "line": 458,
+          "line": 460,
           "kind": "FunctionDef"
         }
       ]
@@ -5165,7 +5189,7 @@
     },
     {
       "file": "services/license_guard_service.py",
-      "sha256": "e2dc51c43a6ce56889aa9955729ab8907be021d17b411626fc1f2d20a04f18dd",
+      "sha256": "877d7b69800036b70f5bc98b99534cacc31bf4b723f09e7ce3ac8342ef39333f",
       "imports": [
         "core.config",
         "core.hardware_fingerprint",
@@ -5173,6 +5197,7 @@
         "core.licensing",
         "database.db",
         "database.license_capacity",
+        "database.reservation_indexes",
         "database.schema_healer",
         "pathlib"
       ],
@@ -5189,137 +5214,137 @@
         },
         {
           "name": "is_license_blacklisted",
-          "line": 162,
+          "line": 170,
           "kind": "FunctionDef"
         },
         {
           "name": "record_license_revocation",
-          "line": 174,
+          "line": 182,
           "kind": "FunctionDef"
         },
         {
           "name": "remove_license_revocation",
-          "line": 188,
+          "line": 196,
           "kind": "FunctionDef"
         },
         {
           "name": "get_current_active_sessions_count",
-          "line": 201,
+          "line": 209,
           "kind": "FunctionDef"
         },
         {
           "name": "get_pending_reservations_count",
-          "line": 247,
+          "line": 255,
           "kind": "FunctionDef"
         },
         {
           "name": "get_current_system_counts",
-          "line": 274,
+          "line": 282,
           "kind": "FunctionDef"
         },
         {
           "name": "get_consumed_license_seats",
-          "line": 290,
-          "kind": "FunctionDef"
-        },
-        {
-          "name": "check_and_update_monotonic_time",
           "line": 298,
           "kind": "FunctionDef"
         },
         {
+          "name": "check_and_update_monotonic_time",
+          "line": 306,
+          "kind": "FunctionDef"
+        },
+        {
           "name": "_recover_clock_after_verified_heartbeat",
-          "line": 333,
+          "line": 341,
           "kind": "FunctionDef"
         },
         {
           "name": "_build_default_license_dict",
-          "line": 374,
+          "line": 382,
           "kind": "FunctionDef"
         },
         {
           "name": "get_active_license_status",
-          "line": 432,
+          "line": 440,
           "kind": "FunctionDef"
         },
         {
           "name": "has_license_feature",
-          "line": 665,
+          "line": 673,
           "kind": "FunctionDef"
         },
         {
           "name": "check_active_session_quota",
-          "line": 678,
+          "line": 686,
           "kind": "FunctionDef"
         },
         {
           "name": "check_subscriber_quota",
-          "line": 704,
+          "line": 712,
           "kind": "FunctionDef"
         },
         {
           "name": "check_nas_quota",
-          "line": 709,
+          "line": 717,
           "kind": "FunctionDef"
         },
         {
           "name": "check_manager_quota",
-          "line": 728,
+          "line": 736,
           "kind": "FunctionDef"
         },
         {
           "name": "install_and_activate_license",
-          "line": 755,
+          "line": 763,
           "kind": "FunctionDef"
         },
         {
           "name": "_lease_values",
-          "line": 853,
+          "line": 861,
           "kind": "FunctionDef"
         },
         {
           "name": "_write_runtime_lease",
-          "line": 864,
+          "line": 872,
           "kind": "FunctionDef"
         },
         {
           "name": "_persist_verified_package",
-          "line": 877,
+          "line": 885,
           "kind": "FunctionDef"
         },
         {
           "name": "_apply_verified_package_to_db",
-          "line": 944,
+          "line": 952,
           "kind": "FunctionDef"
         },
         {
           "name": "sync_license_heartbeat_with_server",
-          "line": 949,
+          "line": 957,
           "kind": "FunctionDef"
         },
         {
           "name": "start_license_heartbeat_daemon",
-          "line": 1069,
+          "line": 1077,
           "kind": "FunctionDef"
         },
         {
           "name": "_worker",
-          "line": 1074,
+          "line": 1082,
           "kind": "FunctionDef"
         },
         {
           "name": "publish_radius_license_state",
-          "line": 1089,
+          "line": 1097,
           "kind": "FunctionDef"
         },
         {
           "name": "_run_radius_license_state_worker",
-          "line": 1138,
+          "line": 1146,
           "kind": "FunctionDef"
         },
         {
           "name": "start_radius_license_state_daemon",
-          "line": 1170,
+          "line": 1178,
           "kind": "FunctionDef"
         }
       ]

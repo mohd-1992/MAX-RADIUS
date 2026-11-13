@@ -366,3 +366,8 @@ tests/fixtures/*
 
 # Verified immutable 2.7.1 point-classification and dashboard installer bundle.
 !/releases/runtime-20261111-v2.7.1-point-october-r34.tar.gz
+
+# Reviewed reservation release index and isolated acceptance.
+!tests/test_reservation_release_index.py
+!tests/isolated_settlement_transport.py
+!/releases/runtime-20261113-v2.7.1-reservation-index-r36.tar.gz

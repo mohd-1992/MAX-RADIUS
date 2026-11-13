@@ -607,6 +607,7 @@ CREATE TABLE `wisp_session_reservations` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_session_key` (`session_key`),
   KEY `ix_userman_reservation_user` (`username`),
+  KEY `idx_res_radacctid` (`radacctid`),
   KEY `idx_res_expires` (`expires_at`),
   KEY `idx_res_nas` (`nasipaddress`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

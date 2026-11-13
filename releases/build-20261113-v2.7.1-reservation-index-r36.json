@@ -1,0 +1,16 @@
+{
+  "release": "20261113-v2.7.1-reservation-index-r36",
+  "base": "sha256:9b4aac08a65b4f911357538f71c279aa85a1aa1d0aad29cb3fc863b44313ca6c",
+  "compiler": "sha256:6afe32f482d83b0b665688bdfef3e2d47c0825a054992bd9b9c011316833ce39",
+  "image": "sha256:e4984159c23786ebc59c2b410130fb951a751e1cc8d14405d713fcd46a53b173",
+  "changed": [
+    "database/license_capacity.py",
+    "database/migrations/20261005_active_sessions_licensing.sql",
+    "database/reservation_indexes.py",
+    "database/schema_healer.py",
+    "database/schema_mysql.sql",
+    "services/license_guard_service.py"
+  ],
+  "signature_verified": true,
+  "compiled_tests": 79
+}
