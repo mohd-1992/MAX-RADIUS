@@ -1,13 +1,13 @@
 {
   "format": 1,
-  "release": "20261113-v2.7.1-maintenance-admission-r37",
+  "release": "20261115-v2.7.1-summary-efficiency-r38",
   "version": "2.7.1",
   "platform": "linux/amd64",
   "channel": "manual-install",
   "automatic_distribution": false,
   "client_updater_compatible": false,
   "images": {
-    "web": "mohd777/max-radius-web@sha256:cfbb38203bc94a770242040e48a398f2a2c4594829a486b00303986ef795c30d",
+    "web": "mohd777/max-radius-web@sha256:28553ef8f6956f794771b2db4ae5d33ac2bde824aa4c359c611e61d02e56c7f7",
     "core": "mohd777/max-radius-core@sha256:6e71f1e291a90d8c45df79a3f88c5886193bb774054ec3d7e30e72d470b928af",
     "database": "mariadb@sha256:0d0945c57f75b3a3b9ebe71aedaaad005fa5305054e8fca3d2e42a8c92b43b5e",
     "l2tp": "mohd777/max-radius-l2tp@sha256:a7fa96b5a7a485ce47755e0379c5553d1a0490855fcfda950602d6c1d9affee7",
@@ -17,10 +17,10 @@
     "clock_guard": "v1"
   },
   "bundle": {
-    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261113-v2.7.1-maintenance-admission-r37.tar.gz",
-    "sha256": "a4e95c7d654374aaa14e017c66eadf3436f6cc53e820c815026fafeed5c91dc5"
+    "url": "https://raw.githubusercontent.com/mohd-1992/MAX-RADIUS/main/releases/runtime-20261115-v2.7.1-summary-efficiency-r38.tar.gz",
+    "sha256": "2fcf817c3d38cfee2bd8574c0f9475450ff261bdc097f2b01911c1589e95468e"
   },
-  "source_manifest": "releases/source-20261113-v2.7.1-maintenance-admission-r37.json",
+  "source_manifest": "releases/source-20261115-v2.7.1-summary-efficiency-r38.json",
   "image_tags": {
     "web": "mohd777/max-radius-web:2.7.1",
     "core": "mohd777/max-radius-core:2.7.1",
@@ -29,10 +29,10 @@
     "autoheal": "mohd777/max-radius-autoheal:2.7.1"
   },
   "previous_web_tag_updated": "mohd777/max-radius-web:2.7.1-update-safety-20261107-r7",
-  "registry_manifest": "releases/2.7.1/registry-20261113-r37.json",
-  "release_notes": "docs/RELEASE_271_MAINTENANCE_ADMISSION_PUBLISHED_20261113.md",
+  "registry_manifest": "releases/2.7.1/registry-20261115-r38.json",
+  "release_notes": "docs/RELEASE_271_SUMMARY_EFFICIENCY_20261115.md",
   "weekly_enhancements_included": true,
-  "component_policy": "Web r37 retains r36 including the reservation release index, and adds bounded maintenance lock admission for automation deletion and summary with cancellation, safe deferral and no replay after work begins. All non-Web images and existing task schedules remain unchanged. Only explicitly authorized 2.7.1 domains are switched; SHN receives a deferred Web-only offer.",
+  "component_policy": "Web r38 retains all r37 fixes including indexed reservation release, bounded maintenance admission and historical report fixes. Compact exact summary SQL preserves temporal detail and accounting, using unchanged gzip6 FILTERED and no new libraries. Dashboard invoices use recorded amounts while subscriber reports retain stored costs. Only four existing 2.7.1 domains are authorized for Web-only replacement; CLIENT_AS and all other services/channels are excluded.",
   "deployment_limits": [
     "Manual installer only; does not distribute an update to existing customers.",
     "Hosted tenant updates require target wrapper, mounts, binding, controller protocol and lease preflight.",

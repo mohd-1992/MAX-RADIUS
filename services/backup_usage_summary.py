@@ -43,18 +43,8 @@ def literal(value):
 
 
 def emit_rows(out, rows):
-    prefix = ('INSERT INTO `'+TABLE+'` ('+','.join('`'+c+'`' for c in COLS)+') VALUES\n').encode()
-    # A group may have older summary data after restoring then backing up again.
-    update = b' ON DUPLICATE KEY UPDATE '+b','.join(
-        ('`'+k+'`=`'+k+'`+VALUES(`'+k+'`)').encode() for k in COLS[-4:])
-    update += b',first_start=LEAST(first_start,VALUES(first_start)),last_start=GREATEST(last_start,VALUES(last_start));\n'
-    batch = []
-    for row in rows:
-        batch.append(b'('+b','.join(literal(v) for v in row)+b')')
-        if len(batch) == 128:
-            out.write(prefix+b',\n'.join(batch)+update);batch=[]
-    if batch:
-        out.write(prefix+b',\n'.join(batch)+update)
+    from services.summary_backup_encoding import emit_rows as encode
+    return encode(out, rows, COLS)
 
 
 def summarize_dump(stream, snapshot_at, work_parent=None):
@@ -76,15 +66,38 @@ def summarize_dump(stream, snapshot_at, work_parent=None):
                 CREATE TABLE evidence(uid BLOB,nas BLOB,sid BLOB,start BLOB,name BLOB,kind BLOB,PRIMARY KEY(uid,nas,sid,start,name));
                 CREATE TABLE seen(vid INTEGER,sid BLOB,PRIMARY KEY(vid,sid));
                 CREATE TABLE uid_seen(uid BLOB PRIMARY KEY,vid INTEGER);
+                CREATE TABLE existing(sort_key TEXT,started TEXT,k TEXT PRIMARY KEY,payload TEXT);
                 CREATE TABLE groups(k TEXT PRIMARY KEY,vid INTEGER,name BLOB,reseller INTEGER,cycle BLOB,
                     first BLOB,last BLOB,nas BLOB,called BLOB,port BLOB,protocol BLOB,service BLOB,visible INTEGER,
                     up INTEGER,down INTEGER,seconds INTEGER,n INTEGER);''')
             schemas=set()
+            existing_columns = None
+            existing_supported = True
             # Accounts/baselines must precede eligibility, regardless of dump order.
             for table,cols,raw in _events(stream,TARGETS):
                 from services.backup_compaction import CREATE
                 m=CREATE.match(raw)
                 if m:schemas.add(m[1].decode())
+                if table == TABLE and existing_supported:
+                    # Re-encode native rows too: restore -> backup must retain the
+                    # same compression benefit. Unknown SQL/columns stay verbatim.
+                    from services.summary_backup_encoding import normalize,group_key
+                    if set(cols) not in (set(COLS),set(COLS+('unconfirmed_sessions',))):
+                        existing_supported = False
+                        continue
+                    wanted = COLS+(('unconfirmed_sessions',) if 'unconfirmed_sessions' in cols else ())
+                    if existing_columns is not None and existing_columns != wanted:
+                        existing_supported = False
+                        continue
+                    existing_columns = wanted
+                    try:
+                        for _,r in _rows(raw,cols):
+                            row = normalize(tuple(r[c] for c in wanted))
+                            db.execute('INSERT INTO existing VALUES(?,?,?,?)',
+                                (json.dumps(group_key(row),ensure_ascii=False),row[5],row[0],json.dumps(row,ensure_ascii=False)))
+                    except ValueError:
+                        existing_supported = False
+                    continue
                 if table not in ('wisp_vouchers','wisp_session_baselines','wisp_nas_session_seals','wisp_account_usage_seals','wisp_session_service_evidence'):continue
                 for _,r in _rows(raw,cols,SUMMARY_COLUMNS):
                     if table=='wisp_session_service_evidence':
@@ -173,13 +186,21 @@ INSERT INTO max_usage_summary_restore_guard VALUES(COALESCE(@max_usage_summary_r
 DROP TEMPORARY TABLE max_usage_summary_restore_guard;
 ''')
                 for table,cols,raw in _events(stream,TARGETS):
+                    if table == TABLE and existing_supported:
+                        continue
                     if table not in ('radacct','wisp_traffic_checkpoints'):out.write(raw);continue
                     kept=[v for v,r in _rows(raw,cols,('radacctid',)) if not db.execute('SELECT 1 FROM selected WHERE rid=?',(_integer(r['radacctid']),)).fetchone()]
                     if kept:
                         out.write(('INSERT INTO `'+table+'` ('+','.join('`'+c+'`' for c in cols)+') VALUES\n').encode()+b',\n'.join(kept)+b';\n')
                 # Always includes its own schema, including legacy source snapshots.
                 out.write(b'\n'+TABLE_SQL.encode()+b';\n')
-                emit_rows(out,db.execute('SELECT * FROM groups ORDER BY k'))
+                if existing_supported and existing_columns:
+                    from services.summary_backup_encoding import emit_rows as encode
+                    receipt['existing_encoding'] = encode(out,
+                        (json.loads(r[0]) for r in db.execute('SELECT payload FROM existing ORDER BY sort_key,started,k')),
+                        existing_columns,merge=False)
+                receipt['summary_encoding'] = emit_rows(out,db.execute('''SELECT * FROM groups
+                    ORDER BY vid,cycle,nas,called,port,protocol,service,visible,first,k'''))
                 out.write(b'\n'+SEALS_SQL.encode()+b';\n')
                 batch=[]
                 for row in db.execute('SELECT uid,vid,up,down,seconds FROM selected ORDER BY rid'):

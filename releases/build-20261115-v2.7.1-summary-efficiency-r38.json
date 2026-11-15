@@ -1,0 +1,15 @@
+{
+  "release": "20261115-v2.7.1-summary-efficiency-r38",
+  "base": "mohd777/max-radius-web:2.7.1-maintenance-admission-20261113-r37",
+  "compiler": "max-radius-release271-automation-compiler:r3",
+  "image": "sha256:28553ef8f6956f794771b2db4ae5d33ac2bde824aa4c359c611e61d02e56c7f7",
+  "changed": [
+    "services/backup_usage_summary.py",
+    "services/summary_backup_encoding.py",
+    "services/dashboard_reporting_service.py"
+  ],
+  "signature_verified": true,
+  "compiled_tests": 192,
+  "source_tests": 85,
+  "dependency_packages_unchanged": 41
+}

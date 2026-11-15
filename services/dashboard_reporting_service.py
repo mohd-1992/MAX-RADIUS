@@ -1,11 +1,11 @@
 """Dashboard periods over the sales ledger and shared measured-traffic summaries."""
 import datetime as dt
 from zoneinfo import ZoneInfo
-from services.sales_reporting_service import date_bounds, LEDGER, ARABIC_MONTHS
+from services.sales_reporting_service import date_bounds, LEDGER, ARABIC_MONTHS, INVOICE_REPORT_VALUE
 
 # The dashboard retains recorded sales amounts. Invoice cost belongs to the
 # separate subscription-cost report and must not remove historical cash sales.
-DASHBOARD_LEDGER=LEDGER.replace('i.report_cost,i.report_cost','i.amount,i.amount')
+DASHBOARD_LEDGER=LEDGER.replace(INVOICE_REPORT_VALUE, 'i.amount')
 
 
 def local_today(now, timezone):

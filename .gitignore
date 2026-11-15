@@ -376,3 +376,7 @@ tests/fixtures/*
 !tests/test_maintenance_admission.py
 !tests/run_maintenance_admission_lab.py
 !/releases/runtime-20261113-v2.7.1-maintenance-admission-r37.tar.gz
+
+# Reviewed compact exact-summary tests and immutable r38 runtime installer bundle.
+!tests/test_summary_backup_encoding.py
+!/releases/runtime-20261115-v2.7.1-summary-efficiency-r38.tar.gz

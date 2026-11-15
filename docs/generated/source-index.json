@@ -3792,12 +3792,13 @@
     },
     {
       "file": "services/backup_usage_summary.py",
-      "sha256": "b491d986806b1b85c870aaf21dbbd31b36a964d18bf866f7459713ac10103617",
+      "sha256": "3c1c7e6a581f75b34eaba7d80b331472b9a1cddabbba123a84f875a37d0634bc",
       "imports": [
         "database.usage_summary_schema",
         "functools",
         "pathlib",
-        "services.backup_compaction"
+        "services.backup_compaction",
+        "services.summary_backup_encoding"
       ],
       "definitions": [
         {
@@ -3812,22 +3813,22 @@
         },
         {
           "name": "summarize_dump",
-          "line": 60,
+          "line": 50,
           "kind": "FunctionDef"
         },
         {
           "name": "by_id",
-          "line": 103,
+          "line": 116,
           "kind": "FunctionDef"
         },
         {
           "name": "by_name",
-          "line": 105,
+          "line": 118,
           "kind": "FunctionDef"
         },
         {
           "name": "owner",
-          "line": 106,
+          "line": 119,
           "kind": "FunctionDef"
         }
       ]
@@ -4302,7 +4303,7 @@
     },
     {
       "file": "services/dashboard_reporting_service.py",
-      "sha256": "f96e267bb0ba0f740400dafb19a790f36b89a8162ca51cd991b3616e5ae27297",
+      "sha256": "3b5d1c4b32a77b74e1aab4c61d31eb1bea02ab1ea9ccbec2144eb237496f17b3",
       "imports": [
         "core.rate_limit",
         "core.time_service",
@@ -7703,6 +7704,53 @@
         {
           "name": "clean_stale_sessions",
           "line": 593,
+          "kind": "FunctionDef"
+        }
+      ]
+    },
+    {
+      "file": "services/summary_backup_encoding.py",
+      "sha256": "804ee6316771e871d0421fd00890222a8eb711bd005c97d5d747fe3083952dc9",
+      "imports": [],
+      "definitions": [
+        {
+          "name": "literal",
+          "line": 13,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "normalize",
+          "line": 23,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "group_key",
+          "line": 31,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "key_parts",
+          "line": 37,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "emit_rows",
+          "line": 57,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "flush_plain",
+          "line": 75,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "flush_packed",
+          "line": 80,
+          "kind": "FunctionDef"
+        },
+        {
+          "name": "emit",
+          "line": 108,
           "kind": "FunctionDef"
         }
       ]
