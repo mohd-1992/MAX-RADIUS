@@ -40,13 +40,17 @@
   "core_and_other_images_unchanged": true,
   "no_new_runtime_dependencies": true,
   "gzip": "6 FILTERED unchanged",
-  "production_status": "Authorized deployment pending, no domain switched at publication",
+  "production_status": "Completed on all four authorized 2.7.1 domains and subsequently authorized CLIENT_AS",
   "authorized_domains": [
     "max1.max-net.net",
     "shn.max-net.net",
     "max1.max-r.cc",
     "m.max-r.cc"
   ],
-  "client_as_excluded": true,
-  "latest_changed": false
+  "client_as_excluded": false,
+  "latest_changed": false,
+  "client_as_excluded_at_publication": true,
+  "client_as_subsequently_authorized": true,
+  "acceptance_report": "docs/RELEASE_271_R38_DOMAINS_CLIENT_ACCEPTANCE_20261115.md",
+  "client_post_update_backup_bytes": 51317932
 }

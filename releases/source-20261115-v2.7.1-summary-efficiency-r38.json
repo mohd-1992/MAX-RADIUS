@@ -1,7 +1,7 @@
 {
   "version": "2.7.1",
   "release": "20261115-v2.7.1-summary-efficiency-r38",
-  "scope": "Signed r38 delta over accepted r37; exact dictionary summary backup encoding and recorded dashboard invoice amounts only. No new dependencies, GIS or preview work. CLIENT_AS excluded from deployment.",
+  "scope": "Signed r38 delta over accepted r37: exact dictionary summary encoding and recorded dashboard invoice amounts only, with unchanged gzip6, libraries and inherited fixes. Initially CLIENT_AS was excluded; subsequent explicit authorization applied the same build after four domains, as recorded in final acceptance notes.",
   "web_image": "mohd777/max-radius-web@sha256:28553ef8f6956f794771b2db4ae5d33ac2bde824aa4c359c611e61d02e56c7f7",
   "core_image": "mohd777/max-radius-core@sha256:6e71f1e291a90d8c45df79a3f88c5886193bb774054ec3d7e30e72d470b928af",
   "image_tags": {

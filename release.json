@@ -32,7 +32,7 @@
   "registry_manifest": "releases/2.7.1/registry-20261115-r38.json",
   "release_notes": "docs/RELEASE_271_SUMMARY_EFFICIENCY_20261115.md",
   "weekly_enhancements_included": true,
-  "component_policy": "Web r38 retains all r37 fixes including indexed reservation release, bounded maintenance admission and historical report fixes. Compact exact summary SQL preserves temporal detail and accounting, using unchanged gzip6 FILTERED and no new libraries. Dashboard invoices use recorded amounts while subscriber reports retain stored costs. Only four existing 2.7.1 domains are authorized for Web-only replacement; CLIENT_AS and all other services/channels are excluded.",
+  "component_policy": "Web r38 retains all r37 fixes including indexed reservation release, bounded maintenance admission and historical report fixes. Compact exact summary SQL preserves temporal detail and accounting, using unchanged gzip6 FILTERED and no new libraries. Dashboard invoices use recorded amounts while subscriber reports retain stored costs. Four existing 2.7.1 domains were replaced Web-only; subsequent explicit authorization also applied the same build to CLIENT_AS. Core/DB/controllers, other services and update channels remain unchanged; see final acceptance notes.",
   "deployment_limits": [
     "Manual installer only; does not distribute an update to existing customers.",
     "Hosted tenant updates require target wrapper, mounts, binding, controller protocol and lease preflight.",
